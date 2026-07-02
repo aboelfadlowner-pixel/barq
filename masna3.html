@@ -165,6 +165,11 @@
       padding: 6px 14px; border-radius: 8px;
       font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
     }
+    .btn-move-dept {
+      background: #1a3a2a; color: #fff; border: none;
+      padding: 6px 14px; border-radius: 8px;
+      font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
 
     /* ===== TABLE ===== */
     .order-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -1140,6 +1145,7 @@ function renderSection() {
         <div class="dept-header-title">${icon} ${activeDept} <span class="dept-sub">(${items.length} صنف)</span></div>
         <div class="dept-actions">
           <button class="btn-add-row" onclick="toggleAdd('${did}')">+ إضافة</button>
+          <button class="btn-move-dept" onclick="showMoveDialog()">🔀 نقل المحدد</button>
           <button class="btn-print-dept" onclick="printDept('${ed(activeDept)}')">🖨 طباعة</button>
         </div>
       </div>
@@ -1857,13 +1863,10 @@ function toggleAllRows(checked) {
 function getCheckedSkus() {
   return [...document.querySelectorAll('.row-chk:checked')].map(cb => cb.dataset.sku);
 }
-function moveCheckedToDept() {
+function moveCheckedToDept(target) {
   const skus = getCheckedSkus();
   if (!skus.length) { showToast('⚠️ لم تحدد أصناف', 2000); return; }
-  const depts = Object.keys(orderData).join(', ');
-  const target = prompt('انقل المحدد إلى أي قسم؟\n' + depts);
-  if (!target) { showToast('❌ قسم غير موجود', 2000); return; }
-  if (!orderData[target]) orderData[target] = [];
+  if (!target || !orderData[target]) { showToast('❌ قسم غير موجود', 2000); return; }
   skus.forEach(sku => {
     Object.keys(orderData).forEach(dept => {
       if (dept === target) return;
@@ -1872,11 +1875,47 @@ function moveCheckedToDept() {
         const [item] = orderData[dept].splice(idx, 1);
         item.dept = target;
         orderData[target].push(item);
+        if (orderData[dept].length === 0) delete orderData[dept];
       }
     });
   });
   saveData(); renderAll();
   showToast('✅ تم نقل ' + skus.length + ' صنف إلى ' + target, 3000);
+}
+
+function showMoveDialog() {
+  const skus = getCheckedSkus();
+  if (!skus.length) { showToast('⚠️ علّم على الأصناف الأول', 2000); return; }
+  const old = document.getElementById('moveDeptDialog');
+  if (old) old.remove();
+
+  const depts = Object.keys(orderData).filter(d => d !== activeDept);
+  if (!depts.length) { showToast('⚠️ لا يوجد قسم آخر للنقل إليه', 2000); return; }
+
+  let btns = '';
+  depts.forEach(function(d) {
+    const safe = d.replace(/'/g, "\\'");
+    btns += '<button onclick="document.getElementById(\'moveDeptDialog\').remove();moveCheckedToDept(\'' + safe + '\')" ' +
+      'style="width:100%;background:#fff;color:#1a3a2a;border:1.5px solid #1a3a2a;border-radius:10px;padding:13px;margin-bottom:8px;' +
+      'font-family:Cairo;font-weight:800;font-size:14px;cursor:pointer;text-align:right;display:flex;justify-content:space-between;align-items:center">' +
+      '<span>' + (ICONS[d] || '📋') + ' ' + d + '</span>' +
+      '<span style="background:#f0f9f2;color:#0a8d4b;border-radius:6px;padding:2px 8px;font-size:12px">' + orderData[d].length + ' صنف</span>' +
+      '</button>';
+  });
+
+  const dlg = document.createElement('div');
+  dlg.id = 'moveDeptDialog';
+  dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  dlg.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;max-height:75vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)">' +
+      '<div style="font-family:Cairo;font-weight:900;font-size:16px;color:#1a3a2a;margin-bottom:4px;text-align:center">🔀 نقل ' + skus.length + ' صنف إلى</div>' +
+      '<div style="font-family:Cairo;font-size:12px;color:#888;margin-bottom:14px;text-align:center">اختر القسم المطلوب</div>' +
+      btns +
+      '<button onclick="document.getElementById(\'moveDeptDialog\').remove()" ' +
+      'style="width:100%;background:#eee;color:#666;border:none;border-radius:10px;padding:12px;font-family:Cairo;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px">إلغاء</button>' +
+    '</div>';
+  dlg.addEventListener('click', function(e) { if (e.target === dlg) dlg.remove(); });
+  document.body.appendChild(dlg);
 }
 
 // ===== PRINT FIX =====
