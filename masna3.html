@@ -722,6 +722,45 @@ function clearOrderSelection() {
   if (bar) bar.style.display = 'none';
 }
 
+async function deleteSelectedOrders() {
+  const chks = document.querySelectorAll('.order-chk:checked');
+  if (chks.length === 0) { showToast('⚠️ لم تحدد طلبيات', 2000); return; }
+
+  const orderIds = [];
+  chks.forEach(function(cb) { orderIds.push(cb.dataset.orderId); });
+
+  if (!confirm('🗑 هل تريد مسح ' + orderIds.length + ' طلبية نهائيًا؟ لا يمكن التراجع.')) return;
+
+  showToast('⏳ جاري المسح...', 2000);
+  try {
+    for (const orderId of orderIds) {
+      await fetchWithTimeout(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}`, {
+        method: 'DELETE', headers: SB_HDR
+      }, 10000);
+      await fetchWithTimeout(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}`, {
+        method: 'DELETE', headers: SB_HDR
+      }, 10000);
+    }
+    orderIds.forEach(function(id) {
+      const card = document.querySelector('.order-card[data-order-id="' + id + '"]');
+      if (card) card.remove();
+    });
+    incomingOrders = incomingOrders.filter(function(o) { return orderIds.indexOf(String(o.id)) === -1; });
+    const pendingCount = incomingOrders.filter(function(o) { return o.status === 'pending'; }).length;
+    const badge = document.getElementById('incomingBadge');
+    if (badge) badge.textContent = pendingCount;
+    clearOrderSelection();
+    showToast('✅ تم مسح ' + orderIds.length + ' طلبية', 2500);
+    if (incomingOrders.length === 0) {
+      const list = document.getElementById('incomingList');
+      if (list) list.innerHTML = '<div class="incoming-empty">✅ لا توجد طلبيات جديدة</div>';
+    }
+  } catch (e) {
+    console.error(e);
+    showToast('❌ فشل المسح — تحقق من الاتصال', 3000);
+  }
+}
+
 async function loadMergedOrders() {
   if (window._barqLogEvent) window._barqLogEvent('loadMergedOrders', {});
   try {
@@ -1704,7 +1743,8 @@ async function loadIncomingOrders() {
       '<span id="mergeCountSpan" style="font-weight:800;color:#1a3a2a;font-size:14px">0 محدد</span>' +
       '<span id="mergeBranchSpan" style="font-size:12px;color:#0a8d4b;font-weight:700"></span>' +
       '<button onclick="loadMergedOrders()" style="margin-right:auto;background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">📥 تحميل مجمّع</button>' +
-      '<button onclick="clearOrderSelection()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:Cairo;font-size:13px;font-weight:700;cursor:pointer">✕</button>' +
+      '<button onclick="deleteSelectedOrders()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">🗑 مسح المحدد</button>' +
+      '<button onclick="clearOrderSelection()" style="background:#999;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:Cairo;font-size:13px;font-weight:700;cursor:pointer">✕</button>' +
     '</div>';
     for (const order of incomingOrders) {
       const itemsRes = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${order.id}`, {
