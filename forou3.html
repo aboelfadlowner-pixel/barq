@@ -441,11 +441,14 @@ const EGG_SKUS = new Set(["sk-9901", "sk-10758", "sk-10757", "sk-10756", "sk-107
 function getActiveSkuMap() { return customSKUMap || SKU_MAP; }
 function getActiveTabs() { return customTabs || TABS; }
 
+const HIDDEN_BASE_SKUS_FOR_PKG = new Set(['sk-8588', 'sk-8590', 'sk-8587', 'sk-0179', 'sk-0181']);
+
 function getProducts(tabId) {
   const activeMap = getActiveSkuMap();
   const activeTabs = getActiveTabs();
   return Object.entries(activeMap)
     .filter(([sku, info]) => {
+      if (HIDDEN_BASE_SKUS_FOR_PKG.has(sku)) return false;
       const tabInfo = activeTabs.find(t => t.id === tabId);
       if (!tabInfo) return false;
       return info.sheet === tabInfo.sheet;
