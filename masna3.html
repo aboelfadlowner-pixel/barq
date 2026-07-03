@@ -771,7 +771,7 @@ async function loadMergedOrders() {
       const items = await itemsRes.json();
       
       items.forEach(function(item) {
-        if (item.sku && VIRTUAL_SKU_MAP[item.sku]) {
+        if (item.sku && VIRTUAL_SKU_MAP[item.sku] && item.sku.indexOf('__pkg_') === -1) {
           const vmeta = VIRTUAL_SKU_MAP[item.sku];
           item = Object.assign({}, item, { sku: vmeta.base, quantity: (parseFloat(item.quantity) || 0) * vmeta.factor });
         }
@@ -1109,6 +1109,7 @@ function renderSection() {
   const icon=ICONS[activeDept]||'📋';
 
   const rowsHTML=items.map((item,i)=>{
+    const isPkgSubunit=(item.sku||'').indexOf('__pkg_')!==-1;
     const act=item.actual;
     const req=item.requested;
     const actNum=act===''?null:parseFloat(act);
@@ -1127,12 +1128,13 @@ function renderSection() {
       <td class="col-unit">${item.unit||'—'}</td>
       <td class="col-req">${req||0}</td>
       <td class="col-actual">
+        ${isPkgSubunit ? '<span style="color:var(--muted);font-size:12px">للمرجعية فقط</span>' : `
         <input class="actual-input ${isZero?'zero':isChanged?'changed':''}"
           type="number" placeholder="أدخل" value="${act}"
           onchange="updActual('${ed(activeDept)}',${i},this.value)"
           onclick="this.select()">
         ${diffBadge}
-        <span class="p-actual">${act===''?'—':act}</span>
+        <span class="p-actual">${act===''?'—':act}</span>`}
       </td>
       <td class="col-ingredients"></td>
       <td class="col-notes">
@@ -1584,7 +1586,7 @@ function printAllDepts() {
 
 // ===== EXPORT CSV =====
 function exportCSV(missingOnly) {
-  const allItems=Object.values(orderData).flat();
+  const allItems=Object.values(orderData).flat().filter(x=>(x.sku||'').indexOf('__pkg_')===-1);
   if(allItems.length===0){showToast('\u274c \u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u0644\u0644\u062a\u0635\u062f\u064a\u0631');return;}
 
   let items;
@@ -1761,7 +1763,7 @@ async function loadOrderFromSupabase(orderId) {
     const skuMap = typeof getActiveSkuMap === 'function' ? getActiveSkuMap() : SKU_MAP;
 
     items.forEach(item => {
-      if (item.sku && VIRTUAL_SKU_MAP[item.sku]) {
+      if (item.sku && VIRTUAL_SKU_MAP[item.sku] && item.sku.indexOf('__pkg_') === -1) {
         const vmeta = VIRTUAL_SKU_MAP[item.sku];
         item = Object.assign({}, item, { sku: vmeta.base, quantity: (parseFloat(item.quantity) || 0) * vmeta.factor });
       }
