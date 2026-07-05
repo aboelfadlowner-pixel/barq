@@ -380,6 +380,7 @@
     </div>
     <div class="topbar-right">
       <span class="topbar-date" id="topbar-date"></span>
+      <button class="btn-logout" onclick="toggleProductionPanel()" style="background:rgba(255,255,255,0.15);margin-left:6px">🏭 الإنتاج</button>
       <button class="btn-logout" onclick="doLogout()">خروج</button>
     </div>
   </div>
@@ -428,6 +429,22 @@
     </div>
     <div id="incomingList">
       <div class="incoming-empty">اضغط تحديث لجلب الطلبيات</div>
+    </div>
+  </div>
+
+  <!-- ===== PRODUCTION STATUS PANEL ===== -->
+  <div class="incoming-panel" id="productionPanel" style="display:none">
+    <div class="incoming-header">
+      <div>
+        <div class="incoming-title">🏭 حالة تحضير الطلبيات (كل الفروع)</div>
+        <div id="productionSyncStatus" style="font-size:11px;color:#0a8d4b;margin-top:3px;font-weight:700">🟢 مزامنة تلقائية شغالة</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="incoming-refresh" onclick="loadProductionStatus()" title="تحديث يدوي">🔄</button>
+      </div>
+    </div>
+    <div id="productionList">
+      <div class="incoming-empty">اضغط تحديث لعرض حالة التحضير</div>
     </div>
   </div>
 
@@ -1710,6 +1727,80 @@ const SB_HDR = {
 
 let incomingOpen = false;
 let incomingOrders = [];
+
+// ===== إنتاج - متابعة حالة تحضير كل الفروع =====
+let productionOpen = false;
+let productionKnownDone = new Set();
+let productionFirstLoad = true;
+
+function toggleProductionPanel() {
+  productionOpen = !productionOpen;
+  const panel = document.getElementById('productionPanel');
+  panel.style.display = productionOpen ? 'block' : 'none';
+  if (productionOpen) loadProductionStatus();
+}
+
+async function loadProductionStatus() {
+  const list = document.getElementById('productionList');
+  if (list) list.innerHTML = '<div class="incoming-empty">⏳ جاري التحميل...</div>';
+  try {
+    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,status,created_at)&branch_orders.status=eq.pending&order=prep_updated_at.desc.nullslast`;
+    const res = await fetchWithTimeout(url, { headers: SB_HDR });
+    if (!res.ok) throw new Error(await res.text());
+    const items = await res.json();
+
+    const doneNow = items.filter(it => it.prep_status === 'done');
+    if (!productionFirstLoad) {
+      doneNow.forEach(it => {
+        if (!productionKnownDone.has(it.id)) {
+          showToast(`✅ تم تحضير ${it.product_name || it.sku} (${(it.branch_orders && it.branch_orders.branch_name) || ''})`, 4000);
+        }
+      });
+    }
+    productionKnownDone = new Set(doneNow.map(it => it.id));
+    productionFirstLoad = false;
+
+    if (!list) return;
+    if (!items.length) {
+      list.innerHTML = '<div class="incoming-empty">لا توجد أصناف قيد التحضير حالياً</div>';
+      return;
+    }
+    const byOrder = {};
+    items.forEach(it => {
+      const ord = it.branch_orders || {};
+      const key = it.order_id || ord.id;
+      if (!byOrder[key]) byOrder[key] = { branch: ord.branch_name, items: [] };
+      byOrder[key].items.push(it);
+    });
+    const statusLabel = s => s === 'done' ? '✅ تم التحضير' : s === 'shortage' ? '⚠️ نقص' : '⏳ لم يبدأ';
+    const statusColor = s => s === 'done' ? '#0a8d4b' : s === 'shortage' ? '#e94560' : '#999';
+    let html = '';
+    Object.values(byOrder).forEach(order => {
+      const doneCount = order.items.filter(i => i.prep_status === 'done').length;
+      html += `<div style="background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:12px;overflow:hidden">
+        <div style="padding:8px 12px;background:#f7f9f8;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee">
+          <span style="font-weight:800;font-size:13px">${order.branch || ''}</span>
+          <span style="font-size:12px;color:#666;font-weight:700">${doneCount}/${order.items.length} جاهز</span>
+        </div><div>`;
+      order.items.forEach(it => {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f2f2">
+          <div>
+            <div style="font-weight:700;font-size:13px">${it.product_name || it.sku}</div>
+            <div style="font-size:11px;color:#888">${it.quantity ?? ''} ${it.unit || ''}${it.shortage_note ? ' — ' + it.shortage_note : ''}</div>
+          </div>
+          <span style="font-size:12px;font-weight:800;color:${statusColor(it.prep_status)}">${statusLabel(it.prep_status)}</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    list.innerHTML = html;
+  } catch (e) {
+    if (list) list.innerHTML = '<div class="incoming-empty">❌ خطأ في التحميل</div>';
+    console.error('production status error', e);
+  }
+}
+
+setInterval(function() { loadProductionStatus(); }, 12000);
 
 function toggleIncoming() {
   incomingOpen = !incomingOpen;
