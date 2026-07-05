@@ -41,9 +41,33 @@
   .item-qty { font-size:14px; color:#567; margin-top:2px; }
   .item-meta { font-size:11px; color:#9ab; margin-top:3px; }
 
-  .status-btn { flex-shrink:0; padding:12px 16px; border-radius:12px; font-size:14px; font-weight:800; border:none; min-width:118px; text-align:center; }
+  .status-btns { display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .status-btn { padding:10px 14px; border-radius:12px; font-size:13px; font-weight:800; border:none; min-width:110px; text-align:center; }
   .status-btn.pending { background:#fff3d6; color:#a86a00; border:2px solid #ffdf9e; }
   .status-btn.done { background:#e3f7e9; color:#0a8d4b; border:2px solid #b6ecc9; }
+  .status-btn.shortage-btn { background:#fdeaea; color:#c0392b; border:2px solid #f6c6c2; }
+  .status-btn.shortage-done { background:#f6dede; color:#a13a2e; border:2px solid #ecbcb6; }
+
+  /* ---- Sub tabs (active/closed) ---- */
+  .subtabs { display:flex; gap:8px; padding:10px 12px 0; }
+  .subtab-btn { flex:1; padding:10px; border-radius:12px 12px 0 0; border:none; font-size:14px; font-weight:800; background:#e3ede6; color:#5a7a68; }
+  .subtab-btn.active { background:#fff; color:#0a5c33; }
+
+  /* ---- Branch tabs ---- */
+  .branch-tabs { display:flex; gap:8px; overflow-x:auto; padding:10px 12px; background:#fff; }
+  .branch-tab { flex-shrink:0; padding:10px 16px; border-radius:20px; border:2px solid #e3ede6; background:#fafcfb; font-size:14px; font-weight:700; color:#1a3a2a; white-space:nowrap; }
+  .branch-tab.active { background:#0a8d4b; border-color:#0a8d4b; color:#fff; }
+  .branch-tab .badge { background:rgba(0,0,0,.15); border-radius:10px; padding:1px 7px; font-size:11px; margin-right:5px; }
+  .branch-tab.active .badge { background:rgba(255,255,255,.3); }
+
+  .shortage-note { font-size:11px; color:#c0392b; margin-top:3px; }
+
+  /* ---- Manager shortages view ---- */
+  .mgr-link { margin-top:18px; font-size:12px; color:#aab; text-align:center; text-decoration:underline; cursor:pointer; }
+  .mgr-row { padding:12px 16px; border-bottom:1px solid #f0f5f1; }
+  .mgr-row .mgr-top { display:flex; justify-content:space-between; font-size:13px; color:#789; }
+  .mgr-row .mgr-name { font-size:15px; font-weight:700; color:#1a3a2a; margin-top:2px; }
+  .mgr-row .mgr-note { font-size:12px; color:#c0392b; margin-top:2px; }
 
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1a3a2a; color:#fff; padding:12px 22px; border-radius:30px; font-size:14px; z-index:100; opacity:0; transition:opacity .25s; pointer-events:none; }
   .toast.show { opacity:1; }
@@ -98,6 +122,13 @@ function deptOfSku(sku) {
 }
 
 /* ================= شاشة الدخول ================= */
+const MGR_PASSWORD = '5099'; // باسورد لوحة النواقص لمدير التشغيل / مدير المصنع
+
+let currentBranchTab = null;   // اسم الفرع النشط حاليًا
+let currentSubTab = 'active';  // active | closed
+let cachedGroups = {};         // آخر بيانات محملة (لإعادة الرسم بدون فتش)
+
+/* ================= شاشة الدخول ================= */
 function renderLogin(errMsg) {
   const app = document.getElementById('app');
   let selected = null;
@@ -110,6 +141,7 @@ function renderLogin(errMsg) {
         <input id="passInput" class="pass-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••" />
         <button id="goBtn" class="login-go" disabled>دخول</button>
         <div id="loginErr" class="login-err">${errMsg || ''}</div>
+        <div class="mgr-link" id="mgrLink">لوحة النواقص (لمديري التشغيل والمصنع)</div>
       </div>
     </div>`;
   const box = document.getElementById('deptButtons');
@@ -133,12 +165,22 @@ function renderLogin(errMsg) {
       return;
     }
     currentDept = selected;
+    currentBranchTab = null;
+    currentSubTab = 'active';
     sessionStorage.setItem('barq_dept', selected);
     renderMain();
   };
+  document.getElementById('mgrLink').onclick = () => {
+    const pass = prompt('باسورد لوحة النواقص:');
+    if (pass === MGR_PASSWORD) {
+      renderManagerView();
+    } else if (pass !== null) {
+      showToast('❌ باسورد غير صحيح');
+    }
+  };
 }
 
-/* ================= الشاشة الرئيسية ================= */
+/* ================= الشاشة الرئيسية (قسم) ================= */
 function renderMain() {
   if (pollTimer) clearInterval(pollTimer);
   const app = document.getElementById('app');
@@ -151,6 +193,11 @@ function renderMain() {
       <span id="lastUpdate">جاري التحميل...</span>
       <span id="pendingCount"></span>
     </div>
+    <div class="subtabs">
+      <button class="subtab-btn ${currentSubTab === 'active' ? 'active' : ''}" id="subActive">📋 الطلبيات النشطة</button>
+      <button class="subtab-btn ${currentSubTab === 'closed' ? 'active' : ''}" id="subClosed">✅ طلبيات مغلقة</button>
+    </div>
+    <div class="branch-tabs" id="branchTabs"></div>
     <div id="list"></div>`;
   document.getElementById('logoutBtn').onclick = () => {
     sessionStorage.removeItem('barq_dept');
@@ -158,13 +205,15 @@ function renderMain() {
     if (pollTimer) clearInterval(pollTimer);
     renderLogin();
   };
+  document.getElementById('subActive').onclick = () => { currentSubTab = 'active'; renderMain(); };
+  document.getElementById('subClosed').onclick = () => { currentSubTab = 'closed'; renderMain(); };
   loadAndRender();
   pollTimer = setInterval(loadAndRender, 8000);
 }
 
 async function loadAndRender() {
   try {
-    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_by,prep_updated_at,order_id,branch_orders!inner(id,branch_name,created_at,status)&branch_orders.status=eq.pending&order=order_id`;
+    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_by,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,created_at,status)&branch_orders.status=eq.pending&order=order_id`;
     const res = await fetch(url, { headers: SB_HDR });
     if (!res.ok) throw new Error('fetch failed');
     const rows = await res.json();
@@ -185,46 +234,104 @@ async function loadAndRender() {
       }
       groups[oid].items.push(r);
     });
+    cachedGroups = groups;
 
-    renderList(groups);
+    renderBranchTabsAndList();
     document.getElementById('lastUpdate').textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-    const remaining = myRows.filter(r => r.prep_status !== 'done').length;
-    document.getElementById('pendingCount').textContent = remaining > 0 ? `متبقي ${remaining} صنف` : 'كل الأصناف جاهزة ✅';
+    const remaining = myRows.filter(r => r.prep_status === 'not_started').length;
+    document.getElementById('pendingCount').textContent = remaining > 0 ? `متبقي ${remaining} صنف` : 'كل الأصناف اتحسمت ✅';
   } catch (e) {
     document.getElementById('lastUpdate').textContent = '⚠️ تعذر التحديث - هيحاول تاني';
   }
 }
 
-function renderList(groups) {
-  const list = document.getElementById('list');
-  const ids = Object.keys(groups);
-  if (ids.length === 0) {
-    list.innerHTML = `<div class="empty">لا توجد طلبات لقسمك حالياً</div>`;
+function isOrderClosed(g) {
+  // الطلبية مغلقة لو كل الأصناف اتحسمت (تم أو نقص) أو لو تاريخها فات النهاردة
+  const today = new Date(); today.setHours(0,0,0,0);
+  const orderDay = new Date(g.date); orderDay.setHours(0,0,0,0);
+  const allHandled = g.items.every(i => i.prep_status !== 'not_started');
+  return allHandled || orderDay < today;
+}
+
+function renderBranchTabsAndList() {
+  const groups = cachedGroups;
+  // فلترة حسب التاب الفرعي (نشطة / مغلقة)
+  const filteredIds = Object.keys(groups).filter(oid => {
+    const closed = isOrderClosed(groups[oid]);
+    return currentSubTab === 'closed' ? closed : !closed;
+  });
+
+  // أسماء الفروع المتاحة في هذا التاب
+  const branchNames = [...new Set(filteredIds.map(oid => groups[oid].branch))];
+
+  if (!currentBranchTab || !branchNames.includes(currentBranchTab)) {
+    currentBranchTab = branchNames[0] || null;
+  }
+
+  const tabsBox = document.getElementById('branchTabs');
+  if (branchNames.length === 0) {
+    tabsBox.innerHTML = '';
+    document.getElementById('list').innerHTML = `<div class="empty">${currentSubTab === 'closed' ? 'لا توجد طلبيات مغلقة بعد' : 'لا توجد طلبات نشطة لقسمك حالياً'}</div>`;
     return;
   }
-  // ترتيب: الطلبيات اللي فيها أصناف ناقصة الأول
+
+  tabsBox.innerHTML = branchNames.map(bn => {
+    const idsForBranch = filteredIds.filter(oid => groups[oid].branch === bn);
+    const pendingCount = idsForBranch.reduce((sum, oid) => sum + groups[oid].items.filter(i => i.prep_status === 'not_started').length, 0);
+    return `<button class="branch-tab ${bn === currentBranchTab ? 'active' : ''}" data-branch="${esc(bn)}">
+      ${pendingCount > 0 ? `<span class="badge">${pendingCount}</span>` : ''}${esc(bn)}
+    </button>`;
+  }).join('');
+  [...tabsBox.children].forEach(btn => {
+    btn.onclick = () => { currentBranchTab = btn.getAttribute('data-branch'); renderBranchTabsAndList(); };
+  });
+
+  const idsThisBranch = filteredIds.filter(oid => groups[oid].branch === currentBranchTab);
+  renderList(groups, idsThisBranch);
+}
+
+function renderList(groups, ids) {
+  const list = document.getElementById('list');
+  if (ids.length === 0) {
+    list.innerHTML = `<div class="empty">لا توجد طلبات في هذا الفرع حاليًا</div>`;
+    return;
+  }
   ids.sort((a, b) => {
-    const pa = groups[a].items.filter(i => i.prep_status !== 'done').length;
-    const pb = groups[b].items.filter(i => i.prep_status !== 'done').length;
+    const pa = groups[a].items.filter(i => i.prep_status === 'not_started').length;
+    const pb = groups[b].items.filter(i => i.prep_status === 'not_started').length;
     return pb - pa;
   });
 
   list.innerHTML = ids.map(oid => {
     const g = groups[oid];
     const dateStr = g.date.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit' });
-    const doneCount = g.items.filter(i => i.prep_status === 'done').length;
+    const doneCount = g.items.filter(i => i.prep_status !== 'not_started').length;
+    const readOnly = currentSubTab === 'closed';
     const itemsHtml = g.items.map(item => {
       const isDone = item.prep_status === 'done';
+      const isShortage = item.prep_status === 'shortage';
+      let btns;
+      if (readOnly) {
+        btns = `<div class="status-btns"><span class="status-btn ${isDone ? 'done' : isShortage ? 'shortage-done' : 'pending'}">${isDone ? '✅ تم التجهيز' : isShortage ? '⚠️ نقص' : '⏳ لم يبدأ'}</span></div>`;
+      } else if (isDone) {
+        btns = `<div class="status-btns"><span class="status-btn done">✅ تم التجهيز</span></div>`;
+      } else if (isShortage) {
+        btns = `<div class="status-btns"><span class="status-btn shortage-done">⚠️ نقص مسجل</span></div>`;
+      } else {
+        btns = `<div class="status-btns">
+          <button class="status-btn pending" onclick="markStatus('${item.id}','done')">✅ تم التجهيز</button>
+          <button class="status-btn shortage-btn" onclick="markStatus('${item.id}','shortage')">⚠️ الكمية ناقصة</button>
+        </div>`;
+      }
       return `
         <div class="item-row">
           <div class="item-info">
             <div class="item-name">${esc(item.product_name)}</div>
             <div class="item-qty">${item.quantity} ${esc(item.unit || '')}</div>
-            ${isDone && item.prep_updated_at ? `<div class="item-meta">✔ ${new Date(item.prep_updated_at).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+            ${(isDone || isShortage) && item.prep_updated_at ? `<div class="item-meta">✔ ${new Date(item.prep_updated_at).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+            ${isShortage && item.shortage_note ? `<div class="shortage-note">📝 ${esc(item.shortage_note)}</div>` : ''}
           </div>
-          <button class="status-btn ${isDone ? 'done' : 'pending'}" onclick="markDone('${item.id}', ${isDone})">
-            ${isDone ? '✅ تم التجهيز' : '⏳ لم يبدأ'}
-          </button>
+          ${btns}
         </div>`;
     }).join('');
     return `
@@ -238,26 +345,85 @@ function renderList(groups) {
   }).join('');
 }
 
-async function markDone(itemId, currentlyDone) {
-  if (currentlyDone) return; // مرحلة أولى: بمجرد التأكيد مفيش رجوع من نفس الشاشة
-  if (!confirm('تأكيد: تم تجهيز هذا الصنف بالكامل؟')) return;
+async function markStatus(itemId, status) {
+  if (status === 'shortage') {
+    const note = prompt('ملاحظة عن النقص (اختياري):', '') || '';
+    if (!confirm('تأكيد: الكمية دي فيها نقص؟')) return;
+    await updateItem(itemId, 'shortage', note);
+  } else {
+    if (!confirm('تأكيد: تم تجهيز هذا الصنف بالكامل؟')) return;
+    await updateItem(itemId, 'done', null);
+  }
+}
+
+async function updateItem(itemId, status, note) {
   try {
     const body = {
-      prep_status: 'done',
+      prep_status: status,
       prep_updated_by: DEPTS[currentDept].label,
       prep_updated_at: new Date().toISOString()
     };
+    if (note !== null) body.shortage_note = note;
     const res = await fetch(`${SB_URL}/rest/v1/branch_order_items?id=eq.${itemId}`, {
       method: 'PATCH',
       headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
       body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error('update failed');
-    showToast('✅ تم تسجيل التجهيز');
+    showToast(status === 'done' ? '✅ تم تسجيل التجهيز' : '⚠️ تم تسجيل النقص');
     loadAndRender();
   } catch (e) {
     showToast('❌ حصل خطأ، حاول تاني');
   }
+}
+
+/* ================= لوحة النواقص (لمدير التشغيل / مدير المصنع) ================= */
+async function renderManagerView() {
+  if (pollTimer) clearInterval(pollTimer);
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="dept-name">⚠️ لوحة النواقص</div>
+      <button class="logout" id="backBtn">رجوع</button>
+    </div>
+    <div class="status-line"><span id="mgrUpdate">جاري التحميل...</span><span></span></div>
+    <div id="mgrList"></div>`;
+  document.getElementById('backBtn').onclick = () => { renderLogin(); };
+  await loadShortages();
+  pollTimer = setInterval(loadShortages, 10000);
+}
+
+async function loadShortages() {
+  try {
+    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_by,prep_updated_at,shortage_note,order_id,branch_orders(branch_name,created_at)&prep_status=eq.shortage&order=prep_updated_at.desc`;
+    const res = await fetch(url, { headers: SB_HDR });
+    if (!res.ok) throw new Error('fetch failed');
+    const rows = await res.json();
+    const list = document.getElementById('mgrList');
+    if (rows.length === 0) {
+      list.innerHTML = `<div class="empty">لا توجد نواقص مسجلة حاليًا 🎉</div>`;
+    } else {
+      list.innerHTML = rows.map(r => `
+        <div class="mgr-row">
+          <div class="mgr-top">
+            <span>${esc(r.branch_orders ? r.branch_orders.branch_name : '')}</span>
+            <span>${r.prep_updated_at ? new Date(r.prep_updated_at).toLocaleString('ar-EG',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</span>
+          </div>
+          <div class="mgr-name">${esc(r.product_name)} — ${r.quantity} ${esc(r.unit || '')}</div>
+          <div class="mgr-top"><span>القسم: ${esc(deptLabelOfSku(r.sku))}</span><span>بواسطة: ${esc(r.prep_updated_by || '')}</span></div>
+          ${r.shortage_note ? `<div class="mgr-note">📝 ${esc(r.shortage_note)}</div>` : ''}
+        </div>`).join('');
+    }
+    document.getElementById('mgrUpdate').textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    document.getElementById('mgrUpdate').textContent = '⚠️ تعذر التحديث';
+  }
+}
+
+function deptLabelOfSku(sku) {
+  const d = deptOfSku(sku);
+  const found = Object.keys(DEPTS).find(k => k === d);
+  return found ? DEPTS[found].label : (d || '-');
 }
 
 function esc(s) {
