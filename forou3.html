@@ -492,8 +492,8 @@ function formatNum(n) {
 const ADMIN_CREDENTIALS = { username: 'admin', passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', branch: 'الإدارة', branchKey: 'admin', icon: '👑', role: 'admin', active: true };
 const DEFAULT_USERS = [{"username": "ainshams", "passwordHash": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4", "branch": "عين شمس", "branchKey": "فرع1", "icon": "🏬", "role": "manager", "active": true}, {"username": "smalhy", "passwordHash": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4", "branch": "السمليهي", "branchKey": "فرع2", "icon": "🏪", "role": "manager", "active": true}];
 const ROLES = {
-  admin:   { label: 'مدير عام',  icon: '👑', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry'] },
-  manager: { label: 'مدير فرع', icon: '🏪', can: ['order','dashboard'] },
+  admin:   { label: 'مدير عام',  icon: '👑', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production'] },
+  manager: { label: 'مدير فرع', icon: '🏪', can: ['order','dashboard','production'] },
   staff:   { label: 'موظف',      icon: '👤', can: ['data_entry','admin_panel'] },
 };
 
@@ -818,6 +818,7 @@ function renderApp() {
     </div>
     <div class="nav-tabs">
       ${canDo('order') ? `<button class="nav-tab ${currentView==='order'?'active':''}" onclick="setView('order')">📋 الطلبية</button>` : ''}
+      ${canDo('production') ? `<button class="nav-tab ${currentView==='production'?'active':''}" onclick="setView('production')">🏭 الإنتاج</button>` : ''}
       ${canDo('dashboard') ? `<button class="nav-tab ${currentView==='dashboard'?'active':''}" onclick="setView('dashboard')">📊 تحليل</button>` : ''}
       ${canDo('history') ? `<button class="nav-tab ${currentView==='history'?'active':''}" onclick="setView('history')">🕐 السجل</button>` : ''}
       ${canDo('data_entry') && !canDo('order') ? `<button class="nav-tab ${currentView==='data'?'active':''}" onclick="setView('data')">📂 البيانات</button>` : ''}
@@ -844,6 +845,7 @@ function renderApp() {
   <div class="products">${productsHTML}</div>` : ''}
     ${currentView === 'history' ? renderHistoryView() : ''}
     ${currentView === 'dashboard' ? renderDashboardView() : ''}
+    ${currentView === 'production' ? renderProductionView() : ''}
     <div class="bottom-bar">
       <button class="action-btn btn-secondary" onclick="clearAll()" style="flex:0.6">🗑 مسح</button>
       <button class="action-btn btn-primary" onclick="toggleSummary()">📋 الطلبية (${filledCount})</button>
@@ -1592,7 +1594,93 @@ window.setQty = function(sku, val) {
 
 
 // ===== VIEW NAVIGATION =====
-function setView(v) { currentView = v; render(); }
+function setView(v) { currentView = v; if (v === 'production') loadProductionData(); render(); }
+
+// ===== الإنتاج (متابعة تحضير الطلبيات) =====
+let productionItems = [];
+let productionLoading = false;
+let knownDoneIds = new Set();
+let productionFirstLoad = true;
+
+async function loadProductionData() {
+  if (!currentUser) return;
+  productionLoading = true;
+  try {
+    const isAdmin = currentUser.branchKey === 'admin';
+    let url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,status,created_at)&branch_orders.status=eq.pending&order=prep_updated_at.desc.nullslast`;
+    if (!isAdmin) {
+      url += `&branch_orders.branch_name=eq.${encodeURIComponent(currentUser.branch)}`;
+    }
+    const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+    const data = await res.json();
+    productionItems = Array.isArray(data) ? data : [];
+
+    // اكتشاف الأصناف اللي خلصت تحضير جديدة
+    const doneNow = productionItems.filter(it => it.prep_status === 'done');
+    if (!productionFirstLoad) {
+      doneNow.forEach(it => {
+        if (!knownDoneIds.has(it.id)) {
+          showToast(`✅ تم تحضير ${it.product_name || it.sku}`, 3500);
+        }
+      });
+    }
+    knownDoneIds = new Set(doneNow.map(it => it.id));
+    productionFirstLoad = false;
+  } catch (e) {
+    console.error('production load error', e);
+  }
+  productionLoading = false;
+  if (currentView === 'production') render();
+}
+
+function renderProductionView() {
+  if (productionLoading && productionItems.length === 0) {
+    return `<div class="empty-state" style="padding:40px 16px"><div class="icon">⏳</div><h3>جاري التحميل...</h3></div>`;
+  }
+  if (!productionItems.length) {
+    return `<div class="empty-state" style="padding:40px 16px"><div class="icon">🏭</div><h3>لا توجد أصناف قيد التحضير حالياً</h3></div>`;
+  }
+  // تجميع حسب الطلبية
+  const byOrder = {};
+  productionItems.forEach(it => {
+    const ord = it.branch_orders || {};
+    const key = it.order_id || ord.id;
+    if (!byOrder[key]) byOrder[key] = { branch: ord.branch_name, created_at: ord.created_at, items: [] };
+    byOrder[key].items.push(it);
+  });
+  const statusLabel = s => s === 'done' ? '✅ تم التحضير' : s === 'shortage' ? '⚠️ نقص' : '⏳ لم يبدأ';
+  const statusColor = s => s === 'done' ? '#0a8d4b' : s === 'shortage' ? '#e94560' : '#999';
+  let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="font-weight:900;font-size:16px">🏭 حالة تحضير الطلبيات</h3>
+      <button onclick="loadProductionData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+    </div>`;
+  Object.values(byOrder).forEach(order => {
+    const doneCount = order.items.filter(i => i.prep_status === 'done').length;
+    html += `<div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:14px;overflow:hidden">
+      <div style="padding:10px 14px;background:#f7f9f8;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee">
+        <span style="font-weight:800;font-size:13px">${order.branch || ''}</span>
+        <span style="font-size:12px;color:#666;font-weight:700">${doneCount}/${order.items.length} جاهز</span>
+      </div>
+      <div>`;
+    order.items.forEach(it => {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid #f2f2f2">
+        <div>
+          <div style="font-weight:700;font-size:13px">${it.product_name || it.sku}</div>
+          <div style="font-size:11px;color:#888">${it.quantity ?? ''} ${it.unit || ''}${it.shortage_note ? ' — ' + it.shortage_note : ''}</div>
+        </div>
+        <span style="font-size:12px;font-weight:800;color:${statusColor(it.prep_status)}">${statusLabel(it.prep_status)}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+setInterval(function() {
+  if (currentUser && canDo('production')) loadProductionData();
+}, 12000);
 
 // ===== HISTORY VIEW =====
 function renderHistoryView() {
