@@ -1607,7 +1607,7 @@ async function loadProductionData() {
   productionLoading = true;
   try {
     const isAdmin = currentUser.branchKey === 'admin';
-    let url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,status,created_at)&branch_orders.status=eq.pending&order=prep_updated_at.desc.nullslast`;
+    let url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,status,created_at)&branch_orders.status=in.(pending,received)&order=prep_updated_at.desc.nullslast`;
     if (!isAdmin) {
       url += `&branch_orders.branch_name=eq.${encodeURIComponent(currentUser.branch)}`;
     }

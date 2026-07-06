@@ -213,7 +213,7 @@ function renderMain() {
 
 async function loadAndRender() {
   try {
-    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_by,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,created_at,status)&branch_orders.status=eq.pending&order=order_id`;
+    const url = `${SB_URL}/rest/v1/branch_order_items?select=id,sku,product_name,quantity,unit,prep_status,prep_updated_by,prep_updated_at,shortage_note,order_id,branch_orders!inner(id,branch_name,created_at,status)&branch_orders.status=in.(pending,received)&order=order_id`;
     const res = await fetch(url, { headers: SB_HDR });
     if (!res.ok) throw new Error('fetch failed');
     const rows = await res.json();
