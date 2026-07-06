@@ -1633,6 +1633,47 @@ async function loadProductionData() {
   if (currentView === 'production') render();
 }
 
+function toggleProdSelectAll(checked) {
+  document.querySelectorAll('.prod-order-chk').forEach(function(cb) { cb.checked = checked; });
+  updateProdMergeBar();
+}
+
+function updateProdMergeBar() {
+  const chks = document.querySelectorAll('.prod-order-chk:checked');
+  const bar = document.getElementById('prodMergeBar');
+  const countSpan = document.getElementById('prodMergeCountSpan');
+  if (!bar) return;
+  if (chks.length === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  countSpan.textContent = chks.length + ' محدد';
+}
+
+function clearProdSelection() {
+  document.querySelectorAll('.prod-order-chk').forEach(function(cb) { cb.checked = false; });
+  const bar = document.getElementById('prodMergeBar');
+  if (bar) bar.style.display = 'none';
+}
+
+async function deleteSelectedProduction() {
+  const chks = document.querySelectorAll('.prod-order-chk:checked');
+  if (chks.length === 0) { showToast('⚠️ لم تحدد طلبيات', 2000); return; }
+  const orderIds = [...chks].map(cb => cb.dataset.orderId);
+  if (!confirm('🗑 هل تريد مسح ' + orderIds.length + ' طلبية نهائيًا؟ لا يمكن التراجع.')) return;
+  showToast('⏳ جاري المسح...', 2000);
+  try {
+    for (const orderId of orderIds) {
+      await fetch(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}`, {
+        method: 'DELETE', headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+      });
+    }
+    showToast('✅ تم مسح ' + orderIds.length + ' طلبية', 2500);
+    await loadProductionData();
+  } catch (e) {
+    console.error(e);
+    showToast('❌ فشل المسح — تحقق من الاتصال', 3000);
+  }
+}
+
 function renderProductionView() {
   if (productionLoading && productionItems.length === 0) {
     return `<div class="empty-state" style="padding:40px 16px"><div class="icon">⏳</div><h3>جاري التحميل...</h3></div>`;
@@ -1645,7 +1686,7 @@ function renderProductionView() {
   productionItems.forEach(it => {
     const ord = it.branch_orders || {};
     const key = it.order_id || ord.id;
-    if (!byOrder[key]) byOrder[key] = { branch: ord.branch_name, created_at: ord.created_at, items: [] };
+    if (!byOrder[key]) byOrder[key] = { orderId: key, branch: ord.branch_name, created_at: ord.created_at, items: [] };
     byOrder[key].items.push(it);
   });
   const statusLabel = s => s === 'done' ? '✅ تم التحضير' : s === 'shortage' ? '⚠️ نقص' : '⏳ لم يبدأ';
@@ -1654,12 +1695,27 @@ function renderProductionView() {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="font-weight:900;font-size:16px">🏭 حالة تحضير الطلبيات</h3>
       <button onclick="loadProductionData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+    </div>
+    <div id="prodMergeBar" style="position:sticky;top:0;background:#f0faf3;border:2px solid #0a8d4b;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;z-index:10">
+      <span id="prodMergeCountSpan" style="font-weight:800;font-size:13px;color:#0a8d4b"></span>
+      <button onclick="deleteSelectedProduction()" style="margin-right:auto;background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">🗑 مسح المحدد</button>
+      <button onclick="clearProdSelection()" style="background:transparent;color:#888;border:1px solid #ccc;border-radius:8px;padding:8px 12px;font-family:Cairo;font-size:12px;font-weight:700;cursor:pointer">إلغاء التحديد</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:#666;font-weight:700">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" onchange="toggleProdSelectAll(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#0a8d4b"> تحديد الكل</label>
     </div>`;
   Object.values(byOrder).forEach(order => {
     const doneCount = order.items.filter(i => i.prep_status === 'done').length;
+    const dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-EG',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' - ' + new Date(order.created_at).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'}) : '';
     html += `<div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:14px;overflow:hidden">
-      <div style="padding:10px 14px;background:#f7f9f8;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee">
-        <span style="font-weight:800;font-size:13px">${order.branch || ''}</span>
+      <div style="padding:10px 14px;background:#f7f9f8;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" class="prod-order-chk" data-order-id="${order.orderId}" onchange="updateProdMergeBar()" style="width:20px;height:20px;cursor:pointer;accent-color:#0a8d4b">
+          <div>
+            <div style="font-weight:800;font-size:13px">${order.branch || ''}</div>
+            <div style="font-size:11px;color:#999">📅 ${dateStr}</div>
+          </div>
+        </div>
         <span style="font-size:12px;color:#666;font-weight:700">${doneCount}/${order.items.length} جاهز</span>
       </div>
       <div>`;
