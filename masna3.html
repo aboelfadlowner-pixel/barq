@@ -1793,6 +1793,8 @@ async function loadProductionStatus() {
     if (!res.ok) throw new Error(await res.text());
     let items = await res.json();
     items = items.filter(it => PRODUCTION_DEPTS.includes((SKU_MAP[it.sku] || {}).dept));
+    const todayStr = new Date().toDateString();
+    items = items.filter(it => it.branch_orders && it.branch_orders.created_at && new Date(it.branch_orders.created_at).toDateString() === todayStr);
 
     const doneNow = items.filter(it => it.prep_status === 'done');
     if (!productionFirstLoad) {
