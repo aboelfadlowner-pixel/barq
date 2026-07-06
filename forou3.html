@@ -1601,6 +1601,7 @@ let productionItems = [];
 let productionLoading = false;
 let knownDoneIds = new Set();
 let productionFirstLoad = true;
+const PRODUCTION_DEPTS = ['vip', 'مصنعات', 'مصنعات لحوم و موالح', 'معمل'];
 
 async function loadProductionData() {
   if (!currentUser) return;
@@ -1613,7 +1614,7 @@ async function loadProductionData() {
     }
     const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
     const data = await res.json();
-    productionItems = Array.isArray(data) ? data : [];
+    productionItems = (Array.isArray(data) ? data : []).filter(it => PRODUCTION_DEPTS.includes((SKU_MAP[it.sku] || {}).dept));
 
     // اكتشاف الأصناف اللي خلصت تحضير جديدة
     const doneNow = productionItems.filter(it => it.prep_status === 'done');
