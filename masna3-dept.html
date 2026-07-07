@@ -205,10 +205,18 @@ function renderMain() {
     if (pollTimer) clearInterval(pollTimer);
     renderLogin();
   };
-  document.getElementById('subActive').onclick = () => { currentSubTab = 'active'; renderMain(); };
-  document.getElementById('subClosed').onclick = () => { currentSubTab = 'closed'; renderMain(); };
+  document.getElementById('subActive').onclick = () => switchSubTab('active');
+  document.getElementById('subClosed').onclick = () => switchSubTab('closed');
   loadAndRender();
   pollTimer = setInterval(loadAndRender, 8000);
+}
+
+function switchSubTab(tab) {
+  currentSubTab = tab;
+  document.getElementById('subActive').classList.toggle('active', tab === 'active');
+  document.getElementById('subClosed').classList.toggle('active', tab === 'closed');
+  currentBranchTab = null;
+  renderBranchTabsAndList();
 }
 
 async function loadAndRender() {
