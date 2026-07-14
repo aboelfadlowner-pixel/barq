@@ -634,10 +634,12 @@ let _restoredSession = null;
     const saved = localStorage.getItem('barq_session');
     if (!saved) return;
     const sess = JSON.parse(saved);
-    // تحقق إن المستخدم لسه موجود وفعّال (usersDB مصفوفة، مش object)
+    // تحقق إن المستخدم لسه موجود وفعّال (usersDB مصفوفة، مش object) — وتحقق كمان من حساب الأدمن المنفصل
     const usersDBRaw = JSON.parse(localStorage.getItem('barq_users_db') || '[]');
     const usersArr = Array.isArray(usersDBRaw) ? usersDBRaw : Object.values(usersDBRaw);
-    const user = usersArr.find(u => u.username === sess.username);
+    const user = sess.username === ADMIN_CREDENTIALS.username
+      ? ADMIN_CREDENTIALS
+      : usersArr.find(u => u.username === sess.username);
     if (user && user.active) {
       currentUser = { ...user };
       _restoredSession = sess;
