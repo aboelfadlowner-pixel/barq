@@ -1100,10 +1100,11 @@ function showApp() {
   loadSaved();
   setTimeout(checkPendingBadge, 500);
 }
-if (currentUser) showApp();
 
-// ===== DATA =====
+// ===== DATA (لازم تتعرّف قبل استدعاء showApp تحت، عشان لا يحصل خطأ توقيت يمنع استرجاع آخر شغل) =====
 let orderData={}, orderMeta={branch:'',date:''}, activeDept=null;
+
+if (currentUser) showApp();
 
 function loadSaved() {
   try {
