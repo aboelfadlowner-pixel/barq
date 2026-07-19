@@ -620,6 +620,24 @@ function toast(msg,ms) {
   if(!t)return; t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._t); t._t=setTimeout(function(){t.style.opacity='0';},ms||3000);
 }
+
+// ── نغمة قصيرة عند كل مسحة — عشان الموظف يقدر يشتغل من غير ما يبص للشاشة كل مرة (زي أجهزة PDA الحقيقية) ──
+var _beepCtx = null;
+function playBeep(kind) {
+  try {
+    if (!_beepCtx) _beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var ctx = _beepCtx;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = kind === 'error' ? 220 : (kind === 'unknown' ? 440 : 880);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (kind==='error'?0.25:0.12));
+    osc.start();
+    osc.stop(ctx.currentTime + (kind==='error'?0.25:0.12));
+  } catch(e) {}
+}
 function addAudit(action, who, detail) {
   AUDIT_LOG.unshift({
     time: new Date().toISOString(),
@@ -918,17 +936,22 @@ function renderLocationBar() {
         FACTORY_DEPTS.map(function(d){return '<option value="'+d+'"'+(d===currentDept?' selected':'')+'>'+d+'</option>';}).join('') +
       '</select>'
     : '';
+  var nameField = recvMode === 'count'
+    ? '<input type="text" class="fi" style="margin-top:8px" placeholder="👤 اسمك (يتسجل مع كل صنف تعدّه)" value="'+counterName+'" onchange="counterName=this.value.trim();saveLocPrefs();">'
+    : '';
   return '<div class="loc-bar">' +
-    '<select class="fi" onchange="selectBranch(this.value)">' +
-      '<option value="">— اختر الفرع/الموقع —</option>' +
-      BRANCHES.map(function(b){return '<option value="'+b+'"'+(b===currentBranch?' selected':'')+'>'+b+'</option>';}).join('') +
-    '</select>' +
-    deptSel +
-    '<input type="text" placeholder="اسمك (للجرد)" value="'+counterName+'" onchange="counterName=this.value.trim();saveLocPrefs();">' +
-    '<div class="mode-toggle">' +
+    '<div class="mode-toggle" style="flex:1 1 100%">' +
       '<button class="'+(recvMode==='receiving'?'on':'')+'" onclick="setRecvMode(\'receiving\')">📥 استلام</button>' +
       '<button class="'+(recvMode==='count'?'on':'')+'" onclick="setRecvMode(\'count\')">🔢 جرد</button>' +
     '</div>' +
+    '<div style="display:flex;gap:8px;flex:1 1 100%;margin-top:8px">' +
+      '<select class="fi" onchange="selectBranch(this.value)">' +
+        '<option value="">— اختر الفرع/الموقع —</option>' +
+        BRANCHES.map(function(b){return '<option value="'+b+'"'+(b===currentBranch?' selected':'')+'>'+b+'</option>';}).join('') +
+      '</select>' +
+      deptSel +
+    '</div>' +
+    nameField +
   '</div>';
 }
 
@@ -963,14 +986,26 @@ function selectDept(val) {
 function renderRecvQueue() {
   var pending = MOCK_PO.filter(function(p){return p.status===STATUSES.receiving;});
 
-  var topBtns = '<div class="cd" style="background:linear-gradient(135deg,#fafdfb,#f0f9f4)">' +
-    '<div class="ct" style="margin-bottom:8px">⚙️ أدوات</div>' +
-    '<div class="br" style="margin-top:0">' +
-      '<button class="bn bn-b" onclick="showProductUpload()">📂 رفع مستويات المخزون (رصيد أساسي)</button>' +
-      '<button class="bn bn-o" onclick="openManualInvoice()">🧾 إنشاء فاتورة يدوية (خارج أوامر الشراء)</button>' +
-      '<button class="bn" style="background:#8e44ad;color:#fff" onclick="openReturnEntry()">↩️ تسجيل مرتجع للمورد</button>' +
-    '</div>' +
-    '<div id="prod-up-wrap" style="display:none;margin-top:12px">' +
+  var cards = pending.map(function(po){
+    var items=[]; try{items=JSON.parse(po.items);}catch(e){}
+    return '<div class="po-card st-recv" onclick="openReceive(\''+po.id+'\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div><div style="font-weight:800;color:var(--primary);font-size:14px">'+po.po_number+'</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:3px">🏪 '+po.supplier_name+' | 👤 '+po.officer_name+' | 📦 '+items.length+' صنف</div></div>' +
+        '<span class="bg bg-recv">'+STATUSES.receiving+'</span>' +
+      '</div></div>';
+  }).join('');
+
+  var queueBlock = pending.length
+    ? '<div class="cd"><div class="ct">📦 أوامر الشراء الواردة <span class="bg bg-recv">'+pending.length+'</span></div>'+cards+'</div>'
+    : '<div class="cd"><div class="ct">📦 الاستلام</div>' +
+      '<div class="empty"><div class="empty-i">📭</div><div>لا توجد أوامر شراء للاستلام</div></div></div>';
+
+  var toolsBlock = '<div class="cd" style="padding:10px 14px">' +
+    '<button onclick="openManualInvoice()" style="background:none;border:none;color:var(--orange);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">🧾 فاتورة يدوية (خارج أوامر الشراء)</button>' +
+    '<button onclick="openReturnEntry()" style="background:none;border:none;color:#8e44ad;font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">↩️ تسجيل مرتجع للمورد</button>' +
+    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">📂 رفع مستويات المخزون (رصيد أساسي — مرة واحدة)</button>' +
+    '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
         '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
@@ -982,20 +1017,7 @@ function renderRecvQueue() {
     '</div>' +
   '</div>';
 
-  if (!pending.length) return topBtns + '<div class="cd"><div class="ct">📦 الاستلام</div>' +
-    '<div class="empty"><div class="empty-i">📭</div><div>لا توجد أوامر شراء للاستلام</div></div></div>';
-
-  var cards = pending.map(function(po){
-    var items=[]; try{items=JSON.parse(po.items);}catch(e){}
-    return '<div class="po-card st-recv" onclick="openReceive(\''+po.id+'\')">' +
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
-        '<div><div style="font-weight:800;color:var(--primary);font-size:14px">'+po.po_number+'</div>' +
-        '<div style="font-size:12px;color:var(--muted);margin-top:3px">🏪 '+po.supplier_name+' | 👤 '+po.officer_name+' | 📦 '+items.length+' صنف</div></div>' +
-        '<span class="bg bg-recv">'+STATUSES.receiving+'</span>' +
-      '</div></div>';
-  }).join('');
-
-  return topBtns + '<div class="cd"><div class="ct">📦 أوامر الشراء الواردة <span class="bg bg-recv">'+pending.length+'</span></div>'+cards+'</div>';
+  return queueBlock + toolsBlock;
 }
 
 function openReceive(poId) {
@@ -1846,15 +1868,18 @@ function handleScan(code) {
       if (foundSku) {
         manualAddProduct(foundSku);
         if (msg) { msg.innerHTML = '✅ تمت إضافة <strong>'+PRODUCTS[foundSku].n+'</strong>'; msg.style.color = '#1a7a40'; }
+        playBeep('success');
         refocusScan();
         return;
       }
       // الصنف مش مسجل في products_master أصلاً — اعرض إضافة سريعة
+      playBeep('unknown');
       triggerUnknownProductFlow(code);
       refocusScan();
       return;
     }
     if (msg) { msg.innerHTML = '⚠️ <strong>'+code+'</strong> — الصنف ده مش موجود في أمر الشراء ده'; msg.style.color = '#c0392b'; }
+    playBeep('error');
     toast('⚠️ باركود غير معروف');
     refocusScan();
     return;
@@ -1864,6 +1889,7 @@ function handleScan(code) {
   var current = parseFloat(recvItems[idx].qty_received) || 0;
   var newQty = current + 1;
   recvItems[idx].qty_received = newQty;
+  playBeep('success');
 
   var inp = document.getElementById('qr-'+idx);
   if (inp) inp.value = newQty;
@@ -2106,12 +2132,14 @@ function handleCountScan(code) {
   }
 
   if (!sku) {
+    playBeep('unknown');
     triggerUnknownProductFlow(code);
     refocusScan();
     return;
   }
 
   addCountScanned(sku);
+  playBeep('success');
   var i = findCountIndexBySku(sku);
   var newQty = countItems[i].actual_qty;
 
