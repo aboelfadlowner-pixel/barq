@@ -552,13 +552,14 @@ var recvPO = null;      // PO being received
 var recvItems = [];     // items during receiving
 var isManualInvoice = false; // فاتورة يدوية خارج أوامر الشراء (مؤقت)
 var isReturnMode = false;    // وضع تسجيل مرتجع للمورد
+var isFactoryReceive = false; // استلام من المصنع (حسب طلبية فرع فعلية) — بدل مورد خارجي
 var returnPerson = '';       // اسم الشخص الذي قام بالمرتجع
 var returnReason = '';       // سبب المرتجع
 
 // ═══════════════════════════════════════════════
 // PDA — استلام ⇄ جرد: فرع/قسم/وضع + جلسة الجرد
 // ═══════════════════════════════════════════════
-var BRANCHES = ['عين شمس', 'البطاش', 'المصنع'];
+var BRANCHES = ['عين شمس', 'السمليهي', 'المصنع']; // "السمليهي" هو الاسم الفعلي المستخدم في نظام الطلبيات (forou3/مصنع)
 var FACTORY_DEPTS = ['تبريد', 'تخزين جاف', 'تعبئة'];
 var recvMode = localStorage.getItem('barq_recv_mode') || 'receiving'; // receiving | count
 var currentBranch = localStorage.getItem('barq_branch') || '';
@@ -659,10 +660,28 @@ function now() { return new Date().toLocaleDateString('ar-EG',{year:'numeric',mo
 function render() {
   var root = document.getElementById('root');
   if (!root) return;
+  // نحافظ على مكان السكرول قبل أي إعادة رسم — عشان لو المستخدم نازل يكتب في نص الصفحة
+  // (زي المزامنة في الخلفية أو تحديث فوري وصل) الصفحة متقفزش لفوق وتضيّعه
+  var scrollPos = window.scrollY;
+  var activeId = document.activeElement && document.activeElement.id;
+  var selStart = null, selEnd = null;
+  if (activeId && document.activeElement.setSelectionRange && typeof document.activeElement.selectionStart === 'number') {
+    selStart = document.activeElement.selectionStart; selEnd = document.activeElement.selectionEnd;
+  }
+
   if (!role) { root.innerHTML = renderAuth(); return; }
   root.innerHTML = renderTopBar() + '<div class="pg">' + renderMain() + '</div>';
   updateConnBadge();
   updateOfflineIndicator();
+
+  window.scrollTo(0, scrollPos);
+  if (activeId) {
+    var el = document.getElementById(activeId);
+    if (el && el.focus) {
+      el.focus({ preventScroll: true });
+      if (selStart != null && el.setSelectionRange) { try { el.setSelectionRange(selStart, selEnd); } catch(e){} }
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1017,7 +1036,11 @@ function renderRecvQueue() {
     '</div>' +
   '</div>';
 
-  return queueBlock + toolsBlock;
+  var factoryBtn = (currentBranch && currentBranch !== 'المصنع')
+    ? '<button class="big-action-btn" style="background:linear-gradient(135deg,var(--accent),var(--primary));color:#fff" onclick="openFactoryReceive()">📦 استلام من المصنع (حسب آخر طلبية لـ'+currentBranch+')</button>'
+    : '';
+
+  return factoryBtn + queueBlock + toolsBlock;
 }
 
 function openReceive(poId) {
@@ -1025,6 +1048,7 @@ function openReceive(poId) {
   if (!po) return;
   recvPO = po;
   isManualInvoice = false;
+  isFactoryReceive = false;
   var items=[]; try{items=JSON.parse(po.items);}catch(e){}
   recvItems = items.map(function(item){
     var prod = PRODUCTS[item.sku] || {};
@@ -1039,11 +1063,47 @@ function openReceive(poId) {
   render();
 }
 
+// ── استلام من المصنع حسب آخر طلبية للفرع الحالي (branch_orders/branch_order_items) ──
+async function openFactoryReceive() {
+  if (!currentBranch || currentBranch === 'المصنع') { toast('⚠️ اختار فرعك من الأعلى الأول'); return; }
+  toast('⏳ جاري جلب آخر طلبية لـ'+currentBranch+'...');
+  try {
+    var orders = await sbFetch('branch_orders?select=*&branch_name=eq.'+encodeURIComponent(currentBranch)+'&order=created_at.desc&limit=1');
+    if (!orders || !orders.length) { toast('⚠️ مفيش طلبيات مسجلة لفرع '+currentBranch); return; }
+    var order = orders[0];
+    var items = await sbFetch('branch_order_items?select=*&order_id=eq.'+order.id);
+    if (!items || !items.length) { toast('⚠️ آخر طلبية لهذا الفرع مفيهاش أصناف'); return; }
+
+    recvPO = {
+      id: 'factory-'+order.id,
+      po_number: 'طلبية المصنع — '+new Date(order.created_at).toLocaleDateString('ar-EG'),
+      supplier_name: 'المصنع', officer_name: ROLES.receiving.label
+    };
+    isManualInvoice = false;
+    isReturnMode = false;
+    isFactoryReceive = true;
+    recvItems = items.map(function(item){
+      var prod = PRODUCTS[item.sku] || {};
+      return {
+        sku: item.sku||'', name: item.product_name||'', unit: item.unit||'', bc: prod.bc||'',
+        qty_ordered: item.quantity||0, qty_received: '',
+        old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
+        stock_before: null, new_cost: '', match: 'pending'
+      };
+    });
+    toast('✅ اتحملت طلبية '+recvItems.length+' صنف — امسح اللي وصلك وقارن');
+    render();
+  } catch(e) {
+    toast('⚠️ تعذر جلب طلبية المصنع: '+(e.message||'').slice(0,80));
+  }
+}
+
 function openManualInvoice() {
   recvPO = { id:'manual', po_number:'فاتورة-يدوية-'+Date.now().toString().slice(-5), supplier_name:'', officer_name: ROLES.receiving.label };
   recvItems = [];
   isManualInvoice = true;
   isReturnMode = false;
+  isFactoryReceive = false;
   render();
 }
 
@@ -1052,6 +1112,7 @@ function openReturnEntry() {
   recvItems = [];
   isManualInvoice = false;
   isReturnMode = true;
+  isFactoryReceive = false;
   returnPerson = '';
   returnReason = '';
   render();
@@ -1479,7 +1540,7 @@ function renderReceiving() {
         '<div style="font-size:14px;font-weight:800;color:var(--primary)">'+headerTitle+'</div>' +
         '<div style="font-size:11px;color:var(--muted)">🏪 '+(recvPO.supplier_name||'—')+' | 👤 '+recvPO.officer_name+'</div>' +
       '</div>' +
-      '<button style="background:none;border:none;font-size:13px;color:var(--muted);padding:6px" onclick="recvPO=null;isManualInvoice=false;render()">✕</button>' +
+      '<button style="background:none;border:none;font-size:13px;color:var(--muted);padding:6px" onclick="recvPO=null;isManualInvoice=false;isFactoryReceive=false;render()">✕</button>' +
     '</div>' +
 
     supplierBox + manualSearchBox +
@@ -2390,8 +2451,11 @@ async function approveRecv() {
   var allFilled = recvItems.every(function(item){ return item.qty_received !== '' && item.qty_received >= 0; });
   if (!allFilled) { toast('⚠️ أدخل الكميات المستلمة لكل الأصناف'); return; }
 
-  var hasCost = recvItems.some(function(item){ return parseFloat(item.new_cost) > 0; });
-  if (!hasCost) { toast('⚠️ أدخل تكلفة الشراء لصنف واحد على الأقل'); return; }
+  // استلام المصنع تحويل داخلي — التكلفة مسجّلة مركزياً بالفعل، مش محتاجين تكلفة جديدة عشان نعتمد
+  if (!isFactoryReceive) {
+    var hasCost = recvItems.some(function(item){ return parseFloat(item.new_cost) > 0; });
+    if (!hasCost) { toast('⚠️ أدخل تكلفة الشراء لصنف واحد على الأقل'); return; }
+  }
 
   toast('⏳ جاري الحفظ...');
 
