@@ -966,7 +966,7 @@ function renderRecvQueue() {
   var topBtns = '<div class="cd" style="background:linear-gradient(135deg,#fafdfb,#f0f9f4)">' +
     '<div class="ct" style="margin-bottom:8px">⚙️ أدوات</div>' +
     '<div class="br" style="margin-top:0">' +
-      '<button class="bn bn-b" onclick="showProductUpload()">📂 رفع مواد المخزون</button>' +
+      '<button class="bn bn-b" onclick="showProductUpload()">📂 رفع مستويات المخزون (رصيد أساسي)</button>' +
       '<button class="bn bn-o" onclick="openManualInvoice()">🧾 إنشاء فاتورة يدوية (خارج أوامر الشراء)</button>' +
       '<button class="bn" style="background:#8e44ad;color:#fff" onclick="openReturnEntry()">↩️ تسجيل مرتجع للمورد</button>' +
     '</div>' +
@@ -974,9 +974,9 @@ function renderRecvQueue() {
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
         '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
-        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف مواد المخزون</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px">✅ الأفضل: تقرير "مستويات المخزون" (Inventory Levels) — تكلفة أدق وأشمل<br>يقبل أيضاً: ملف المنتجات الكامل من فودكس (22 عمود) أو ملف مبسط</div>' +
-        '<div style="font-size:11px;color:var(--muted)">Excel أو CSV — يحدّث يومياً</div>' +
+        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف مستويات المخزون من فودكس</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">✅ الأفضل: تقرير "مستويات المخزون" (Inventory Levels) — بيظبط التكلفة والرصيد الافتتاحي (system_qty) مع بعض<br>يقبل أيضاً: ملف المنتجات الكامل من فودكس (22 عمود) أو ملف مبسط (من غير رصيد)</div>' +
+        '<div style="font-size:11px;color:var(--muted)">مرة واحدة بس كرصيد أساسي — بعد كده الرصيد بيتحدّث تلقائياً من الاستلام والجرد. ارفعه تاني بس لو حابب تظبط صنف معين يدوياً.</div>' +
       '</div>' +
       '<div id="prod-up-result" style="margin-top:10px;font-size:12px"></div>' +
     '</div>' +
@@ -1263,12 +1263,16 @@ async function processFoodicsFullFile(text, filename, resBox) {
 }
 
 // ── معالجة شيت "مستويات المخزون" — Name, SKU, Barcode, Storage Unit, Quantity, Cost Per Unit, Total Cost ──
+// ده الملف اللي بيتحمل مرة واحدة (رصيد أول المدة) عشان يظبط system_qty الأساسي — بعد كده الرصيد بيتظبط
+// تلقائياً من الاستلام والجرد بس، من غير ما تحتاج ترفع أي ملف تاني يومياً.
 async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   var idx = {};
   headers.forEach(function(h,i){ idx[h] = i; });
+  var hasQtyCol = idx['Quantity'] !== undefined;
 
   var added = 0, updated = 0, skipped = 0;
   var masterRows = [];
+  var qtyAt = new Date().toISOString();
 
   for (var i=1; i<lines.length; i++) {
     var vals = lines[i].split(',');
@@ -1276,6 +1280,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
     var name = (vals[idx['Name']]||'').trim();
     var bc   = (vals[idx['Barcode']]||'').trim();
     var cost = parseFloat(vals[idx['Cost Per Unit']]) || 0;
+    var qty  = hasQtyCol ? (parseFloat(vals[idx['Quantity']]) || 0) : null;
     if (!sku || !name) { skipped++; continue; }
     if (cost <= 0) { skipped++; continue; } // نتجاهل الأصناف اللي مالهاش تكلفة في هذا الشيت
 
@@ -1285,16 +1290,19 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
       PRODUCTS[sku].n = name;
       if (bc) PRODUCTS[sku].bc = bc;
       PRODUCTS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
+      if (qty != null) { PRODUCTS[sku].q = qty; PRODUCTS[sku].qAt = qtyAt; }
       updated++;
     } else {
-      PRODUCTS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22 };
+      PRODUCTS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22, q: qty||0, qAt: qty!=null?qtyAt:null };
       added++;
     }
 
-    masterRows.push({
+    var row = {
       sku: sku, name: name, barcode: bc, cost: cost,
       price: existingPrice, margin: (existingPrice>0) ? ((existingPrice-cost)/existingPrice*100) : 22
-    });
+    };
+    if (qty != null) { row.system_qty = qty; row.system_qty_updated_at = qtyAt; }
+    masterRows.push(row);
   }
 
   if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
@@ -1321,6 +1329,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   } else {
     if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#eafaf1;border-radius:8px;font-size:13px">' +
       '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث<br>' +
+      (hasQtyCol ? '<span style="font-size:11px;color:var(--muted)">تم ضبط الرصيد الافتتاحي (system_qty) من عمود الكمية في الملف</span><br>' : '<span style="font-size:11px;color:#c0392b">⚠️ الملف ده مفيهوش عمود "Quantity" — اتحدثت التكلفة بس، من غير الرصيد</span><br>') +
       '<span style="font-size:11px;color:var(--muted)">'+skipped+' صنف تم تجاهله (بدون تكلفة في هذا الشيت) — محفوظ بشكل دائم</span>' +
       '</div>';
     toast('✅ تم حفظ '+(added+updated)+' صنف بتكلفة حقيقية من مستويات المخزون');
