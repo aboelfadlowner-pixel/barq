@@ -463,6 +463,14 @@ function getDayName(dateStr) {
   return names[new Date(dateStr).getDay()];
 }
 
+// فرق وزن الطبق/العلبة بيخلي المسجل كمباع أعلى من الحقيقي لأصناف الكيلو، فبنخصم قيمة ثابتة قبل ما الرقم يتحسب في أي اقتراح طلبية
+const KG_TARE_DEDUCTION_G = 60;
+function applyTareCorrection(rawQty, sku) {
+  const info = getActiveSkuMap()[sku];
+  if (!info || info.unit !== 'كيلو') return rawQty;
+  return rawQty * (1 - KG_TARE_DEDUCTION_G / 1000);
+}
+
 function getSalesForDay(sku, dateStr) {
   if (!dateStr || !currentUser) return null;
   const parts = dateStr.split('-');
@@ -471,14 +479,16 @@ function getSalesForDay(sku, dateStr) {
   const branchData = currentUser.branchKey === 'فرع1' ? DAILY_SALES.ainshams : DAILY_SALES.smalhy;
   const d = branchData[sku];
   // نرجع مبيعات نفس رقم اليوم من أبريل بغض النظر عن الشهر
-  return d ? (d[String(day)] !== undefined ? d[String(day)] : 0) : null;
+  const raw = d ? (d[String(day)] !== undefined ? d[String(day)] : 0) : null;
+  return raw === null ? null : applyTareCorrection(raw, sku);
 }
 
 function getMonthlyTotal(sku) {
   if (!currentUser) return 0;
   const branchData = currentUser.branchKey === 'فرع1' ? DAILY_SALES.ainshams : DAILY_SALES.smalhy;
   const d = branchData[sku];
-  return d ? Object.values(d).reduce((s, v) => s + v, 0) : 0;
+  const raw = d ? Object.values(d).reduce((s, v) => s + v, 0) : 0;
+  return applyTareCorrection(raw, sku);
 }
 
 function formatNum(n) {
