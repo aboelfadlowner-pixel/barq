@@ -706,7 +706,8 @@ let orderHistory = []; // سجل الطلبيات
 let stockLevels = {}; // sku الأساسي -> الكمية الموجودة بالفرع (من تقرير الجرد اليومي من فوديكس)
 let stockUpdatedAt = null; // وقت آخر رفع لملف الجرد
 const DEFAULT_COVERAGE_DAYS = 1;
-let coverageDaysByDept = {}; // dept -> عدد أيام الاستهلاك المستهدف للاقتراح، لكل قسم على حدة
+let defaultCoverageDays = parseFloat(localStorage.getItem('barq_default_coverage_days')) || DEFAULT_COVERAGE_DAYS; // القيمة العامة اللي بتتطبق على أي قسم لسه مالوش رقم خاص بيه
+let coverageDaysByDept = {}; // dept -> رقم مخصص لقسم بعينه بس (استثناء)، أي قسم مش هنا بياخد القيمة العامة
 try { coverageDaysByDept = JSON.parse(localStorage.getItem('barq_coverage_days_by_dept') || '{}'); } catch(e) { coverageDaysByDept = {}; }
 let suggestedSkus = new Set(); // skus لسه كميتها اقتراح تلقائي ماتلمستش يدويًا
 
@@ -904,9 +905,13 @@ function renderApp() {
     <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
       <button class="top-btn" style="background:var(--accent);color:#fff" onclick="document.getElementById('stockFileInput').click()">📥 رفع الجرد</button>
       <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
-      <span style="margin-right:auto;display:flex;align-items:center;gap:4px">
-        أيام تغطية "${tab}":
+      <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">
+        ${hasDeptCoverageOverride(tab) ? `أيام تغطية "${tab}":` : 'أيام التغطية (عام لكل الأقسام):'}
         <input type="number" min="0.5" step="0.5" value="${getCoverageDays(tab)}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDaysForDept('${tab}', this.value);render()">
+        <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" ${hasDeptCoverageOverride(tab) ? 'checked' : ''} onchange="toggleDeptCoverageOverride('${tab}', this.checked, document.getElementById('coverageDaysWrap').querySelector('input[type=number]').value);render()">
+          رقم خاص بـ"${tab}"
+        </label>
       </span>
       <button class="top-btn" style="background:var(--accent2);color:var(--primary)" onclick="applySuggestedQuantities();render()">🔄 إعادة الاقتراح</button>
     </div>
@@ -1686,15 +1691,38 @@ function loadStockFromStorage() {
   } catch(e) { stockLevels = {}; stockUpdatedAt = null; }
 }
 
-function getCoverageDays(dept) {
-  const v = coverageDaysByDept[dept];
-  return (typeof v === 'number' && v > 0) ? v : DEFAULT_COVERAGE_DAYS;
+function hasDeptCoverageOverride(dept) {
+  return Object.prototype.hasOwnProperty.call(coverageDaysByDept, dept);
 }
 
-function setCoverageDaysForDept(dept, v) {
+function getCoverageDays(dept) {
+  return hasDeptCoverageOverride(dept) ? coverageDaysByDept[dept] : defaultCoverageDays;
+}
+
+function setDefaultCoverageDays(v) {
   const n = parseFloat(v);
-  if (!isNaN(n) && n > 0) coverageDaysByDept[dept] = n;
-  else delete coverageDaysByDept[dept];
+  defaultCoverageDays = (!isNaN(n) && n > 0) ? n : DEFAULT_COVERAGE_DAYS;
+  localStorage.setItem('barq_default_coverage_days', String(defaultCoverageDays));
+}
+
+// لو القسم مالوش رقم خاص، تغيير الحقل بيعدل القيمة العامة (وتتنقل لكل الأقسام التانية اللي زيه)، ولو مخصص بيعدل القسم ده بس
+function setCoverageDaysForDept(dept, v) {
+  if (hasDeptCoverageOverride(dept)) {
+    const n = parseFloat(v);
+    coverageDaysByDept[dept] = (!isNaN(n) && n > 0) ? n : DEFAULT_COVERAGE_DAYS;
+    localStorage.setItem('barq_coverage_days_by_dept', JSON.stringify(coverageDaysByDept));
+  } else {
+    setDefaultCoverageDays(v);
+  }
+}
+
+function toggleDeptCoverageOverride(dept, enabled, currentVal) {
+  if (enabled) {
+    const n = parseFloat(currentVal);
+    coverageDaysByDept[dept] = (!isNaN(n) && n > 0) ? n : defaultCoverageDays;
+  } else {
+    delete coverageDaysByDept[dept];
+  }
   localStorage.setItem('barq_coverage_days_by_dept', JSON.stringify(coverageDaysByDept));
 }
 
