@@ -2663,7 +2663,7 @@ async function openOrCreatePriceCheckSession() {
       priceCheckItems = (items||[]).map(function(it){
         return { sku: it.sku, name: it.product_name, bc: it.barcode||'', system_price: parseFloat(it.system_price)||0,
                   matches: it.matches, shelf_price: it.shelf_price!=null?parseFloat(it.shelf_price):'', issue_type: it.issue_type||'',
-                  checked_by: it.checked_by||'', checked_at: it.checked_at };
+                  checked_by: it.checked_by||'', checked_at: it.checked_at, label_qty:1 };
       });
     }
   } catch(e) {
@@ -2719,7 +2719,7 @@ function handlePriceCheckScan(code) {
   var prod = PRODUCTS[sku];
   if (idx === -1) {
     priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
-      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'' });
+      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1 });
     idx = 0;
   } else if (idx > 0) {
     // ارفعه لفوق تاني عشان يبان بسهولة لو اتمسح تاني
@@ -2789,7 +2789,21 @@ function renderPriceCheckItemCard(item, i) {
       '<button class="big-action-btn" style="margin:0;background:var(--red);color:#fff;padding:12px" onclick="markPriceCheckMismatch('+i+')">❌ مختلف</button>' +
     '</div>' +
     mismatchForm +
+    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">🖨️ عدد ملصقات السعر المطلوبة</label>' +
+    '<div class="qty-stepper" style="height:44px">' +
+      '<button type="button" onclick="stepLabelQty('+i+',1)">+</button>' +
+      '<input type="number" inputmode="numeric" value="'+item.label_qty+'" oninput="setLabelQty('+i+',this.value)">' +
+      '<button type="button" onclick="stepLabelQty('+i+',-1)">−</button>' +
+    '</div>' +
   '</div>';
+}
+
+function stepLabelQty(i, delta) {
+  priceCheckItems[i].label_qty = Math.max(1, (parseInt(priceCheckItems[i].label_qty)||1) + delta);
+  render();
+}
+function setLabelQty(i, val) {
+  priceCheckItems[i].label_qty = Math.max(1, parseInt(val)||1);
 }
 
 function renderPriceCheckEntry() {
@@ -2821,6 +2835,7 @@ function renderPriceCheckEntry() {
     (cards || '<div class="empty"><div class="empty-i">🏷️</div><div>امسح أول صنف للبدء</div></div>') +
 
     '<div style="margin-top:16px">' +
+      '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="printPriceLabels()">🏷️ طباعة ملصقات الأسعار</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportPriceCheckReport()">📊 تصدير تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
     '</div>' +
@@ -2844,6 +2859,52 @@ function exportPriceCheckReport() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('✅ تم تصدير تقرير المشاكل');
+}
+
+// طباعة ملصقات أسعار جاهزة للقص واللزق على الرف — 3 ملصقات في الصف، كل ملصق: الاسم / السعر / الباركود مرتين
+// (نفس التصميم اللي كان بيتعمل يدوي في إكسل قبل كده)
+function printPriceLabels() {
+  var tags = [];
+  priceCheckItems.forEach(function(it){
+    var n = parseInt(it.label_qty)||1;
+    for (var k=0; k<n; k++) tags.push(it);
+  });
+  if (!tags.length) { toast('⚠️ امسح صنف واحد على الأقل قبل الطباعة'); return; }
+
+  // نلف كل 3 ملصقات في صف جدول
+  var rows = [];
+  for (var i=0; i<tags.length; i+=3) {
+    var rowCells = tags.slice(i,i+3).map(function(it){
+      return '<td class="tag">' +
+        '<div class="tag-name">'+it.name+'</div>' +
+        '<div class="tag-price">'+fmt(it.system_price)+' جنيهًا</div>' +
+        '<div class="tag-bc">'+(it.bc||it.sku)+'</div>' +
+        '<div class="tag-bc tag-bc-b">'+(it.bc||it.sku)+'</div>' +
+      '</td>';
+    });
+    while (rowCells.length < 3) rowCells.push('<td class="tag empty"></td>');
+    rows.push('<tr>'+rowCells.join('')+'</tr>');
+  }
+
+  var win = window.open('', '_blank');
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الأسعار</title>' +
+    '<style>' +
+    'body{font-family:Tahoma,Arial,sans-serif;padding:14px}' +
+    'table{border-collapse:collapse;width:100%}' +
+    '.tag{border:1px solid #000;border-left-width:2px;text-align:center;padding:6px 4px;width:33.33%;vertical-align:middle}' +
+    '.tag.empty{border:none}' +
+    '.tag-name{font-weight:700;font-size:13px;margin-bottom:3px}' +
+    '.tag-price{font-weight:700;font-size:13px;margin-bottom:3px}' +
+    '.tag-bc{font-size:12px;border-top:1px double #000;padding-top:3px}' +
+    '.tag-bc-b{font-weight:700;border-top:none}' +
+    '@media print{body{padding:0}}' +
+    '</style></head><body>' +
+    '<table>'+rows.join('')+'</table>' +
+    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 function printPriceCheckReport() {
