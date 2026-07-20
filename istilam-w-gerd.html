@@ -99,6 +99,12 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 
 /* ── وضع الجرد (Stock Count) ── */
 .loc-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.mode-home-grid{display:flex;flex-direction:column;gap:12px;max-width:420px;margin:0 auto}
+.mode-home-card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:20px;text-align:center;cursor:pointer;transition:all .15s;touch-action:manipulation}
+.mode-home-card:active{border-color:var(--accent);background:#f0f9f4}
+.mode-home-icon{font-size:38px;margin-bottom:8px}
+.mode-home-label{font-size:18px;font-weight:900;color:var(--primary);margin-bottom:4px}
+.mode-home-desc{font-size:12px;color:var(--muted)}
 .loc-bar select,.loc-bar input{padding:9px 8px;border:2px solid var(--border);border-radius:8px;font-size:12px;font-family:'Cairo',sans-serif;background:#fff;color:var(--text);flex:1;min-width:100px}
 .mode-toggle{display:flex;border:2px solid var(--accent);border-radius:10px;overflow:hidden;flex:0 0 auto}
 .mode-toggle button{flex:1;padding:9px 6px;border:none;background:#fff;color:var(--accent);font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap}
@@ -575,7 +581,12 @@ var returnReason = '';       // سبب المرتجع
 // ═══════════════════════════════════════════════
 var BRANCHES = ['عين شمس', 'السمليهي', 'المصنع']; // "السمليهي" هو الاسم الفعلي المستخدم في نظام الطلبيات (forou3/مصنع)
 var FACTORY_DEPTS = ['تبريد', 'تخزين جاف', 'تعبئة'];
-var recvMode = localStorage.getItem('barq_recv_mode') || 'receiving'; // receiving | count
+var recvMode = localStorage.getItem('barq_recv_mode') || null; // null = شاشة اختيار القسم | receiving | count | pricecheck
+var MODE_DEFS = [ // أي وضع جديد نضيفه يتحط هنا بس، وهيبان تلقائياً في شاشة الاختيار
+  { key:'receiving',  icon:'📥', label:'استلام',  desc:'من مورد، فاتورة يدوية، أو من المصنع' },
+  { key:'count',      icon:'🔢', label:'جرد',      desc:'مطابقة الموجود الفعلي بالرصيد على السيستم' },
+  { key:'pricecheck', icon:'🏷️', label:'شيلفات',   desc:'تأكيد إن سعر الرف مطابق للسيستم' }
+];
 var currentBranch = localStorage.getItem('barq_branch') || '';
 var currentDept = localStorage.getItem('barq_dept') || '';
 var counterName = localStorage.getItem('barq_counter_name') || '';
@@ -749,7 +760,7 @@ function doLogin() {
   var user = USERS.find(function(u){ return u.pin===pass; });
   if(!user){var e=document.getElementById('ae');if(e)e.textContent='كود غير صحيح';return;}
   role='receiving'; currentUser=user.name; ROLES.receiving.label=user.name;
-  view='queue'; detailId=null; recvPO=null;
+  view='queue'; detailId=null; recvPO=null; recvMode=null; // يبدأ دايماً بشاشة اختيار القسم بعد الدخول
   counterName = user.name; // نفس الاسم يتسجل تلقائياً مع كل صنف تعدّه في الجرد
   try { localStorage.setItem('barq_session_role', role); localStorage.setItem('barq_current_user', user.name); } catch(e){}
   saveLocPrefs();
@@ -954,7 +965,6 @@ async function loadFromSupabase() {
 // ═══════════════════════════════════════════════
 function renderTopBar() {
   var r=ROLES[role]; var btns='';
-  btns += '<button class="tb'+(view==='queue'?' on':'')+'\" onclick="goQueue()">📋 الطلبات</button>';
   btns += '<button class="tb'+(view==='synccenter'?' on':'')+'" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
   btns += '<button class="tb" onclick="doLogout()">خروج</button>';
 
@@ -975,12 +985,11 @@ function renderMain() {
   if (view === 'synccenter') return '<div class="pg">'+renderSyncCenter()+'</div>';
   return renderReceivingRoot();
 }
-function goQueue() { view='queue'; detailId=null; recvPO=null; if (role==='receiving') { recvMode='receiving'; saveLocPrefs(); } render(); }
-
 // ═══════════════════════════════════════════════
 // PDA ROOT — استلام ⇄ جرد (شاشة واحدة بوضعين)
 // ═══════════════════════════════════════════════
 function renderReceivingRoot() {
+  if (!recvMode) return renderModeHome();
   var body;
   if (recvMode === 'count') {
     body = renderCountRoot();
@@ -990,6 +999,28 @@ function renderReceivingRoot() {
     body = recvPO ? (isReturnMode ? renderReturnEntry() : renderReceiving()) : renderRecvQueue();
   }
   return renderLocationBar() + body;
+}
+
+// شاشة اختيار القسم — أول حاجة تبان بعد الدخول. أي وضع جديد بنضيفه في MODE_DEFS هيبان هنا تلقائياً
+function renderModeHome() {
+  var cards = MODE_DEFS.map(function(m){
+    return '<div class="mode-home-card" onclick="setRecvMode(\''+m.key+'\')">' +
+      '<div class="mode-home-icon">'+m.icon+'</div>' +
+      '<div class="mode-home-label">'+m.label+'</div>' +
+      '<div class="mode-home-desc">'+m.desc+'</div>' +
+    '</div>';
+  }).join('');
+  return '<div style="padding:20px 4px">' +
+    '<div style="text-align:center;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">اختار هتشتغل في إيه؟</div>' +
+    '<div class="mode-home-grid">'+cards+'</div>' +
+  '</div>';
+}
+
+function goHome() {
+  recvMode = null;
+  recvPO = null; isManualInvoice=false; isReturnMode=false; isFactoryReceive=false;
+  saveLocPrefs();
+  render();
 }
 
 function renderLocationBar() {
@@ -1002,11 +1033,11 @@ function renderLocationBar() {
   var nameField = recvMode === 'count'
     ? '<input type="text" class="fi" style="margin-top:8px" placeholder="👤 اسمك (يتسجل مع كل صنف تعدّه)" value="'+counterName+'" onchange="counterName=this.value.trim();saveLocPrefs();">'
     : '';
+  var modeInfo = MODE_DEFS.find(function(m){ return m.key===recvMode; });
   return '<div class="loc-bar">' +
-    '<div class="mode-toggle" style="flex:1 1 100%">' +
-      '<button class="'+(recvMode==='receiving'?'on':'')+'" onclick="setRecvMode(\'receiving\')">📥 استلام</button>' +
-      '<button class="'+(recvMode==='count'?'on':'')+'" onclick="setRecvMode(\'count\')">🔢 جرد</button>' +
-      '<button class="'+(recvMode==='pricecheck'?'on':'')+'" onclick="setRecvMode(\'pricecheck\')">🏷️ تشيك أسعار</button>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex:1 1 100%">' +
+      '<div style="font-weight:800;color:var(--primary);font-size:14px">'+(modeInfo?modeInfo.icon+' '+modeInfo.label:'')+'</div>' +
+      '<button onclick="goHome()" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--text)">🏠 الرئيسية</button>' +
     '</div>' +
     '<div style="display:flex;gap:8px;flex:1 1 100%;margin-top:8px">' +
       '<select class="fi" onchange="selectBranch(this.value)">' +
@@ -1025,7 +1056,7 @@ function resetScopedSessions() {
 }
 
 function setRecvMode(m) {
-  if (recvMode === m) return;
+  if (recvMode === m) { render(); return; }
   recvMode = m;
   saveLocPrefs();
   if (m === 'count' && currentBranch) openOrCreateCountSession();
