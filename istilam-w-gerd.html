@@ -565,10 +565,34 @@ var recvMode = localStorage.getItem('barq_recv_mode') || 'receiving'; // receivi
 var currentBranch = localStorage.getItem('barq_branch') || '';
 var currentDept = localStorage.getItem('barq_dept') || '';
 var counterName = localStorage.getItem('barq_counter_name') || '';
-var countSession = null;   // {id, branch, department, status, started_at}
+var countSession = null;   // {id, branch, department, category, status, started_at}
 var countItems = [];       // [{sku,name,unit,bc,system_qty,actual_qty,cost,counted_by,counted_at}]
 var countSessionLoading = false;
 var pendingUnknownScan = null; // {code} — بانتظار إضافة صنف جديد
+var countCategory = localStorage.getItem('barq_count_category') || ''; // '' = جرد كلي (كل الفئات)
+var countGuided = localStorage.getItem('barq_count_guided') === '1';   // false = جرد أعمى (افتراضي)
+
+function getAllCategories() {
+  var set = {};
+  Object.keys(PRODUCTS).forEach(function(sku){ if (PRODUCTS[sku].cat) set[PRODUCTS[sku].cat] = true; });
+  return Object.keys(set).sort();
+}
+
+// قائمة الأصناف "المتوقعة" في نطاق الجرد الحالي (فرع/قسم عبر الفلترة اليدوية + فئة لو مختارة) وليها رصيد نظري > 0
+function expectedSkusForCurrentScope() {
+  return Object.keys(PRODUCTS).filter(function(sku){
+    var p = PRODUCTS[sku];
+    if (!(p.q > 0)) return false;
+    if (countCategory && p.cat !== countCategory) return false;
+    return true;
+  });
+}
+
+function missingCountSkus() {
+  var countedSkus = {};
+  countItems.forEach(function(it){ countedSkus[it.sku] = true; });
+  return expectedSkusForCurrentScope().filter(function(sku){ return !countedSkus[sku]; });
+}
 
 function saveLocPrefs() {
   try {
@@ -576,6 +600,8 @@ function saveLocPrefs() {
     localStorage.setItem('barq_branch', currentBranch);
     localStorage.setItem('barq_dept', currentDept);
     localStorage.setItem('barq_counter_name', counterName);
+    localStorage.setItem('barq_count_category', countCategory);
+    localStorage.setItem('barq_count_guided', countGuided ? '1' : '0');
   } catch(e){}
 }
 
@@ -881,7 +907,7 @@ async function loadFromSupabase() {
                                bc:p.barcode||'', margin: parseFloat(p.margin)||22,
                                q: p.system_qty!=null?parseFloat(p.system_qty):0,
                                qAt: p.system_qty_updated_at||null,
-                               et: !!p.expiry_tracked };
+                               et: !!p.expiry_tracked, cat: p.category||'' };
         });
         PRODUCTS_MASTER_LOADED = true;
       }
@@ -1297,25 +1323,29 @@ async function processFoodicsFullFile(text, filename, resBox) {
     // Derive simplified PRODUCTS entry for receiving screen
     var cost = parseFloat(row.cost) || 0;
     var price = parseFloat(row.price) || 0;
+    var category = row.category_reference || '';
     if (PRODUCTS[row.sku]) {
       PRODUCTS[row.sku].n = row.name || PRODUCTS[row.sku].n;
       if (row.barcode) PRODUCTS[row.sku].bc = row.barcode;
       if (cost > 0) PRODUCTS[row.sku].c = cost;   // لا نستبدل تكلفة موجودة بصفر
       if (price > 0) PRODUCTS[row.sku].p = price;
+      if (category) PRODUCTS[row.sku].cat = category;
       updated++;
     } else {
       PRODUCTS[row.sku] = {
         n: row.name || '', c: cost, p: price, bc: row.barcode || '',
-        margin: (cost>0 && price>0) ? ((price-cost)/price*100) : 22
+        margin: (cost>0 && price>0) ? ((price-cost)/price*100) : 22, cat: category
       };
       added++;
     }
 
-    masterRows.push({
+    var mRow = {
       sku: row.sku, name: row.name||'', barcode: row.barcode||'',
       cost: cost, price: price,
       margin: (cost>0 && price>0) ? ((price-cost)/price*100) : 22
-    });
+    };
+    if (category) mRow.category = category;
+    masterRows.push(mRow);
   }
 
   FOODICS_CSV_LOADED = true;
@@ -2042,6 +2072,7 @@ async function openOrCreateCountSession() {
     var deptFilter = currentBranch === 'المصنع' ? currentDept : '';
     var q = 'stock_count_sessions?select=*&status=eq.open&branch=eq.'+encodeURIComponent(currentBranch) +
       (deptFilter ? '&department=eq.'+encodeURIComponent(deptFilter) : '&department=is.null') +
+      (countCategory ? '&category=eq.'+encodeURIComponent(countCategory) : '&category=is.null') +
       '&order=started_at.desc&limit=1';
     var existing = await sbFetch(q);
     if (existing && existing.length) {
@@ -2049,7 +2080,7 @@ async function openOrCreateCountSession() {
     } else {
       var created = await sbFetch('stock_count_sessions', {
         method:'POST', headers:{'Prefer':'return=representation'},
-        body: JSON.stringify({ branch: currentBranch, department: deptFilter||null, status:'open', started_by: counterName || (ROLES[role]?ROLES[role].label:'—') })
+        body: JSON.stringify({ branch: currentBranch, department: deptFilter||null, category: countCategory||null, status:'open', started_by: counterName || (ROLES[role]?ROLES[role].label:'—') })
       });
       countSession = created && created[0];
     }
@@ -2076,20 +2107,70 @@ function renderCountRoot() {
   return renderCountEntry();
 }
 
+function setCountCategory(val) {
+  countCategory = val;
+  saveLocPrefs();
+  countSession = null; countItems = [];
+  openOrCreateCountSession();
+}
+
+function toggleCountGuided() {
+  countGuided = !countGuided;
+  saveLocPrefs();
+  render();
+}
+
+function renderScopeBar() {
+  var cats = getAllCategories();
+  var catSelect = cats.length
+    ? '<select class="fi" style="flex:1" onchange="setCountCategory(this.value)">' +
+        '<option value=""'+(countCategory===''?' selected':'')+'>🗂️ الكل (كل الفئات)</option>' +
+        cats.map(function(c){return '<option value="'+c+'"'+(c===countCategory?' selected':'')+'>'+c+'</option>';}).join('') +
+      '</select>'
+    : '';
+  return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+    catSelect +
+    '<div class="mode-toggle" style="flex:0 0 auto">' +
+      '<button class="'+(!countGuided?'on':'')+'" onclick="'+(countGuided?'toggleCountGuided()':'')+'" style="padding:9px 10px">👀 أعمى</button>' +
+      '<button class="'+(countGuided?'on':'')+'" onclick="'+(!countGuided?'toggleCountGuided()':'')+'" style="padding:9px 10px">🎯 موجّه</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderGuidedPrompt() {
+  var missing = missingCountSkus();
+  var total = expectedSkusForCurrentScope().length;
+  var doneCount = total - missing.length;
+  if (!missing.length) {
+    return total ? '<div class="cd" style="background:#eafaf1;border-color:var(--accent);text-align:center;padding:14px">✅ خلّصت كل أصناف النطاق ('+total+' صنف) — تقدر تعتمد الجرد</div>' : '';
+  }
+  var next = PRODUCTS[missing[0]] || {};
+  return '<div class="cd" style="background:#fff8e1;border-color:#d68910;padding:14px">' +
+    '<div style="font-size:11px;color:#856404;font-weight:700;margin-bottom:6px">🎯 الصنف الجاي ('+(doneCount+1)+' من '+total+')</div>' +
+    '<div style="font-size:16px;font-weight:900;color:var(--primary)">'+(next.n||missing[0])+'</div>' +
+    '<div style="font-size:11px;color:var(--muted)">'+missing[0]+(next.bc?' | 🏷️'+next.bc:'')+'</div>' +
+    '<div style="font-size:11px;color:#856404;margin-top:6px">لسه محتاج تتعد: '+missing.length+' صنف من النطاق ده</div>' +
+  '</div>';
+}
+
 function renderCountEntry() {
   var cards = countItems.map(function(item, i){ return renderCountItemCard(item, i); }).join('');
   var totalDiffValue = countItems.reduce(function(s,it){
     if (it.actual_qty === '' || it.actual_qty == null) return s;
     return s + ((parseFloat(it.actual_qty)||0) - (parseFloat(it.system_qty)||0)) * (parseFloat(it.cost)||0);
   }, 0);
+  var missingCount = missingCountSkus().length;
 
   return '<div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:10px;border:1px solid var(--border)">' +
       '<div>' +
-        '<div style="font-size:14px;font-weight:800;color:var(--primary)">🔢 جرد — '+currentBranch+(currentDept?' / '+currentDept:'')+'</div>' +
-        '<div style="font-size:11px;color:var(--muted)">بدأت: '+(countSession.started_by||'—')+' | '+countItems.length+' صنف معدود'+ (totalDiffValue ? ' | فرق: '+fmt(totalDiffValue)+' ج' : '') +'</div>' +
+        '<div style="font-size:14px;font-weight:800;color:var(--primary)">🔢 جرد — '+currentBranch+(currentDept?' / '+currentDept:'')+(countCategory?' / '+countCategory:'')+'</div>' +
+        '<div style="font-size:11px;color:var(--muted)">بدأت: '+(countSession.started_by||'—')+' | '+countItems.length+' صنف معدود'+ (totalDiffValue ? ' | فرق: '+fmt(totalDiffValue)+' ج' : '') + (missingCount ? ' | ⚠️ '+missingCount+' لسه متعديش' : '') +'</div>' +
       '</div>' +
     '</div>' +
+
+    renderScopeBar() +
+    (countGuided ? renderGuidedPrompt() : '') +
 
     // شريط المسح
     '<div class="scan-bar-mobile">' +
@@ -2291,15 +2372,36 @@ function requireSupervisorPin(cb) {
   toast('⚠️ كود غير صحيح — الاعتماد يحتاج صلاحية مدير');
 }
 
+// أصناف من نطاق الجرد الحالي اتعدتش خالص — كصفوف اصطناعية actual_qty=0 عشان تظهر في التقرير
+function missingCountRows() {
+  return missingCountSkus().map(function(sku){
+    var p = PRODUCTS[sku] || {};
+    return { sku: sku, name: p.n||sku, unit:'', bc: p.bc||'', system_qty: p.q||0, actual_qty: 0,
+             cost: p.c||0, counted_by: '— لم يُعد —', counted_at: '' };
+  });
+}
+
+function buildFullCountRows() {
+  var counted = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  return counted.concat(missingCountRows());
+}
+
 async function approveCountSession() {
   if (!countSession) return;
   var counted = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
   if (!counted.length) { toast('⚠️ عدّ صنف واحد على الأقل قبل الاعتماد'); return; }
 
+  var missing = missingCountRows();
+  var treatMissingAsZero = false;
+  if (missing.length) {
+    treatMissingAsZero = confirm('⚠️ فيه '+missing.length+' صنف من نطاق الجرد ده متعديش خالص.\n\nهل تعتبرهم عجز كامل (يتصفّر رصيدهم)؟\n\nOK = تصفير الأصناف دي كلها\nCancel = تجاهلهم من غير تعديل رصيدهم');
+  }
+
   requireSupervisorPin(async function(approverLabel){
     toast('⏳ جاري اعتماد الجرد...');
     try {
-      var updates = counted.map(function(it){
+      var toUpdate = treatMissingAsZero ? counted.concat(missing) : counted;
+      var updates = toUpdate.map(function(it){
         return { sku: it.sku, name: it.name, cost: it.cost, price: PRODUCTS[it.sku]?PRODUCTS[it.sku].p:0,
                  margin: PRODUCTS[it.sku]?PRODUCTS[it.sku].margin:22, barcode: PRODUCTS[it.sku]?PRODUCTS[it.sku].bc:'',
                  system_qty: parseFloat(it.actual_qty)||0, system_qty_updated_at: new Date().toISOString() };
@@ -2316,7 +2418,7 @@ async function approveCountSession() {
         body: JSON.stringify({ status:'closed', closed_by: approverLabel, closed_at: new Date().toISOString() })
       }, { label:'إغلاق جلسة جرد' });
 
-      addAudit('اعتماد جرد', approverLabel, currentBranch+(currentDept?' / '+currentDept:'')+' — '+counted.length+' صنف');
+      addAudit('اعتماد جرد', approverLabel, currentBranch+(currentDept?' / '+currentDept:'')+' — '+counted.length+' صنف معدود'+(treatMissingAsZero?' + '+missing.length+' صُفّرت كعجز':''));
       toast('✅ تم اعتماد الجرد وتحديث الأرصدة');
       countSession = null; countItems = [];
       render();
@@ -2327,7 +2429,7 @@ async function approveCountSession() {
 }
 
 function exportCountDiffReport() {
-  var rows = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  var rows = buildFullCountRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
     var da = Math.abs(((parseFloat(a.actual_qty)||0)-(parseFloat(a.system_qty)||0))*(parseFloat(a.cost)||0));
@@ -2351,7 +2453,7 @@ function exportCountDiffReport() {
 }
 
 function printCountDiffReport() {
-  var rows = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  var rows = buildFullCountRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
     var da = Math.abs(((parseFloat(a.actual_qty)||0)-(parseFloat(a.system_qty)||0))*(parseFloat(a.cost)||0));
