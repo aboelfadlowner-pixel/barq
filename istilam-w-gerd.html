@@ -746,7 +746,6 @@ function doLogin() {
   role='receiving'; currentUser=user.name; ROLES.receiving.label=user.name;
   view='queue'; detailId=null; recvPO=null;
   counterName = user.name; // نفس الاسم يتسجل تلقائياً مع كل صنف تعدّه في الجرد
-  if (user.branch) { currentBranch = user.branch; currentDept = ''; } // حساب فرع معيّن — يختار فرعه تلقائياً من غير ما يدوس تاني
   try { localStorage.setItem('barq_session_role', role); localStorage.setItem('barq_current_user', user.name); } catch(e){}
   saveLocPrefs();
   loadFromSupabase();
