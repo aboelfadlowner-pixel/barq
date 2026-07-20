@@ -491,6 +491,24 @@ function getMonthlyTotal(sku) {
   return applyTareCorrection(raw, sku);
 }
 
+// الجرد بيتسجل بالـ SKU الحقيقي عند فوديكس، فالكروت الافتراضية (تعبئة/تتبيلة) بترجع لنفس الرصيد الأساسي مقسوم على نسبتها
+function getOnHand(sku) {
+  const vmeta = VIRTUAL_SKU_MAP[sku];
+  const baseSku = vmeta ? vmeta.base : sku;
+  const v = stockLevels[baseSku];
+  if (v === undefined) return null;
+  return vmeta ? v / vmeta.factor : v;
+}
+
+function getSuggestedQty(sku) {
+  const onHand = getOnHand(sku);
+  if (onHand === null) return null;
+  const dailyAvg = getMonthlyTotal(sku) / 30;
+  if (dailyAvg <= 0) return null;
+  const target = dailyAvg * coverageDays - onHand;
+  return target > 0 ? target : 0;
+}
+
 function formatNum(n) {
   if (!n && n !== 0) return '—';
   return Number.isInteger(n) ? n.toLocaleString('ar-EG') : parseFloat(n.toFixed(2)).toLocaleString('ar-EG');
@@ -667,12 +685,17 @@ let showHistory = false;
 let showDashboard = false;
 let currentView = 'order'; // order | history | dashboard
 let orderHistory = []; // سجل الطلبيات
+let stockLevels = {}; // sku الأساسي -> الكمية الموجودة بالفرع (من تقرير الجرد اليومي من فوديكس)
+let stockUpdatedAt = null; // وقت آخر رفع لملف الجرد
+let coverageDays = parseFloat(localStorage.getItem('barq_coverage_days')) || 1; // عدد أيام الاستهلاك المستهدف للاقتراح
+let suggestedSkus = new Set(); // skus لسه كميتها اقتراح تلقائي ماتلمستش يدويًا
 
 // استكمال استعادة الجلسة (بعد إعلان كل المتغيرات فوق) — بيرجع آخر شاشة والطلبية اللي كانت شغالة
 if (currentUser) {
   currentView = (_restoredSession && _restoredSession.view) || (currentUser.role === 'staff' ? 'data' : 'order');
   orderDate = new Date().toISOString().split('T')[0];
   loadFromStorage();
+  loadStockFromStorage();
 }
 let showAdmin = false;
 let showScanner = false;
@@ -766,6 +789,7 @@ function renderApp() {
       const filled = qty !== '' && parseFloat(qty) > 0;
       const daySales = getSalesForDay(p.sku, orderDate);
       const monthly = getMonthlyTotal(p.sku);
+      const onHand = getOnHand(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
@@ -774,6 +798,7 @@ function renderApp() {
       } else if (monthly > 0) {
         salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
       }
+      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>` : '';
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
@@ -782,6 +807,7 @@ function renderApp() {
           <div class="prod-meta">
             <span class="unit-badge">${p.unit}</span>
             ${qty > 0 ? getQtyAlert(p.sku, parseFloat(qty)) : ''}
+            ${onHandText}
             ${salesText}
           </div>
         </div>
@@ -834,9 +860,11 @@ function renderApp() {
         ${canDo('manage_users') ? `<button class="top-btn" onclick="toggleUserMgmt()" style="background:rgba(255,255,255,0.2)" title="المستخدمون">👥</button>` : ''}
         ${canDo('admin_panel') && canDo('admin_settings') ? `<button class="top-btn" onclick="toggleAdmin()" style="background:rgba(240,165,0,0.3)" title="إعدادات المنتجات">⚙️</button>` : ''}
         ${canDo('data_entry') && !canDo('admin_settings') ? `<button class="top-btn" onclick="setView('data');render()" style="background:rgba(255,255,255,0.2)" title="إدارة البيانات">📂</button>` : ''}
+        ${canDo('order') ? `<button class="top-btn" onclick="document.getElementById('stockFileInput').click()" style="background:rgba(255,255,255,0.2)" title="رفع تقرير الجرد">📥</button>` : ''}
         <button class="top-btn" onclick="doLogout()">خروج</button>
       </div>
     </div>
+    ${canDo('order') ? `<input type="file" id="stockFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleStockFileUpload(event)">` : ''}
     <div class="nav-tabs">
       ${canDo('order') ? `<button class="nav-tab ${currentView==='order'?'active':''}" onclick="setView('order')">📋 الطلبية</button>` : ''}
       ${canDo('production') ? `<button class="nav-tab ${currentView==='production'?'active':''}" onclick="setView('production')">🏭 الإنتاج</button>` : ''}
@@ -851,6 +879,14 @@ function renderApp() {
       <input class="search-input" type="text" placeholder="🔍 ابحث..." value="${searchQ}" oninput="setSearch(this.value)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button onclick="openScanner()" style="background:var(--accent);border:none;color:#fff;border-radius:10px;padding:9px 12px;font-size:18px;cursor:pointer;flex-shrink:0" title="مسح باركود">📷</button>
       <input class="date-input" type="date" value="${orderDate}" onchange="setDate(this.value)" title="تاريخ الطلبية">
+    </div>
+    <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
+      <span style="margin-right:auto;display:flex;align-items:center;gap:4px">
+        أيام التغطية:
+        <input type="number" min="0.5" step="0.5" value="${coverageDays}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDays(this.value);render()">
+      </span>
+      <button class="top-btn" style="background:var(--accent);color:#fff" onclick="applySuggestedQuantities();render()">🔄 إعادة الاقتراح</button>
     </div>
         <div class="select-all-bar" id="selectAllBar">
         <label><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"> تحديد الكل</label>
@@ -1122,6 +1158,7 @@ function doLogin() {
     activeTab = getActiveTabs()[0]?.id;
     quantities = {};
     orderDate = new Date().toISOString().split('T')[0];
+    loadStockFromStorage();
     // تحديد الشاشة الأولى حسب الدور
     if (user.role === 'staff') currentView = 'data';
     else currentView = 'order';
@@ -1181,6 +1218,7 @@ function renderProductsOnly() {
       const filled = qty !== '' && parseFloat(qty) > 0;
       const daySales = getSalesForDay(p.sku, orderDate);
       const monthly = getMonthlyTotal(p.sku);
+      const onHand = getOnHand(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
@@ -1189,6 +1227,7 @@ function renderProductsOnly() {
       } else if (monthly > 0) {
         salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
       }
+      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>` : '';
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
@@ -1197,6 +1236,7 @@ function renderProductsOnly() {
           <div class="prod-meta">
             <span class="unit-badge">${p.unit}</span>
             ${qty > 0 ? getQtyAlert(p.sku, parseFloat(qty)) : ''}
+            ${onHandText}
             ${salesText}
           </div>
         </div>
@@ -1604,10 +1644,117 @@ function loadFromStorage() {
   }
 }
 
+// ===== STOCK LEVELS (الجرد اليومي — يتحفظ محليًا على الجهاز، من غير رفع على سيرفر) =====
+function stockStorageKey() { return `barq_stock_${currentUser.branchKey}`; }
+
+function saveStockToStorage() {
+  if (!currentUser) return;
+  localStorage.setItem(stockStorageKey(), JSON.stringify({ levels: stockLevels, updatedAt: stockUpdatedAt }));
+}
+
+function loadStockFromStorage() {
+  if (!currentUser) { stockLevels = {}; stockUpdatedAt = null; return; }
+  const saved = localStorage.getItem(stockStorageKey());
+  if (!saved) { stockLevels = {}; stockUpdatedAt = null; return; }
+  try {
+    const parsed = JSON.parse(saved);
+    stockLevels = parsed.levels || {};
+    stockUpdatedAt = parsed.updatedAt || null;
+  } catch(e) { stockLevels = {}; stockUpdatedAt = null; }
+}
+
+function setCoverageDays(v) {
+  const n = parseFloat(v);
+  coverageDays = (!isNaN(n) && n > 0) ? n : 1;
+  localStorage.setItem('barq_coverage_days', String(coverageDays));
+}
+
+function applySuggestedQuantities() {
+  const activeMap = getActiveSkuMap();
+  Object.keys(activeMap).forEach(sku => {
+    if (quantities[sku] !== undefined && !suggestedSkus.has(sku)) return; // الموظف عدلها يدوي، ما نلمسهاش
+    const suggested = getSuggestedQty(sku);
+    if (suggested === null) return;
+    const rounded = Math.round(suggested * 100) / 100;
+    if (rounded > 0) { quantities[sku] = rounded; suggestedSkus.add(sku); }
+    else { delete quantities[sku]; suggestedSkus.delete(sku); }
+  });
+  saveToStorage();
+}
+
+const STOCK_SKU_HEADERS = ['sku', 'product sku', 'كود المنتج', 'كود'];
+const STOCK_QTY_HEADERS = ['quantity', 'available quantity', 'qty', 'stock', 'available', 'الكمية', 'الكمية المتاحة', 'المتاح', 'المخزون'];
+
+function parseStockRows(rows) {
+  if (!rows || rows.length < 2) return null;
+  const headers = rows[0].map(h => h ? String(h).trim().toLowerCase() : '');
+  const skuIdx = headers.findIndex(h => STOCK_SKU_HEADERS.includes(h));
+  const qtyIdx = headers.findIndex(h => STOCK_QTY_HEADERS.includes(h));
+  if (skuIdx === -1 || qtyIdx === -1) return { error: headers };
+  const levels = {};
+  rows.slice(1).forEach(row => {
+    const sku = row[skuIdx] ? String(row[skuIdx]).trim() : '';
+    const qty = parseFloat(row[qtyIdx]);
+    if (sku && !isNaN(qty)) levels[sku] = qty;
+  });
+  return { levels };
+}
+
+function parseStockCSV(text) {
+  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  const rows = lines.map(l => l.split(',').map(c => c.replace(/﻿/g, '').trim()));
+  return parseStockRows(rows);
+}
+
+function applyStockRows(result) {
+  if (!result) { showToast('❌ الملف فارغ أو غير صالح'); return; }
+  if (result.error) {
+    showToast('❌ لم يتم العثور على أعمدة SKU/الكمية — الأعمدة الموجودة: ' + result.error.join(', '), 6000);
+    return;
+  }
+  stockLevels = result.levels;
+  stockUpdatedAt = new Date().toISOString();
+  saveStockToStorage();
+  applySuggestedQuantities();
+  showToast(`✅ تم رفع الجرد لـ ${Object.keys(stockLevels).length} صنف`, 4000);
+  render();
+}
+
+function handleStockFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => applyStockRows(parseStockCSV(e.target.result));
+    reader.readAsText(file, 'utf-8');
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    loadXLSX(function() {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          let rows = [];
+          wb.SheetNames.forEach(sheetName => {
+            rows = rows.concat(XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 }));
+          });
+          applyStockRows(parseStockRows(rows));
+        } catch(err) { showToast('❌ خطأ في قراءة ملف الجرد: ' + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  } else {
+    showToast('❌ صيغة غير مدعومة — استخدم xlsx أو csv');
+  }
+  event.target.value = '';
+}
+
 // حفظ تلقائي عند تغيير الكميات
 const _setQty = setQty;
 window.setQty = function(sku, val) {
   _setQty(sku, val);
+  suggestedSkus.delete(sku); // الموظف عدل الكمية يدويًا فبقت مش اقتراح تلقائي
   saveToStorage();
 };
 
