@@ -1107,23 +1107,7 @@ function renderRecvQueue() {
   var toolsBlock = '<div class="cd" style="padding:10px 14px">' +
     '<button onclick="openManualInvoice()" style="background:none;border:none;color:var(--orange);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">🧾 فاتورة يدوية (خارج أوامر الشراء)</button>' +
     '<button onclick="openReturnEntry()" style="background:none;border:none;color:#8e44ad;font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">↩️ تسجيل مرتجع للمورد</button>' +
-    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">📂 رفع بيانات المنتجات من فودكس (رصيد أساسي — مرة واحدة)</button>' +
-    '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
-      '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
-        '⚠️ لازم ترفع <strong>الملفين مع بعض</strong> (مرة واحدة لكل واحد، بأي ترتيب) عشان الرصيد الأساسي يكون كامل:<br>' +
-        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — فيه الباركود<br>' +
-        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — فيه الكمية الحالية (system_qty) والتكلفة<br>' +
-        'ملف مستويات المخزون في فودكس عادةً من غير باركود — لو رفعته لوحده هتلاقي الأصناف من غير باركود لحد ما ترفع ملف المنتجات كمان.' +
-      '</div>' +
-      '<div class="up-zone" onclick="triggerProdUpload()">' +
-        '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
-        '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
-        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف (اختار أي واحد من الاتنين)</div>' +
-        '<div style="font-size:11px;color:var(--muted)">مرة واحدة بس لكل ملف — بعد كده الرصيد بيتحدّث تلقائياً من الاستلام والجرد. ارفعهم تاني بس لو حابب تظبط صنف معين يدوياً.</div>' +
-      '</div>' +
-      '<div id="prod-up-result" style="margin-top:10px;font-size:12px"></div>' +
-    '</div>' +
-  '</div>';
+  '</div>' + renderProductUploadWidget();
 
   var factoryBtn = (currentBranch && currentBranch !== 'المصنع')
     ? '<button class="big-action-btn" style="background:linear-gradient(135deg,var(--accent),var(--primary));color:#fff" onclick="openFactoryReceive()">📦 استلام من المصنع (حسب آخر طلبية لـ'+currentBranch+')</button>'
@@ -1295,6 +1279,28 @@ function manualRemoveItem(i) {
 // PRODUCT MASTER-DATA UPLOAD — رفع مواد المخزون (يومي)
 // Expected columns (any order, case-insensitive): sku, name, barcode, cost, price
 // ═══════════════════════════════════════════════
+// ودجت رفع بيانات المنتجات من فودكس — مشترك بين الاستلام والجرد وشيلفات، لأن الثلاثة محتاجين نفس البيانات
+// (التكلفة/الباركود/الفئة من ملف المنتجات، والرصيد الافتتاحي من مستويات المخزون)
+function renderProductUploadWidget() {
+  return '<div class="cd" style="padding:10px 14px">' +
+    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">📂 رفع بيانات المنتجات من فودكس (رصيد أساسي — مرة واحدة)</button>' +
+    '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
+      '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
+        '⚠️ لازم ترفع <strong>الملفين مع بعض</strong> (مرة واحدة لكل واحد، بأي ترتيب) عشان البيانات تكون كاملة:<br>' +
+        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — فيه الباركود والفئة والسعر<br>' +
+        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — فيه الكمية الحالية (system_qty) والتكلفة<br>' +
+        'ملف مستويات المخزون في فودكس عادةً من غير باركود — لو رفعته لوحده هتلاقي الأصناف من غير باركود لحد ما ترفع ملف المنتجات كمان.' +
+      '</div>' +
+      '<div class="up-zone" onclick="triggerProdUpload()">' +
+        '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
+        '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
+        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف (اختار أي واحد من الاتنين)</div>' +
+        '<div style="font-size:11px;color:var(--muted)">مرة واحدة بس لكل ملف — بعد كده البيانات بتتحدّث تلقائياً من الاستلام والجرد. ارفعهم تاني بس لو حابب تظبط صنف معين يدوياً أو تحدّث الأسعار.</div>' +
+      '</div>' +
+      '<div id="prod-up-result" style="margin-top:10px;font-size:12px"></div>' +
+    '</div>' +
+  '</div>';
+}
 function showProductUpload() {
   var w = document.getElementById('prod-up-wrap');
   if (w) w.style.display = w.style.display==='none' ? 'block' : 'none';
@@ -2292,6 +2298,7 @@ function renderCountEntry() {
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printCountDiffReport()">🖨️ طباعة تقرير الفروق</button>' +
     '</div>' +
     '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">الاعتماد يحتاج صلاحية مدير (أمين الخزينة / مدير المالية)</div>' +
+    renderProductUploadWidget() +
   '</div>';
 }
 
@@ -2783,6 +2790,7 @@ function renderPriceCheckEntry() {
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
     '</div>' +
     '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">وضع قراءة فقط — من هنا مش بيتغيّر أي سعر على النظام</div>' +
+    renderProductUploadWidget() +
   '</div>';
 }
 
