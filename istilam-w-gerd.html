@@ -530,7 +530,10 @@ var AUDIT_LOG = [];
 // ⚠️ محتاجة تظبطها بأسماء وأكواد الموظفين الحقيقيين (كل كود 4 أرقام مختلف)
 // ═══════════════════════════════════════════════
 var USERS = [
-  { name:'محمود عبد السلام', pin:'1234' }
+  { name:'محمود عبد السلام', pin:'1234' },       // مدير التشغيل — بيختار الفرع بنفسه بعد الدخول
+  { name:'عين شمس', pin:'1001', branch:'عين شمس' },
+  { name:'السمليهي', pin:'1002', branch:'السمليهي' },
+  { name:'المصنع', pin:'1003', branch:'المصنع' }
 ];
 
 // ═══════════════════════════════════════════════
@@ -743,6 +746,7 @@ function doLogin() {
   role='receiving'; currentUser=user.name; ROLES.receiving.label=user.name;
   view='queue'; detailId=null; recvPO=null;
   counterName = user.name; // نفس الاسم يتسجل تلقائياً مع كل صنف تعدّه في الجرد
+  if (user.branch) { currentBranch = user.branch; currentDept = ''; } // حساب فرع معيّن — يختار فرعه تلقائياً من غير ما يدوس تاني
   try { localStorage.setItem('barq_session_role', role); localStorage.setItem('barq_current_user', user.name); } catch(e){}
   saveLocPrefs();
   loadFromSupabase();
