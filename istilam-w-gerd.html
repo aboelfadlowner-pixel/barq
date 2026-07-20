@@ -1320,50 +1320,83 @@ function loadXlsxLib(cb) {
   document.body.appendChild(s);
 }
 
+// تقسيم سطر CSV/TSV على الفاصل مع نزع علامات التنصيص المحيطة بكل حقل (زي "اسم الصنف" → اسم الصنف)
+function splitDelimLine(line, delim) {
+  return line.split(delim).map(function(v){
+    v = v.trim();
+    if (v.length>=2 && v.charAt(0)==='"' && v.charAt(v.length-1)==='"') v = v.slice(1,-1).replace(/""/g,'"');
+    return v;
+  });
+}
+
+// ترتيب أعمدة "ملف المنتجات الكامل" من فودكس — بعض تصديرات فودكس
+// بتطلع من غير صف عناوين خالص، فلو الصف الأول مالوش 'sku' واضح، بنفترض إنه بيانات
+var FOODICS_FULL_HEADERS =['id','name','sku','category_reference','tax_group_reference','is_sold_by_weight',
+  'is_active','is_stock_product','price','cost','barcode','description','preparation_time','calories',
+  'walking_minutes_to_burn_calories','is_high_salt','image','name_localized','description_localized',
+  'ereceipt_item_type','ereceipt_item_code','ereceipt_unit_type'];
+
 function handleProductUpload(input) {
   var file = input.files && input.files[0];
   if (!file) return;
   var resBox = document.getElementById('prod-up-result');
   if (resBox) resBox.innerHTML = '⏳ جاري المعالجة...';
 
-  var isCSV = /\.csv$/i.test(file.name);
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var buf = new Uint8Array(e.target.result);
+    var isZip = buf.length>4 && buf[0]===0x50 && buf[1]===0x4B;
 
-  if (isCSV) {
-    var reader = new FileReader();
-    reader.onload = function(e){ processFoodicsFullFile(e.target.result, file.name, resBox); };
-    reader.readAsText(file, 'UTF-8');
-  } else {
-    loadXlsxLib(function(){
-      var reader = new FileReader();
-      reader.onload = function(e){
+    if (isZip) {
+      loadXlsxLib(function(){
         try {
-          var data = new Uint8Array(e.target.result);
-          var wb = XLSX.read(data, {type:'array'});
+          var wb = XLSX.read(buf, {type:'array'});
           var sheet = wb.Sheets[wb.SheetNames[0]];
           var json = XLSX.utils.sheet_to_json(sheet, {defval:''});
-          processProductRows(json, file.name); // Excel path keeps simple sku/name/cost/price/barcode format
+          processProductRows(json, file.name);
         } catch(err) {
           if (resBox) resBox.innerHTML = '⚠️ خطأ في قراءة الملف: '+err.message;
         }
-      };
-      reader.readAsArrayBuffer(file);
-    });
-  }
+      });
+      return;
+    }
+
+    var text;
+    if (buf.length>=2 && buf[0]===0xFF && buf[1]===0xFE) text = new TextDecoder('utf-16le').decode(buf.subarray(2));
+    else if (buf.length>=2 && buf[0]===0xFE && buf[1]===0xFF) text = new TextDecoder('utf-16be').decode(buf.subarray(2));
+    else text = new TextDecoder('utf-8').decode(buf);
+
+    var firstLine = text.split(/\r?\n/)[0] || '';
+    var delim = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+
+    processFoodicsFullFile(text, file.name, resBox, delim);
+  };
+  reader.readAsArrayBuffer(file);
   input.value = '';
 }
 
 // ── Unified Foodics CSV parser — populates BOTH FOODICS_CACHE (full 22 cols, للتصدير)
 // AND PRODUCTS (سعر/تكلفة/باركود مبسط، لشاشة الاستلام) من ملف واحد بس ──
-async function processFoodicsFullFile(text, filename, resBox) {
+async function processFoodicsFullFile(text, filename, resBox, delim) {
+  delim = delim || ',';
   var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
   if (!lines.length) { if(resBox) resBox.innerHTML = '⚠️ الملف فارغ'; return; }
 
-  var headers = lines[0].split(',').map(function(h){return h.replace(/^\uFEFF/,'').trim();});
+  var firstRowVals = splitDelimLine(lines[0].replace(/^\uFEFF/,''), delim);
+  var looksLikeHeader = firstRowVals.some(function(h){ return h.toLowerCase()==='sku'; });
+  var headers, dataStart;
+  if (looksLikeHeader) {
+    headers = firstRowVals; dataStart = 1;
+  } else if (firstRowVals.length === FOODICS_FULL_HEADERS.length) {
+    headers = FOODICS_FULL_HEADERS; dataStart = 0;
+  } else {
+    headers = firstRowVals; dataStart = 1;
+  }
   var hasFullFoodicsFormat = headers.indexOf('sku') > -1 && headers.indexOf('price') > -1;
   var hasInventoryFormat = headers.indexOf('SKU') > -1 && headers.indexOf('Cost Per Unit') > -1;
 
   if (hasInventoryFormat) {
-    await processInventoryLevelsFile(lines, headers, filename, resBox);
+    await processInventoryLevelsFile(lines, headers, filename, resBox, delim, dataStart);
     return;
   }
 
@@ -1376,8 +1409,8 @@ async function processFoodicsFullFile(text, filename, resBox) {
   FOODICS_CACHE = {};
   var added = 0, updated = 0;
   var masterRows = [];
-  for (var i=1; i<lines.length; i++) {
-    var vals = lines[i].split(',');
+  for (var i=dataStart; i<lines.length; i++) {
+    var vals = splitDelimLine(lines[i], delim);
     var row = {};
     headers.forEach(function(h,j){ row[h] = (vals[j]||'').trim(); });
     if (!row.sku) continue;
@@ -1447,7 +1480,9 @@ async function processFoodicsFullFile(text, filename, resBox) {
 // ── معالجة شيت "مستويات المخزون" — Name, SKU, Barcode, Storage Unit, Quantity, Cost Per Unit, Total Cost ──
 // ده الملف اللي بيتحمل مرة واحدة (رصيد أول المدة) عشان يظبط system_qty الأساسي — بعد كده الرصيد بيتظبط
 // تلقائياً من الاستلام والجرد بس، من غير ما تحتاج ترفع أي ملف تاني يومياً.
-async function processInventoryLevelsFile(lines, headers, filename, resBox) {
+async function processInventoryLevelsFile(lines, headers, filename, resBox, delim, dataStart) {
+  delim = delim || ',';
+  dataStart = dataStart===0 ? 0 : 1;
   var idx = {};
   headers.forEach(function(h,i){ idx[h] = i; });
   var hasQtyCol = idx['Quantity'] !== undefined;
@@ -1459,8 +1494,8 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   var anomalies = [];   // كميات اتغيرت بشكل غير منطقي عن آخر رصيد معروف (احتمال خطأ كتابة)
   var zeroStock = [];   // أصناف طلعت صفر في الملف — تستاهل تأكيد بجرد فعلي
 
-  for (var i=1; i<lines.length; i++) {
-    var vals = lines[i].split(',');
+  for (var i=dataStart; i<lines.length; i++) {
+    var vals = splitDelimLine(lines[i], delim);
     var sku  = (vals[idx['SKU']]||'').trim();
     var name = (vals[idx['Name']]||'').trim();
     var bc   = hasBarcodeCol ? (vals[idx['Barcode']]||'').trim() : '';
