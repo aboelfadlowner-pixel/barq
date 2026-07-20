@@ -1023,14 +1023,19 @@ function renderRecvQueue() {
   var toolsBlock = '<div class="cd" style="padding:10px 14px">' +
     '<button onclick="openManualInvoice()" style="background:none;border:none;color:var(--orange);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">🧾 فاتورة يدوية (خارج أوامر الشراء)</button>' +
     '<button onclick="openReturnEntry()" style="background:none;border:none;color:#8e44ad;font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">↩️ تسجيل مرتجع للمورد</button>' +
-    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">📂 رفع مستويات المخزون (رصيد أساسي — مرة واحدة)</button>' +
+    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right;border-top:1px solid var(--border)">📂 رفع بيانات المنتجات من فودكس (رصيد أساسي — مرة واحدة)</button>' +
     '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
+      '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
+        '⚠️ لازم ترفع <strong>الملفين مع بعض</strong> (مرة واحدة لكل واحد، بأي ترتيب) عشان الرصيد الأساسي يكون كامل:<br>' +
+        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — فيه الباركود<br>' +
+        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — فيه الكمية الحالية (system_qty) والتكلفة<br>' +
+        'ملف مستويات المخزون في فودكس عادةً من غير باركود — لو رفعته لوحده هتلاقي الأصناف من غير باركود لحد ما ترفع ملف المنتجات كمان.' +
+      '</div>' +
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
         '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
-        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف مستويات المخزون من فودكس</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px">✅ الأفضل: تقرير "مستويات المخزون" (Inventory Levels) — بيظبط التكلفة والرصيد الافتتاحي (system_qty) مع بعض<br>يقبل أيضاً: ملف المنتجات الكامل من فودكس (22 عمود) أو ملف مبسط (من غير رصيد)</div>' +
-        '<div style="font-size:11px;color:var(--muted)">مرة واحدة بس كرصيد أساسي — بعد كده الرصيد بيتحدّث تلقائياً من الاستلام والجرد. ارفعه تاني بس لو حابب تظبط صنف معين يدوياً.</div>' +
+        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف (اختار أي واحد من الاتنين)</div>' +
+        '<div style="font-size:11px;color:var(--muted)">مرة واحدة بس لكل ملف — بعد كده الرصيد بيتحدّث تلقائياً من الاستلام والجرد. ارفعهم تاني بس لو حابب تظبط صنف معين يدوياً.</div>' +
       '</div>' +
       '<div id="prod-up-result" style="margin-top:10px;font-size:12px"></div>' +
     '</div>' +
@@ -1352,6 +1357,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   var idx = {};
   headers.forEach(function(h,i){ idx[h] = i; });
   var hasQtyCol = idx['Quantity'] !== undefined;
+  var hasBarcodeCol = idx['Barcode'] !== undefined; // تقرير "مستويات المخزون" غالباً من غير باركود — ملف المنتجات (22 عمود) هو مصدر الباركود
 
   var added = 0, updated = 0, skipped = 0;
   var masterRows = [];
@@ -1361,7 +1367,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
     var vals = lines[i].split(',');
     var sku  = (vals[idx['SKU']]||'').trim();
     var name = (vals[idx['Name']]||'').trim();
-    var bc   = (vals[idx['Barcode']]||'').trim();
+    var bc   = hasBarcodeCol ? (vals[idx['Barcode']]||'').trim() : '';
     var cost = parseFloat(vals[idx['Cost Per Unit']]) || 0;
     var qty  = hasQtyCol ? (parseFloat(vals[idx['Quantity']]) || 0) : null;
     if (!sku || !name) { skipped++; continue; }
@@ -1381,9 +1387,11 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
     }
 
     var row = {
-      sku: sku, name: name, barcode: bc, cost: cost,
+      sku: sku, name: name, cost: cost,
       price: existingPrice, margin: (existingPrice>0) ? ((existingPrice-cost)/existingPrice*100) : 22
     };
+    // ما نبعتش عمود barcode أصلاً لو الملف ده مالوش باركود — عشان ميمسحش الباركود اللي جه من ملف المنتجات
+    if (hasBarcodeCol) row.barcode = bc;
     if (qty != null) { row.system_qty = qty; row.system_qty_updated_at = qtyAt; }
     masterRows.push(row);
   }
