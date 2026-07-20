@@ -1392,6 +1392,8 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   var added = 0, updated = 0, skipped = 0;
   var masterRows = [];
   var qtyAt = new Date().toISOString();
+  var anomalies = [];   // كميات اتغيرت بشكل غير منطقي عن آخر رصيد معروف (احتمال خطأ كتابة)
+  var zeroStock = [];   // أصناف طلعت صفر في الملف — تستاهل تأكيد بجرد فعلي
 
   for (var i=1; i<lines.length; i++) {
     var vals = lines[i].split(',');
@@ -1404,6 +1406,15 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
     if (cost <= 0) { skipped++; continue; } // نتجاهل الأصناف اللي مالهاش تكلفة في هذا الشيت
 
     var existingPrice = PRODUCTS[sku] ? PRODUCTS[sku].p : 0;
+    var oldQty = (PRODUCTS[sku] && PRODUCTS[sku].q) || 0;
+
+    if (hasQtyCol) {
+      // فرق كبير وغير منطقي عن آخر رصيد معروف (زي 100 كيلو اتكتبت 10000 بالغلط)
+      if (oldQty > 0 && (qty > oldQty*5 && qty-oldQty>20 || qty < oldQty/5 && oldQty-qty>20)) {
+        anomalies.push({ sku:sku, name:name, oldQty:oldQty, newQty:qty });
+      }
+      if (qty === 0) zeroStock.push({ sku:sku, name:name });
+    }
 
     if (PRODUCTS[sku]) {
       PRODUCTS[sku].n = name;
@@ -1444,17 +1455,43 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   FOODICS_CSV_LOADED = true;
   addAudit('رفع تكلفة المنتجات (مستويات المخزون)', ROLES[role]?ROLES[role].label:'—',
     filename+' — جديد: '+added+' | محدّث: '+updated+' | متجاهَل (بدون تكلفة): '+skipped);
+  var quickCheckHTML = renderQuickCheckPanel(anomalies, zeroStock);
   if (queuedBatches > 0) {
-    if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">📴 تم التحميل محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً</div>';
+    if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">📴 تم التحميل محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً</div>' + quickCheckHTML;
     toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
   } else {
     if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#eafaf1;border-radius:8px;font-size:13px">' +
       '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث<br>' +
       (hasQtyCol ? '<span style="font-size:11px;color:var(--muted)">تم ضبط الرصيد الافتتاحي (system_qty) من عمود الكمية في الملف</span><br>' : '<span style="font-size:11px;color:#c0392b">⚠️ الملف ده مفيهوش عمود "Quantity" — اتحدثت التكلفة بس، من غير الرصيد</span><br>') +
       '<span style="font-size:11px;color:var(--muted)">'+skipped+' صنف تم تجاهله (بدون تكلفة في هذا الشيت) — محفوظ بشكل دائم</span>' +
-      '</div>';
+      '</div>' + quickCheckHTML;
     toast('✅ تم حفظ '+(added+updated)+' صنف بتكلفة حقيقية من مستويات المخزون');
   }
+}
+
+// فحص سريع بعد الرفع — كميات قفزت بشكل غير منطقي (احتمال خطأ كتابة)، وأصناف رصيدها صفر تستاهل تأكيد بجرد
+function renderQuickCheckPanel(anomalies, zeroStock) {
+  if (!anomalies.length && !zeroStock.length) return '';
+  var html = '<div style="margin-top:10px">';
+  if (anomalies.length) {
+    html += '<div style="background:#fce4ec;border:2px solid #c0392b;border-radius:10px;padding:10px;margin-bottom:8px">' +
+      '<div style="font-weight:800;color:#c0392b;font-size:12px;margin-bottom:6px">🔍 فحص سريع — '+anomalies.length+' صنف كميتهم مش منطقية (فرق كبير عن آخر رصيد معروف):</div>' +
+      anomalies.slice(0,15).map(function(a){
+        return '<div style="font-size:11px;padding:4px 0;border-top:1px solid #f5c6cb">'+a.name+' ('+a.sku+') — كان <strong>'+fmt(a.oldQty)+'</strong> وبقى <strong>'+fmt(a.newQty)+'</strong></div>';
+      }).join('') +
+      (anomalies.length>15 ? '<div style="font-size:11px;color:#856404;margin-top:4px">...و'+(anomalies.length-15)+' صنف تاني</div>' : '') +
+      '<div style="font-size:11px;color:#856404;margin-top:6px">⚠️ راجع الأرقام دي في فوديكس قبل ما تعتمدها، ولو فعلاً صح سيبها زي ما هي.</div>' +
+    '</div>';
+  }
+  if (zeroStock.length) {
+    html += '<div style="background:#fff8e1;border:2px solid #d68910;border-radius:10px;padding:10px">' +
+      '<div style="font-weight:800;color:#856404;font-size:12px;margin-bottom:6px">📭 '+zeroStock.length+' صنف رصيدهم صفر في الملف — يستاهل تتأكد منهم بجرد فعلي:</div>' +
+      zeroStock.slice(0,15).map(function(z){ return '<div style="font-size:11px;padding:3px 0">'+z.name+' ('+z.sku+')</div>'; }).join('') +
+      (zeroStock.length>15 ? '<div style="font-size:11px;color:#856404;margin-top:4px">...و'+(zeroStock.length-15)+' صنف تاني</div>' : '') +
+    '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 
 function parseCSV(text) {
