@@ -899,12 +899,13 @@ function renderApp() {
       <input class="date-input" type="date" value="${orderDate}" onchange="setDate(this.value)" title="تاريخ الطلبية">
     </div>
     <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
+      <button class="top-btn" style="background:var(--accent);color:#fff" onclick="document.getElementById('stockFileInput').click()">📥 رفع الجرد</button>
       <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
       <span style="margin-right:auto;display:flex;align-items:center;gap:4px">
         أيام التغطية:
         <input type="number" min="0.5" step="0.5" value="${coverageDays}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDays(this.value);render()">
       </span>
-      <button class="top-btn" style="background:var(--accent);color:#fff" onclick="applySuggestedQuantities();render()">🔄 إعادة الاقتراح</button>
+      <button class="top-btn" style="background:var(--accent2);color:var(--primary)" onclick="applySuggestedQuantities();render()">🔄 إعادة الاقتراح</button>
     </div>
         <div class="select-all-bar" id="selectAllBar">
         <label><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"> تحديد الكل</label>
