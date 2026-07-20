@@ -101,7 +101,7 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 .loc-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .loc-bar select,.loc-bar input{padding:9px 8px;border:2px solid var(--border);border-radius:8px;font-size:12px;font-family:'Cairo',sans-serif;background:#fff;color:var(--text);flex:1;min-width:100px}
 .mode-toggle{display:flex;border:2px solid var(--accent);border-radius:10px;overflow:hidden;flex:0 0 auto}
-.mode-toggle button{padding:9px 12px;border:none;background:#fff;color:var(--accent);font-weight:800;font-size:12px;cursor:pointer}
+.mode-toggle button{flex:1;padding:9px 6px;border:none;background:#fff;color:var(--accent);font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap}
 .mode-toggle button.on{background:var(--accent);color:#fff}
 .count-sysqty-box{background:var(--bg);border-radius:10px;padding:8px 10px;text-align:center;flex:1}
 .count-sysqty-box label{display:block;font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px}
@@ -586,6 +586,11 @@ var pendingUnknownScan = null; // {code} — بانتظار إضافة صنف ج
 var countCategory = localStorage.getItem('barq_count_category') || ''; // '' = جرد كلي (كل الفئات)
 var countGuided = localStorage.getItem('barq_count_guided') === '1';   // false = جرد أعمى (افتراضي)
 
+var priceCheckSession = null; // {id, branch, department, status, started_by}
+var priceCheckItems = [];     // [{sku,name,bc,system_price,matches,shelf_price,issue_type,checked_by,checked_at}]
+var priceCheckLoading = false;
+var ISSUE_TYPES = { wrong_price:'💰 سعر غلط', missing_tag:'📭 مفيش تسعيرة', expired_promo:'⏰ عرض منتهي', wrong_item:'🔀 منتج في مكان غلط' };
+
 function getAllCategories() {
   var set = {};
   Object.keys(PRODUCTS).forEach(function(sku){ if (PRODUCTS[sku].cat) set[PRODUCTS[sku].cat] = true; });
@@ -934,9 +939,11 @@ async function loadFromSupabase() {
     toast('✅ تم استرجاع العمل غير المكتمل — '+recvItems.length+' صنف');
   }
 
-  // استعادة جلسة الجرد المفتوحة لو الوضع جرد وفيه فرع محفوظ
+  // استعادة جلسة الجرد أو تشيك الأسعار المفتوحة لو فيه فرع محفوظ
   if (role === 'receiving' && recvMode === 'count' && currentBranch) {
     await openOrCreateCountSession();
+  } else if (role === 'receiving' && recvMode === 'pricecheck' && currentBranch) {
+    await openOrCreatePriceCheckSession();
   }
 
   render();
@@ -977,6 +984,8 @@ function renderReceivingRoot() {
   var body;
   if (recvMode === 'count') {
     body = renderCountRoot();
+  } else if (recvMode === 'pricecheck') {
+    body = renderPriceCheckRoot();
   } else {
     body = recvPO ? (isReturnMode ? renderReturnEntry() : renderReceiving()) : renderRecvQueue();
   }
@@ -997,6 +1006,7 @@ function renderLocationBar() {
     '<div class="mode-toggle" style="flex:1 1 100%">' +
       '<button class="'+(recvMode==='receiving'?'on':'')+'" onclick="setRecvMode(\'receiving\')">📥 استلام</button>' +
       '<button class="'+(recvMode==='count'?'on':'')+'" onclick="setRecvMode(\'count\')">🔢 جرد</button>' +
+      '<button class="'+(recvMode==='pricecheck'?'on':'')+'" onclick="setRecvMode(\'pricecheck\')">🏷️ تشيك أسعار</button>' +
     '</div>' +
     '<div style="display:flex;gap:8px;flex:1 1 100%;margin-top:8px">' +
       '<select class="fi" onchange="selectBranch(this.value)">' +
@@ -1009,11 +1019,17 @@ function renderLocationBar() {
   '</div>';
 }
 
+function resetScopedSessions() {
+  countSession = null; countItems = [];
+  priceCheckSession = null; priceCheckItems = [];
+}
+
 function setRecvMode(m) {
   if (recvMode === m) return;
   recvMode = m;
   saveLocPrefs();
   if (m === 'count' && currentBranch) openOrCreateCountSession();
+  else if (m === 'pricecheck' && currentBranch) openOrCreatePriceCheckSession();
   else render();
 }
 
@@ -1021,16 +1037,18 @@ function selectBranch(val) {
   currentBranch = val;
   currentDept = '';
   saveLocPrefs();
-  countSession = null; countItems = [];
+  resetScopedSessions();
   if (recvMode === 'count' && currentBranch) openOrCreateCountSession();
+  else if (recvMode === 'pricecheck' && currentBranch) openOrCreatePriceCheckSession();
   else render();
 }
 
 function selectDept(val) {
   currentDept = val;
   saveLocPrefs();
-  countSession = null; countItems = [];
+  resetScopedSessions();
   if (recvMode === 'count' && currentBranch) openOrCreateCountSession();
+  else if (recvMode === 'pricecheck' && currentBranch) openOrCreatePriceCheckSession();
   else render();
 }
 
@@ -2539,6 +2557,248 @@ function printCountDiffReport() {
       '<th>اسم الصنف</th><th>SKU</th><th>النظري</th><th>الفعلي</th><th>الفرق</th><th>قيمة الفرق</th><th>مين عدّه</th>' +
     '</tr></thead><tbody>'+rowsHTML+'</tbody></table>' +
     '<div class="sig"><div>توقيع القائم بالجرد</div><div>توقيع المدير المعتمِد</div></div>' +
+    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
+}
+
+// ═══════════════════════════════════════════════
+// وضع تشيك الأسعار (Price Check) — قراءة فقط، بدون أي تعديل على أسعار النظام
+// ═══════════════════════════════════════════════
+async function openOrCreatePriceCheckSession() {
+  if (!currentBranch) return;
+  if (currentBranch === 'المصنع' && !currentDept) { render(); return; }
+  priceCheckLoading = true; render();
+  try {
+    var deptFilter = currentBranch === 'المصنع' ? currentDept : '';
+    var q = 'price_check_sessions?select=*&status=eq.open&branch=eq.'+encodeURIComponent(currentBranch) +
+      (deptFilter ? '&department=eq.'+encodeURIComponent(deptFilter) : '&department=is.null') +
+      '&order=started_at.desc&limit=1';
+    var existing = await sbFetch(q);
+    if (existing && existing.length) {
+      priceCheckSession = existing[0];
+    } else {
+      var created = await sbFetch('price_check_sessions', {
+        method:'POST', headers:{'Prefer':'return=representation'},
+        body: JSON.stringify({ branch: currentBranch, department: deptFilter||null, status:'open', started_by: counterName || (ROLES[role]?ROLES[role].label:'—') })
+      });
+      priceCheckSession = created && created[0];
+    }
+    if (priceCheckSession) {
+      var items = await sbFetch('price_check_items?select=*&session_id=eq.'+priceCheckSession.id+'&order=checked_at.desc');
+      priceCheckItems = (items||[]).map(function(it){
+        return { sku: it.sku, name: it.product_name, bc: it.barcode||'', system_price: parseFloat(it.system_price)||0,
+                  matches: it.matches, shelf_price: it.shelf_price!=null?parseFloat(it.shelf_price):'', issue_type: it.issue_type||'',
+                  checked_by: it.checked_by||'', checked_at: it.checked_at };
+      });
+    }
+  } catch(e) {
+    toast('⚠️ تعذر فتح جلسة تشيك الأسعار: '+(e.message||'').slice(0,80));
+  }
+  priceCheckLoading = false;
+  render();
+}
+
+function renderPriceCheckRoot() {
+  if (!currentBranch) return '<div class="empty"><div class="empty-i">📍</div><div>اختر الفرع/الموقع أولاً من الأعلى</div></div>';
+  if (currentBranch === 'المصنع' && !currentDept) return '<div class="empty"><div class="empty-i">🏭</div><div>اختر قسم المصنع أولاً من الأعلى</div></div>';
+  if (priceCheckLoading || !priceCheckSession) return '<div class="empty"><div class="empty-i">⏳</div><div>جاري فتح جلسة تشيك الأسعار...</div></div>';
+  return renderPriceCheckEntry();
+}
+
+function findPriceCheckIndexBySku(sku) {
+  return priceCheckItems.findIndex(function(it){ return it.sku === sku; });
+}
+
+async function persistPriceCheckItem(item) {
+  if (!priceCheckSession) return;
+  try {
+    await sbWrite('price_check_items?on_conflict=session_id,sku', {
+      method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{
+        session_id: priceCheckSession.id, sku: item.sku, product_name: item.name, barcode: item.bc||null,
+        system_price: item.system_price, matches: item.matches, shelf_price: item.shelf_price===''?null:item.shelf_price,
+        issue_type: item.issue_type||null, checked_by: item.checked_by, checked_at: item.checked_at
+      }])
+    }, { opType:'تشيك_سعر', label: 'تشيك سعر: '+item.name });
+  } catch(e) {}
+}
+
+function handlePriceCheckScan(code) {
+  code = (code||'').trim();
+  if (!code) return;
+  if (!priceCheckSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
+  var msg = document.getElementById('scan-msg');
+
+  var sku = null;
+  Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) sku = s; });
+
+  if (!sku) {
+    playBeep('unknown');
+    if (msg) { msg.innerHTML = '⚠️ <strong>'+code+'</strong> — الصنف ده مش مسجل في قاعدة البيانات'; msg.style.color = '#c0392b'; }
+    toast('⚠️ باركود غير معروف');
+    refocusScan();
+    return;
+  }
+
+  var idx = findPriceCheckIndexBySku(sku);
+  var prod = PRODUCTS[sku];
+  if (idx === -1) {
+    priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
+      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'' });
+    idx = 0;
+  } else if (idx > 0) {
+    // ارفعه لفوق تاني عشان يبان بسهولة لو اتمسح تاني
+    var it = priceCheckItems.splice(idx,1)[0];
+    priceCheckItems.unshift(it);
+    idx = 0;
+  }
+  playBeep('success');
+  if (msg) { msg.innerHTML = '✅ <strong>'+priceCheckItems[idx].name+'</strong> — السعر: '+fmt(priceCheckItems[idx].system_price)+' ج'; msg.style.color = '#1a7a40'; }
+  render();
+  var row = document.getElementById('prow-0');
+  if (row) { row.scrollIntoView({behavior:'smooth', block:'center'}); }
+  refocusScan();
+}
+
+function markPriceCheckMatch(i) {
+  priceCheckItems[i].matches = true;
+  priceCheckItems[i].shelf_price = '';
+  priceCheckItems[i].issue_type = '';
+  priceCheckItems[i].checked_by = counterName || (ROLES[role]?ROLES[role].label:'—');
+  priceCheckItems[i].checked_at = new Date().toISOString();
+  persistPriceCheckItem(priceCheckItems[i]);
+  render();
+}
+
+function markPriceCheckMismatch(i) {
+  priceCheckItems[i].matches = false;
+  priceCheckItems[i].checked_by = counterName || (ROLES[role]?ROLES[role].label:'—');
+  priceCheckItems[i].checked_at = new Date().toISOString();
+  render();
+}
+
+function setPriceCheckIssue(i, val) {
+  priceCheckItems[i].issue_type = val;
+  persistPriceCheckItem(priceCheckItems[i]);
+}
+
+function setPriceCheckShelfPrice(i, val) {
+  priceCheckItems[i].shelf_price = val === '' ? '' : (parseFloat(val)||0);
+  persistPriceCheckItem(priceCheckItems[i]);
+}
+
+function renderPriceCheckItemCard(item, i) {
+  var statusBadge = item.matches===true ? '<span class="diff-badge diff-ok">✅ مطابق</span>'
+    : item.matches===false ? '<span class="diff-badge diff-short">❌ مختلف</span>' : '';
+  var mismatchForm = item.matches===false ? (
+    '<div style="margin-top:8px">' +
+      '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">نوع المشكلة</label>' +
+      '<select class="fi" onchange="setPriceCheckIssue('+i+',this.value)">' +
+        '<option value="">— اختر —</option>' +
+        Object.keys(ISSUE_TYPES).map(function(k){return '<option value="'+k+'"'+(item.issue_type===k?' selected':'')+'>'+ISSUE_TYPES[k]+'</option>';}).join('') +
+      '</select>' +
+      '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">السعر المكتوب على الرف (اختياري)</label>' +
+      '<input type="number" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" value="'+(item.shelf_price===''?'':item.shelf_price)+'" oninput="setPriceCheckShelfPrice('+i+',this.value)">' +
+    '</div>'
+  ) : '';
+
+  return '<div class="item-card-mobile" id="prow-'+i+'">' +
+    '<div class="item-name">'+item.name+'</div>' +
+    '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+(item.checked_by?' | 👤 '+item.checked_by:'')+'</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin:8px 0">' +
+      '<div class="count-sysqty-box"><label>السعر على النظام</label><span>'+fmt(item.system_price)+' ج</span></div>' +
+      statusBadge +
+    '</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="big-action-btn" style="margin:0;background:var(--accent);color:#fff;padding:12px" onclick="markPriceCheckMatch('+i+')">✅ مطابق</button>' +
+      '<button class="big-action-btn" style="margin:0;background:var(--red);color:#fff;padding:12px" onclick="markPriceCheckMismatch('+i+')">❌ مختلف</button>' +
+    '</div>' +
+    mismatchForm +
+  '</div>';
+}
+
+function renderPriceCheckEntry() {
+  var cards = priceCheckItems.map(function(item,i){ return renderPriceCheckItemCard(item,i); }).join('');
+  var mismatchCount = priceCheckItems.filter(function(it){ return it.matches===false; }).length;
+
+  return '<div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:10px;border:1px solid var(--border)">' +
+      '<div>' +
+        '<div style="font-size:14px;font-weight:800;color:var(--primary)">🏷️ تشيك أسعار — '+currentBranch+(currentDept?' / '+currentDept:'')+'</div>' +
+        '<div style="font-size:11px;color:var(--muted)">'+priceCheckItems.length+' صنف اتفحص'+(mismatchCount?' | ⚠️ '+mismatchCount+' مختلف':'')+'</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="scan-bar-mobile">' +
+      '<input type="text" id="scan-inp" class="scan-input-mobile" autocomplete="off" ' +
+        'placeholder="📷🔫⌨️ امسح الباركود..." ' +
+        'onkeydown="if(event.key===\'Enter\'){handlePriceCheckScan(this.value);this.value=\'\';}" autofocus>' +
+      '<div style="display:flex;gap:6px;margin-top:6px">' +
+        '<button class="bn bn-o" style="flex:1;padding:10px;font-size:14px" onclick="openCameraScan()">📷 مسح بالكاميرا</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="scan-msg" style="font-size:13px;font-weight:700;text-align:center;margin-bottom:10px;min-height:20px"></div>' +
+    '<div id="cam-scan-wrap" style="display:none;margin-bottom:12px;border-radius:12px;overflow:hidden;border:2px solid var(--accent)">' +
+      '<div id="cam-reader" style="width:100%"></div>' +
+      '<button class="bn bn-d" style="width:100%;border-radius:0;padding:12px" onclick="closeCameraScan()">✕ إغلاق الكاميرا</button>' +
+    '</div>' +
+
+    (cards || '<div class="empty"><div class="empty-i">🏷️</div><div>امسح أول صنف للبدء</div></div>') +
+
+    '<div style="margin-top:16px">' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportPriceCheckReport()">📊 تصدير تقرير المشاكل</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">وضع قراءة فقط — من هنا مش بيتغيّر أي سعر على النظام</div>' +
+  '</div>';
+}
+
+function exportPriceCheckReport() {
+  var rows = priceCheckItems.filter(function(it){ return it.matches===false; });
+  if (!rows.length) { toast('⚠️ لا توجد مشاكل مسجلة بعد'); return; }
+  var csv = '﻿الصنف,SKU,السعر على النظام,السعر على الرف,نوع المشكلة,مين لاحظه,وقت الملاحظة\n';
+  rows.forEach(function(it){
+    var name = (it.name||'').replace(/,/g,' ');
+    csv += [name, it.sku, it.system_price, (it.shelf_price===''?'—':it.shelf_price), (ISSUE_TYPES[it.issue_type]||'—').replace(/,/g,' '), (it.checked_by||'').replace(/,/g,' '), (it.checked_at||'').slice(0,16).replace('T',' ')].join(',') + '\n';
+  });
+  var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'تقرير_تشيك_الأسعار_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✅ تم تصدير تقرير المشاكل');
+}
+
+function printPriceCheckReport() {
+  var rows = priceCheckItems.filter(function(it){ return it.matches===false; });
+  if (!rows.length) { toast('⚠️ لا توجد مشاكل مسجلة بعد'); return; }
+  var today = new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+  var rowsHTML = rows.map(function(it,i){
+    return '<tr style="background:'+(i%2?'#f8fffe':'#fff')+'">' +
+      '<td style="padding:7px 8px;border:1px solid #ddd">'+it.name+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+it.sku+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+fmt(it.system_price)+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+(it.shelf_price===''?'—':fmt(it.shelf_price))+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+(ISSUE_TYPES[it.issue_type]||'—')+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+(it.checked_by||'—')+'</td>' +
+    '</tr>';
+  }).join('');
+
+  var win = window.open('', '_blank');
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير تشيك الأسعار</title>' +
+    '<style>body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#1a1a1a}' +
+    'h2{color:#1a3a2a}table{width:100%;border-collapse:collapse;font-size:12px}' +
+    'th{background:#1a3a2a;color:#fff;padding:8px;border:1px solid #ddd}' +
+    '@media print{body{padding:8px}}</style></head><body>' +
+    '<h2>🏷️ تقرير تشيك الأسعار — '+currentBranch+(currentDept?' / '+currentDept:'')+'</h2>' +
+    '<div style="font-size:12px;color:#666;margin-bottom:14px">تاريخ الطباعة: '+today+' | عدد المشاكل: '+rows.length+'</div>' +
+    '<table><thead><tr>' +
+      '<th>اسم الصنف</th><th>SKU</th><th>السعر على النظام</th><th>السعر على الرف</th><th>نوع المشكلة</th><th>مين لاحظه</th>' +
+    '</tr></thead><tbody>'+rowsHTML+'</tbody></table>' +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
     '</body></html>'
   );
