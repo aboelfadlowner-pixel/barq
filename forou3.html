@@ -492,12 +492,29 @@ function getMonthlyTotal(sku) {
 }
 
 // الجرد بيتسجل بالـ SKU الحقيقي عند فوديكس، فالكروت الافتراضية (تعبئة/تتبيلة) بترجع لنفس الرصيد الأساسي مقسوم على نسبتها
-function getOnHand(sku) {
+// الرقم زي ما جه من فوديكس، من غير أي تصحيح — لو سالب معناه عجز دفتري متراكم (فوديكس بيخصم أكتر من الحقيقي بسبب وزن الطبق)
+function getRawOnHand(sku) {
   const vmeta = VIRTUAL_SKU_MAP[sku];
   const baseSku = vmeta ? vmeta.base : sku;
   const v = stockLevels[baseSku];
   if (v === undefined) return null;
   return vmeta ? v / vmeta.factor : v;
+}
+
+// تقدير تقريبي (مش دقيق 100%) لقد إيه فوديكس هيخصم زيادة اليوم بسبب وزن الطبق، عشان الرصيد ميستمرش يتراكم غلط أكتر كل يوم
+function getDailyTareOffset(sku) {
+  const info = getActiveSkuMap()[sku];
+  if (!info || info.unit !== 'كيلو') return 0;
+  const dailyAvg = getMonthlyTotal(sku) / 30; // متوسط الاستهلاك الحقيقي (بعد خصم فرق الأطباق أصلاً)
+  return dailyAvg * (KG_TARE_DEDUCTION_G / 1000);
+}
+
+// الرصيد المصحح المستخدم في العرض والاقتراح: رقم فوديكس + تعويض يومي تقريبي، ومش بينزل تحت صفر (العجز الدفتري مش نقص فعلي)
+function getOnHand(sku) {
+  const raw = getRawOnHand(sku);
+  if (raw === null) return null;
+  const corrected = raw + getDailyTareOffset(sku);
+  return corrected < 0 ? 0 : corrected;
 }
 
 function getSuggestedQty(sku) {
@@ -790,6 +807,7 @@ function renderApp() {
       const daySales = getSalesForDay(p.sku, orderDate);
       const monthly = getMonthlyTotal(p.sku);
       const onHand = getOnHand(p.sku);
+      const rawOnHand = getRawOnHand(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
@@ -798,7 +816,7 @@ function renderApp() {
       } else if (monthly > 0) {
         salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
       }
-      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>` : '';
+      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>${rawOnHand < 0 ? `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>` : ''}` : '';
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
@@ -1219,6 +1237,7 @@ function renderProductsOnly() {
       const daySales = getSalesForDay(p.sku, orderDate);
       const monthly = getMonthlyTotal(p.sku);
       const onHand = getOnHand(p.sku);
+      const rawOnHand = getRawOnHand(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
@@ -1227,7 +1246,7 @@ function renderProductsOnly() {
       } else if (monthly > 0) {
         salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
       }
-      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>` : '';
+      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>${rawOnHand < 0 ? `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>` : ''}` : '';
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
