@@ -1775,13 +1775,13 @@ async function submitReturn() {
 function exportFoodicsPurchase() {
   var rows = recvItems.filter(function(it){ return parseFloat(it.qty_received) > 0; });
   if (!rows.length) { toast('⚠️ أدخل الكميات المستلمة أولاً'); return; }
-  var csv = '\uFEFFname,sku,order_quantity,storage_quantity,total_cost\n';
+  // صيغة فوديكس الرسمية لاستيراد أصناف أمر الشراء: SKU, Order_quantity, Storage_quantity, Total_cost
+  var csv = '\uFEFFSKU,Order_quantity,Storage_quantity,Total_cost\n';
   rows.forEach(function(it){
     var qty = parseFloat(it.qty_received) || 0;
     var cost = parseFloat(it.new_cost) || it.old_cost || 0;
     var total = (qty * cost).toFixed(2);
-    var name = (it.name||'').replace(/,/g,' ');
-    csv += name+','+it.sku+','+','+qty+','+total+'\n'; // order_quantity فاضي عمداً
+    csv += it.sku+','+','+qty+','+total+'\n'; // Order_quantity فاضي عمداً — فوديكس عارف الكمية المطلوبة أصلاً من أمر الشراء
   });
   var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
