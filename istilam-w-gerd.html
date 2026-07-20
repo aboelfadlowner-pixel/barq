@@ -18,9 +18,11 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 /* AUTH */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary),var(--accent));padding:20px}
 .auth-card{background:#fff;border-radius:20px;padding:30px 26px;width:100%;max-width:380px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.auth-logo{font-size:48px;margin-bottom:6px}
-.auth-title{font-size:22px;font-weight:900;color:var(--primary);margin-bottom:2px}
-.auth-sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+.auth-title-en{font-size:20px;font-weight:900;color:var(--primary);letter-spacing:.5px;font-family:Arial,Helvetica,sans-serif}
+.auth-logo{font-size:40px;margin:4px 0 0}
+.auth-brand{font-size:24px;font-weight:900;color:var(--accent);margin-bottom:2px}
+.auth-sub{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:20px}
+.auth-footer{font-size:10px;color:var(--muted);margin-top:18px;border-top:1px solid var(--border);padding-top:10px}
 .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
 .role-btn{padding:12px 6px;border:2px solid var(--border);border-radius:12px;background:#fafafa;cursor:pointer;transition:all .2s;text-align:center}
 .role-btn:hover{border-color:var(--accent);background:#f0f9f4}
@@ -524,10 +526,18 @@ var SUPPLIERS_DB = [{"id": "9d22b4a1-ab98-4c80-888f-73e507d04b85", "name": "مز
 
 var AUDIT_LOG = [];
 // ═══════════════════════════════════════════════
+// المستخدمين — كل موظف بكوده الشخصي بدل PIN واحد مشترك
+// ⚠️ محتاجة تظبطها بأسماء وأكواد الموظفين الحقيقيين (كل كود 4 أرقام مختلف)
+// ═══════════════════════════════════════════════
+var USERS = [
+  { name:'محمود عبد السلام', pin:'1234' }
+];
+
+// ═══════════════════════════════════════════════
 // ROLES & STATUS
 // ═══════════════════════════════════════════════
 var ROLES = {
-  receiving: { label:'الاستلام', pass:'1111', icon:'📦', color:'#d68910' },
+  receiving: { label:'الاستلام', pass:'', icon:'📦', color:'#d68910' },
 };
 
 var STATUSES = {
@@ -546,6 +556,7 @@ var STATUSES = {
 // STATE
 // ═══════════════════════════════════════════════
 var role = null;
+var currentUser = null; // اسم الموظف اللي داخل فعلياً (من USERS)
 var view = 'queue';
 var detailId = null;
 var recvPO = null;      // PO being received
@@ -714,36 +725,31 @@ function render() {
 // AUTH
 // ═══════════════════════════════════════════════
 function renderAuth() {
-  var btns = Object.keys(ROLES).map(function(k){
-    var r = ROLES[k];
-    return '<div class="role-btn" id="rb-'+k+'" onclick="selRole(\''+k+'\')">' +
-      '<div class="ri">'+r.icon+'</div><div class="rn">'+r.label+'</div><div class="rp">'+r.pass+'</div></div>';
-  }).join('');
   return '<div class="auth-wrap"><div class="auth-card">' +
-    '<div class="auth-logo">⚡</div><div class="auth-title">برق — استلام وجرد</div>' +
-    '<div class="auth-sub">أبو الفضل — أداة موبايل PDA</div>' +
-    '<div class="role-grid">'+btns+'</div>' +
-    '<input type="password" id="ap" class="auth-inp" placeholder="••••" maxlength="4" oninput="if(this.value.length===4)doLogin()">' +
+    '<div class="auth-title-en">ABO EL FADL</div>' +
+    '<div class="auth-logo">⚡</div>' +
+    '<div class="auth-brand">برق</div>' +
+    '<div class="auth-sub">bda</div>' +
+    '<input type="password" id="ap" class="auth-inp" placeholder="كود الدخول الشخصي" maxlength="4" autofocus oninput="if(this.value.length===4)doLogin()">' +
     '<button class="auth-btn" onclick="doLogin()">دخول</button>' +
-    '<div class="auth-err" id="ae"></div></div></div>';
-}
-function selRole(k) {
-  document.querySelectorAll('.role-btn').forEach(function(b){b.classList.remove('sel');});
-  var el=document.getElementById('rb-'+k); if(el)el.classList.add('sel');
-  var inp=document.getElementById('ap'); if(inp)inp.focus();
+    '<div class="auth-err" id="ae"></div>' +
+    '<div class="auth-footer">محمود عبد السلام<br>مدير التشغيل</div>' +
+  '</div></div>';
 }
 function doLogin() {
   var pass=(document.getElementById('ap')||{}).value||'';
-  var found=null;
-  Object.keys(ROLES).forEach(function(k){if(ROLES[k].pass===pass)found=k;});
-  if(!found){var e=document.getElementById('ae');if(e)e.textContent='كلمة المرور غلط';return;}
-  role=found; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.setItem('barq_session_role', role); } catch(e){}
+  var user = USERS.find(function(u){ return u.pin===pass; });
+  if(!user){var e=document.getElementById('ae');if(e)e.textContent='كود غير صحيح';return;}
+  role='receiving'; currentUser=user.name; ROLES.receiving.label=user.name;
+  view='queue'; detailId=null; recvPO=null;
+  counterName = user.name; // نفس الاسم يتسجل تلقائياً مع كل صنف تعدّه في الجرد
+  try { localStorage.setItem('barq_session_role', role); localStorage.setItem('barq_current_user', user.name); } catch(e){}
+  saveLocPrefs();
   loadFromSupabase();
 }
 function doLogout() {
-  role=null; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.removeItem('barq_session_role'); } catch(e){}
+  role=null; currentUser=null; view='queue'; detailId=null; recvPO=null;
+  try { localStorage.removeItem('barq_session_role'); localStorage.removeItem('barq_current_user'); } catch(e){}
   render();
 }
 
@@ -2880,10 +2886,12 @@ window.addEventListener('load', async function(){
     setTimeout(function(){ toast('📴 تم العثور على '+pendingCount+' عملية غير متزامنة — جاري المزامنة تلقائياً'); }, 500);
   }
 
-  var savedRole = null;
-  try { savedRole = localStorage.getItem('barq_session_role'); } catch(e){}
-  if (savedRole && ROLES[savedRole]) {
+  var savedRole = null, savedUser = null;
+  try { savedRole = localStorage.getItem('barq_session_role'); savedUser = localStorage.getItem('barq_current_user'); } catch(e){}
+  if (savedRole && ROLES[savedRole] && savedUser) {
     role = savedRole;
+    currentUser = savedUser;
+    ROLES.receiving.label = savedUser;
     view = 'queue';
     await loadFromSupabase(); // يعيد تحميل البيانات من القاعدة تلقائياً بعد أي refresh
   } else {
