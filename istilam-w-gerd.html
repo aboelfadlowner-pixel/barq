@@ -530,6 +530,10 @@ var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائ
 // ── قاعدة بيانات الموردين (تُحمّل من Supabase suppliers_master عند بدء التشغيل) ──
 var SUPPLIERS_DB = [];
 
+// ── مواد المخزون (مواد خام/تعبئة تُستخدم داخلياً — قائمة صنف مستقلة تماماً عن المنتجات.
+// أكواد الأصناف (SKU) بتاعتها ممكن تتداخل رقمياً مع أكواد المنتجات، فمينفعش تتخزن في نفس القاموس ──
+var MATERIALS = {};
+
 var AUDIT_LOG = [];
 // ═══════════════════════════════════════════════
 // المستخدمين — كل موظف بكوده الشخصي بدل PIN واحد مشترك
@@ -571,6 +575,8 @@ var detailId = null;
 var recvPO = null;      // PO being received
 var recvItems = [];     // items during receiving
 var isManualInvoice = false; // فاتورة يدوية خارج أوامر الشراء (مؤقت)
+var manualSearchKind = 'product'; // فلتر بحث الفاتورة اليدوية/المرتجع: 'product' منتجات (افتراضي) | 'material' مواد مخزون
+var manualSearchQuery = ''; // نص البحث محفوظ في متغير عشان إعادة الرسم في الخلفية (مزامنة/تحديث فوري) متمسحوش وانت بتكتب
 var isReturnMode = false;    // وضع تسجيل مرتجع للمورد
 var isFactoryReceive = false; // استلام من المصنع (حسب طلبية فرع فعلية) — بدل مورد خارجي
 var returnPerson = '';       // اسم الشخص الذي قام بالمرتجع
@@ -952,6 +958,28 @@ async function loadFromSupabase() {
       if (allSuppliers.length) SUPPLIERS_DB = allSuppliers;
     } catch(e) { /* suppliers_master may not exist yet */ }
 
+    // 9. Load materials_master (مواد المخزون — كتالوج مستقل تماماً عن المنتجات، أكوادها ممكن تتداخل مع أكواد المنتجات)
+    try {
+      var allMaterials = [];
+      var mOffset = 0, mBatch = 1000;
+      while (true) {
+        var mBatchRes = await sbFetch('materials_master?select=*&order=sku&limit='+mBatch+'&offset='+mOffset);
+        if (!mBatchRes || !mBatchRes.length) break;
+        allMaterials = allMaterials.concat(mBatchRes);
+        if (mBatchRes.length < mBatch) break;
+        mOffset += mBatch;
+      }
+      if (allMaterials.length) {
+        allMaterials.forEach(function(m){
+          MATERIALS[m.sku] = { n:m.name||'', c:parseFloat(m.cost)||0, p:parseFloat(m.price)||0,
+                                bc:m.barcode||'', margin: parseFloat(m.margin)||22,
+                                q: m.system_qty!=null?parseFloat(m.system_qty):0,
+                                qAt: m.system_qty_updated_at||null,
+                                et: !!m.expiry_tracked, cat: m.category||'' };
+        });
+      }
+    } catch(e) { /* materials_master may not exist yet */ }
+
     SB_CONNECTED = true;
     startRealtime();
   } catch(e) {
@@ -1144,7 +1172,7 @@ function openReceive(poId) {
       qty_ordered: item.qty_ordered||0, qty_received: '',
       old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
       stock_before: (item.current_stock!==undefined && item.current_stock!==null) ? item.current_stock : null,
-      new_cost: '', match: 'pending'
+      new_cost: '', match: 'pending', kind: 'product', et: !!prod.et
     };
   });
   render();
@@ -1175,7 +1203,7 @@ async function openFactoryReceive() {
         sku: item.sku||'', name: item.product_name||'', unit: item.unit||'', bc: prod.bc||'',
         qty_ordered: item.quantity||0, qty_received: '',
         old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
-        stock_before: null, new_cost: '', match: 'pending'
+        stock_before: null, new_cost: '', match: 'pending', kind: 'product', et: !!prod.et
       };
     });
     toast('✅ اتحملت طلبية '+recvItems.length+' صنف — امسح اللي وصلك وقارن');
@@ -1191,6 +1219,7 @@ function openManualInvoice() {
   isManualInvoice = true;
   isReturnMode = false;
   isFactoryReceive = false;
+  manualSearchKind = 'product'; manualSearchQuery = '';
   render();
 }
 
@@ -1202,6 +1231,7 @@ function openReturnEntry() {
   isFactoryReceive = false;
   returnPerson = '';
   returnReason = '';
+  manualSearchKind = 'product'; manualSearchQuery = '';
   render();
 }
 
@@ -1253,33 +1283,67 @@ document.addEventListener('click', function(e){
   }
 });
 
-function manualAddProduct(sku) {
-  var prod = PRODUCTS[sku];
+function manualAddProduct(sku, kind) {
+  kind = kind==='material' ? 'material' : 'product';
+  var dict = kind==='material' ? MATERIALS : PRODUCTS;
+  var prod = dict[sku];
   if (!prod) return;
-  if (recvItems.find(function(it){return it.sku===sku;})) { toast('الصنف مضاف بالفعل'); return; }
+  if (recvItems.find(function(it){return it.sku===sku && (it.kind||'product')===kind;})) { toast('الصنف مضاف بالفعل'); return; }
   recvItems.push({
     sku: sku, name: prod.n, unit: 'وحدة', bc: prod.bc||'',
     qty_ordered: 0, qty_received: 1,
     old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
-    new_cost: '', match: 'manual'
+    new_cost: '', match: 'manual', kind: kind, et: !!prod.et
   });
   render();
   refocusScan();
 }
 
+// شريط بحث موحّد (فاتورة يدوية + مرتجع) — فيه فلتر "منتجات / مواد مخزون" في الأول عشان
+// أكواد الأصناف (SKU) بتتداخل بين الكتالوجين، فمينفعش نبحث في الاتنين مع بعض
+function renderManualSearchBox(placeholder) {
+  function tabStyle(active) {
+    return 'flex:1;padding:9px 6px;font-size:12px;font-weight:800;border-radius:8px;border:2px solid '+
+      (active?'var(--primary)':'var(--border)')+';background:'+(active?'var(--primary)':'#fff')+';color:'+
+      (active?'#fff':'var(--muted)')+';cursor:pointer';
+  }
+  var q = (manualSearchQuery||'').replace(/"/g,'&quot;');
+  return '<div style="margin-bottom:10px">' +
+    '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+      '<button type="button" style="'+tabStyle(manualSearchKind==='product')+'" onclick="setManualSearchKind(\'product\')">🏷️ منتجات</button>' +
+      '<button type="button" style="'+tabStyle(manualSearchKind==='material')+'" onclick="setManualSearchKind(\'material\')">📦 مواد مخزون</button>' +
+    '</div>' +
+    '<input type="text" id="manual-search" class="fi" autocomplete="off" placeholder="'+(placeholder||'🔍 ابحث بالاسم أو الكود أو الباركود...')+'" ' +
+      'style="padding:12px;font-size:14px;margin-bottom:6px" value="'+q+'" oninput="manualSearchProducts()">' +
+    '<div id="manual-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>' +
+  '</div>';
+}
+
+function setManualSearchKind(kind) {
+  manualSearchKind = kind;
+  render();
+  manualSearchProducts();
+}
+
 function manualSearchProducts() {
-  var q = ((document.getElementById('manual-search')||{}).value||'').trim().toLowerCase();
+  var inp = document.getElementById('manual-search');
+  if (inp) manualSearchQuery = inp.value;
   var box = document.getElementById('manual-search-results');
   if (!box) return;
+  var q = (manualSearchQuery||'').trim().toLowerCase();
   if (q.length < 2) { box.innerHTML=''; return; }
-  var matches = Object.keys(PRODUCTS).filter(function(sku){
-    var p = PRODUCTS[sku];
-    return p.n.toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
+  var dict = manualSearchKind==='material' ? MATERIALS : PRODUCTS;
+  var matches = Object.keys(dict).filter(function(sku){
+    var p = dict[sku];
+    return (p.n||'').toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
   }).slice(0,8);
-  if (!matches.length) { box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج</div>'; return; }
+  if (!matches.length) {
+    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج في '+(manualSearchKind==='material'?'مواد المخزون':'المنتجات')+'</div>';
+    return;
+  }
   box.innerHTML = matches.map(function(sku){
-    var p = PRODUCTS[sku];
-    return '<div onclick="manualAddProduct(\''+sku+'\')" style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;display:flex;justify-content:space-between" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
+    var p = dict[sku];
+    return '<div onclick="manualAddProduct(\''+sku+'\',\''+manualSearchKind+'\')" style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;display:flex;justify-content:space-between" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
       '<span>'+p.n+'</span><span style="color:var(--muted)">'+sku+'</span></div>';
   }).join('');
 }
@@ -1293,17 +1357,19 @@ function manualRemoveItem(i) {
 // PRODUCT MASTER-DATA UPLOAD — رفع مواد المخزون (يومي)
 // Expected columns (any order, case-insensitive): sku, name, barcode, cost, price
 // ═══════════════════════════════════════════════
-// ودجت رفع بيانات المنتجات من فودكس — مشترك بين الاستلام والجرد وشيلفات، لأن الثلاثة محتاجين نفس البيانات
-// (التكلفة/الباركود/الفئة من ملف المنتجات، والرصيد الافتتاحي من مستويات المخزون)
+// ودجت رفع بيانات المنتجات ومواد المخزون من فودكس — مشترك بين الاستلام والجرد وشيلفات
+// دول كتالوجين منفصلين تماماً (أكوادهم SKU ممكن تتداخل رقمياً مع بعض)، وكل ملف بيروح لمكانه لوحده:
+// 1) ملف المنتجات الكامل (22 عمود) → كتالوج المنتجات (PRODUCTS)
+// 2) تقرير مستويات المخزون (Inventory Levels) → كتالوج مواد المخزون (MATERIALS) — مواد خام/تعبئة داخلية
 function renderProductUploadWidget() {
   return '<div class="cd" style="padding:10px 14px">' +
-    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">📂 رفع بيانات المنتجات من فودكس (رصيد أساسي — مرة واحدة)</button>' +
+    '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">📂 رفع بيانات المنتجات ومواد المخزون من فودكس (رصيد أساسي — مرة واحدة)</button>' +
     '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
       '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
-        '⚠️ لازم ترفع <strong>الملفين مع بعض</strong> (مرة واحدة لكل واحد، بأي ترتيب) عشان البيانات تكون كاملة:<br>' +
-        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — فيه الباركود والفئة والسعر<br>' +
-        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — فيه الكمية الحالية (system_qty) والتكلفة<br>' +
-        'ملف مستويات المخزون في فودكس عادةً من غير باركود — لو رفعته لوحده هتلاقي الأصناف من غير باركود لحد ما ترفع ملف المنتجات كمان.' +
+        '⚠️ الملفين دول بيمثلوا <strong>كتالوجين منفصلين</strong> — ارفعهم مرة واحدة لكل واحد (بأي ترتيب):<br>' +
+        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — المنتجات اللي بتتباع، فيه الباركود والفئة والسعر<br>' +
+        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — <strong>مواد المخزون</strong> (مواد خام/تعبئة داخلية زي سكر وزيت وعبوات)، أكوادها منفصلة عن أكواد المنتجات حتى لو نفس الرقم<br>' +
+        'كل كتالوج بيتخزن لوحده — البحث في الاستلام فيه فلتر "منتجات / مواد مخزون" تختار بيه أنهي كتالوج تدور فيه.' +
       '</div>' +
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
@@ -1491,16 +1557,17 @@ async function processFoodicsFullFile(text, filename, resBox, delim) {
   }
 }
 
-// ── معالجة شيت "مستويات المخزون" — Name, SKU, Barcode, Storage Unit, Quantity, Cost Per Unit, Total Cost ──
-// ده الملف اللي بيتحمل مرة واحدة (رصيد أول المدة) عشان يظبط system_qty الأساسي — بعد كده الرصيد بيتظبط
-// تلقائياً من الاستلام والجرد بس، من غير ما تحتاج ترفع أي ملف تاني يومياً.
+// ── معالجة شيت "مستويات المخزون" (Inventory Levels) — Name, SKU, Barcode, Storage Unit, Quantity, Cost Per Unit, Total Cost ──
+// ده شيت "مواد المخزون" — كتالوج منفصل تماماً عن شيت المنتجات (المواد الخام/التعبئة المستخدمة داخلياً زي سكر وزيت وعبوات)،
+// وأكواده (SKU) ممكن تتداخل رقمياً مع أكواد المنتجات، فبيتخزن في قاموس وجدول منفصلين (MATERIALS / materials_master)
+// عشان مايحصلش تداخل أو استبدال غلط لبيانات صنف بصنف تاني وهو بيدور في البحث.
 async function processInventoryLevelsFile(lines, headers, filename, resBox, delim, dataStart) {
   delim = delim || ',';
   dataStart = dataStart===0 ? 0 : 1;
   var idx = {};
   headers.forEach(function(h,i){ idx[h] = i; });
   var hasQtyCol = idx['Quantity'] !== undefined;
-  var hasBarcodeCol = idx['Barcode'] !== undefined; // تقرير "مستويات المخزون" غالباً من غير باركود — ملف المنتجات (22 عمود) هو مصدر الباركود
+  var hasBarcodeCol = idx['Barcode'] !== undefined; // تقرير "مستويات المخزون" غالباً من غير باركود
 
   var added = 0, updated = 0, skipped = 0;
   var masterRows = [];
@@ -1518,8 +1585,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     if (!sku || !name) { skipped++; continue; }
     if (cost <= 0) { skipped++; continue; } // نتجاهل الأصناف اللي مالهاش تكلفة في هذا الشيت
 
-    var existingPrice = PRODUCTS[sku] ? PRODUCTS[sku].p : 0;
-    var oldQty = (PRODUCTS[sku] && PRODUCTS[sku].q) || 0;
+    var oldQty = (MATERIALS[sku] && MATERIALS[sku].q) || 0;
 
     if (hasQtyCol) {
       // فرق كبير وغير منطقي عن آخر رصيد معروف (زي 100 كيلو اتكتبت 10000 بالغلط)
@@ -1529,44 +1595,42 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
       if (qty === 0) zeroStock.push({ sku:sku, name:name });
     }
 
-    if (PRODUCTS[sku]) {
-      PRODUCTS[sku].n = name;
-      if (bc) PRODUCTS[sku].bc = bc;
-      PRODUCTS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
-      if (qty != null) { PRODUCTS[sku].q = qty; PRODUCTS[sku].qAt = qtyAt; }
+    if (MATERIALS[sku]) {
+      MATERIALS[sku].n = name;
+      if (bc) MATERIALS[sku].bc = bc;
+      MATERIALS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
+      if (qty != null) { MATERIALS[sku].q = qty; MATERIALS[sku].qAt = qtyAt; }
       updated++;
     } else {
-      PRODUCTS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22, q: qty||0, qAt: qty!=null?qtyAt:null };
+      MATERIALS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22, q: qty||0, qAt: qty!=null?qtyAt:null };
       added++;
     }
 
     var row = {
       sku: sku, name: name, cost: cost,
-      price: existingPrice, margin: (existingPrice>0) ? ((existingPrice-cost)/existingPrice*100) : 22
+      price: 0, margin: 22
     };
-    // ما نبعتش عمود barcode أصلاً لو الملف ده مالوش باركود — عشان ميمسحش الباركود اللي جه من ملف المنتجات
+    // ما نبعتش عمود barcode أصلاً لو الملف ده مالوش باركود — عشان ميمسحش الباركود المحفوظ سابقاً
     if (hasBarcodeCol) row.barcode = bc;
     if (qty != null) { row.system_qty = qty; row.system_qty_updated_at = qtyAt; }
     masterRows.push(row);
   }
 
   if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
-  toast('⏳ جاري حفظ '+masterRows.length+' صنف من مستويات المخزون...');
+  toast('⏳ جاري حفظ '+masterRows.length+' صنف من مواد المخزون...');
 
   var batchSize = 500;
   var queuedBatches = 0;
   for (var b=0; b<masterRows.length; b+=batchSize) {
     var chunk = masterRows.slice(b, b+batchSize);
-    var res = await sbWrite('products_master?on_conflict=sku', {
+    var res = await sbWrite('materials_master?on_conflict=sku', {
       method:'POST',
       headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(chunk)
-    }, { opType:'تحديث_منتج', label:'دفعة تكلفة (مستويات المخزون) — '+chunk.length+' صنف' });
+    }, { opType:'تحديث_مادة_مخزون', label:'دفعة مواد مخزون — '+chunk.length+' صنف' });
     if (res.queued) queuedBatches++;
   }
-  PRODUCTS_MASTER_LOADED = true;
-  FOODICS_CSV_LOADED = true;
-  addAudit('رفع تكلفة المنتجات (مستويات المخزون)', ROLES[role]?ROLES[role].label:'—',
+  addAudit('رفع مواد المخزون (مستويات المخزون)', ROLES[role]?ROLES[role].label:'—',
     filename+' — جديد: '+added+' | محدّث: '+updated+' | متجاهَل (بدون تكلفة): '+skipped);
   var quickCheckHTML = renderQuickCheckPanel(anomalies, zeroStock);
   if (queuedBatches > 0) {
@@ -1649,9 +1713,9 @@ function processProductRows(rows, filename) {
     }
   });
 
-  addAudit('رفع مواد المخزون', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated);
+  addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated);
   if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+')';
-  toast('✅ تم تحديث مواد المخزون');
+  toast('✅ تم تحديث بيانات المنتجات');
 }
 
 function renderReceiving() {
@@ -1668,7 +1732,7 @@ function renderReceiving() {
     return '<div class="item-card-mobile'+(noCost?' warn':'')+'" id="row-'+i+'">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
         '<div style="flex:1;min-width:0">' +
-          '<div class="item-name">'+item.name+'</div>' +
+          '<div class="item-name">'+item.name+(item.kind==='material'?' <span style="background:#eef2f7;color:#555;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">📦 مادة مخزون</span>':'')+'</div>' +
           '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+' | '+item.unit+'</div>' +
         '</div>' +
         removeBtn +
@@ -1691,7 +1755,7 @@ function renderReceiving() {
           'value="'+(item.new_cost===''?'':item.new_cost)+'" ' +
           'oninput="recvItems['+i+'].new_cost=parseFloat(this.value)||0">'
       ) +
-      ((PRODUCTS[item.sku]&&PRODUCTS[item.sku].et) ?
+      (item.et ?
         '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">تاريخ الانتهاء</label>' +
         '<input type="date" id="ed-'+i+'" class="fi" style="padding:11px" value="'+(item.expiry_date||'')+'" ' +
           'onchange="recvItems['+i+'].expiry_date=this.value">'
@@ -1712,11 +1776,7 @@ function renderReceiving() {
     : '';
 
   var manualSearchBox = isManualInvoice
-    ? '<div style="margin-bottom:10px">' +
-        '<input type="text" id="manual-search" class="fi" placeholder="🔍 ابحث عن صنف بالاسم أو الكود..." ' +
-          'style="padding:12px;font-size:14px" oninput="manualSearchProducts()">' +
-        '<div id="manual-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-top:6px"></div>' +
-      '</div>'
+    ? renderManualSearchBox('🔍 ابحث عن صنف بالاسم أو الكود أو الباركود...')
     : '';
 
   var rejectBtn = isManualInvoice ? '' :
@@ -1851,11 +1911,7 @@ function renderReturnEntry() {
     '<div id="scan-msg" style="font-size:12px;margin-bottom:6px;min-height:18px"></div>' +
     renderUnknownAddBox() +
 
-    '<div style="margin-bottom:14px">' +
-      '<input type="text" id="manual-search" class="fi" placeholder="🔍 أو ابحث عن صنف بالاسم أو الكود..." ' +
-        'oninput="manualSearchProducts()" style="margin-bottom:6px">' +
-      '<div id="manual-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>' +
-    '</div>' +
+    renderManualSearchBox('🔍 أو ابحث عن صنف بالاسم أو الكود أو الباركود...') +
 
     '<div id="cam-scan-wrap" style="display:none;margin-bottom:14px;border-radius:10px;overflow:hidden;border:2px solid #8e44ad">' +
       '<div id="cam-reader" style="width:100%"></div>' +
