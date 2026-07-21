@@ -534,6 +534,10 @@ var SUPPLIERS_DB = [];
 // أكواد الأصناف (SKU) بتاعتها ممكن تتداخل رقمياً مع أكواد المنتجات، فمينفعش تتخزن في نفس القاموس ──
 var MATERIALS = {};
 
+// ── تقسيم الأصناف على أقسام الفروع (زي ما بيتطلب من المصنع بالظبط) — sku → اسم القسم.
+// المصدر: ملف "الفروع" (شيت الطلبية) اللي بيرفعه المستخدم، مش فئة فوديكس (category_reference) ──
+var DEPARTMENTS = {};
+
 var AUDIT_LOG = [];
 // ═══════════════════════════════════════════════
 // المستخدمين — كل موظف بكوده الشخصي بدل PIN واحد مشترك
@@ -617,12 +621,22 @@ function getAllCategories() {
   return Object.keys(set).sort();
 }
 
+// أقسام الفروع (من ملف الفروع/الطلبية اللي بيتحمّل في sku_departments) — مستخدمة في وضع "قسم" بالجرد
+function getAllDepartments() {
+  var set = {};
+  Object.keys(DEPARTMENTS).forEach(function(sku){ set[DEPARTMENTS[sku]] = true; });
+  return Object.keys(set).sort();
+}
+
 // قائمة الأصناف "المتوقعة" في نطاق الجرد الحالي (فرع/قسم عبر الفلترة اليدوية + فئة لو مختارة) وليها رصيد نظري > 0
+// في وضع "قسم" التصنيف بييجي من DEPARTMENTS (ملف الفروع)، في باقي الأوضاع بييجي من فئة فوديكس (PRODUCTS[sku].cat)
 function expectedSkusForCurrentScope() {
   return Object.keys(PRODUCTS).filter(function(sku){
     var p = PRODUCTS[sku];
     if (!(p.q > 0)) return false;
-    if (countCategory && p.cat !== countCategory) return false;
+    if (countScopeMode === 'department') {
+      if (countCategory && DEPARTMENTS[sku] !== countCategory) return false;
+    } else if (countCategory && p.cat !== countCategory) return false;
     return true;
   });
 }
@@ -982,6 +996,20 @@ async function loadFromSupabase() {
         });
       }
     } catch(e) { /* materials_master may not exist yet */ }
+
+    // 10. Load sku_departments (تقسيم الأقسام من ملف الفروع — بديل فئة فوديكس لوضع "قسم" في الجرد)
+    try {
+      var allDepts = [];
+      var dOffset = 0, dBatch = 1000;
+      while (true) {
+        var dBatchRes = await sbFetch('sku_departments?select=*&order=sku&limit='+dBatch+'&offset='+dOffset);
+        if (!dBatchRes || !dBatchRes.length) break;
+        allDepts = allDepts.concat(dBatchRes);
+        if (dBatchRes.length < dBatch) break;
+        dOffset += dBatch;
+      }
+      allDepts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
+    } catch(e) { /* sku_departments may not exist yet */ }
 
     SB_CONNECTED = true;
     startRealtime();
@@ -1706,14 +1734,32 @@ function parseCSV(text) {
   });
 }
 
+// بيدور على قيمة عمود في صف (object) بمرونة — أول تطابق تام مع أسماء الأعمدة المرشحة، وبعدين تطابق
+// بعد تجاهل الحروف الكبيرة/الصغيرة والمسافات (لأن أسماء الأعمدة بتختلف شوية بين ملفات إكسل مختلفة)
+function pickField(row, candidates) {
+  for (var i=0; i<candidates.length; i++) {
+    var v = row[candidates[i]];
+    if (v !== undefined && v !== '') return v;
+  }
+  var keys = Object.keys(row);
+  for (var j=0; j<candidates.length; j++) {
+    var target = String(candidates[j]).toLowerCase().trim();
+    for (var k=0; k<keys.length; k++) {
+      if (String(keys[k]).toLowerCase().trim() === target) {
+        var v2 = row[keys[k]];
+        if (v2 !== undefined && v2 !== '') return v2;
+      }
+    }
+  }
+  return '';
+}
+
 function processProductRows(rows, filename) {
   var resBox = document.getElementById('prod-up-result');
   if (!rows || !rows.length) {
     if (resBox) resBox.innerHTML = '⚠️ الملف فارغ أو غير صالح';
     return;
   }
-
-  /* pickField() defined globally above */
 
   var added = 0, updated = 0;
   rows.forEach(function(row){
@@ -1739,6 +1785,129 @@ function processProductRows(rows, filename) {
   addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated);
   if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+')';
   toast('✅ تم تحديث بيانات المنتجات');
+}
+
+// ═══════════════════════════════════════════════
+// رفع ملف تقسيم الأقسام (ملف الفروع/شيت الطلبية) — SKU → القسم، مصدر وضع "قسم" في الجرد
+// نفس الأقسام اللي بيتطلب بيها من المصنع، مش فئة فوديكس
+// ═══════════════════════════════════════════════
+function renderDepartmentsUploadWidget() {
+  return '<div class="cd" style="padding:10px 14px;margin-top:10px">' +
+    '<button onclick="showDeptUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">📂 رفع/تحديث ملف تقسيم الأقسام (ملف الفروع)</button>' +
+    '<div id="dept-up-wrap" style="display:none;margin-top:8px">' +
+      '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
+        'نفس شيت الطلبية اللي بيتطلب بيه من المصنع — فيه اسم الصنف، SKU، وعمود القسم. كل مرة ترفعه بتحدّث تقسيم الأقسام.' +
+      '</div>' +
+      '<div class="up-zone" onclick="triggerDeptUpload()">' +
+        '<input type="file" id="dept-up-inp" accept=".xlsx,.xls,.csv" onchange="handleDepartmentsUpload(this)" style="display:none">' +
+        '<div style="font-size:26px;margin-bottom:6px">📂</div>' +
+        '<div style="font-weight:700;color:var(--primary)">اضغط لرفع ملف تقسيم الأقسام</div>' +
+      '</div>' +
+      '<div id="dept-up-result" style="margin-top:10px;font-size:12px"></div>' +
+    '</div>' +
+  '</div>';
+}
+function showDeptUpload() {
+  var w = document.getElementById('dept-up-wrap');
+  if (w) w.style.display = w.style.display==='none' ? 'block' : 'none';
+}
+function triggerDeptUpload() {
+  var el = document.getElementById('dept-up-inp');
+  if (el) el.click();
+}
+
+function handleDepartmentsUpload(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var resBox = document.getElementById('dept-up-result');
+  if (resBox) resBox.innerHTML = '⏳ جاري المعالجة...';
+
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var buf = new Uint8Array(e.target.result);
+    var isZip = buf.length>4 && buf[0]===0x50 && buf[1]===0x4B;
+    if (isZip) {
+      loadXlsxLib(function(){
+        try {
+          var wb = XLSX.read(buf, {type:'array'});
+          var sheet = wb.Sheets[wb.SheetNames[0]];
+          var json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+          processDepartmentsRows(json, file.name);
+        } catch(err) {
+          if (resBox) resBox.innerHTML = '⚠️ خطأ في قراءة الملف: '+err.message;
+        }
+      });
+      return;
+    }
+    var text;
+    if (buf.length>=2 && buf[0]===0xFF && buf[1]===0xFE) text = new TextDecoder('utf-16le').decode(buf.subarray(2));
+    else if (buf.length>=2 && buf[0]===0xFE && buf[1]===0xFF) text = new TextDecoder('utf-16be').decode(buf.subarray(2));
+    else text = new TextDecoder('utf-8').decode(buf);
+    var firstLine = text.split(/\r?\n/)[0] || '';
+    var delim = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+    var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
+    if (!lines.length) { if(resBox) resBox.innerHTML='⚠️ الملف فارغ'; return; }
+    var headers = splitDelimLine(lines[0].replace(/^\uFEFF/,''), delim);
+    var rows = lines.slice(1).map(function(line){
+      var vals = splitDelimLine(line, delim);
+      var obj = {};
+      headers.forEach(function(h,i){ obj[h] = (vals[i]||'').trim(); });
+      return obj;
+    });
+    processDepartmentsRows(rows, file.name);
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+// أسماء أقسام معروفة بيها تفاوت كتابة بين رفعات مختلفة — بنوحّدها عشان مايتقسمش نفس القسم لقسمين في القائمة
+function normalizeDeptName(d) {
+  d = (d==null?'':d).toString().trim();
+  if (!d) return '';
+  if (d.toLowerCase() === 'vip') return 'VIP';
+  if (d === 'تلاجة') return 'ثلاجة';
+  return d;
+}
+
+async function processDepartmentsRows(rows, filename) {
+  var resBox = document.getElementById('dept-up-result');
+  if (!rows || !rows.length) { if(resBox) resBox.innerHTML = '⚠️ الملف فارغ أو غير صالح'; return; }
+
+  var added=0, updated=0, skipped=0;
+  var deptRows = [];
+  rows.forEach(function(row){
+    var sku = String(pickField(row, ['sku','SKU','كود'])).trim();
+    var dept = normalizeDeptName(pickField(row, ['Column1','القسم','قسم','Department','department']));
+    if (!sku || !dept) { skipped++; return; }
+    if (DEPARTMENTS[sku]) updated++; else added++;
+    DEPARTMENTS[sku] = dept;
+    deptRows.push({ sku: sku, department: dept });
+  });
+
+  if (!deptRows.length) { if(resBox) resBox.innerHTML = '⚠️ محدش لقيت عمود القسم أو SKU في الملف ده'; return; }
+
+  if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
+  toast('⏳ جاري حفظ '+deptRows.length+' صنف من ملف الأقسام...');
+
+  var batchSize = 500;
+  var queuedBatches = 0;
+  for (var b=0; b<deptRows.length; b+=batchSize) {
+    var chunk = deptRows.slice(b, b+batchSize);
+    var res = await sbWrite('sku_departments?on_conflict=sku', {
+      method:'POST', headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(chunk)
+    }, { opType:'تحديث_قسم', label:'دفعة أقسام — '+chunk.length+' صنف' });
+    if (res.queued) queuedBatches++;
+  }
+  addAudit('رفع ملف تقسيم الأقسام', ROLES[role]?ROLES[role].label:'—', filename+' — جديد: '+added+' | محدّث: '+updated+' | متجاهَل: '+skipped);
+  if (queuedBatches > 0) {
+    if (resBox) resBox.innerHTML = '📴 تم التحميل محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً';
+    toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
+  } else {
+    if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#eafaf1;border-radius:8px;font-size:13px">✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث</div>';
+    toast('✅ تم حفظ تقسيم الأقسام');
+  }
+  render();
 }
 
 function renderReceiving() {
@@ -2366,23 +2535,24 @@ function setCountScopeMode(mode) {
 
 // شاشة اختيار القسم — بتبان أول ما تفعّل وضع "قسم"، الأقسام جايه من فئة الصنف (category) المسجلة من ملف المنتجات
 function renderDepartmentPicker() {
-  var cats = getAllCategories();
-  if (!cats.length) {
+  var depts = getAllDepartments();
+  if (!depts.length) {
     return renderScopeBar() +
-      '<div class="empty"><div class="empty-i">🏢</div><div>مفيش أقسام متاحة — لازم ترفع بيانات المنتجات الأول (فيها عمود الفئة/القسم)</div></div>' +
-      renderProductUploadWidget();
+      '<div class="empty"><div class="empty-i">🏢</div><div>مفيش أقسام متاحة — لازم ترفع ملف تقسيم الأقسام (ملف الفروع) الأول</div></div>' +
+      renderDepartmentsUploadWidget();
   }
-  var cards = cats.map(function(c){
-    var count = Object.keys(PRODUCTS).filter(function(sku){ return PRODUCTS[sku].cat === c && PRODUCTS[sku].q > 0; }).length;
-    return '<div class="mode-home-card" onclick="pickCountDepartment(\''+c.replace(/'/g,"\\'")+'\')">' +
+  var cards = depts.map(function(d){
+    var count = Object.keys(DEPARTMENTS).filter(function(sku){ return DEPARTMENTS[sku] === d && PRODUCTS[sku] && PRODUCTS[sku].q > 0; }).length;
+    return '<div class="mode-home-card" onclick="pickCountDepartment(\''+d.replace(/'/g,"\\'")+'\')">' +
       '<div class="mode-home-icon">🏢</div>' +
-      '<div class="mode-home-label">'+c+'</div>' +
+      '<div class="mode-home-label">'+d+'</div>' +
       '<div class="mode-home-desc">'+count+' صنف</div>' +
     '</div>';
   }).join('');
   return renderScopeBar() +
     '<div style="text-align:center;font-size:13px;font-weight:700;color:var(--muted);margin:10px 0 14px">🏢 اختار القسم اللي هتجرده — التصدير هيكون خاص بيه بس</div>' +
-    '<div class="mode-home-grid">'+cards+'</div>';
+    '<div class="mode-home-grid">'+cards+'</div>' +
+    renderDepartmentsUploadWidget();
 }
 function pickCountDepartment(cat) {
   countCategory = cat;
@@ -2437,7 +2607,9 @@ function countSearchProducts() {
   if (q.length < 2) { box.innerHTML=''; return; }
   var matches = Object.keys(PRODUCTS).filter(function(sku){
     var p = PRODUCTS[sku];
-    if (countCategory && p.cat !== countCategory) return false;
+    if (countScopeMode === 'department') {
+      if (countCategory && DEPARTMENTS[sku] !== countCategory) return false;
+    } else if (countCategory && p.cat !== countCategory) return false;
     return (p.n||'').toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
   }).slice(0,8);
   if (!matches.length) { box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج</div>'; return; }
@@ -2678,7 +2850,10 @@ function handleCountScan(code) {
   }
 
   // في وضع "قسم" (أو أي فلترة فئة مفعّلة)، نرفض إضافة صنف من قسم تاني عشان التصدير يفضل خاص بالقسم المختار بس
-  if (countCategory && idx===-1 && PRODUCTS[sku] && PRODUCTS[sku].cat !== countCategory) {
+  var outOfScope = countScopeMode === 'department'
+    ? (countCategory && DEPARTMENTS[sku] !== countCategory)
+    : (countCategory && PRODUCTS[sku] && PRODUCTS[sku].cat !== countCategory);
+  if (idx===-1 && outOfScope) {
     playBeep('unknown');
     if (msg) { msg.innerHTML = '⚠️ <strong>'+(PRODUCTS[sku].n||sku)+'</strong> مش من قسم "'+countCategory+'" — اتجاهل'; msg.style.color = '#c0392b'; }
     refocusScan();
