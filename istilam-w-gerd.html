@@ -601,7 +601,10 @@ var countItems = [];       // [{sku,name,unit,bc,system_qty,actual_qty,cost,coun
 var countSessionLoading = false;
 var pendingUnknownScan = null; // {code} — بانتظار إضافة صنف جديد
 var countCategory = localStorage.getItem('barq_count_category') || ''; // '' = جرد كلي (كل الفئات)
-var countGuided = localStorage.getItem('barq_count_guided') === '1';   // false = جرد أعمى (افتراضي)
+var countGuided = localStorage.getItem('barq_count_guided') !== '0';   // true = جرد موجّه (افتراضي) — الابلكيشن بيقترح الصنف الجاي جاهز للعد
+var countFocusSku = null;   // صنف متفوّتح يدوياً من البحث (بيبقى هو الظاهر في بطاقة العد بدل التالي في الطابور تلقائياً)
+var guidedQtyInput = '';    // القيمة المكتوبة في مربع "العدد الفعلي" ببطاقة الجرد — محفوظة عشان معادش تتمسح لو حصل ريفريش في الخلفية
+var countSearchQuery = '';  // نص البحث اليدوي عن صنف في الجرد
 
 var priceCheckSession = null; // {id, branch, department, status, started_by}
 var priceCheckItems = [];     // [{sku,name,bc,system_price,matches,shelf_price,issue_type,checked_by,checked_at}]
@@ -1094,6 +1097,7 @@ function renderLocationBar() {
 
 function resetScopedSessions() {
   countSession = null; countItems = [];
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
   priceCheckSession = null; priceCheckItems = [];
 }
 
@@ -2317,11 +2321,13 @@ function setCountCategory(val) {
   countCategory = val;
   saveLocPrefs();
   countSession = null; countItems = [];
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
   openOrCreateCountSession();
 }
 
 function toggleCountGuided() {
   countGuided = !countGuided;
+  countFocusSku = null; guidedQtyInput = '';
   saveLocPrefs();
   render();
 }
@@ -2343,20 +2349,114 @@ function renderScopeBar() {
   '</div>';
 }
 
+// ── بطاقة البحث اليدوي عن صنف — بديل للمسح بالباركود (اللي بالكاميرا شبه مستحيل)، متاحة في الوضعين ──
+function renderCountSearchBox() {
+  var q = (countSearchQuery||'').replace(/"/g,'&quot;');
+  return '<div style="margin-bottom:10px">' +
+    '<input type="text" id="count-search" class="fi" autocomplete="off" placeholder="🔍 دور على صنف بالاسم أو الكود أو الباركود..." ' +
+      'style="padding:12px;font-size:14px" value="'+q+'" oninput="countSearchProducts()">' +
+    '<div id="count-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-top:6px"></div>' +
+  '</div>';
+}
+function countSearchProducts() {
+  var inp = document.getElementById('count-search');
+  if (inp) countSearchQuery = inp.value;
+  var box = document.getElementById('count-search-results');
+  if (!box) return;
+  var q = (countSearchQuery||'').trim().toLowerCase();
+  if (q.length < 2) { box.innerHTML=''; return; }
+  var matches = Object.keys(PRODUCTS).filter(function(sku){
+    var p = PRODUCTS[sku];
+    if (countCategory && p.cat !== countCategory) return false;
+    return (p.n||'').toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
+  }).slice(0,8);
+  if (!matches.length) { box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج</div>'; return; }
+  box.innerHTML = matches.map(function(sku){
+    var p = PRODUCTS[sku];
+    var already = findCountIndexBySku(sku) > -1;
+    return '<div onclick="focusCountItem(\''+sku+'\')" style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
+      '<span>'+p.n+(already?' <span style="color:var(--accent);font-size:10px;font-weight:800">✓ متعدود</span>':'')+'</span><span style="color:var(--muted)">'+sku+'</span></div>';
+  }).join('');
+}
+function focusCountItem(sku) {
+  countFocusSku = sku;
+  countSearchQuery = '';
+  var existing = countItems.find(function(it){return it.sku===sku;});
+  guidedQtyInput = (existing && existing.actual_qty !== '' && existing.actual_qty != null) ? String(existing.actual_qty) : '';
+  render();
+}
+
+function onGuidedQtyInput(val) { guidedQtyInput = val; }
+function stepGuidedQty(delta) {
+  var cur = parseFloat(guidedQtyInput) || 0;
+  cur = Math.max(0, cur + delta);
+  guidedQtyInput = String(cur);
+  var inp = document.getElementById('guided-qty-inp');
+  if (inp) inp.value = guidedQtyInput;
+}
+function confirmGuidedCount(sku) {
+  if (guidedQtyInput === '' || guidedQtyInput == null || isNaN(parseFloat(guidedQtyInput))) {
+    toast('⚠️ اكتب العدد الفعلي الأول'); return;
+  }
+  var qty = Math.max(0, parseFloat(guidedQtyInput));
+  guidedQtyInput = '';
+  countFocusSku = null; // نرجع تلقائياً للصنف التالي المقترح في الطابور
+  addCountScanned(sku, qty);
+  playBeep('success');
+}
+
+// ── بطاقة العد الجاهزة — بتفضّي: اسم الصنف + رصيده على الجهاز + مربع فاضي تكتب فيه العدد الفعلي وتأكد ──
+// دي البديل الرئيسي للمسح بالباركود؛ بتتفتح إما تلقائياً (وضع موجّه) أو بالبحث اليدوي (الوضعين)
+function renderCountEntryCard(sku, opts) {
+  opts = opts || {};
+  var p = PRODUCTS[sku] || {};
+  var already = countItems.find(function(it){return it.sku===sku;});
+  var headerLabel = opts.progressBar ? '' : (already ? '✏️ تعديل صنف متعدود بالفعل' : '🔍 صنف مختار يدوياً');
+  return '<div class="cd" style="border-color:var(--accent);padding:16px">' +
+    (opts.progressBar || '') +
+    (headerLabel ? '<div style="font-size:11px;color:var(--muted);font-weight:800;margin-bottom:6px">'+headerLabel+'</div>' : '') +
+    '<div style="font-size:19px;font-weight:900;color:var(--primary);margin-bottom:2px">'+(p.n||sku)+'</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+sku+(p.bc?' | 🏷️'+p.bc:'')+'</div>' +
+    '<div class="count-sysqty-box" style="text-align:center;margin-bottom:14px">' +
+      '<label>📦 الرصيد على الجهاز (مستويات المخزون)</label><span>'+fmt(p.q||0)+'</span>' +
+    '</div>' +
+    '<label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">العدد الفعلي — اللي موجود دلوقتي في الفرع</label>' +
+    '<div class="qty-stepper" style="margin-bottom:12px">' +
+      '<button type="button" onclick="stepGuidedQty(1)">+</button>' +
+      '<input type="number" id="guided-qty-inp" inputmode="decimal" placeholder="0" autofocus autocomplete="off" ' +
+        'value="'+(guidedQtyInput||'')+'" oninput="onGuidedQtyInput(this.value)" ' +
+        'onkeydown="if(event.key===\'Enter\'){confirmGuidedCount(\''+sku+'\');}">' +
+      '<button type="button" onclick="stepGuidedQty(-1)">−</button>' +
+    '</div>' +
+    '<button class="big-action-btn" style="background:var(--accent);color:#fff;margin:0" onclick="confirmGuidedCount(\''+sku+'\')">✅ تأكيد والصنف التالي</button>' +
+  '</div>';
+}
+
 function renderGuidedPrompt() {
   var missing = missingCountSkus();
   var total = expectedSkusForCurrentScope().length;
   var doneCount = total - missing.length;
-  if (!missing.length) {
-    return total ? '<div class="cd" style="background:#eafaf1;border-color:var(--accent);text-align:center;padding:14px">✅ خلّصت كل أصناف النطاق ('+total+' صنف) — تقدر تعتمد الجرد</div>' : '';
+
+  // لو فيه صنف متفوّتح يدوياً من البحث، هو الأولوية
+  if (countFocusSku) {
+    return renderCountEntryCard(countFocusSku, {});
   }
-  var next = PRODUCTS[missing[0]] || {};
-  return '<div class="cd" style="background:#fff8e1;border-color:#d68910;padding:14px">' +
-    '<div style="font-size:11px;color:#856404;font-weight:700;margin-bottom:6px">🎯 الصنف الجاي ('+(doneCount+1)+' من '+total+')</div>' +
-    '<div style="font-size:16px;font-weight:900;color:var(--primary)">'+(next.n||missing[0])+'</div>' +
-    '<div style="font-size:11px;color:var(--muted)">'+missing[0]+(next.bc?' | 🏷️'+next.bc:'')+'</div>' +
-    '<div style="font-size:11px;color:#856404;margin-top:6px">لسه محتاج تتعد: '+missing.length+' صنف من النطاق ده</div>' +
-  '</div>';
+  if (!countGuided) return '';
+
+  if (!missing.length) {
+    return total ? '<div class="cd" style="background:#eafaf1;border-color:var(--accent);text-align:center;padding:16px;font-weight:800;color:#1a7a40">✅ خلّصت كل أصناف النطاق ('+total+' صنف) — تقدر تعتمد الجرد</div>'
+      : '<div class="cd" style="text-align:center;padding:16px;color:var(--muted)">مفيش أصناف متوقعة (برصيد أكبر من صفر) في النطاق ده — استخدم البحث اليدوي فوق أو غيّر الفئة</div>';
+  }
+  var sku = missing[0];
+  var pct = total ? Math.round((doneCount/total)*100) : 0;
+  var progressBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+      '<span style="font-size:11px;font-weight:800;color:var(--muted)">🎯 صنف '+(doneCount+1)+' من '+total+'</span>' +
+      '<span style="font-size:11px;font-weight:800;color:var(--accent)">'+pct+'%</span>' +
+    '</div>' +
+    '<div style="height:6px;background:var(--bg);border-radius:6px;overflow:hidden;margin-bottom:14px">' +
+      '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:6px;transition:width .2s"></div>' +
+    '</div>';
+  return renderCountEntryCard(sku, { progressBar: progressBar });
 }
 
 function renderCountEntry() {
@@ -2376,17 +2476,21 @@ function renderCountEntry() {
     '</div>' +
 
     renderScopeBar() +
-    (countGuided ? renderGuidedPrompt() : '') +
+    renderCountSearchBox() +
+    renderGuidedPrompt() +
 
-    // شريط المسح
-    '<div class="scan-bar-mobile">' +
-      '<input type="text" id="scan-inp" class="scan-input-mobile" autocomplete="off" ' +
-        'placeholder="📷🔫⌨️ امسح الباركود..." ' +
-        'onkeydown="if(event.key===\'Enter\'){handleCountScan(this.value);this.value=\'\';}" autofocus>' +
-      '<div style="display:flex;gap:6px;margin-top:6px">' +
-        '<button class="bn bn-o" style="flex:1;padding:10px;font-size:14px" onclick="openCameraScan()">📷 مسح بالكاميرا</button>' +
+    // شريط المسح — اختياري، لمين عنده مسّاح باركود شغال (بلوتوث/كيبورد). مش مطلوب للجرد أصلاً بعد دلوقتي
+    '<details style="margin-bottom:12px">' +
+      '<summary style="font-size:12px;color:var(--muted);font-weight:700;cursor:pointer;padding:6px 0">📷🔫 عندك مسّاح باركود؟ (اختياري)</summary>' +
+      '<div class="scan-bar-mobile" style="margin-top:8px">' +
+        '<input type="text" id="scan-inp" class="scan-input-mobile" autocomplete="off" ' +
+          'placeholder="امسح الباركود بمسّاح بلوتوث/كيبورد..." ' +
+          'onkeydown="if(event.key===\'Enter\'){handleCountScan(this.value);this.value=\'\';}">' +
+        '<div style="display:flex;gap:6px;margin-top:6px">' +
+          '<button class="bn bn-g" style="flex:1;padding:9px;font-size:12px;color:var(--muted)" onclick="openCameraScan()">📷 مسح بكاميرا الموبايل (قد يكون بطيء)</button>' +
+        '</div>' +
       '</div>' +
-    '</div>' +
+    '</details>' +
     '<div id="scan-msg" style="font-size:13px;font-weight:700;text-align:center;margin-bottom:10px;min-height:20px"></div>' +
     '<div id="cam-scan-wrap" style="display:none;margin-bottom:12px;border-radius:12px;overflow:hidden;border:2px solid var(--accent)">' +
       '<div id="cam-reader" style="width:100%"></div>' +
@@ -2395,7 +2499,8 @@ function renderCountEntry() {
 
     renderUnknownAddBox() +
 
-    (cards || '<div class="empty"><div class="empty-i">📭</div><div>امسح أول صنف للبدء في الجرد</div></div>') +
+    (cards.length ? ('<div style="font-size:12px;font-weight:800;color:var(--muted);margin:14px 0 8px">📋 الأصناف المعدودة ('+countItems.length+')</div>' + cards)
+      : '<div class="empty"><div class="empty-i">📭</div><div>لسه معديتش أي صنف — دور عليه فوق وابدأ</div></div>') +
 
     '<div style="margin-top:16px">' +
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="approveCountSession()">✅ اعتماد الجرد</button>' +
@@ -2456,17 +2561,18 @@ function findCountIndexBySku(sku) {
   return countItems.findIndex(function(it){ return it.sku === sku; });
 }
 
-function addCountScanned(sku) {
+// explicitQty لو موجودة (من بطاقة العد اليدوية) بتحدد العدد الفعلي بالظبط، من غير ما تحدد بيتضاف للي فات (سلوك المسح بالباركود: +1 كل مسحة)
+function addCountScanned(sku, explicitQty) {
   var prod = PRODUCTS[sku];
   if (!prod) return;
   var idx = findCountIndexBySku(sku);
   var who = counterName || (ROLES[role]?ROLES[role].label:'—');
   if (idx === -1) {
     countItems.unshift({ sku:sku, name:prod.n, unit:'وحدة', bc:prod.bc||'',
-      system_qty: prod.q||0, actual_qty: 1, cost: prod.c||0, counted_by: who, counted_at: new Date().toISOString() });
+      system_qty: prod.q||0, actual_qty: (explicitQty!=null?explicitQty:1), cost: prod.c||0, counted_by: who, counted_at: new Date().toISOString() });
     idx = 0;
   } else {
-    countItems[idx].actual_qty = (parseFloat(countItems[idx].actual_qty)||0) + 1;
+    countItems[idx].actual_qty = explicitQty!=null ? explicitQty : ((parseFloat(countItems[idx].actual_qty)||0) + 1);
     countItems[idx].counted_by = who;
     countItems[idx].counted_at = new Date().toISOString();
   }
