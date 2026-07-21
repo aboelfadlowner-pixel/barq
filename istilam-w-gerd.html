@@ -1333,6 +1333,18 @@ function manualAddProduct(sku, kind) {
 
 // شريط بحث موحّد (فاتورة يدوية + مرتجع) — فيه فلتر "منتجات / مواد مخزون" في الأول عشان
 // أكواد الأصناف (SKU) بتتداخل بين الكتالوجين، فمينفعش نبحث في الاتنين مع بعض
+// بيوحّد صيغ الحروف العربية المتشابهة (أ/إ/آ/ا، ى/ي، ة/ه) والمسافات الزيادة، عشان البحث يلاقي النتيجة
+// حتى لو المستخدم كتبها بصيغة مختلفة شوية عن اللي في القاعدة (مشكلة شائعة جداً في البحث العربي)
+function normalizeArabicSearch(s) {
+  return (s||'').toString()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function renderManualSearchBox(placeholder) {
   function tabStyle(active) {
     return 'flex:1;padding:9px 6px;font-size:12px;font-weight:800;border-radius:8px;border:2px solid '+
@@ -1340,11 +1352,17 @@ function renderManualSearchBox(placeholder) {
       (active?'#fff':'var(--muted)')+';cursor:pointer';
   }
   var q = (manualSearchQuery||'').replace(/"/g,'&quot;');
+  var productCount = Object.keys(PRODUCTS).length;
+  var materialCount = Object.keys(MATERIALS).length;
+  var emptyWarning = (manualSearchKind==='material' && materialCount===0)
+    ? '<div style="background:#fce4ec;border:1px solid #c0392b;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:11px;color:#c0392b">⚠️ كتالوج مواد المخزون فاضي دلوقتي — لازم ترفع "تقرير مستويات المخزون" (من زرار رفع البيانات تحت) الأول عشان يتملى</div>'
+    : '';
   return '<div style="margin-bottom:10px">' +
     '<div style="display:flex;gap:6px;margin-bottom:6px">' +
-      '<button type="button" style="'+tabStyle(manualSearchKind==='product')+'" onclick="setManualSearchKind(\'product\')">🏷️ منتجات</button>' +
-      '<button type="button" style="'+tabStyle(manualSearchKind==='material')+'" onclick="setManualSearchKind(\'material\')">📦 مواد مخزون</button>' +
+      '<button type="button" style="'+tabStyle(manualSearchKind==='product')+'" onclick="setManualSearchKind(\'product\')">🏷️ منتجات ('+productCount+')</button>' +
+      '<button type="button" style="'+tabStyle(manualSearchKind==='material')+'" onclick="setManualSearchKind(\'material\')">📦 مواد مخزون ('+materialCount+')</button>' +
     '</div>' +
+    emptyWarning +
     '<input type="text" id="manual-search" class="fi" autocomplete="off" placeholder="'+(placeholder||'🔍 ابحث بالاسم أو الكود أو الباركود...')+'" ' +
       'style="padding:12px;font-size:14px;margin-bottom:6px" value="'+q+'" oninput="manualSearchProducts()">' +
     '<div id="manual-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>' +
@@ -1362,15 +1380,19 @@ function manualSearchProducts() {
   if (inp) manualSearchQuery = inp.value;
   var box = document.getElementById('manual-search-results');
   if (!box) return;
-  var q = (manualSearchQuery||'').trim().toLowerCase();
-  if (q.length < 2) { box.innerHTML=''; return; }
+  var qRaw = (manualSearchQuery||'').trim();
+  if (qRaw.length < 2) { box.innerHTML=''; return; }
+  var q = normalizeArabicSearch(qRaw);
   var dict = manualSearchKind==='material' ? MATERIALS : PRODUCTS;
   var matches = Object.keys(dict).filter(function(sku){
     var p = dict[sku];
-    return (p.n||'').toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
+    return normalizeArabicSearch(p.n).indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(qRaw)>=0;
   }).slice(0,8);
   if (!matches.length) {
-    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج في '+(manualSearchKind==='material'?'مواد المخزون':'المنتجات')+'</div>';
+    var emptyCatalog = Object.keys(dict).length === 0;
+    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">' +
+      (emptyCatalog ? '⚠️ كتالوج '+(manualSearchKind==='material'?'مواد المخزون':'المنتجات')+' فاضي خالص — لازم يترفع الملف الأول' : 'لا توجد نتائج في '+(manualSearchKind==='material'?'مواد المخزون':'المنتجات')) +
+    '</div>';
     return;
   }
   box.innerHTML = matches.map(function(sku){
@@ -2501,7 +2523,11 @@ async function openOrCreateCountSession() {
 function renderCountRoot() {
   if (!currentBranch) return '<div class="empty"><div class="empty-i">📍</div><div>اختر الفرع/الموقع أولاً من الأعلى</div></div>';
   if (currentBranch === 'المصنع' && !currentDept) return '<div class="empty"><div class="empty-i">🏭</div><div>اختر قسم المصنع أولاً من الأعلى</div></div>';
-  if (countScopeMode === 'department' && !countCategory) return renderDepartmentPicker();
+  // لو القسم المحفوظ (من جلسة قديمة/تاريخ متصفح قديم) بقى مش موجود في قائمة الأقسام الحالية، نرجع لشاشة الاختيار
+  // تلقائياً بدل ما نفضل عالقين على قيمة قديمة (زي كود صنف اتحفظ غلط قبل كده)
+  if (countScopeMode === 'department' && (!countCategory || getAllDepartments().indexOf(countCategory) === -1)) {
+    return renderDepartmentPicker();
+  }
   if (countSessionLoading || !countSession) return '<div class="empty"><div class="empty-i">⏳</div><div>جاري فتح جلسة الجرد...</div></div>';
   return renderCountEntry();
 }
@@ -2603,14 +2629,15 @@ function countSearchProducts() {
   if (inp) countSearchQuery = inp.value;
   var box = document.getElementById('count-search-results');
   if (!box) return;
-  var q = (countSearchQuery||'').trim().toLowerCase();
-  if (q.length < 2) { box.innerHTML=''; return; }
+  var qRaw = (countSearchQuery||'').trim();
+  if (qRaw.length < 2) { box.innerHTML=''; return; }
+  var q = normalizeArabicSearch(qRaw);
   var matches = Object.keys(PRODUCTS).filter(function(sku){
     var p = PRODUCTS[sku];
     if (countScopeMode === 'department') {
       if (countCategory && DEPARTMENTS[sku] !== countCategory) return false;
     } else if (countCategory && p.cat !== countCategory) return false;
-    return (p.n||'').toLowerCase().indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(q)>=0;
+    return normalizeArabicSearch(p.n).indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(qRaw)>=0;
   }).slice(0,8);
   if (!matches.length) { box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج</div>'; return; }
   box.innerHTML = matches.map(function(sku){
