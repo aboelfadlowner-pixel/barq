@@ -2504,9 +2504,13 @@ function renderCountEntry() {
 
     '<div style="margin-top:16px">' +
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="approveCountSession()">✅ اعتماد الجرد</button>' +
-      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportCountDiffReport()">📊 تصدير تقرير الفروق (Excel)</button>' +
-      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printCountDiffReport()">🖨️ طباعة تقرير الفروق</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportCountDiffReport(false)">📊 تصدير تقرير الفروق (المعدود فقط)</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printCountDiffReport(false)">🖨️ طباعة تقرير الفروق (المعدود فقط)</button>' +
     '</div>' +
+    (missingCount ? '<div style="text-align:center;margin-bottom:6px">' +
+      '<button style="background:none;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;padding:4px" onclick="exportCountDiffReport(true)">تصدير شامل (يضيف '+missingCount+' صنف ناقص كعجز)</button>' +
+      ' | <button style="background:none;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;padding:4px" onclick="printCountDiffReport(true)">طباعة شاملة</button>' +
+    '</div>' : '') +
     '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">الاعتماد يحتاج صلاحية مدير (أمين الخزينة / مدير المالية)</div>' +
     renderProductUploadWidget() +
   '</div>';
@@ -2741,8 +2745,12 @@ async function approveCountSession() {
   });
 }
 
-function exportCountDiffReport() {
-  var rows = buildFullCountRows();
+function countedOnlyRows() {
+  return countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+}
+
+function exportCountDiffReport(includeMissing) {
+  var rows = includeMissing ? buildFullCountRows() : countedOnlyRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
     var da = Math.abs(((parseFloat(a.actual_qty)||0)-(parseFloat(a.system_qty)||0))*(parseFloat(a.cost)||0));
@@ -2759,14 +2767,14 @@ function exportCountDiffReport() {
   var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'تقرير_فروق_الجرد_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href = url; a.download = 'تقرير_فروق_الجرد'+(includeMissing?'_شامل':'_المعدود_فقط')+'_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,10)+'.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('✅ تم تصدير تقرير الفروق');
 }
 
-function printCountDiffReport() {
-  var rows = buildFullCountRows();
+function printCountDiffReport(includeMissing) {
+  var rows = includeMissing ? buildFullCountRows() : countedOnlyRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
     var da = Math.abs(((parseFloat(a.actual_qty)||0)-(parseFloat(a.system_qty)||0))*(parseFloat(a.cost)||0));
@@ -2800,7 +2808,7 @@ function printCountDiffReport() {
     '.sig{display:flex;justify-content:space-between;margin-top:50px}' +
     '.sig div{width:45%;border-top:1px solid #333;padding-top:6px;text-align:center;font-size:12px}' +
     '@media print{body{padding:8px}}</style></head><body>' +
-    '<h2>📊 تقرير فروق الجرد — '+currentBranch+(currentDept?' / '+currentDept:'')+'</h2>' +
+    '<h2>📊 تقرير فروق الجرد'+(includeMissing?' (شامل الأصناف الناقصة)':' — الأصناف المعدودة فقط')+' — '+currentBranch+(currentDept?' / '+currentDept:'')+'</h2>' +
     '<div style="font-size:12px;color:#666;margin-bottom:14px">تاريخ الطباعة: '+today+' | عدد الأصناف: '+rows.length+' | إجمالي قيمة الفرق: '+fmt(totalValue)+' ج</div>' +
     '<table><thead><tr>' +
       '<th>اسم الصنف</th><th>SKU</th><th>النظري</th><th>الفعلي</th><th>الفرق</th><th>قيمة الفرق</th><th>مين عدّه</th>' +
