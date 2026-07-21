@@ -1370,10 +1370,10 @@ function renderProductUploadWidget() {
     '<button onclick="showProductUpload()" style="background:none;border:none;color:var(--blue);font-weight:700;font-size:13px;padding:6px 0;display:block;width:100%;text-align:right">📂 رفع بيانات المنتجات ومواد المخزون من فودكس (رصيد أساسي — مرة واحدة)</button>' +
     '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
       '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
-        '⚠️ الملفين دول بيمثلوا <strong>كتالوجين منفصلين</strong> — ارفعهم مرة واحدة لكل واحد (بأي ترتيب):<br>' +
+        '⚠️ لازم ترفع <strong>ملف المنتجات الأول</strong>، وبعدين <strong>تقرير مستويات المخزون</strong> (الترتيب مهم):<br>' +
         '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — المنتجات اللي بتتباع، فيه الباركود والفئة والسعر<br>' +
-        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — <strong>مواد المخزون</strong> (مواد خام/تعبئة داخلية زي سكر وزيت وعبوات)، أكوادها منفصلة عن أكواد المنتجات حتى لو نفس الرقم<br>' +
-        'كل كتالوج بيتخزن لوحده — البحث في الاستلام فيه فلتر "منتجات / مواد مخزون" تختار بيه أنهي كتالوج تدور فيه.' +
+        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — بيغطي كل حاجة في المخزون: بيحدّث تكلفة/رصيد <strong>المنتجات</strong> المعروفة بالفعل، وأي كود مش معروف كمنتج بيتسجل كـ<strong>مادة مخزون</strong> (خام/تعبئة داخلية) في كتالوج منفصل — عشان لو تصادف نفس رقم SKU بين الاتنين ميحصلش تداخل<br>' +
+        'البحث في الاستلام فيه فلتر "منتجات / مواد مخزون" تختار بيه أنهي كتالوج تدور فيه.' +
       '</div>' +
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
@@ -1562,9 +1562,10 @@ async function processFoodicsFullFile(text, filename, resBox, delim) {
 }
 
 // ── معالجة شيت "مستويات المخزون" (Inventory Levels) — Name, SKU, Barcode, Storage Unit, Quantity, Cost Per Unit, Total Cost ──
-// ده شيت "مواد المخزون" — كتالوج منفصل تماماً عن شيت المنتجات (المواد الخام/التعبئة المستخدمة داخلياً زي سكر وزيت وعبوات)،
-// وأكواده (SKU) ممكن تتداخل رقمياً مع أكواد المنتجات، فبيتخزن في قاموس وجدول منفصلين (MATERIALS / materials_master)
-// عشان مايحصلش تداخل أو استبدال غلط لبيانات صنف بصنف تاني وهو بيدور في البحث.
+// الشيت ده بيغطي كل أصناف مخزون الفرع مع بعض — منتجات حقيقية (من كتالوج المنتجات) ومواد مخزون (خام/تعبئة داخلية) مع بعض
+// في نفس الملف، وأكواد (SKU) مواد المخزون ممكن تتداخل رقمياً مع أكواد المنتجات. فبنوزّع كل صف حسب أصله:
+// - لو الـSKU معروف بالفعل كمنتج (اتحمّل من ملف المنتجات قبل كده) → بيانات منتج حقيقي، يتحدّث في PRODUCTS/products_master.
+// - لو مش معروف كمنتج خالص → مادة مخزون، تتحدّث في MATERIALS/materials_master المنفصل.
 async function processInventoryLevelsFile(lines, headers, filename, resBox, delim, dataStart) {
   delim = delim || ',';
   dataStart = dataStart===0 ? 0 : 1;
@@ -1573,8 +1574,8 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
   var hasQtyCol = idx['Quantity'] !== undefined;
   var hasBarcodeCol = idx['Barcode'] !== undefined; // تقرير "مستويات المخزون" غالباً من غير باركود
 
-  var added = 0, updated = 0, skipped = 0;
-  var masterRows = [];
+  var addedP = 0, updatedP = 0, addedM = 0, updatedM = 0, skipped = 0;
+  var productRows = [], materialRows = [];
   var qtyAt = new Date().toISOString();
   var anomalies = [];   // كميات اتغيرت بشكل غير منطقي عن آخر رصيد معروف (احتمال خطأ كتابة)
   var zeroStock = [];   // أصناف طلعت صفر في الملف — تستاهل تأكيد بجرد فعلي
@@ -1589,7 +1590,9 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     if (!sku || !name) { skipped++; continue; }
     if (cost <= 0) { skipped++; continue; } // نتجاهل الأصناف اللي مالهاش تكلفة في هذا الشيت
 
-    var oldQty = (MATERIALS[sku] && MATERIALS[sku].q) || 0;
+    var isKnownProduct = !!PRODUCTS[sku];
+    var dict = isKnownProduct ? PRODUCTS : MATERIALS;
+    var oldQty = (dict[sku] && dict[sku].q) || 0;
 
     if (hasQtyCol) {
       // فرق كبير وغير منطقي عن آخر رصيد معروف (زي 100 كيلو اتكتبت 10000 بالغلط)
@@ -1599,54 +1602,70 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
       if (qty === 0) zeroStock.push({ sku:sku, name:name });
     }
 
-    if (MATERIALS[sku]) {
+    if (isKnownProduct) {
+      PRODUCTS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
+      if (bc) PRODUCTS[sku].bc = bc;
+      if (qty != null) { PRODUCTS[sku].q = qty; PRODUCTS[sku].qAt = qtyAt; }
+      updatedP++;
+    } else if (MATERIALS[sku]) {
       MATERIALS[sku].n = name;
       if (bc) MATERIALS[sku].bc = bc;
-      MATERIALS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
+      MATERIALS[sku].c = cost;
       if (qty != null) { MATERIALS[sku].q = qty; MATERIALS[sku].qAt = qtyAt; }
-      updated++;
+      updatedM++;
     } else {
       MATERIALS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22, q: qty||0, qAt: qty!=null?qtyAt:null };
-      added++;
+      addedM++;
     }
 
-    var row = {
-      sku: sku, name: name, cost: cost,
-      price: 0, margin: 22
-    };
-    // ما نبعتش عمود barcode أصلاً لو الملف ده مالوش باركود — عشان ميمسحش الباركود المحفوظ سابقاً
-    if (hasBarcodeCol) row.barcode = bc;
-    if (qty != null) { row.system_qty = qty; row.system_qty_updated_at = qtyAt; }
-    masterRows.push(row);
+    if (isKnownProduct) {
+      var pRow = { sku: sku, cost: cost, price: PRODUCTS[sku].p||0, margin: PRODUCTS[sku].margin||22 };
+      if (hasBarcodeCol) pRow.barcode = bc;
+      if (qty != null) { pRow.system_qty = qty; pRow.system_qty_updated_at = qtyAt; }
+      productRows.push(pRow);
+    } else {
+      var mRow = { sku: sku, name: name, cost: cost, price: 0, margin: 22 };
+      if (hasBarcodeCol) mRow.barcode = bc;
+      if (qty != null) { mRow.system_qty = qty; mRow.system_qty_updated_at = qtyAt; }
+      materialRows.push(mRow);
+    }
   }
 
   if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
-  toast('⏳ جاري حفظ '+masterRows.length+' صنف من مواد المخزون...');
+  toast('⏳ جاري حفظ '+(productRows.length+materialRows.length)+' صنف من مستويات المخزون...');
 
   var batchSize = 500;
   var queuedBatches = 0;
-  for (var b=0; b<masterRows.length; b+=batchSize) {
-    var chunk = masterRows.slice(b, b+batchSize);
-    var res = await sbWrite('materials_master?on_conflict=sku', {
-      method:'POST',
-      headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(chunk)
-    }, { opType:'تحديث_مادة_مخزون', label:'دفعة مواد مخزون — '+chunk.length+' صنف' });
-    if (res.queued) queuedBatches++;
+  for (var b=0; b<productRows.length; b+=batchSize) {
+    var pChunk = productRows.slice(b, b+batchSize);
+    var pRes = await sbWrite('products_master?on_conflict=sku', {
+      method:'POST', headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(pChunk)
+    }, { opType:'تحديث_منتج', label:'دفعة تكلفة منتجات (مستويات المخزون) — '+pChunk.length+' صنف' });
+    if (pRes.queued) queuedBatches++;
   }
-  addAudit('رفع مواد المخزون (مستويات المخزون)', ROLES[role]?ROLES[role].label:'—',
-    filename+' — جديد: '+added+' | محدّث: '+updated+' | متجاهَل (بدون تكلفة): '+skipped);
+  for (var c=0; c<materialRows.length; c+=batchSize) {
+    var mChunk = materialRows.slice(c, c+batchSize);
+    var mRes = await sbWrite('materials_master?on_conflict=sku', {
+      method:'POST', headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(mChunk)
+    }, { opType:'تحديث_مادة_مخزون', label:'دفعة مواد مخزون — '+mChunk.length+' صنف' });
+    if (mRes.queued) queuedBatches++;
+  }
+  addAudit('رفع مستويات المخزون', ROLES[role]?ROLES[role].label:'—',
+    filename+' — منتجات: '+updatedP+' | مواد مخزون جديدة: '+addedM+' | مواد مخزون محدّثة: '+updatedM+' | متجاهَل (بدون تكلفة): '+skipped);
   var quickCheckHTML = renderQuickCheckPanel(anomalies, zeroStock);
+  var addedUpdated = addedM + updatedM + updatedP;
   if (queuedBatches > 0) {
     if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">📴 تم التحميل محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً</div>' + quickCheckHTML;
     toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
   } else {
     if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#eafaf1;border-radius:8px;font-size:13px">' +
-      '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث<br>' +
+      '✅ تم: <strong>'+updatedP+'</strong> منتج اتحدثت تكلفته، <strong>'+(addedM+updatedM)+'</strong> مادة مخزون<br>' +
       (hasQtyCol ? '<span style="font-size:11px;color:var(--muted)">تم ضبط الرصيد الافتتاحي (system_qty) من عمود الكمية في الملف</span><br>' : '<span style="font-size:11px;color:#c0392b">⚠️ الملف ده مفيهوش عمود "Quantity" — اتحدثت التكلفة بس، من غير الرصيد</span><br>') +
       '<span style="font-size:11px;color:var(--muted)">'+skipped+' صنف تم تجاهله (بدون تكلفة في هذا الشيت) — محفوظ بشكل دائم</span>' +
       '</div>' + quickCheckHTML;
-    toast('✅ تم حفظ '+(added+updated)+' صنف بتكلفة حقيقية من مستويات المخزون');
+    toast('✅ تم حفظ '+addedUpdated+' صنف بتكلفة حقيقية من مستويات المخزون');
   }
 }
 
@@ -2758,13 +2777,12 @@ function missingCountRows() {
 }
 
 function buildFullCountRows() {
-  var counted = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
-  return counted.concat(missingCountRows());
+  return countedOnlyRows().concat(missingCountRows());
 }
 
 async function approveCountSession() {
   if (!countSession) return;
-  var counted = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  var counted = countedOnlyRows();
   if (!counted.length) { toast('⚠️ عدّ صنف واحد على الأقل قبل الاعتماد'); return; }
 
   var missing = missingCountRows();
@@ -2778,7 +2796,10 @@ async function approveCountSession() {
     try {
       var toUpdate = treatMissingAsZero ? counted.concat(missing) : counted;
       var updates = toUpdate.map(function(it){
-        return { sku: it.sku, name: it.name, cost: it.cost, price: PRODUCTS[it.sku]?PRODUCTS[it.sku].p:0,
+        // نحافظ على أحدث تكلفة معروفة من PRODUCTS بدل النسخة اللي اتحفظت وقت العدّ، عشان الاعتماد ميرجّعش يصفّر تكلفة اتحدثت بعد كده
+        var liveCost = PRODUCTS[it.sku] ? PRODUCTS[it.sku].c : 0;
+        var cost = (liveCost > 0) ? liveCost : (it.cost||0);
+        return { sku: it.sku, name: it.name, cost: cost, price: PRODUCTS[it.sku]?PRODUCTS[it.sku].p:0,
                  margin: PRODUCTS[it.sku]?PRODUCTS[it.sku].margin:22, barcode: PRODUCTS[it.sku]?PRODUCTS[it.sku].bc:'',
                  system_qty: parseFloat(it.actual_qty)||0, system_qty_updated_at: new Date().toISOString() };
       });
@@ -2804,8 +2825,17 @@ async function approveCountSession() {
   });
 }
 
+// بنرجّع أحدث تكلفة معروفة من PRODUCTS بدل الاعتماد على النسخة اللي اتحفظت وقت العدّ —
+// عشان لو التكلفة اتحدثت بعد كده (رفع ملف جديد) يفضل تقرير الفروق دقيق من غير ما يحتاج جرد جديد
 function countedOnlyRows() {
-  return countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  return countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; }).map(function(it){
+    var live = PRODUCTS[it.sku];
+    var cost = (live && live.c > 0) ? live.c : it.cost;
+    if (cost === it.cost) return it;
+    var copy = {}; for (var k in it) copy[k] = it[k];
+    copy.cost = cost;
+    return copy;
+  });
 }
 
 function exportCountDiffReport(includeMissing) {
