@@ -600,8 +600,8 @@ var countSession = null;   // {id, branch, department, category, status, started
 var countItems = [];       // [{sku,name,unit,bc,system_qty,actual_qty,cost,counted_by,counted_at}]
 var countSessionLoading = false;
 var pendingUnknownScan = null; // {code} — بانتظار إضافة صنف جديد
-var countCategory = localStorage.getItem('barq_count_category') || ''; // '' = جرد كلي (كل الفئات)
-var countGuided = localStorage.getItem('barq_count_guided') !== '0';   // true = جرد موجّه (افتراضي) — الابلكيشن بيقترح الصنف الجاي جاهز للعد
+var countCategory = localStorage.getItem('barq_count_category') || ''; // '' = جرد كلي (كل الفئات) — أو اسم القسم المختار في وضع "قسم"
+var countScopeMode = localStorage.getItem('barq_count_scope_mode') || 'guided'; // 'random' عشوائي | 'guided' موجّه (افتراضي) | 'department' قسم
 var countFocusSku = null;   // صنف متفوّتح يدوياً من البحث (بيبقى هو الظاهر في بطاقة العد بدل التالي في الطابور تلقائياً)
 var guidedQtyInput = '';    // القيمة المكتوبة في مربع "العدد الفعلي" ببطاقة الجرد — محفوظة عشان معادش تتمسح لو حصل ريفريش في الخلفية
 var countSearchQuery = '';  // نص البحث اليدوي عن صنف في الجرد
@@ -640,7 +640,7 @@ function saveLocPrefs() {
     localStorage.setItem('barq_dept', currentDept);
     localStorage.setItem('barq_counter_name', counterName);
     localStorage.setItem('barq_count_category', countCategory);
-    localStorage.setItem('barq_count_guided', countGuided ? '1' : '0');
+    localStorage.setItem('barq_count_scope_mode', countScopeMode);
   } catch(e){}
 }
 
@@ -2313,6 +2313,7 @@ async function openOrCreateCountSession() {
 function renderCountRoot() {
   if (!currentBranch) return '<div class="empty"><div class="empty-i">📍</div><div>اختر الفرع/الموقع أولاً من الأعلى</div></div>';
   if (currentBranch === 'المصنع' && !currentDept) return '<div class="empty"><div class="empty-i">🏭</div><div>اختر قسم المصنع أولاً من الأعلى</div></div>';
+  if (countScopeMode === 'department' && !countCategory) return renderDepartmentPicker();
   if (countSessionLoading || !countSession) return '<div class="empty"><div class="empty-i">⏳</div><div>جاري فتح جلسة الجرد...</div></div>';
   return renderCountEntry();
 }
@@ -2325,26 +2326,76 @@ function setCountCategory(val) {
   openOrCreateCountSession();
 }
 
-function toggleCountGuided() {
-  countGuided = !countGuided;
+// التبديل بين عشوائي/موجّه بيفضل في نفس الجلسة (نفس النطاق) — التبديل من/لوضع "قسم" بيبدأ نطاق جديد
+// لأن الجلسات في القاعدة متقسّمة حسب الفئة (category)، ووضع "قسم" لازم يبدأ باختيار قسم جديد من القائمة
+function setCountScopeMode(mode) {
+  if (countScopeMode === mode) return;
+  var wasDept = countScopeMode === 'department';
+  var toDept = mode === 'department';
+  countScopeMode = mode;
   countFocusSku = null; guidedQtyInput = '';
+  saveLocPrefs();
+  if (wasDept || toDept) {
+    countCategory = '';
+    countSession = null; countItems = [];
+    if (toDept) { render(); return; } // هتبان شاشة اختيار القسم
+    openOrCreateCountSession();
+    return;
+  }
+  render();
+}
+
+// شاشة اختيار القسم — بتبان أول ما تفعّل وضع "قسم"، الأقسام جايه من فئة الصنف (category) المسجلة من ملف المنتجات
+function renderDepartmentPicker() {
+  var cats = getAllCategories();
+  if (!cats.length) {
+    return renderScopeBar() +
+      '<div class="empty"><div class="empty-i">🏢</div><div>مفيش أقسام متاحة — لازم ترفع بيانات المنتجات الأول (فيها عمود الفئة/القسم)</div></div>' +
+      renderProductUploadWidget();
+  }
+  var cards = cats.map(function(c){
+    var count = Object.keys(PRODUCTS).filter(function(sku){ return PRODUCTS[sku].cat === c && PRODUCTS[sku].q > 0; }).length;
+    return '<div class="mode-home-card" onclick="pickCountDepartment(\''+c.replace(/'/g,"\\'")+'\')">' +
+      '<div class="mode-home-icon">🏢</div>' +
+      '<div class="mode-home-label">'+c+'</div>' +
+      '<div class="mode-home-desc">'+count+' صنف</div>' +
+    '</div>';
+  }).join('');
+  return renderScopeBar() +
+    '<div style="text-align:center;font-size:13px;font-weight:700;color:var(--muted);margin:10px 0 14px">🏢 اختار القسم اللي هتجرده — التصدير هيكون خاص بيه بس</div>' +
+    '<div class="mode-home-grid">'+cards+'</div>';
+}
+function pickCountDepartment(cat) {
+  countCategory = cat;
+  saveLocPrefs();
+  countSession = null; countItems = [];
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
+  openOrCreateCountSession();
+}
+function changeCountDepartment() {
+  countCategory = '';
+  countSession = null; countItems = [];
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
   saveLocPrefs();
   render();
 }
 
 function renderScopeBar() {
   var cats = getAllCategories();
-  var catSelect = cats.length
+  var catSelect = (countScopeMode !== 'department' && cats.length)
     ? '<select class="fi" style="flex:1" onchange="setCountCategory(this.value)">' +
         '<option value=""'+(countCategory===''?' selected':'')+'>🗂️ الكل (كل الفئات)</option>' +
         cats.map(function(c){return '<option value="'+c+'"'+(c===countCategory?' selected':'')+'>'+c+'</option>';}).join('') +
       '</select>'
-    : '';
+    : (countScopeMode === 'department' && countCategory
+        ? '<button class="bn bn-g" style="flex:1;font-size:12px" onclick="changeCountDepartment()">🏢 '+countCategory+' — تغيير</button>'
+        : '<div style="flex:1"></div>');
   return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
     catSelect +
     '<div class="mode-toggle" style="flex:0 0 auto">' +
-      '<button class="'+(!countGuided?'on':'')+'" onclick="'+(countGuided?'toggleCountGuided()':'')+'" style="padding:9px 10px">👀 أعمى</button>' +
-      '<button class="'+(countGuided?'on':'')+'" onclick="'+(!countGuided?'toggleCountGuided()':'')+'" style="padding:9px 10px">🎯 موجّه</button>' +
+      '<button class="'+(countScopeMode==='random'?'on':'')+'" onclick="setCountScopeMode(\'random\')" style="padding:9px 8px">👀 عشوائي</button>' +
+      '<button class="'+(countScopeMode==='guided'?'on':'')+'" onclick="setCountScopeMode(\'guided\')" style="padding:9px 8px">🎯 موجّه</button>' +
+      '<button class="'+(countScopeMode==='department'?'on':'')+'" onclick="setCountScopeMode(\'department\')" style="padding:9px 8px">🏢 قسم</button>' +
     '</div>' +
   '</div>';
 }
@@ -2441,7 +2492,7 @@ function renderGuidedPrompt() {
   if (countFocusSku) {
     return renderCountEntryCard(countFocusSku, {});
   }
-  if (!countGuided) return '';
+  if (countScopeMode === 'random') return '';
 
   if (!missing.length) {
     return total ? '<div class="cd" style="background:#eafaf1;border-color:var(--accent);text-align:center;padding:16px;font-weight:800;color:#1a7a40">✅ خلّصت كل أصناف النطاق ('+total+' صنف) — تقدر تعتمد الجرد</div>'
@@ -2603,6 +2654,14 @@ function handleCountScan(code) {
   if (!sku) {
     playBeep('unknown');
     triggerUnknownProductFlow(code);
+    refocusScan();
+    return;
+  }
+
+  // في وضع "قسم" (أو أي فلترة فئة مفعّلة)، نرفض إضافة صنف من قسم تاني عشان التصدير يفضل خاص بالقسم المختار بس
+  if (countCategory && idx===-1 && PRODUCTS[sku] && PRODUCTS[sku].cat !== countCategory) {
+    playBeep('unknown');
+    if (msg) { msg.innerHTML = '⚠️ <strong>'+(PRODUCTS[sku].n||sku)+'</strong> مش من قسم "'+countCategory+'" — اتجاهل'; msg.style.color = '#c0392b'; }
     refocusScan();
     return;
   }
