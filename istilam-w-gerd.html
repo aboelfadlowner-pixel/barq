@@ -2586,6 +2586,43 @@ function aggregateCountRows(rawRows) {
   });
 }
 
+// نسخة احتياطية بضغطة واحدة: بتصدّر كل الأصناف المعدودة (مع مساهمة كل شخص) لملف CSV وتفتح شاشة المشاركة
+// بتاعة الموبايل (Web Share API) عشان المستخدم يقدر يبعتها لجوجل درايف/واتساب/إيميل نفسه من غير أي إعداد إضافي —
+// لو الجهاز مش بيدعم المشاركة (متصفح ديسكتوب مثلاً) بترجع لتحميل عادي كـ fallback
+async function backupCountSnapshot() {
+  if (!countSession) { toast('⚠️ مفيش جلسة جرد مفتوحة'); return; }
+  toast('⏳ جاري تجهيز النسخة الاحتياطية...');
+  await refreshCountItemsFromServer();
+  render();
+  var rows = countItems.filter(function(it){ return it.actual_qty !== '' && it.actual_qty != null; });
+  if (!rows.length) { toast('⚠️ لسه معديتش أي صنف'); return; }
+  var csv = '﻿الصنف,SKU,النظري,الفعلي,مين عدّه (كل المساهمين),وقت آخر تحديث\n';
+  rows.forEach(function(it){
+    var name = (it.name||'').replace(/,/g,' ');
+    csv += [name, it.sku, it.system_qty, it.actual_qty, (it.counted_by||'').replace(/,/g,' '), (it.counted_at||'').slice(0,16).replace('T',' ')].join(',') + '\n';
+  });
+  var fileName = 'نسخة_احتياطية_جرد_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')+'.csv';
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  try {
+    if (navigator.canShare && navigator.share) {
+      var file = new File([blob], fileName, {type:'text/csv'});
+      if (navigator.canShare({files:[file]})) {
+        await navigator.share({ files:[file], title:'نسخة احتياطية - جرد '+currentBranch, text: 'نسخة احتياطية لجرد '+currentBranch+' ('+rows.length+' صنف) — احفظها في جوجل درايف أو ابعتها لنفسك' });
+        toast('✅ اتبعتت النسخة الاحتياطية — احفظها في مكان آمن (زي جوجل درايف)');
+        return;
+      }
+    }
+  } catch(e) {
+    if (e && e.name === 'AbortError') return;
+  }
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✅ اتحمّلت نسخة احتياطية — ارفعها على جوجل درايف بسهولة');
+}
+
 // بيجيب أحدث نسخة من صفوف الجرد من السيرفر مباشرة (مش من الكاش المحلي) ويعيد بناء countItems منها —
 // لازم نستخدمها قبل أي اعتماد/تصدير نهائي عشان نضمن إن مجموع كل العدّادين اتجمع فعلاً حتى لو الريل-تايم اتأخر أو انقطع
 async function refreshCountItemsFromServer() {
@@ -2872,7 +2909,10 @@ function renderCountEntry() {
         '<div style="font-size:14px;font-weight:800;color:var(--primary)">🔢 جرد — '+currentBranch+(currentDept?' / '+currentDept:'')+(countCategory?' / '+countCategory:'')+'</div>' +
         '<div style="font-size:11px;color:var(--muted)">بدأت: '+(countSession.started_by||'—')+' | '+countItems.length+' صنف معدود'+ (totalDiffValue ? ' | فرق: '+fmt(totalDiffValue)+' ج' : '') + (missingCount ? ' | ⚠️ '+missingCount+' لسه متعديش' : '') +'</div>' +
       '</div>' +
-      '<button class="bn bn-g" style="font-size:11px" onclick="openCountHistory()">📜 السجل</button>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="bn bn-g" style="font-size:11px" onclick="backupCountSnapshot()">💾 نسخة احتياطية</button>' +
+        '<button class="bn bn-g" style="font-size:11px" onclick="openCountHistory()">📜 السجل</button>' +
+      '</div>' +
     '</div>' +
 
     renderScopeBar() +
