@@ -627,6 +627,8 @@ var countScopeMode = localStorage.getItem('barq_count_scope_mode') || 'guided'; 
 var countFocusSku = null;   // صنف متفوّتح يدوياً من البحث (بيبقى هو الظاهر في بطاقة العد بدل التالي في الطابور تلقائياً)
 var guidedQtyInput = '';    // القيمة المكتوبة في مربع "العدد الفعلي" ببطاقة الجرد — محفوظة عشان معادش تتمسح لو حصل ريفريش في الخلفية
 var countSearchQuery = '';  // نص البحث اليدوي عن صنف في الجرد
+var GUIDED_PAGE_SIZE = 20;  // عدد الأصناف في كل صفحة من قائمة الجرد الموجّه
+var guidedPageIndex = 0;    // الصفحة الحالية في قائمة الجرد الموجّه (0 = أول 20 صنف)
 
 // ── سجل الجرد (أرشيف) — جلسات جرد قديمة اتأرشفت عشان متفضلش عالقة في شاشة الجرد الحية ──
 var showCountHistory = false;
@@ -1163,7 +1165,7 @@ function renderLocationBar() {
 
 function resetScopedSessions() {
   countSession = null; countItems = [];
-  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = ''; guidedPageIndex = 0;
   showCountHistory = false; countHistoryItems = [];
   priceCheckSession = null; priceCheckItems = [];
 }
@@ -2588,7 +2590,7 @@ function setCountCategory(val) {
   countCategory = val;
   saveLocPrefs();
   countSession = null; countItems = [];
-  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = ''; guidedPageIndex = 0;
   openOrCreateCountSession();
 }
 
@@ -2599,7 +2601,7 @@ function setCountScopeMode(mode) {
   var wasDept = countScopeMode === 'department';
   var toDept = mode === 'department';
   countScopeMode = mode;
-  countFocusSku = null; guidedQtyInput = '';
+  countFocusSku = null; guidedQtyInput = ''; guidedPageIndex = 0;
   saveLocPrefs();
   if (wasDept || toDept) {
     countCategory = '';
@@ -2636,13 +2638,13 @@ function pickCountDepartment(cat) {
   countCategory = cat;
   saveLocPrefs();
   countSession = null; countItems = [];
-  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = ''; guidedPageIndex = 0;
   openOrCreateCountSession();
 }
 function changeCountDepartment() {
   countCategory = '';
   countSession = null; countItems = [];
-  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = '';
+  countFocusSku = null; guidedQtyInput = ''; countSearchQuery = ''; guidedPageIndex = 0;
   saveLocPrefs();
   render();
 }
@@ -2749,35 +2751,72 @@ function renderCountEntryCard(sku, opts) {
         'onkeydown="if(event.key===\'Enter\'){confirmGuidedCount(\''+sku+'\');}">' +
       '<button type="button" onclick="stepGuidedQty(-1)">−</button>' +
     '</div>' +
-    '<button class="big-action-btn" style="background:var(--accent);color:#fff;margin:0" onclick="confirmGuidedCount(\''+sku+'\')">✅ تأكيد والصنف التالي</button>' +
+    '<button class="big-action-btn" style="background:var(--accent);color:#fff;margin:0" onclick="confirmGuidedCount(\''+sku+'\')">✅ تأكيد</button>' +
   '</div>';
 }
 
+// ── قائمة الأصناف المتوقعة، صفحة صفحة (20 صنف) — المستخدم بيختار هو الصنف اللي هيعده، مش الابلكيشن بيفرضه ──
+// كل صنف بيبان باسمه ورصيده على الجهاز؛ الضغط عليه بيفتح بطاقة العد الجاهزة له، وبعد التأكيد بيرجع لنفس القائمة
+// (نفس الصفحة) عشان يختار صنف تاني بنفسه. "التالي" بيجيب الـ20 صنف اللي بعده.
 function renderGuidedPrompt() {
-  var missing = missingCountSkus();
-  var total = expectedSkusForCurrentScope().length;
-  var doneCount = total - missing.length;
-
-  // لو فيه صنف متفوّتح يدوياً من البحث، هو الأولوية
   if (countFocusSku) {
     return renderCountEntryCard(countFocusSku, {});
   }
   if (countScopeMode === 'random') return '';
 
-  if (!missing.length) {
-    return total ? '<div class="cd" style="background:#eafaf1;border-color:var(--accent);text-align:center;padding:16px;font-weight:800;color:#1a7a40">✅ خلّصت كل أصناف النطاق ('+total+' صنف) — تقدر تعتمد الجرد</div>'
-      : '<div class="cd" style="text-align:center;padding:16px;color:var(--muted)">مفيش أصناف متوقعة (برصيد أكبر من صفر) في النطاق ده — استخدم البحث اليدوي فوق أو غيّر الفئة</div>';
+  var expected = expectedSkusForCurrentScope();
+  var total = expected.length;
+  if (!total) {
+    return '<div class="cd" style="text-align:center;padding:16px;color:var(--muted)">مفيش أصناف متوقعة (برصيد أكبر من صفر) في النطاق ده — استخدم البحث اليدوي فوق أو غيّر الفئة</div>';
   }
-  var sku = missing[0];
-  var pct = total ? Math.round((doneCount/total)*100) : 0;
+
+  var countedSkus = {};
+  countItems.forEach(function(it){ if (it.actual_qty !== '' && it.actual_qty != null) countedSkus[it.sku] = it.actual_qty; });
+  var doneCount = expected.filter(function(s){ return countedSkus.hasOwnProperty(s); }).length;
+  var pct = Math.round((doneCount/total)*100);
+
+  var totalPages = Math.max(1, Math.ceil(total / GUIDED_PAGE_SIZE));
+  if (guidedPageIndex >= totalPages) guidedPageIndex = totalPages - 1;
+  if (guidedPageIndex < 0) guidedPageIndex = 0;
+  var pageStart = guidedPageIndex * GUIDED_PAGE_SIZE;
+  var pageSkus = expected.slice(pageStart, pageStart + GUIDED_PAGE_SIZE);
+
   var progressBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-      '<span style="font-size:11px;font-weight:800;color:var(--muted)">🎯 صنف '+(doneCount+1)+' من '+total+'</span>' +
+      '<span style="font-size:11px;font-weight:800;color:var(--muted)">🎯 اتعدّ '+doneCount+' من '+total+'</span>' +
       '<span style="font-size:11px;font-weight:800;color:var(--accent)">'+pct+'%</span>' +
     '</div>' +
-    '<div style="height:6px;background:var(--bg);border-radius:6px;overflow:hidden;margin-bottom:14px">' +
+    '<div style="height:6px;background:var(--bg);border-radius:6px;overflow:hidden">' +
       '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:6px;transition:width .2s"></div>' +
     '</div>';
-  return renderCountEntryCard(sku, { progressBar: progressBar });
+
+  var rowsHTML = pageSkus.map(function(sku){
+    var p = PRODUCTS[sku] || {};
+    var isDone = countedSkus.hasOwnProperty(sku);
+    return '<div onclick="focusCountItem(\''+sku+'\')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer'+(isDone?';background:#f0f9f4':'')+'">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.n||sku)+'</div>' +
+        '<div style="font-size:11px;color:var(--muted)">'+sku+' | رصيد الجهاز: '+fmt(getBranchQty(sku,'product'))+'</div>' +
+      '</div>' +
+      (isDone ? '<span style="color:#1a7a40;font-weight:800;font-size:13px;flex-shrink:0">✅ '+fmt(countedSkus[sku])+'</span>' : '<span style="color:var(--muted);font-size:18px;flex-shrink:0">‹</span>') +
+    '</div>';
+  }).join('');
+
+  var pageEnd = Math.min(pageStart + GUIDED_PAGE_SIZE, total);
+  return '<div class="cd" style="padding:0;overflow:hidden">' +
+    '<div style="padding:14px 14px 10px">' + progressBar +
+      '<div style="font-size:11px;color:var(--muted);margin-top:8px">أصناف '+(pageStart+1)+'–'+pageEnd+' من '+total+' — دوس على أي صنف عشان تعدّه</div>' +
+    '</div>' +
+    rowsHTML +
+    '<div style="display:flex;gap:8px;padding:10px 14px">' +
+      (guidedPageIndex>0 ? '<button class="bn bn-g" style="flex:1" onclick="changeGuidedPage(-1)">‹ السابق</button>' : '') +
+      (guidedPageIndex<totalPages-1 ? '<button class="bn bn-p" style="flex:1" onclick="changeGuidedPage(1)">التالي ('+(Math.min(GUIDED_PAGE_SIZE, total-pageEnd))+' صنف) ›</button>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function changeGuidedPage(delta) {
+  guidedPageIndex = Math.max(0, guidedPageIndex + delta);
+  render();
 }
 
 function renderCountEntry() {
