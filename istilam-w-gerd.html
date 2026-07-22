@@ -2944,6 +2944,7 @@ function renderCountEntry() {
 
     '<div style="margin-top:16px">' +
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="approveCountSession()">✅ اعتماد الجرد</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportInventoryCountUploadSheet()">📤 شيت رفع الجرد (بهيدرات النظام)</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportCountDiffReport(false)">📊 تصدير تقرير الفروق (المعدود فقط)</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printCountDiffReport(false)">🖨️ طباعة تقرير الفروق (المعدود فقط)</button>' +
       (countItems.length ? '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px dashed var(--border)" onclick="archiveCountSession()">📁 أرشفة الجرد ده (يتفضّى من الشاشة ويتحفظ في السجل)</button>' : '') +
@@ -3433,6 +3434,34 @@ async function exportCountDiffReport(includeMissing) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('✅ تم تصدير تقرير الفروق');
+}
+
+// تصدير "شيت رفع الجرد" بنفس هيدرات فودكس بالظبط (Inventory Item Name / Inventory Item SKU / Storage quantity /
+// Ingredients quantity / Inventory Count ID) عشان مدير الجرد يرفعه على النظام مباشرة من غير ما يعدّل أي حاجة.
+// عمود "Storage quantity" بياخد الرقم المجمّع النهائي (مجموع كل العدّادين) بعد ما نتأكد إنه محدّث من السيرفر أولاً.
+// عمودي "Ingredients quantity" و"Inventory Count ID" بيتسابوا فاضيين زي ما الشيت الأصلي بيوضح.
+async function exportInventoryCountUploadSheet() {
+  toast('⏳ جاري جلب آخر تحديثات الجرد قبل تجهيز شيت الرفع...');
+  await refreshCountItemsFromServer();
+  render();
+  var rows = countedOnlyRows();
+  if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
+  loadXlsxLib(function(){
+    try {
+      var aoa = [['Inventory Item Name','Inventory Item SKU','Storage quantity','Ingredients quantity','Inventory Count ID']];
+      rows.forEach(function(it){
+        aoa.push([it.name||'', it.sku, parseFloat(it.actual_qty)||0, '', '']);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      var fileName = 'شيت_رفع_الجرد_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+      XLSX.writeFile(wb, fileName);
+      toast('✅ اتصدّر شيت رفع الجرد — نفس هيدرات النظام بالظبط');
+    } catch(e) {
+      toast('⚠️ تعذر تجهيز شيت الرفع: '+(e.message||'').slice(0,80));
+    }
+  });
 }
 
 async function printCountDiffReport(includeMissing) {
