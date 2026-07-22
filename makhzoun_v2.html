@@ -941,6 +941,12 @@ let threshA = 70, threshB = 90, minA = 10, minB = 5, minC = 2;
 let overrides = {}, suppliers = [], supEditId = null, supLinkedSkus = [];
 let history = [];
 
+// أسماء الأصناف بتيجي من ملف CSV مرفوع، والملاحظات/الموردين بيتكتبوا يدوي — لازم تتنضف قبل ما تدخل innerHTML
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // =================== INDEXEDDB ENGINE ===================
 let db;
 const DB_NAME = 'barq_makhzoun', DB_VER = 1;
@@ -1123,7 +1129,7 @@ function updateSummary() {
   const urgent = processedData.filter(r => r.needOrder && r.class === 'A').slice(0, 10);
   document.getElementById('urgentList').innerHTML = urgent.length
     ? urgent.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-        <span>${r.name}</span>
+        <span>${escapeHtml(r.name)}</span>
         <span class="${r.qty < 0 ? 'qty-neg' : 'qty-low'}">${r.qty.toFixed(2)}</span>
       </div>`).join('')
     : '<p style="color:var(--muted);font-size:13px;margin-top:12px;">✅ لا توجد أصناف A تحتاج طلب فوري</p>';
@@ -1215,7 +1221,7 @@ function renderOrders() {
   const tbody = document.getElementById('ordersBody');
   tbody.innerHTML = slice.map(r => `
     <tr>
-      <td>${r.name}</td>
+      <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
       <td><span class="badge badge-${r.class}">${r.class}</span></td>
       <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
@@ -1223,8 +1229,8 @@ function renderOrders() {
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
-        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,'\'')}')" title="موردو هذا الصنف">🏪</button>
-        ${r.notes ? `<span class="note-chip" title="${r.notes}" onclick="openEdit('${r.sku}')">📝 ${r.notes}</span>` : ''}
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
+        ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
   `).join('') || '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
@@ -1269,7 +1275,7 @@ function renderAll() {
 
   document.getElementById('allBody').innerHTML = slice.map(r => `
     <tr>
-      <td>${r.name}</td>
+      <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
       <td style="color:var(--muted)">${r.unit}</td>
       <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
@@ -1278,8 +1284,8 @@ function renderAll() {
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
-        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,'\'')}')" title="موردو هذا الصنف">🏪</button>
-        ${r.notes ? `<span class="note-chip" title="${r.notes}" onclick="openEdit('${r.sku}')">📝 ${r.notes}</span>` : ''}
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
+        ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
   `).join('') || '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
@@ -1307,7 +1313,7 @@ function renderManualList() {
   const data = processedData.filter(r => !q || r.name.includes(q) || r.sku.toLowerCase().includes(q)).slice(0, 30);
   document.getElementById('manualList').innerHTML = data.map(r => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:10px;">
-      <span style="font-size:13px;flex:1">${r.name}</span>
+      <span style="font-size:13px;flex:1">${escapeHtml(r.name)}</span>
       <span class="badge badge-${r.autoClass}" style="font-size:11px">${r.autoClass} تلقائي</span>
       <select onchange="quickOverride('${r.sku}', this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Cairo',sans-serif;font-size:12px;">
         <option value="" ${!overrides[r.sku]?.class ? 'selected' : ''}>تلقائي</option>
@@ -1532,29 +1538,29 @@ function runAIAnalysis() {
 
       // 2) أكتر الأصناف طلباً / احتياجاً (الأهم - تتكرر باستمرار)
       let orderBody = criticalItems.length
-        ? criticalItems.map(r => `<li><strong>${r.name}</strong> — شريحة ${r.class} | الكمية الحالية: ${r.qty.toFixed(2)} ${r.unit||''} | الحد الأدنى: ${r.minQty}</li>`).join('')
+        ? criticalItems.map(r => `<li><strong>${escapeHtml(r.name)}</strong> — شريحة ${r.class} | الكمية الحالية: ${r.qty.toFixed(2)} ${r.unit||''} | الحد الأدنى: ${r.minQty}</li>`).join('')
         : '<li>لا توجد أصناف تحتاج طلب حالياً ✅</li>';
       html += aiBlock('📦 الأكتر طلباً الآن (لازم تزوّد)', '#1a7a40', orderBody);
 
       // 3) أصناف "مش بتتطلب" / حركة بطيئة رغم أهميتها
       let slowBody = lowMovement.length
-        ? lowMovement.map(r => `<li><strong>${r.name}</strong> — شريحة ${r.class} | قيمة منخفضة نسبياً: ${r.totalCost.toLocaleString('ar-EG',{maximumFractionDigits:0})} ج رغم إنه من الأصناف المهمة</li>`).join('')
+        ? lowMovement.map(r => `<li><strong>${escapeHtml(r.name)}</strong> — شريحة ${r.class} | قيمة منخفضة نسبياً: ${r.totalCost.toLocaleString('ar-EG',{maximumFractionDigits:0})} ج رغم إنه من الأصناف المهمة</li>`).join('')
         : '<li>لا توجد ملاحظات هنا</li>';
       html += aiBlock('📉 أصناف مهمة لكن حركتها ضعيفة', '#8890a8', slowBody);
 
       // 4) أصناف مكدّسة (طلب زيادة عن اللزوم)
       let overBody = overstock.length
-        ? overstock.map(r => `<li><strong>${r.name}</strong> — الكمية ${r.qty.toFixed(2)} مقابل حد أدنى ${r.minQty} (زيادة ${(r.qty/(r.minQty||1)).toFixed(1)}x) — قلل الطلب القادم</li>`).join('')
+        ? overstock.map(r => `<li><strong>${escapeHtml(r.name)}</strong> — الكمية ${r.qty.toFixed(2)} مقابل حد أدنى ${r.minQty} (زيادة ${(r.qty/(r.minQty||1)).toFixed(1)}x) — قلل الطلب القادم</li>`).join('')
         : '<li>لا يوجد تكديس ملحوظ ✅</li>';
       html += aiBlock('📦➕ أصناف عندك زيادة منها (قلل الطلب)', '#e67e22', overBody);
 
       // 5) أعلى قيمة في المخزون
-      let costBody = top10Cost.map(r => `<li><strong>${r.name}</strong> — ${r.totalCost.toLocaleString('ar-EG',{maximumFractionDigits:0})} ج | شريحة ${r.class} | كمية: ${r.qty.toFixed(2)}</li>`).join('');
+      let costBody = top10Cost.map(r => `<li><strong>${escapeHtml(r.name)}</strong> — ${r.totalCost.toLocaleString('ar-EG',{maximumFractionDigits:0})} ج | شريحة ${r.class} | كمية: ${r.qty.toFixed(2)}</li>`).join('');
       html += aiBlock('💰 أعلى 10 أصناف بتاخد فلوسك', '#0984e3', costBody);
 
       // 6) أصناف مهمة بدون مورد مرتبط
       let supBody = noSupplierItems.length
-        ? noSupplierItems.map(r => `<li><strong>${r.name}</strong> (شريحة A) — مفيش مورد مرتبط بيه، اربطه من تاب الموردين</li>`).join('')
+        ? noSupplierItems.map(r => `<li><strong>${escapeHtml(r.name)}</strong> (شريحة A) — مفيش مورد مرتبط بيه، اربطه من تاب الموردين</li>`).join('')
         : '<li>كل أصناف شريحة A مرتبطة بموردين ✅</li>';
       html += aiBlock('🏪 أصناف مهمة بدون مورد محدد', '#9b59b6', supBody);
 
@@ -1613,7 +1619,7 @@ function renderSuppliers() {
   grid.innerHTML = data.map(s => {
     const linkedItems = (s.skus || []).map(sku => processedData.find(r => r.sku === sku)).filter(Boolean);
     const tags = linkedItems.slice(0, 4).map(item =>
-      `<span class="sup-item-tag" onclick="openItemSupModal('${item.sku}','${item.name.replace(/'/g,"\\'")}')">📦 ${item.name}</span>`
+      `<span class="sup-item-tag" onclick="openItemSupModal('${item.sku}','${item.name.replace(/'/g,"\\'")}')">📦 ${escapeHtml(item.name)}</span>`
     ).join('');
     const moreCount = linkedItems.length > 4 ? `<span class="sup-item-tag" style="background:var(--accent);color:#fff;border-color:var(--accent)">+${linkedItems.length - 4} أصناف</span>` : '';
     return `<div class="sup-card" id="sup-card-${s.id}">
@@ -1621,10 +1627,10 @@ function renderSuppliers() {
         <button onclick="openSupModal('${s.id}')">✏️</button>
         <button onclick="deleteSupplier('${s.id}')">🗑</button>
       </div>
-      <div class="sup-card-name" onclick="toggleSupDetail('${s.id}')" style="cursor:pointer">🏪 ${s.name} <span style="font-size:11px;color:var(--muted)" id="sup-arrow-${s.id}">▼</span></div>
-      ${s.company ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">🏢 ${s.company}</div>` : ''}
-      <div class="sup-card-phone">📞 ${s.phone || '—'}</div>
-      ${s.note ? `<div class="sup-card-note">${s.note}</div>` : ''}
+      <div class="sup-card-name" onclick="toggleSupDetail('${s.id}')" style="cursor:pointer">🏪 ${escapeHtml(s.name)} <span style="font-size:11px;color:var(--muted)" id="sup-arrow-${s.id}">▼</span></div>
+      ${s.company ? `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">🏢 ${escapeHtml(s.company)}</div>` : ''}
+      <div class="sup-card-phone">📞 ${escapeHtml(s.phone) || '—'}</div>
+      ${s.note ? `<div class="sup-card-note">${escapeHtml(s.note)}</div>` : ''}
       ${tags || moreCount ? `<div class="sup-card-items">${tags}${moreCount}</div>` : '<div style="font-size:12px;color:var(--muted);margin-top:8px">لا توجد أصناف مرتبطة بعد</div>'}
       <div id="sup-detail-${s.id}" style="display:none;margin-top:12px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;border-top:1px solid var(--border);padding-top:10px">📦 الأصناف المرتبطة (${linkedItems.length})</div>
@@ -1636,7 +1642,7 @@ function renderSuppliers() {
             <th style="padding:6px 8px;text-align:right">قرار</th>
           </tr></thead>
           <tbody>${linkedItems.map(item => `<tr style="border-top:1px solid var(--border)">
-            <td style="padding:6px 8px">${item.name}</td>
+            <td style="padding:6px 8px">${escapeHtml(item.name)}</td>
             <td style="padding:6px 8px;color:${item.qty < 0 ? 'var(--red)' : item.needOrder ? 'var(--A)' : 'var(--green)'};font-weight:700">${item.qty.toFixed(2)} ${item.unit}</td>
             <td style="padding:6px 8px"><span class="badge badge-${item.class}">${item.class}</span></td>
             <td style="padding:6px 8px">${item.needOrder ? '🔴 اطلب' : '✅ لا تطلب'}</td>
@@ -1701,7 +1707,7 @@ function renderSupLinkResults() {
   items = items.slice(0, 8);
   if (!items.length) { el.innerHTML = q ? '<p style="color:var(--muted);font-size:12px">لا توجد نتائج</p>' : ''; return; }
   el.innerHTML = items.map(r => `<div class="sup-link-row" onclick="supAddSku('${r.sku}')">
-    <span>${r.name}</span><span style="color:var(--accent);font-size:12px">＋ إضافة</span>
+    <span>${escapeHtml(r.name)}</span><span style="color:var(--accent);font-size:12px">＋ إضافة</span>
   </div>`).join('');
 }
 
@@ -1791,11 +1797,11 @@ function openItemSupModal(sku, name) {
     empty.style.display = 'none';
     list.innerHTML = linked.map(s => `
       <div class="item-sup-row">
-        <span class="sup-name">🏪 ${s.name}</span>
+        <span class="sup-name">🏪 ${escapeHtml(s.name)}</span>
         <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
-          ${s.company ? `<span style="font-size:11px;color:var(--muted)">🏢 ${s.company}</span>` : ''}
-          <span class="sup-phone">📞 ${s.phone || '—'}</span>
-          ${s.phone ? `<a href="tel:${s.phone}" style="font-size:12px;color:var(--accent)">اتصل</a>` : ''}
+          ${s.company ? `<span style="font-size:11px;color:var(--muted)">🏢 ${escapeHtml(s.company)}</span>` : ''}
+          <span class="sup-phone">📞 ${escapeHtml(s.phone) || '—'}</span>
+          ${s.phone ? `<a href="tel:${escapeHtml(s.phone)}" style="font-size:12px;color:var(--accent)">اتصل</a>` : ''}
         </div>
       </div>
     `).join('');
@@ -2194,8 +2200,8 @@ function poRenderList() {
             syncTag +
           '</div>' +
           '<div style="font-size:12px;color:var(--muted);line-height:1.7;">' +
-            '🏪 ' + (po.supplier_name||'—') + ' &nbsp;|&nbsp; ' +
-            '👤 ' + (po.officer_name||'—') + ' &nbsp;|&nbsp; ' +
+            '🏪 ' + escapeHtml(po.supplier_name||'—') + ' &nbsp;|&nbsp; ' +
+            '👤 ' + escapeHtml(po.officer_name||'—') + ' &nbsp;|&nbsp; ' +
             '📅 ' + (po.expected_date||'—') + ' &nbsp;|&nbsp; ' +
             '📦 ' + items.length + ' صنف' +
           '</div>' +
@@ -2410,8 +2416,8 @@ function poViewDetail(id) {
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;">' +
       '<div style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">' + (i+1) + '</div>' +
       '<div style="flex:1;min-width:0;">' +
-        '<div style="font-weight:600;">' + (item.product_name||'—') + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);">' + (item.sku||'—') + ' | ' + (item.unit||'—') + '</div>' +
+        '<div style="font-weight:600;">' + escapeHtml(item.product_name||'—') + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);">' + escapeHtml(item.sku||'—') + ' | ' + escapeHtml(item.unit||'—') + '</div>' +
       '</div>' +
       '<div style="text-align:center;min-width:60px;">' +
         '<div style="font-size:15px;font-weight:900;color:var(--accent);">' + (item.qty_ordered||0) + '</div>' +
@@ -2434,14 +2440,14 @@ function poViewDetail(id) {
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
         '<div>' +
           '<div style="font-size:16px;font-weight:700;">' + (po.po_number||'—') + '</div>' +
-          '<div style="font-size:12px;color:var(--muted);margin-top:2px;">👤 المسؤول: ' + (po.officer_name||'—') + '</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin-top:2px;">👤 المسؤول: ' + escapeHtml(po.officer_name||'—') + '</div>' +
         '</div>' +
         '<span class="po-chip" style="background:#eafaf1;color:#1a7a40;font-size:13px;">' + (stL[po.status]||po.status) + '</span>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:16px;">' +
-        '<div><span style="color:var(--muted);font-size:11px;display:block;">المورد</span><strong>' + (po.supplier_name||'—') + '</strong></div>' +
+        '<div><span style="color:var(--muted);font-size:11px;display:block;">المورد</span><strong>' + escapeHtml(po.supplier_name||'—') + '</strong></div>' +
         '<div><span style="color:var(--muted);font-size:11px;display:block;">تاريخ التوريد</span><strong>' + (po.expected_date||'—') + '</strong></div>' +
-        '<div><span style="color:var(--muted);font-size:11px;display:block;">ملاحظات</span>' + (po.notes||'—') + '</div>' +
+        '<div><span style="color:var(--muted);font-size:11px;display:block;">ملاحظات</span>' + escapeHtml(po.notes||'—') + '</div>' +
         '<div><span style="color:var(--muted);font-size:11px;display:block;">حالة الإرسال</span>' + (po.synced_to_pricing ? '<span style="color:#1a7a40;font-weight:700;">✅ مرسل لكل المراحل</span>' : '<span style="color:#888;">مسودة</span>') + '</div>' +
       '</div>' +
       '<div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">📦 الأصناف (' + items.length + ')</div>' +
@@ -2502,9 +2508,9 @@ function poShowPrint(po) {
   var itemsHTML = items.map(function(item, i){
     return '<tr style="background:' + (i%2 ? '#f8fffe' : 'white') + '">' +
       '<td style="padding:7px 10px;text-align:center;border:1px solid #e0e0e0;">' + (i+1) + '</td>' +
-      '<td style="padding:7px 10px;border:1px solid #e0e0e0;">' + (item.product_name||item.name||'') + '</td>' +
-      '<td style="padding:7px 10px;font-size:11px;color:#888;border:1px solid #e0e0e0;">' + (item.sku||'') + '</td>' +
-      '<td style="padding:7px 10px;text-align:center;border:1px solid #e0e0e0;">' + (item.unit||'') + '</td>' +
+      '<td style="padding:7px 10px;border:1px solid #e0e0e0;">' + escapeHtml(item.product_name||item.name||'') + '</td>' +
+      '<td style="padding:7px 10px;font-size:11px;color:#888;border:1px solid #e0e0e0;">' + escapeHtml(item.sku||'') + '</td>' +
+      '<td style="padding:7px 10px;text-align:center;border:1px solid #e0e0e0;">' + escapeHtml(item.unit||'') + '</td>' +
       '<td style="padding:7px 10px;text-align:center;color:#888;border:1px solid #e0e0e0;">' + ((item.current_stock||0)).toFixed(1) + '</td>' +
       '<td style="padding:7px 10px;text-align:center;font-weight:700;font-size:15px;border:1px solid #e0e0e0;">' + (item.qty_ordered||item.qty||0) + '</td>' +
       '<td style="padding:7px 10px;text-align:center;border:1px solid #e0e0e0;">___________</td>' +
@@ -2527,8 +2533,8 @@ function poShowPrint(po) {
     '</div>' +
     '<div style="font-size:20px;font-weight:700;text-align:center;margin-bottom:16px;color:#1a3a5c;">أمر الشراء</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px;font-size:13px;">' +
-      '<div style="padding:8px 12px;background:#f0f7f2;border-radius:8px;"><span style="color:#5a7a66;font-size:11px;display:block;">المورد</span><strong>' + (po.supplier_name||'—') + '</strong></div>' +
-      '<div style="padding:8px 12px;background:#f0f7f2;border-radius:8px;"><span style="color:#5a7a66;font-size:11px;display:block;">المسؤول / المشتري</span><strong>' + (po.officer_name||'—') + '</strong></div>' +
+      '<div style="padding:8px 12px;background:#f0f7f2;border-radius:8px;"><span style="color:#5a7a66;font-size:11px;display:block;">المورد</span><strong>' + escapeHtml(po.supplier_name||'—') + '</strong></div>' +
+      '<div style="padding:8px 12px;background:#f0f7f2;border-radius:8px;"><span style="color:#5a7a66;font-size:11px;display:block;">المسؤول / المشتري</span><strong>' + escapeHtml(po.officer_name||'—') + '</strong></div>' +
       '<div style="padding:8px 12px;background:#f0f7f2;border-radius:8px;"><span style="color:#5a7a66;font-size:11px;display:block;">تاريخ التوريد المتوقع</span><strong>' + (po.expected_date||'—') + '</strong></div>' +
     '</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">' +
@@ -2543,7 +2549,7 @@ function poShowPrint(po) {
       '</tr></thead>' +
       '<tbody>' + itemsHTML + '</tbody>' +
     '</table>' +
-    (po.notes ? '<div style="padding:10px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;margin-bottom:18px;"><strong>ملاحظات:</strong> ' + po.notes + '</div>' : '') +
+    (po.notes ? '<div style="padding:10px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;margin-bottom:18px;"><strong>ملاحظات:</strong> ' + escapeHtml(po.notes) + '</div>' : '') +
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:30px;">' +
       '<div style="border-top:2px solid #333;padding-top:8px;text-align:center;font-size:12px;">المورد / المستلم<br><br><br>التوقيع: ___________</div>' +
       '<div style="border-top:2px solid #333;padding-top:8px;text-align:center;font-size:12px;">المراجع<br><br><br>التوقيع: ___________</div>' +
@@ -2602,7 +2608,7 @@ function poSupplierSearch() {
     return '<div onclick="poSelectSupplier(\'' + s.id + '\',\'' + (s.name||'').replace(/'/g,"\\'") + '\')" ' +
       'style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;" ' +
       'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' +
-      '<strong>' + s.name + '</strong>' + (s.company ? ' <span style="color:var(--muted);font-size:11px;">(' + s.company + ')</span>' : '') +
+      '<strong>' + escapeHtml(s.name) + '</strong>' + (s.company ? ' <span style="color:var(--muted);font-size:11px;">(' + escapeHtml(s.company) + ')</span>' : '') +
     '</div>';
   }).join('');
 }
@@ -2646,7 +2652,7 @@ function poOfficerSearch() {
     box.innerHTML = list.map(function(name){
       return '<div onclick="poSelectOfficer(\'' + name.replace(/'/g,"\\'") + '\')" ' +
         'style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;" ' +
-        'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' + name + '</div>';
+        'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' + escapeHtml(name) + '</div>';
     }).join('');
     return;
   }
@@ -2657,7 +2663,7 @@ function poOfficerSearch() {
   var html = matches.map(function(name){
     return '<div onclick="poSelectOfficer(\'' + name.replace(/'/g,"\\'") + '\')" ' +
       'style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;" ' +
-      'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' + name + '</div>';
+      'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' + escapeHtml(name) + '</div>';
   }).join('');
 
   var exactMatch = list.some(function(n){ return n.toLowerCase() === q; });
@@ -2665,7 +2671,7 @@ function poOfficerSearch() {
     html += '<div onclick="poSelectOfficer(\'' + inp.value.trim().replace(/'/g,"\\'") + '\')" ' +
       'style="padding:9px 12px;cursor:pointer;font-size:13px;color:var(--accent);font-weight:700;" ' +
       'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' +
-      '➕ إضافة "' + inp.value.trim() + '" كاسم جديد</div>';
+      '➕ إضافة "' + escapeHtml(inp.value.trim()) + '" كاسم جديد</div>';
   }
   box.innerHTML = html;
 }
