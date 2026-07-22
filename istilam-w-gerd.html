@@ -1059,7 +1059,13 @@ async function loadFromSupabase() {
 // ═══════════════════════════════════════════════
 function renderTopBar() {
   var r=ROLES[role]; var btns='';
-  btns += '<button class="tb'+(view==='synccenter'?' on':'')+'" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
+  // شاشة المزامنة كانت من غير أي زرار رجوع — المستخدم كان مضطر يعمل "خروج" (تسجيل خروج كامل)
+  // بس عشان يقفلها. دلوقتي زرار المزامنة نفسه بيرجع لو انت فاتحها بالفعل، وفيه زرار "🏠 الرئيسية" واضح.
+  if (view === 'synccenter') {
+    btns += '<button class="tb on" onclick="view=\'queue\';render()">🏠 الرئيسية</button>';
+  } else {
+    btns += '<button class="tb" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
+  }
   btns += '<button class="tb" onclick="doLogout()">خروج</button>';
 
   var connBadge = '<span id="conn-badge" style="font-size:11px;font-weight:800;margin-right:6px"></span>';
@@ -3081,6 +3087,7 @@ function renderCountHistory() {
   var rowsHTML = rows.map(function(it, i){
     var diff = it.actual_qty != null ? (it.actual_qty - it.system_qty) : null;
     var diffColor = diff==null ? 'var(--muted)' : (diff===0 ? '#1a7a40' : (diff<0 ? '#c0392b' : '#1a73c7'));
+    var diffValue = diff!=null ? diff*(it.cost||0) : null;
     return '<tr>' +
       '<td style="text-align:center;padding:6px"><input type="checkbox" '+(it.selected?'checked':'')+' onchange="toggleHistorySelect('+i+')"></td>' +
       '<td style="padding:6px;font-size:12px">'+it.name+'</td>' +
@@ -3088,6 +3095,7 @@ function renderCountHistory() {
       '<td style="text-align:center;padding:6px">'+fmt(it.system_qty)+'</td>' +
       '<td style="text-align:center;padding:6px">'+(it.actual_qty!=null?fmt(it.actual_qty):'—')+'</td>' +
       '<td style="text-align:center;padding:6px;color:'+diffColor+';font-weight:700">'+(diff!=null?diff:'—')+'</td>' +
+      '<td style="text-align:center;padding:6px;color:'+diffColor+'">'+(diffValue!=null?fmt(diffValue)+' ج':'—')+'</td>' +
       '<td style="text-align:center;padding:6px;font-size:11px">'+(it.counted_by||'—')+'</td>' +
       '<td style="text-align:center;padding:6px;font-size:10px;color:var(--muted)">'+(it.counted_at||'').slice(0,16).replace('T',' ')+'</td>' +
     '</tr>';
@@ -3100,17 +3108,42 @@ function renderCountHistory() {
     '</div>' +
     (rows.length ? (
       '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">'+rows.length+' صنف مؤرشف | إجمالي قيمة الفرق: '+fmt(totalDiffValue)+' ج</div>' +
-      '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+      '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">' +
         '<button class="bn bn-g" style="flex:1;font-size:12px" onclick="toggleSelectAllHistory()">'+(selectedCount===rows.length?'✕ إلغاء تحديد الكل':'☑️ تحديد الكل')+'</button>' +
         (selectedCount ? '<button class="bn bn-d" style="flex:1;font-size:12px" onclick="deleteSelectedHistory()">🗑️ حذف المحدد ('+selectedCount+')</button>' : '') +
       '</div>' +
+      '<button class="big-action-btn" style="background:var(--accent);color:#fff;margin-bottom:10px" onclick="exportHistoryFoodicsSheet()">📤 الاعتماد على فودكس'+(selectedCount?' ('+selectedCount+' محدد)':'')+'</button>' +
       '<div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">' +
         '<table class="ft" style="width:100%"><thead><tr>' +
-          '<th></th><th>الصنف</th><th>SKU</th><th>النظري</th><th>الفعلي</th><th>الفرق</th><th>مين عدّه</th><th>وقت العد</th>' +
+          '<th></th><th>الصنف</th><th>SKU</th><th>النظري</th><th>الفعلي</th><th>الفرق</th><th>قيمة الفرق</th><th>مين عدّه</th><th>وقت العد</th>' +
         '</tr></thead><tbody>'+rowsHTML+'</tbody></table>' +
       '</div>'
     ) : '<div class="empty"><div class="empty-i">📭</div><div>لسه مفيش جرد متأرشف لهذا الفرع — الجرد اللي هتعتمده أو تؤرشفه هيظهر هنا</div></div>') +
   '</div>';
+}
+
+// تصدير شيت فودكس (بنفس الهيدرات المتفق عليها) من شاشة السجل — لو المستخدم حدد أصناف بالتيك بوكس
+// بيصدّر المحدد بس، وإلا بيصدّر كل الأصناف الظاهرة في السجل حاليًا (كل الجرود المؤرشفة/المعتمدة لنفس الفرع)
+function exportHistoryFoodicsSheet() {
+  var selected = countHistoryItems.filter(function(r){ return r.selected; });
+  var rows = selected.length ? selected : countHistoryItems;
+  if (!rows.length) { toast('⚠️ لا توجد أصناف في السجل لتصديرها'); return; }
+  loadXlsxLib(function(){
+    try {
+      var aoa = [['Inventory Item Name','Inventory Item SKU','Storage quantity','Ingredients quantity','Inventory Count ID']];
+      rows.forEach(function(it){
+        aoa.push([it.name||'', it.sku, it.actual_qty!=null?parseFloat(it.actual_qty):0, '', '']);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      var fileName = 'اعتماد_فودكس_'+currentBranch+(currentDept?'_'+currentDept:'')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+      XLSX.writeFile(wb, fileName);
+      toast('✅ اتصدّر شيت الاعتماد على فودكس — '+rows.length+' صنف');
+    } catch(e) {
+      toast('⚠️ تعذر تجهيز شيت فودكس: '+(e.message||'').slice(0,80));
+    }
+  });
 }
 
 function countDiffParts(item) {
