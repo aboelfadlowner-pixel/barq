@@ -614,6 +614,14 @@ function calcMargin(c,p) {
   if (!c||!p||p<=0) return null;
   return (p-c)/p*100;
 }
+// هامش 100% أو أكتر بيخلي cost/(1-margin/100) يطلع Infinity، وده بيتحفظ null بصمت في الأسعار — نمنع ده بحد أقصى معقول
+function clampMargin(m) {
+  m = parseFloat(m);
+  if (isNaN(m)) return 0;
+  if (m < 0) return 0;
+  if (m > 90) return 90;
+  return m;
+}
 function mColor(pct) {
   if (pct==null) return '#888';
   return pct<10?'#c0392b':pct<20?'#d68910':'#1a7a40';
@@ -1986,7 +1994,7 @@ async function approveRecv() {
     invoiceTotal += cost * qty;
 
     var costChanged = cost !== item.old_cost;
-    var storedMargin = item.stored_margin || 22;
+    var storedMargin = clampMargin(item.stored_margin || 22);
     var suggestedPrice = cost / (1 - storedMargin/100);
     suggestedPrice = Math.ceil(suggestedPrice * 2) / 2;
 
@@ -2317,7 +2325,7 @@ function renderDetail() {
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">' +
         '<div><label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">نسبة التسعير %</label>' +
-          '<input type="number" class="fi" id="rv-margin" value="'+(r.stored_margin||22)+'" step="0.5" oninput="liveCalc()"></div>' +
+          '<input type="number" class="fi" id="rv-margin" value="'+(r.stored_margin||22)+'" step="0.5" min="0" max="90" oninput="liveCalc()"></div>' +
         '<div><label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">سعر البيع للقطعة</label>' +
           '<input type="number" class="fi fi-green" id="rv-price" value="'+(r.final_price||'')+'" step="0.5" oninput="liveCalcFromPrice()" style="font-weight:800;font-size:15px"></div>' +
       '</div>' +
@@ -2359,7 +2367,7 @@ function renderDetail() {
 function liveCalc() {
   var r = MOCK_REQUESTS.find(function(x){return x.id===detailId;});
   if (!r) return;
-  var margin = parseFloat((document.getElementById('rv-margin')||{}).value) || 0;
+  var margin = clampMargin((document.getElementById('rv-margin')||{}).value);
   var price = r.new_cost / (1 - margin/100);
   price = Math.ceil(price * 2) / 2;
   var priceEl = document.getElementById('rv-price');
@@ -2422,7 +2430,7 @@ async function approvePrice() {
   var r = MOCK_REQUESTS.find(function(x){return x.id===detailId;});
   if (!r) return;
   var price = parseFloat((document.getElementById('rv-price')||{}).value) || r.final_price;
-  var margin = parseFloat((document.getElementById('rv-margin')||{}).value) || r.stored_margin;
+  var margin = clampMargin((document.getElementById('rv-margin')||{}).value || r.stored_margin);
 
   var result = await patchPricingRequest(r, { final_price: price, stored_margin: margin, status: STATUSES.export_ready }, 'اعتماد_سعر');
   if (PRODUCTS[r.sku]) {
