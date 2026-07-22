@@ -3029,7 +3029,10 @@ async function openCountHistory() {
 function closeCountHistory() {
   showCountHistory = false;
   countHistoryItems = [];
-  render();
+  // لو مفيش جلسة جرد مفتوحة (مثلاً بعد اعتماد جرد سابق قفل الجلسة) لازم نفتح/ننشئ واحدة جديدة تلقائياً،
+  // وإلا الشاشة هتفضل عالقة على "جاري فتح جلسة الجرد" من غير أي تحديث لأن openOrCreateCountSession
+  // بيتنادى بس لما تتغيّر الشاشة/الفرع مش لما render() تتنادى لوحدها
+  if (!countSession) { openOrCreateCountSession(); } else { render(); }
 }
 
 function toggleHistorySelect(i) {
@@ -3387,9 +3390,11 @@ async function approveCountSession() {
       }, { label:'إغلاق جلسة جرد' });
 
       addAudit('اعتماد جرد', approverLabel, currentBranch+(currentDept?' / '+currentDept:'')+' — '+counted.length+' صنف معدود'+(treatMissingAsZero?' + '+missing.length+' صُفّرت كعجز':''));
-      toast('✅ تم اعتماد الجرد وتحديث الأرصدة');
+      toast('✅ تم اعتماد الجرد وتحديث الأرصدة — هتلاقيه في السجل 📜');
       countSession = null; countItems = [];
-      render();
+      // بعد الاعتماد، الجلسة القديمة بقت "closed" ومفيش جلسة مفتوحة تانية — لازم نودّي المستخدم على شاشة
+      // السجل عشان يشوف الجرد الي اعتمده بعينه بدل ما تفضل الشاشة عالقة على "جاري فتح جلسة الجرد" من غير أي تحديث تلقائي
+      await openCountHistory();
     } catch(e) {
       toast('⚠️ خطأ في اعتماد الجرد: '+(e.message||'').slice(0,80));
     }
