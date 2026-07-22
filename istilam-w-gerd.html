@@ -538,6 +538,24 @@ var MATERIALS = {};
 // المصدر: ملف "الفروع" (شيت الطلبية) اللي بيرفعه المستخدم، مش فئة فوديكس (category_reference) ──
 var DEPARTMENTS = {};
 
+// ── رصيد المخزون لكل فرع لوحده (branch_stock) — كل فرع (عين شمس/السمليهي/المصنع) له رصيد مستقل تماماً
+// لنفس الصنف. ده عشان رفع "مستويات المخزون" أو اعتماد استلام/جرد لفرع معين ميأثرش على رصيد فرع تاني —
+// كانت المشكلة قبل كده إن الرصيد كان متخزن مكان واحد مشترك بين كل الفروع فكان بيتداخل واحد فوق التاني.
+// المفتاح: "الفرع|النوع(product/material)|SKU" → { qty, qAt }
+var BRANCH_STOCK = {};
+function branchStockKey(branch, kind, sku) { return (branch||'')+'|'+(kind||'product')+'|'+sku; }
+function getBranchQty(sku, kind, branch) {
+  var rec = BRANCH_STOCK[branchStockKey(branch||currentBranch, kind||'product', sku)];
+  return rec ? rec.qty : 0;
+}
+function getBranchQtyAt(sku, kind, branch) {
+  var rec = BRANCH_STOCK[branchStockKey(branch||currentBranch, kind||'product', sku)];
+  return rec ? rec.qAt : null;
+}
+function setBranchQtyLocal(branch, kind, sku, qty, at) {
+  BRANCH_STOCK[branchStockKey(branch, kind, sku)] = { qty: qty, qAt: at||null };
+}
+
 var AUDIT_LOG = [];
 // ═══════════════════════════════════════════════
 // المستخدمين — كل موظف بكوده الشخصي بدل PIN واحد مشترك
@@ -633,7 +651,7 @@ function getAllDepartments() {
 function expectedSkusForCurrentScope() {
   return Object.keys(PRODUCTS).filter(function(sku){
     var p = PRODUCTS[sku];
-    if (!(p.q > 0)) return false;
+    if (!(getBranchQty(sku, 'product') > 0)) return false;
     if (countScopeMode === 'department') {
       if (countCategory && DEPARTMENTS[sku] !== countCategory) return false;
     } else if (countCategory && p.cat !== countCategory) return false;
@@ -951,10 +969,9 @@ async function loadFromSupabase() {
       }
       if (allProducts.length) {
         allProducts.forEach(function(p){
+          // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
           PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
                                bc:p.barcode||'', margin: parseFloat(p.margin)||22,
-                               q: p.system_qty!=null?parseFloat(p.system_qty):0,
-                               qAt: p.system_qty_updated_at||null,
                                et: !!p.expiry_tracked, cat: p.category||'' };
         });
         PRODUCTS_MASTER_LOADED = true;
@@ -988,10 +1005,9 @@ async function loadFromSupabase() {
       }
       if (allMaterials.length) {
         allMaterials.forEach(function(m){
+          // مفيش q/qAt هنا برضه — نفس السبب، الرصيد بقى في BRANCH_STOCK
           MATERIALS[m.sku] = { n:m.name||'', c:parseFloat(m.cost)||0, p:parseFloat(m.price)||0,
                                 bc:m.barcode||'', margin: parseFloat(m.margin)||22,
-                                q: m.system_qty!=null?parseFloat(m.system_qty):0,
-                                qAt: m.system_qty_updated_at||null,
                                 et: !!m.expiry_tracked, cat: m.category||'' };
         });
       }
@@ -1010,6 +1026,22 @@ async function loadFromSupabase() {
       }
       allDepts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
     } catch(e) { /* sku_departments may not exist yet */ }
+
+    // 11. Load branch_stock (رصيد كل فرع لوحده — بديل عمود system_qty المشترك اللي كان بيتداخل بين الفروع)
+    try {
+      var allStock = [];
+      var stOffset = 0, stBatch = 1000;
+      while (true) {
+        var stBatchRes = await sbFetch('branch_stock?select=*&limit='+stBatch+'&offset='+stOffset);
+        if (!stBatchRes || !stBatchRes.length) break;
+        allStock = allStock.concat(stBatchRes);
+        if (stBatchRes.length < stBatch) break;
+        stOffset += stBatch;
+      }
+      allStock.forEach(function(r){
+        setBranchQtyLocal(r.branch, r.kind, r.sku, parseFloat(r.system_qty)||0, r.system_qty_updated_at||null);
+      });
+    } catch(e) { /* branch_stock may not exist yet */ }
 
     SB_CONNECTED = true;
     startRealtime();
@@ -1421,9 +1453,9 @@ function renderProductUploadWidget() {
     '<div id="prod-up-wrap" style="display:none;margin-top:8px">' +
       '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;color:#856404">' +
         '⚠️ لازم ترفع <strong>ملف المنتجات الأول</strong>، وبعدين <strong>تقرير مستويات المخزون</strong> (الترتيب مهم):<br>' +
-        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — المنتجات اللي بتتباع، فيه الباركود والفئة والسعر<br>' +
-        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — بيغطي كل حاجة في المخزون: بيحدّث تكلفة/رصيد <strong>المنتجات</strong> المعروفة بالفعل، وأي كود مش معروف كمنتج بيتسجل كـ<strong>مادة مخزون</strong> (خام/تعبئة داخلية) في كتالوج منفصل — عشان لو تصادف نفس رقم SKU بين الاتنين ميحصلش تداخل<br>' +
-        'البحث في الاستلام فيه فلتر "منتجات / مواد مخزون" تختار بيه أنهي كتالوج تدور فيه.' +
+        '1) <strong>ملف المنتجات الكامل</strong> (22 عمود) — نفسه لكل الفروع، فيه الباركود والفئة والسعر (مش محتاج فرع محدّد)<br>' +
+        '2) <strong>تقرير مستويات المخزون</strong> (Inventory Levels) — <strong>ده رصيد خاص بالفرع المختار فوق دلوقتي بس</strong> (‏'+(currentBranch||'⚠️ لسه مختارتش فرع!')+'‏)، مش هيأثر على رصيد أي فرع تاني. لو الملف ده لفرع تاني، غيّر الفرع من فوق الأول قبل الرفع<br>' +
+        'أي كود مش معروف كمنتج بيتسجل كـ<strong>مادة مخزون</strong> منفصلة. البحث في الاستلام فيه فلتر "منتجات / مواد مخزون".' +
       '</div>' +
       '<div class="up-zone" onclick="triggerProdUpload()">' +
         '<input type="file" id="prod-up-inp" accept=".xlsx,.xls,.csv" onchange="handleProductUpload(this)" style="display:none">' +
@@ -1617,6 +1649,12 @@ async function processFoodicsFullFile(text, filename, resBox, delim) {
 // - لو الـSKU معروف بالفعل كمنتج (اتحمّل من ملف المنتجات قبل كده) → بيانات منتج حقيقي، يتحدّث في PRODUCTS/products_master.
 // - لو مش معروف كمنتج خالص → مادة مخزون، تتحدّث في MATERIALS/materials_master المنفصل.
 async function processInventoryLevelsFile(lines, headers, filename, resBox, delim, dataStart) {
+  // مستويات المخزون خاصة بفرع بعينه — لازم تعرف الفرع الحالي قبل ما تحفظ أي رصيد، وإلا هيتخزن تحت فرع غلط
+  if (!currentBranch) {
+    if (resBox) resBox.innerHTML = '⚠️ اختار الفرع من الأعلى الأول قبل رفع مستويات المخزون — الرصيد ده خاص بفرع بعينه';
+    toast('⚠️ اختار الفرع الأول');
+    return;
+  }
   delim = delim || ',';
   dataStart = dataStart===0 ? 0 : 1;
   var idx = {};
@@ -1625,9 +1663,9 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
   var hasBarcodeCol = idx['Barcode'] !== undefined; // تقرير "مستويات المخزون" غالباً من غير باركود
 
   var addedP = 0, updatedP = 0, addedM = 0, updatedM = 0, skipped = 0;
-  var productRows = [], materialRows = [];
+  var productRows = [], materialRows = [], stockRows = [];
   var qtyAt = new Date().toISOString();
-  var anomalies = [];   // كميات اتغيرت بشكل غير منطقي عن آخر رصيد معروف (احتمال خطأ كتابة)
+  var anomalies = [];   // كميات اتغيرت بشكل غير منطقي عن آخر رصيد معروف لنفس الفرع (احتمال خطأ كتابة)
   var zeroStock = [];   // أصناف طلعت صفر في الملف — تستاهل تأكيد بجرد فعلي
 
   for (var i=dataStart; i<lines.length; i++) {
@@ -1641,11 +1679,11 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     if (cost <= 0) { skipped++; continue; } // نتجاهل الأصناف اللي مالهاش تكلفة في هذا الشيت
 
     var isKnownProduct = !!PRODUCTS[sku];
-    var dict = isKnownProduct ? PRODUCTS : MATERIALS;
-    var oldQty = (dict[sku] && dict[sku].q) || 0;
+    var kind = isKnownProduct ? 'product' : 'material';
+    var oldQty = getBranchQty(sku, kind, currentBranch);
 
     if (hasQtyCol) {
-      // فرق كبير وغير منطقي عن آخر رصيد معروف (زي 100 كيلو اتكتبت 10000 بالغلط)
+      // فرق كبير وغير منطقي عن آخر رصيد معروف لنفس الفرع ده (زي 100 كيلو اتكتبت 10000 بالغلط)
       if (oldQty > 0 && (qty > oldQty*5 && qty-oldQty>20 || qty < oldQty/5 && oldQty-qty>20)) {
         anomalies.push({ sku:sku, name:name, oldQty:oldQty, newQty:qty });
       }
@@ -1653,36 +1691,34 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     }
 
     if (isKnownProduct) {
-      PRODUCTS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً
+      PRODUCTS[sku].c = cost; // شيت مستويات المخزون هو المرجع الأدق للتكلفة — يُستبدل دائماً (تكلفة مشتركة، مش خاصة بفرع)
       if (bc) PRODUCTS[sku].bc = bc;
-      if (qty != null) { PRODUCTS[sku].q = qty; PRODUCTS[sku].qAt = qtyAt; }
       updatedP++;
     } else if (MATERIALS[sku]) {
       MATERIALS[sku].n = name;
       if (bc) MATERIALS[sku].bc = bc;
       MATERIALS[sku].c = cost;
-      if (qty != null) { MATERIALS[sku].q = qty; MATERIALS[sku].qAt = qtyAt; }
       updatedM++;
     } else {
-      MATERIALS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22, q: qty||0, qAt: qty!=null?qtyAt:null };
+      MATERIALS[sku] = { n:name, c:cost, p:0, bc:bc, margin:22 };
       addedM++;
     }
+    if (qty != null) setBranchQtyLocal(currentBranch, kind, sku, qty, qtyAt);
 
     if (isKnownProduct) {
       var pRow = { sku: sku, cost: cost, price: PRODUCTS[sku].p||0, margin: PRODUCTS[sku].margin||22 };
       if (hasBarcodeCol) pRow.barcode = bc;
-      if (qty != null) { pRow.system_qty = qty; pRow.system_qty_updated_at = qtyAt; }
       productRows.push(pRow);
     } else {
       var mRow = { sku: sku, name: name, cost: cost, price: 0, margin: 22 };
       if (hasBarcodeCol) mRow.barcode = bc;
-      if (qty != null) { mRow.system_qty = qty; mRow.system_qty_updated_at = qtyAt; }
       materialRows.push(mRow);
     }
+    if (qty != null) stockRows.push({ branch: currentBranch, kind: kind, sku: sku, system_qty: qty, system_qty_updated_at: qtyAt });
   }
 
   if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
-  toast('⏳ جاري حفظ '+(productRows.length+materialRows.length)+' صنف من مستويات المخزون...');
+  toast('⏳ جاري حفظ '+(productRows.length+materialRows.length)+' صنف من مستويات المخزون — فرع '+currentBranch+'...');
 
   var batchSize = 500;
   var queuedBatches = 0;
@@ -1702,8 +1738,16 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     }, { opType:'تحديث_مادة_مخزون', label:'دفعة مواد مخزون — '+mChunk.length+' صنف' });
     if (mRes.queued) queuedBatches++;
   }
+  for (var s=0; s<stockRows.length; s+=batchSize) {
+    var sChunk = stockRows.slice(s, s+batchSize);
+    var sRes = await sbWrite('branch_stock?on_conflict=branch,kind,sku', {
+      method:'POST', headers: { 'Prefer':'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(sChunk)
+    }, { opType:'تحديث_رصيد_فرع', label:'دفعة رصيد فرع '+currentBranch+' — '+sChunk.length+' صنف' });
+    if (sRes.queued) queuedBatches++;
+  }
   addAudit('رفع مستويات المخزون', ROLES[role]?ROLES[role].label:'—',
-    filename+' — منتجات: '+updatedP+' | مواد مخزون جديدة: '+addedM+' | مواد مخزون محدّثة: '+updatedM+' | متجاهَل (بدون تكلفة): '+skipped);
+    'فرع: '+currentBranch+' — '+filename+' — منتجات: '+updatedP+' | مواد مخزون جديدة: '+addedM+' | مواد مخزون محدّثة: '+updatedM+' | متجاهَل (بدون تكلفة): '+skipped);
   var quickCheckHTML = renderQuickCheckPanel(anomalies, zeroStock);
   var addedUpdated = addedM + updatedM + updatedP;
   if (queuedBatches > 0) {
@@ -1711,11 +1755,11 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox, deli
     toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
   } else {
     if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#eafaf1;border-radius:8px;font-size:13px">' +
-      '✅ تم: <strong>'+updatedP+'</strong> منتج اتحدثت تكلفته، <strong>'+(addedM+updatedM)+'</strong> مادة مخزون<br>' +
-      (hasQtyCol ? '<span style="font-size:11px;color:var(--muted)">تم ضبط الرصيد الافتتاحي (system_qty) من عمود الكمية في الملف</span><br>' : '<span style="font-size:11px;color:#c0392b">⚠️ الملف ده مفيهوش عمود "Quantity" — اتحدثت التكلفة بس، من غير الرصيد</span><br>') +
+      '✅ رصيد فرع <strong>'+currentBranch+'</strong>: <strong>'+updatedP+'</strong> منتج اتحدثت تكلفته، <strong>'+(addedM+updatedM)+'</strong> مادة مخزون<br>' +
+      (hasQtyCol ? '<span style="font-size:11px;color:var(--muted)">تم ضبط رصيد فرع '+currentBranch+' فقط (system_qty) من عمود الكمية في الملف — باقي الفروع متأثرتش</span><br>' : '<span style="font-size:11px;color:#c0392b">⚠️ الملف ده مفيهوش عمود "Quantity" — اتحدثت التكلفة بس، من غير الرصيد</span><br>') +
       '<span style="font-size:11px;color:var(--muted)">'+skipped+' صنف تم تجاهله (بدون تكلفة في هذا الشيت) — محفوظ بشكل دائم</span>' +
       '</div>' + quickCheckHTML;
-    toast('✅ تم حفظ '+addedUpdated+' صنف بتكلفة حقيقية من مستويات المخزون');
+    toast('✅ تم حفظ '+addedUpdated+' صنف لفرع '+currentBranch+' بشكل دائم');
   }
 }
 
@@ -2467,7 +2511,7 @@ async function confirmAddUnknownProduct() {
   var code = pendingUnknownScan.code;
   if (!sku) sku = 'NEW-' + code.slice(-6) + '-' + Date.now().toString().slice(-4);
 
-  PRODUCTS[sku] = { n:name, c:0, p:0, bc:code, margin:22, q:0, qAt:null, et:false };
+  PRODUCTS[sku] = { n:name, c:0, p:0, bc:code, margin:22, et:false };
   await sbWrite('products_master?on_conflict=sku', {
     method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify([{ sku:sku, name:name, barcode:code, cost:0, price:0, margin:22, system_qty:0 }])
@@ -2568,7 +2612,7 @@ function renderDepartmentPicker() {
       renderDepartmentsUploadWidget();
   }
   var cards = depts.map(function(d){
-    var count = Object.keys(DEPARTMENTS).filter(function(sku){ return DEPARTMENTS[sku] === d && PRODUCTS[sku] && PRODUCTS[sku].q > 0; }).length;
+    var count = Object.keys(DEPARTMENTS).filter(function(sku){ return DEPARTMENTS[sku] === d && PRODUCTS[sku] && getBranchQty(sku,'product') > 0; }).length;
     return '<div class="mode-home-card" onclick="pickCountDepartment(\''+d.replace(/'/g,"\\'")+'\')">' +
       '<div class="mode-home-icon">🏢</div>' +
       '<div class="mode-home-label">'+d+'</div>' +
@@ -2687,7 +2731,7 @@ function renderCountEntryCard(sku, opts) {
     '<div style="font-size:19px;font-weight:900;color:var(--primary);margin-bottom:2px">'+(p.n||sku)+'</div>' +
     '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+sku+(p.bc?' | 🏷️'+p.bc:'')+'</div>' +
     '<div class="count-sysqty-box" style="text-align:center;margin-bottom:14px">' +
-      '<label>📦 الرصيد على الجهاز (مستويات المخزون)</label><span>'+fmt(p.q||0)+'</span>' +
+      '<label>📦 الرصيد على الجهاز — '+currentBranch+' (مستويات المخزون)</label><span>'+fmt(getBranchQty(sku,'product'))+'</span>' +
     '</div>' +
     '<label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">العدد الفعلي — اللي موجود دلوقتي في الفرع</label>' +
     '<div class="qty-stepper" style="margin-bottom:12px">' +
@@ -2842,7 +2886,7 @@ function addCountScanned(sku, explicitQty) {
   var who = counterName || (ROLES[role]?ROLES[role].label:'—');
   if (idx === -1) {
     countItems.unshift({ sku:sku, name:prod.n, unit:'وحدة', bc:prod.bc||'',
-      system_qty: prod.q||0, actual_qty: (explicitQty!=null?explicitQty:1), cost: prod.c||0, counted_by: who, counted_at: new Date().toISOString() });
+      system_qty: getBranchQty(sku,'product'), actual_qty: (explicitQty!=null?explicitQty:1), cost: prod.c||0, counted_by: who, counted_at: new Date().toISOString() });
     idx = 0;
   } else {
     countItems[idx].actual_qty = explicitQty!=null ? explicitQty : ((parseFloat(countItems[idx].actual_qty)||0) + 1);
@@ -2973,7 +3017,7 @@ function requireSupervisorPin(cb) {
 function missingCountRows() {
   return missingCountSkus().map(function(sku){
     var p = PRODUCTS[sku] || {};
-    return { sku: sku, name: p.n||sku, unit:'', bc: p.bc||'', system_qty: p.q||0, actual_qty: 0,
+    return { sku: sku, name: p.n||sku, unit:'', bc: p.bc||'', system_qty: getBranchQty(sku,'product'), actual_qty: 0,
              cost: p.c||0, counted_by: '— لم يُعد —', counted_at: '' };
   });
 }
@@ -2997,20 +3041,27 @@ async function approveCountSession() {
     toast('⏳ جاري اعتماد الجرد...');
     try {
       var toUpdate = treatMissingAsZero ? counted.concat(missing) : counted;
+      var qtyAt = new Date().toISOString();
       var updates = toUpdate.map(function(it){
         // نحافظ على أحدث تكلفة معروفة من PRODUCTS بدل النسخة اللي اتحفظت وقت العدّ، عشان الاعتماد ميرجّعش يصفّر تكلفة اتحدثت بعد كده
         var liveCost = PRODUCTS[it.sku] ? PRODUCTS[it.sku].c : 0;
         var cost = (liveCost > 0) ? liveCost : (it.cost||0);
         return { sku: it.sku, name: it.name, cost: cost, price: PRODUCTS[it.sku]?PRODUCTS[it.sku].p:0,
                  margin: PRODUCTS[it.sku]?PRODUCTS[it.sku].margin:22, barcode: PRODUCTS[it.sku]?PRODUCTS[it.sku].bc:'',
-                 system_qty: parseFloat(it.actual_qty)||0, system_qty_updated_at: new Date().toISOString() };
+                 qty: parseFloat(it.actual_qty)||0 };
       });
       await sbWrite('products_master?on_conflict=sku', {
         method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify(updates)
-      }, { opType:'اعتماد_جرد', label:'اعتماد جرد: '+currentBranch });
+        body: JSON.stringify(updates.map(function(u){ return { sku:u.sku, name:u.name, cost:u.cost, price:u.price, margin:u.margin, barcode:u.barcode }; }))
+      }, { opType:'اعتماد_جرد', label:'اعتماد جرد (تكلفة): '+currentBranch });
 
-      updates.forEach(function(u){ if (PRODUCTS[u.sku]) { PRODUCTS[u.sku].q = u.system_qty; PRODUCTS[u.sku].qAt = u.system_qty_updated_at; } });
+      // الرصيد (system_qty) خاص بالفرع الحالي بس — بيتحفظ في branch_stock مش في products_master المشترك
+      await sbWrite('branch_stock?on_conflict=branch,kind,sku', {
+        method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body: JSON.stringify(updates.map(function(u){ return { branch: currentBranch, kind:'product', sku:u.sku, system_qty:u.qty, system_qty_updated_at: qtyAt }; }))
+      }, { opType:'تحديث_رصيد_فرع', label:'اعتماد جرد (رصيد فرع '+currentBranch+')' });
+
+      updates.forEach(function(u){ setBranchQtyLocal(currentBranch, 'product', u.sku, u.qty, qtyAt); });
 
       await sbWrite('stock_count_sessions?id=eq.'+countSession.id, {
         method:'PATCH', headers:{'Prefer':'return=minimal'},
@@ -3538,24 +3589,29 @@ async function approveRecv() {
     });
     if (!writeResult.ok) toast('📴 تم الحفظ محلياً — سيتم الرفع تلقائياً عند عودة الاتصال');
 
-    // 1b. Update products_master with the new cost + زيادة الرصيد النظري بكمية الاستلام (system_qty)
+    // 1b. Update products_master with the new cost (مشترك) + زيادة رصيد الفرع الحالي بس بكمية الاستلام (branch_stock)
     var qtyAt = new Date().toISOString();
     var costUpdates = newRequests.filter(function(r){ return r.qty_received > 0 || r.new_cost > 0; }).map(function(r){
-      var prevQty = (PRODUCTS[r.sku] && PRODUCTS[r.sku].q) || 0;
+      var prevQty = getBranchQty(r.sku, 'product', currentBranch);
       var newQty = prevQty + (parseFloat(r.qty_received)||0);
       return { sku:r.sku, name:r.product_name, cost: r.new_cost>0?r.new_cost:(PRODUCTS[r.sku]?PRODUCTS[r.sku].c:0),
                price: PRODUCTS[r.sku]?PRODUCTS[r.sku].p:0,
                margin: PRODUCTS[r.sku]?PRODUCTS[r.sku].margin:22, barcode: PRODUCTS[r.sku]?PRODUCTS[r.sku].bc:'',
-               system_qty: newQty, system_qty_updated_at: qtyAt };
+               qty: newQty };
     });
     if (costUpdates.length) {
       await sbWrite('products_master?on_conflict=sku', {
         method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify(costUpdates)
-      }, { label:'تحديث تكلفة منتجات ورصيد المخزون' });
+        body: JSON.stringify(costUpdates.map(function(u){ return { sku:u.sku, name:u.name, cost:u.cost, price:u.price, margin:u.margin, barcode:u.barcode }; }))
+      }, { label:'تحديث تكلفة منتجات' });
+      await sbWrite('branch_stock?on_conflict=branch,kind,sku', {
+        method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body: JSON.stringify(costUpdates.map(function(u){ return { branch: currentBranch, kind:'product', sku:u.sku, system_qty:u.qty, system_qty_updated_at: qtyAt }; }))
+      }, { label:'تحديث رصيد فرع '+currentBranch+' بعد الاستلام' });
       costUpdates.forEach(function(u){
-        if (!PRODUCTS[u.sku]) PRODUCTS[u.sku] = { n:u.name, c:0, p:0, bc:u.barcode||'', margin:22, q:0, et:false };
-        PRODUCTS[u.sku].c = u.cost; PRODUCTS[u.sku].q = u.system_qty; PRODUCTS[u.sku].qAt = u.system_qty_updated_at;
+        if (!PRODUCTS[u.sku]) PRODUCTS[u.sku] = { n:u.name, c:0, p:0, bc:u.barcode||'', margin:22, et:false };
+        PRODUCTS[u.sku].c = u.cost;
+        setBranchQtyLocal(currentBranch, 'product', u.sku, u.qty, qtyAt);
       });
     }
 
