@@ -487,14 +487,28 @@ setInterval(checkConnectionQuality, 15000);
 setInterval(function(){ if (OFFLINE_QUEUE.length && navigator.onLine && !IS_SYNCING) syncOfflineQueue(); }, 20000);
 
 
+// مهلة زمنية لكل طلب — عشان اتصال ضعيف/عالق مايفضلش شاشة التحميل معلّقة للأبد،
+// بيفشل بعد 20 ثانية بدل ما ينتظر بلا نهاية (خصوصاً لو الشبكة قطعت وسط الطلب من غير ما تدي خطأ واضح)
+var SB_FETCH_TIMEOUT_MS = 20000;
+
 async function sbFetch(path, opts) {
   opts = opts || {};
-  var r = await fetch(SB_URL + '/rest/v1/' + path, Object.assign({}, opts, {
-    headers: Object.assign({}, SB_HEADERS, opts.headers || {})
-  }));
-  if (!r.ok) { var t = await r.text(); throw new Error(t || r.statusText); }
-  var txt = await r.text();
-  return txt ? JSON.parse(txt) : null;
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, SB_FETCH_TIMEOUT_MS);
+  try {
+    var r = await fetch(SB_URL + '/rest/v1/' + path, Object.assign({}, opts, {
+      headers: Object.assign({}, SB_HEADERS, opts.headers || {}),
+      signal: controller.signal
+    }));
+    if (!r.ok) { var t = await r.text(); throw new Error(t || r.statusText); }
+    var txt = await r.text();
+    return txt ? JSON.parse(txt) : null;
+  } catch(e) {
+    if (e.name === 'AbortError') throw new Error('انتهت مهلة الاتصال — تأكد من الشبكة');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -896,14 +910,49 @@ setInterval(function(){
   if (role === 'receiving' && !recvPO) refreshPO();
 }, 45000);
 
+// بيجيب جدول كامل بالصفحات (batch)، بيرجع مصفوفة فاضية لو الجدول مش موجود أو حصل خطأ — بدل ما يوقف باقي التحميل
+async function fetchAllPaged(pathBase) {
+  try {
+    var all = [];
+    var offset = 0, batchSize = 1000;
+    var sep = pathBase.indexOf('?') >= 0 ? '&' : '?';
+    while (true) {
+      var batch = await sbFetch(pathBase + sep + 'limit=' + batchSize + '&offset=' + offset);
+      if (!batch || !batch.length) break;
+      all = all.concat(batch);
+      if (batch.length < batchSize) break;
+      offset += batchSize;
+    }
+    return all;
+  } catch(e) { return []; }
+}
+
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
   var root = document.getElementById('root');
   if (root) root.innerHTML = '<div class="auth-wrap"><div style="color:#fff;font-size:16px">⏳ جاري تحميل البيانات...</div></div>';
 
   try {
-    // 1. Load pricing requests (استلام + تسعير)
-    var reqs = await sbFetch('pricing_requests_v3?select=*&order=created_at.desc');
+    // كل الجداول دي مستقلة عن بعض — بنجيبها كلها مع بعض (parallel) بدل واحد ورا التاني، عشان التحميل يبقى
+    // أسرع بكتير خصوصاً على نت الفروع الضعيف (كان بياخد عشرات الثواني وهو بينتظر كل جدول لوحده بالدور)
+    var results = await Promise.all([
+      sbFetch('pricing_requests_v3?select=*&order=created_at.desc').catch(function(){ return []; }),
+      sbFetch('supplier_accounts?select=*').catch(function(){ return []; }),
+      sbFetch('supplier_payments?select=*&order=created_at.asc').catch(function(){ return []; }),
+      sbFetch('supplier_returns?select=*&order=created_at.asc').catch(function(){ return []; }),
+      refreshPO(),
+      sbFetch('audit_log_v3?select=*&order=created_at.desc&limit=50').catch(function(){ return []; }),
+      fetchAllPaged('products_master?select=*&order=sku'),
+      fetchAllPaged('suppliers_master?select=*&order=name'),
+      fetchAllPaged('materials_master?select=*&order=sku'),
+      fetchAllPaged('sku_departments?select=*&order=sku'),
+      fetchAllPaged('branch_stock?select=*')
+    ]);
+    var reqs = results[0], accs = results[1], pays = results[2], rets = results[3];
+    var logs = results[5], allProducts = results[6], allSuppliers = results[7],
+        allMaterials = results[8], allDepts = results[9], allStock = results[10];
+
+    // 1. Pricing requests (استلام + تسعير)
     MOCK_REQUESTS = (reqs || []).map(function(r){
       return {
         id: r.id, sku: r.sku, product_name: r.product_name, unit: r.unit,
@@ -917,17 +966,9 @@ async function loadFromSupabase() {
       };
     });
 
-    // 2. Load supplier accounts (opening balances)
-    var accs = await sbFetch('supplier_accounts?select=*');
+    // 2. Supplier accounts (opening balances) + 3/4. Payments/Returns → إعادة بناء MOCK_SUPPLIERS
     var accMap = {};
     (accs||[]).forEach(function(a){ accMap[a.supplier_name] = a; });
-
-    // 3. Load payments
-    var pays = await sbFetch('supplier_payments?select=*&order=created_at.asc');
-    // 4. Load returns
-    var rets = await sbFetch('supplier_returns?select=*&order=created_at.asc');
-
-    // Rebuild MOCK_SUPPLIERS from Supabase data
     var supNames = new Set();
     Object.keys(accMap).forEach(function(n){ supNames.add(n); });
     (pays||[]).forEach(function(p){ supNames.add(p.supplier_name); });
@@ -952,103 +993,44 @@ async function loadFromSupabase() {
       };
     });
 
-    // 5. Load PO from po_sync (real purchase orders from makhzoun)
-    await refreshPO();
+    // 5. PO من po_sync — refreshPO() بالفعل خلّص واتنفّذ جوا الـ Promise.all فوق
 
-    // 6. Load audit log
-    try {
-      var logs = await sbFetch('audit_log_v3?select=*&order=created_at.desc&limit=50');
-      AUDIT_LOG = (logs||[]).map(function(l){
-        return { time: l.created_at, action: l.action, who: l.who, detail: l.detail||'' };
+    // 6. Audit log
+    AUDIT_LOG = (logs||[]).map(function(l){
+      return { time: l.created_at, action: l.action, who: l.who, detail: l.detail||'' };
+    });
+
+    // 7. products_master (تكلفة/سعر/باركود دائم — بديل رفع الملف اليومي)
+    if (allProducts.length) {
+      allProducts.forEach(function(p){
+        // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
+        PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
+                             bc:p.barcode||'', margin: parseFloat(p.margin)||22,
+                             et: !!p.expiry_tracked, cat: p.category||'' };
       });
-    } catch(e) {}
+      PRODUCTS_MASTER_LOADED = true;
+    }
 
-    // 7. Load products_master (تكلفة/سعر/باركود دائم — بديل رفع الملف اليومي)
-    try {
-      var allProducts = [];
-      var pOffset = 0, pBatch = 1000;
-      while (true) {
-        var batch = await sbFetch('products_master?select=*&order=sku&limit='+pBatch+'&offset='+pOffset);
-        if (!batch || !batch.length) break;
-        allProducts = allProducts.concat(batch);
-        if (batch.length < pBatch) break;
-        pOffset += pBatch;
-      }
-      if (allProducts.length) {
-        allProducts.forEach(function(p){
-          // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
-          PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
-                               bc:p.barcode||'', margin: parseFloat(p.margin)||22,
-                               et: !!p.expiry_tracked, cat: p.category||'' };
-        });
-        PRODUCTS_MASTER_LOADED = true;
-      }
-    } catch(e) { /* products_master may not exist yet */ }
+    // 8. suppliers_master (قاعدة بيانات الموردين — بديل القائمة المضمنة في الملف)
+    if (allSuppliers.length) SUPPLIERS_DB = allSuppliers;
 
-    // 8. Load suppliers_master (قاعدة بيانات الموردين — بديل القائمة المضمنة في الملف)
-    try {
-      var allSuppliers = [];
-      var sOffset = 0, sBatch = 1000;
-      while (true) {
-        var sBatchRes = await sbFetch('suppliers_master?select=*&order=name&limit='+sBatch+'&offset='+sOffset);
-        if (!sBatchRes || !sBatchRes.length) break;
-        allSuppliers = allSuppliers.concat(sBatchRes);
-        if (sBatchRes.length < sBatch) break;
-        sOffset += sBatch;
-      }
-      if (allSuppliers.length) SUPPLIERS_DB = allSuppliers;
-    } catch(e) { /* suppliers_master may not exist yet */ }
-
-    // 9. Load materials_master (مواد المخزون — كتالوج مستقل تماماً عن المنتجات، أكوادها ممكن تتداخل مع أكواد المنتجات)
-    try {
-      var allMaterials = [];
-      var mOffset = 0, mBatch = 1000;
-      while (true) {
-        var mBatchRes = await sbFetch('materials_master?select=*&order=sku&limit='+mBatch+'&offset='+mOffset);
-        if (!mBatchRes || !mBatchRes.length) break;
-        allMaterials = allMaterials.concat(mBatchRes);
-        if (mBatchRes.length < mBatch) break;
-        mOffset += mBatch;
-      }
-      if (allMaterials.length) {
-        allMaterials.forEach(function(m){
-          // مفيش q/qAt هنا برضه — نفس السبب، الرصيد بقى في BRANCH_STOCK
-          MATERIALS[m.sku] = { n:m.name||'', c:parseFloat(m.cost)||0, p:parseFloat(m.price)||0,
-                                bc:m.barcode||'', margin: parseFloat(m.margin)||22,
-                                et: !!m.expiry_tracked, cat: m.category||'' };
-        });
-      }
-    } catch(e) { /* materials_master may not exist yet */ }
-
-    // 10. Load sku_departments (تقسيم الأقسام من ملف الفروع — بديل فئة فوديكس لوضع "قسم" في الجرد)
-    try {
-      var allDepts = [];
-      var dOffset = 0, dBatch = 1000;
-      while (true) {
-        var dBatchRes = await sbFetch('sku_departments?select=*&order=sku&limit='+dBatch+'&offset='+dOffset);
-        if (!dBatchRes || !dBatchRes.length) break;
-        allDepts = allDepts.concat(dBatchRes);
-        if (dBatchRes.length < dBatch) break;
-        dOffset += dBatch;
-      }
-      allDepts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
-    } catch(e) { /* sku_departments may not exist yet */ }
-
-    // 11. Load branch_stock (رصيد كل فرع لوحده — بديل عمود system_qty المشترك اللي كان بيتداخل بين الفروع)
-    try {
-      var allStock = [];
-      var stOffset = 0, stBatch = 1000;
-      while (true) {
-        var stBatchRes = await sbFetch('branch_stock?select=*&limit='+stBatch+'&offset='+stOffset);
-        if (!stBatchRes || !stBatchRes.length) break;
-        allStock = allStock.concat(stBatchRes);
-        if (stBatchRes.length < stBatch) break;
-        stOffset += stBatch;
-      }
-      allStock.forEach(function(r){
-        setBranchQtyLocal(r.branch, r.kind, r.sku, parseFloat(r.system_qty)||0, r.system_qty_updated_at||null);
+    // 9. materials_master (مواد المخزون — كتالوج مستقل تماماً عن المنتجات، أكوادها ممكن تتداخل مع أكواد المنتجات)
+    if (allMaterials.length) {
+      allMaterials.forEach(function(m){
+        // مفيش q/qAt هنا برضه — نفس السبب، الرصيد بقى في BRANCH_STOCK
+        MATERIALS[m.sku] = { n:m.name||'', c:parseFloat(m.cost)||0, p:parseFloat(m.price)||0,
+                              bc:m.barcode||'', margin: parseFloat(m.margin)||22,
+                              et: !!m.expiry_tracked, cat: m.category||'' };
       });
-    } catch(e) { /* branch_stock may not exist yet */ }
+    }
+
+    // 10. sku_departments (تقسيم الأقسام من ملف الفروع — بديل فئة فوديكس لوضع "قسم" في الجرد)
+    allDepts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
+
+    // 11. branch_stock (رصيد كل فرع لوحده — بديل عمود system_qty المشترك اللي كان بيتداخل بين الفروع)
+    allStock.forEach(function(r){
+      setBranchQtyLocal(r.branch, r.kind, r.sku, parseFloat(r.system_qty)||0, r.system_qty_updated_at||null);
+    });
 
     SB_CONNECTED = true;
     startRealtime();
