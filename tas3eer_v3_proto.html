@@ -593,6 +593,23 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// تقسيم سطر CSV بيراعي الحقول المحاطة بعلامات اقتباس (زي اسم منتج فيه فاصلة)، بدل split(',') الساذج اللي بيزلق الأعمدة
+function splitCSVLine(line) {
+  var result = []; var cur = ''; var inQuotes = false;
+  for (var i=0; i<line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else { inQuotes = false; } }
+      else cur += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
 function calcMargin(c,p) {
   if (!c||!p||p<=0) return null;
   return (p-c)/p*100;
@@ -1202,7 +1219,7 @@ async function processFoodicsFullFile(text, filename, resBox) {
   var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
   if (!lines.length) { if(resBox) resBox.innerHTML = '⚠️ الملف فارغ'; return; }
 
-  var headers = lines[0].split(',').map(function(h){return h.replace(/^\uFEFF/,'').trim();});
+  var headers = splitCSVLine(lines[0]).map(function(h){return h.replace(/^\uFEFF/,'').trim();});
   var hasFullFoodicsFormat = headers.indexOf('sku') > -1 && headers.indexOf('price') > -1;
   var hasInventoryFormat = headers.indexOf('SKU') > -1 && headers.indexOf('Cost Per Unit') > -1;
 
@@ -1221,7 +1238,7 @@ async function processFoodicsFullFile(text, filename, resBox) {
   var added = 0, updated = 0;
   var masterRows = [];
   for (var i=1; i<lines.length; i++) {
-    var vals = lines[i].split(',');
+    var vals = splitCSVLine(lines[i]);
     var row = {};
     headers.forEach(function(h,j){ row[h] = (vals[j]||'').trim(); });
     if (!row.sku) continue;
@@ -1293,7 +1310,7 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
   var masterRows = [];
 
   for (var i=1; i<lines.length; i++) {
-    var vals = lines[i].split(',');
+    var vals = splitCSVLine(lines[i]);
     var sku  = (vals[idx['SKU']]||'').trim();
     var name = (vals[idx['Name']]||'').trim();
     var bc   = (vals[idx['Barcode']]||'').trim();
@@ -1352,9 +1369,9 @@ async function processInventoryLevelsFile(lines, headers, filename, resBox) {
 function parseCSV(text) {
   var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
   if (!lines.length) return [];
-  var headers = lines[0].split(',').map(function(h){return h.trim();});
+  var headers = splitCSVLine(lines[0]).map(function(h){return h.trim();});
   return lines.slice(1).map(function(line){
-    var vals = line.split(',');
+    var vals = splitCSVLine(line);
     var obj = {};
     headers.forEach(function(h,i){ obj[h] = (vals[i]||'').trim(); });
     return obj;
@@ -4140,7 +4157,7 @@ function handleMenuAnalysisUpload(input) {
 async function processMenuAnalysisFile(text, filename, resBox) {
   var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
   if (!lines.length) { if(resBox) resBox.innerHTML='⚠️ الملف فارغ'; return; }
-  var headers = lines[0].split(',').map(function(h){return h.replace(/^\uFEFF/,'').trim();});
+  var headers = splitCSVLine(lines[0]).map(function(h){return h.replace(/^\uFEFF/,'').trim();});
   var idx = {}; headers.forEach(function(h,i){ idx[h]=i; });
 
   if (idx['Product']===undefined || idx['Class']===undefined) {
@@ -4156,7 +4173,7 @@ async function processMenuAnalysisFile(text, filename, resBox) {
   var rows = [];
   for (var i=1; i<lines.length; i++) {
     // التعامل مع الفواصل داخل نصوص محاطة بـ "" لو وجدت
-    var vals = lines[i].split(',');
+    var vals = splitCSVLine(lines[i]);
     var name = (vals[idx['Product']]||'').trim();
     var sku = nameToSku[name];
     if (!sku) { unmatched++; continue; }
