@@ -1055,12 +1055,19 @@ zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add(
 zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
 zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
 
+const REQUIRED_INVENTORY_HEADERS = ['SKU','Name','Quantity','Storage Unit','Cost Per Unit','Total Cost'];
 function handleFile(file) {
   if (!file) return;
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: (results) => {
+      const fields = results.meta && results.meta.fields || [];
+      const missing = REQUIRED_INVENTORY_HEADERS.filter(h => fields.indexOf(h) === -1);
+      if (missing.length) {
+        showToast('⚠️ الملف مش بصيغة تقرير المخزون المتوقعة — الأعمدة الناقصة: ' + missing.join('، '), 6000);
+        return;
+      }
       rawData = results.data;
       processData();
       saveToHistory(file.name);
