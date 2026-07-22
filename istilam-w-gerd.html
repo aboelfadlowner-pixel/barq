@@ -2541,18 +2541,62 @@ async function openOrCreateCountSession() {
     }
     if (countSession) {
       var items = await sbFetch('stock_count_items?select=*&session_id=eq.'+countSession.id+'&order=counted_at.desc');
-      countItems = (items||[]).map(function(it){
-        return { sku: it.sku, name: it.product_name, unit: it.unit||'', bc: it.barcode||'',
-                  system_qty: it.system_qty_snapshot!=null?parseFloat(it.system_qty_snapshot):0,
-                  actual_qty: it.actual_qty!=null?parseFloat(it.actual_qty):'', cost: parseFloat(it.cost)||0,
-                  counted_by: it.counted_by||'', counted_at: it.counted_at };
-      });
+      countItems = aggregateCountRows(items||[]);
     }
   } catch(e) {
     toast('⚠️ تعذر فتح جلسة الجرد: '+(e.message||'').slice(0,80));
   }
   countSessionLoading = false;
   render();
+}
+
+// بيجمع صفوف الجرد الخام (صف لكل شخص لكل صنف) في صف واحد لكل صنف — actual_qty = مجموع كل المساهمين،
+// myQty = مساهمة المستخدم الحالي بس (عشان يعدّل رقمه هو من غير ما يلمس رقم حد تاني)
+function aggregateCountRows(rawRows) {
+  var myName = counterName || (ROLES[role]?ROLES[role].label:'—');
+  var bySku = {};
+  var order = [];
+  rawRows.forEach(function(it){
+    if (!bySku[it.sku]) {
+      bySku[it.sku] = { sku: it.sku, name: it.product_name, unit: it.unit||'', bc: it.barcode||'',
+        system_qty: it.system_qty_snapshot!=null?parseFloat(it.system_qty_snapshot):0,
+        cost: parseFloat(it.cost)||0, contributors: [], counted_at: it.counted_at };
+      order.push(it.sku);
+    }
+    var rec = bySku[it.sku];
+    if (it.actual_qty != null) {
+      var existing = rec.contributors.find(function(c){ return c.name === (it.counted_by||''); });
+      if (existing) { existing.qty = parseFloat(it.actual_qty); existing.at = it.counted_at; }
+      else rec.contributors.push({ name: it.counted_by||'', qty: parseFloat(it.actual_qty), at: it.counted_at });
+    }
+    if (!rec.counted_at || it.counted_at > rec.counted_at) rec.counted_at = it.counted_at;
+  });
+  return order.map(function(sku){
+    var rec = bySku[sku];
+    var total = rec.contributors.reduce(function(s,c){ return s+c.qty; }, 0);
+    var mine = rec.contributors.find(function(c){ return c.name === myName; });
+    return {
+      sku: rec.sku, name: rec.name, unit: rec.unit, bc: rec.bc, system_qty: rec.system_qty, cost: rec.cost,
+      actual_qty: rec.contributors.length ? total : '',
+      myQty: mine ? mine.qty : '',
+      contributors: rec.contributors,
+      counted_by: rec.contributors.map(function(c){ return c.name; }).join('، '),
+      counted_at: rec.counted_at
+    };
+  });
+}
+
+// بيجيب أحدث نسخة من صفوف الجرد من السيرفر مباشرة (مش من الكاش المحلي) ويعيد بناء countItems منها —
+// لازم نستخدمها قبل أي اعتماد/تصدير نهائي عشان نضمن إن مجموع كل العدّادين اتجمع فعلاً حتى لو الريل-تايم اتأخر أو انقطع
+async function refreshCountItemsFromServer() {
+  if (!countSession) return;
+  try {
+    var items = await sbFetch('stock_count_items?select=*&session_id=eq.'+countSession.id+'&order=counted_at.desc');
+    countItems = aggregateCountRows(items||[]);
+  } catch(e) {
+    // لو فشل التحديث (مثلاً مفيش نت) بنفضل نشتغل بالنسخة المحلية المتوفرة بدل ما نوقف العملية بالكامل
+    toast('⚠️ تعذر تحديث بيانات الجرد من السيرفر — هيتم استخدام آخر نسخة متاحة محلياً');
+  }
 }
 
 function renderCountRoot() {
@@ -2687,7 +2731,8 @@ function focusCountItem(sku) {
   countFocusSku = sku;
   countSearchQuery = '';
   var existing = countItems.find(function(it){return it.sku===sku;});
-  guidedQtyInput = (existing && existing.actual_qty !== '' && existing.actual_qty != null) ? String(existing.actual_qty) : '';
+  // بنفضّي مربع الإدخال بمساهمتي أنا بس (myQty)، مش الإجمالي المجمّع من الكل — كل واحد يعدّل رقمه هو
+  guidedQtyInput = (existing && existing.myQty !== '' && existing.myQty != null) ? String(existing.myQty) : '';
   render();
 }
 
@@ -2716,7 +2761,16 @@ function renderCountEntryCard(sku, opts) {
   opts = opts || {};
   var p = PRODUCTS[sku] || {};
   var already = countItems.find(function(it){return it.sku===sku;});
+  var myName = counterName || (ROLES[role]?ROLES[role].label:'—');
+  var others = already ? (already.contributors||[]).filter(function(c){ return c.name !== myName; }) : [];
   var headerLabel = opts.progressBar ? '' : (already ? '✏️ تعديل صنف متعدود بالفعل' : '🔍 صنف مختار يدوياً');
+  // لو حد تاني عدّ نفس الصنف، نوريه واضح — الرقم اللي هيتكتب هنا هو مساهمتك انت بس، وهيتجمع مع مساهماتهم
+  var othersBox = others.length ? (
+    '<div style="background:#fff8e1;border:1px solid #d68910;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:11px;color:#856404">' +
+      '👥 اتعد برضه من: ' + others.map(function(c){ return c.name+' ('+fmt(c.qty)+')'; }).join('، ') +
+      ' — اللي هتكتبه هنا هيتجمع عليهم، مش هيمسحهم' +
+    '</div>'
+  ) : '';
   return '<div class="cd" style="border-color:var(--accent);padding:16px">' +
     (opts.progressBar || '') +
     (headerLabel ? '<div style="font-size:11px;color:var(--muted);font-weight:800;margin-bottom:6px">'+headerLabel+'</div>' : '') +
@@ -2725,7 +2779,10 @@ function renderCountEntryCard(sku, opts) {
     '<div class="count-sysqty-box" style="text-align:center;margin-bottom:14px">' +
       '<label>📦 الرصيد على الجهاز — '+currentBranch+' (مستويات المخزون)</label><span>'+fmt(getBranchQty(sku,'product'))+'</span>' +
     '</div>' +
-    '<label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">العدد الفعلي — اللي موجود دلوقتي في الفرع</label>' +
+    othersBox +
+    '<label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">' +
+      (others.length ? 'مساهمتك انت ('+myName+') — العدد اللي شفته انت' : 'العدد الفعلي — اللي موجود دلوقتي في الفرع') +
+    '</label>' +
     '<div class="qty-stepper" style="margin-bottom:12px">' +
       '<button type="button" onclick="stepGuidedQty(1)">+</button>' +
       '<input type="number" id="guided-qty-inp" inputmode="decimal" placeholder="0" autofocus autocomplete="off" ' +
@@ -2893,14 +2950,30 @@ async function openCountHistory() {
     for (var i=0; i<(sessions||[]).length; i++) {
       var s = sessions[i];
       var items = await sbFetch('stock_count_items?select=*&session_id=eq.'+s.id+'&order=counted_at.desc');
+      // بنجمع مساهمات كل الأشخاص لنفس الصنف في نفس الجلسة في صف واحد — عشان مدير الجرد يشوف الرقم النهائي
+      // المجمّع، مش صف منفصل لكل شخص عدّ نفس الصنف
+      var bySku = {};
+      var order = [];
       (items||[]).forEach(function(it){
+        if (!bySku[it.sku]) {
+          bySku[it.sku] = { sku: it.sku, name: it.product_name, unit: it.unit||'', bc: it.barcode||'',
+            system_qty: it.system_qty_snapshot!=null?parseFloat(it.system_qty_snapshot):0,
+            cost: parseFloat(it.cost)||0, contributors: [], counted_at: it.counted_at||'' };
+          order.push(it.sku);
+        }
+        var rec = bySku[it.sku];
+        if (it.actual_qty != null) rec.contributors.push({ name: it.counted_by||'', qty: parseFloat(it.actual_qty) });
+        if (it.counted_at > rec.counted_at) rec.counted_at = it.counted_at;
+      });
+      order.forEach(function(sku){
+        var rec = bySku[sku];
+        var total = rec.contributors.reduce(function(s2,c){ return s2+c.qty; }, 0);
         allItems.push({
           session_id: s.id, session_status: s.status,
-          sku: it.sku, name: it.product_name, unit: it.unit||'', bc: it.barcode||'',
-          system_qty: it.system_qty_snapshot!=null?parseFloat(it.system_qty_snapshot):0,
-          actual_qty: it.actual_qty!=null?parseFloat(it.actual_qty):null,
-          cost: parseFloat(it.cost)||0, counted_by: it.counted_by||'', counted_at: it.counted_at||'',
-          selected: false
+          sku: rec.sku, name: rec.name, unit: rec.unit, bc: rec.bc, system_qty: rec.system_qty,
+          actual_qty: rec.contributors.length ? total : null,
+          cost: rec.cost, counted_by: rec.contributors.map(function(c){return c.name;}).join('، '),
+          counted_at: rec.counted_at, selected: false
         });
       });
     }
@@ -3022,8 +3095,13 @@ function updateCountDiffDisplay(i) {
 }
 
 function renderCountItemCard(item, i) {
-  var hasActual = item.actual_qty !== '' && item.actual_qty != null;
+  var hasMine = item.myQty !== '' && item.myQty != null;
   var parts = countDiffParts(item);
+  var myName = counterName || (ROLES[role]?ROLES[role].label:'—');
+  var contributorsCount = (item.contributors||[]).length;
+  var multiNote = contributorsCount > 1
+    ? '<div style="font-size:11px;color:#856404;background:#fff8e1;border-radius:6px;padding:4px 8px;margin-bottom:6px">👥 مجموع '+contributorsCount+' أشخاص: '+item.contributors.map(function(c){return c.name+' ('+fmt(c.qty)+')';}).join('، ')+' = <strong>'+fmt(item.actual_qty)+'</strong></div>'
+    : '';
   return '<div class="item-card-mobile" id="crow-'+i+'">' +
     '<div class="item-name">'+item.name+'</div>' +
     '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+' | '+(item.unit||'')+(item.counted_by?' | 👤 '+item.counted_by:'')+'</div>' +
@@ -3031,10 +3109,11 @@ function renderCountItemCard(item, i) {
       '<div class="count-sysqty-box"><label>الكمية النظرية</label><span>'+fmt(item.system_qty)+'</span></div>' +
       '<span id="cbadge-'+i+'">'+parts.badge+'</span>' +
     '</div>' +
-    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">العدد الفعلي</label>' +
+    multiNote +
+    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">'+(contributorsCount>1?'مساهمتك انت ('+myName+')':'العدد الفعلي')+'</label>' +
     '<div class="qty-stepper">' +
       '<button type="button" onclick="stepCountQty('+i+',1)">+</button>' +
-      '<input type="number" id="cq-'+i+'" inputmode="decimal" value="'+(hasActual?item.actual_qty:'')+'" oninput="checkCountQty('+i+',this.value)">' +
+      '<input type="number" id="cq-'+i+'" inputmode="decimal" value="'+(hasMine?item.myQty:'')+'" oninput="checkCountQty('+i+',this.value)">' +
       '<button type="button" onclick="stepCountQty('+i+',-1)">−</button>' +
     '</div>' +
     '<div id="cval-'+i+'">'+parts.valueLine+'</div>' +
@@ -3045,22 +3124,45 @@ function findCountIndexBySku(sku) {
   return countItems.findIndex(function(it){ return it.sku === sku; });
 }
 
-// explicitQty لو موجودة (من بطاقة العد اليدوية) بتحدد العدد الفعلي بالظبط، من غير ما تحدد بيتضاف للي فات (سلوك المسح بالباركود: +1 كل مسحة)
+// ── جرد جماعي: كل شخص بيحتفظ بمساهمته الخاصة (myQty) في مصفوفة contributors، والرقم النهائي (actual_qty)
+// هو مجموع مساهمات الكل — عشان لو اتنين عدّوا نفس الصنف في نفس الفرع (زي أماكن مختلفة) الأرقام تتجمع
+// بدل ما حد يمسح رقم التاني. بتتسجل بنفس الاسم دايماً — لو نفس الشخص عدّل رقمه بيتصحح مش يتضاعف.
+function applyMyContribution(item, who, newQty, at) {
+  at = at || new Date().toISOString();
+  if (!item.contributors) item.contributors = [];
+  var idx = item.contributors.findIndex(function(c){ return c.name === who; });
+  if (newQty === '' || newQty == null) {
+    if (idx >= 0) item.contributors.splice(idx, 1);
+    item.myQty = '';
+  } else {
+    var qty = parseFloat(newQty) || 0;
+    if (idx >= 0) item.contributors[idx] = { name: who, qty: qty, at: at };
+    else item.contributors.push({ name: who, qty: qty, at: at });
+    item.myQty = qty;
+  }
+  item.actual_qty = item.contributors.length ? item.contributors.reduce(function(s,c){ return s+c.qty; }, 0) : '';
+  item.counted_by = item.contributors.map(function(c){ return c.name; }).join('، ');
+  item.counted_at = at;
+}
+
+// explicitQty لو موجودة (من بطاقة العد اليدوية) بتحدد مساهمتي أنا بالظبط، من غير ما تحدد بتتضاف لمساهمتي (سلوك المسح بالباركود: +1 كل مسحة)
 function addCountScanned(sku, explicitQty) {
   var prod = PRODUCTS[sku];
   if (!prod) return;
   var idx = findCountIndexBySku(sku);
   var who = counterName || (ROLES[role]?ROLES[role].label:'—');
+  var at = new Date().toISOString();
   if (idx === -1) {
-    countItems.unshift({ sku:sku, name:prod.n, unit:'وحدة', bc:prod.bc||'',
-      system_qty: getBranchQty(sku,'product'), actual_qty: (explicitQty!=null?explicitQty:1), cost: prod.c||0, counted_by: who, counted_at: new Date().toISOString() });
+    var item = { sku:sku, name:prod.n, unit:'وحدة', bc:prod.bc||'',
+      system_qty: getBranchQty(sku,'product'), cost: prod.c||0, contributors: [] };
+    applyMyContribution(item, who, explicitQty!=null?explicitQty:1, at);
+    countItems.unshift(item);
     idx = 0;
   } else {
-    countItems[idx].actual_qty = explicitQty!=null ? explicitQty : ((parseFloat(countItems[idx].actual_qty)||0) + 1);
-    countItems[idx].counted_by = who;
-    countItems[idx].counted_at = new Date().toISOString();
+    var cur = parseFloat(countItems[idx].myQty)||0;
+    applyMyContribution(countItems[idx], who, explicitQty!=null?explicitQty:(cur+1), at);
   }
-  persistCountItem(countItems[idx]);
+  persistCountItem(countItems[idx], who);
   render();
   var row = document.getElementById('crow-'+idx);
   if (row) { row.scrollIntoView({behavior:'smooth', block:'center'}); }
@@ -3114,60 +3216,65 @@ function handleCountScan(code) {
 }
 
 function stepCountQty(i, delta) {
-  var current = parseFloat(countItems[i].actual_qty) || 0;
+  var who = counterName || (ROLES[role]?ROLES[role].label:'—');
+  var current = parseFloat(countItems[i].myQty) || 0;
   var next = Math.max(0, current + delta);
-  countItems[i].actual_qty = next;
+  applyMyContribution(countItems[i], who, next, new Date().toISOString());
   var inp = document.getElementById('cq-'+i);
   if (inp) inp.value = next;
-  countItems[i].counted_by = counterName || (ROLES[role]?ROLES[role].label:'—');
-  countItems[i].counted_at = new Date().toISOString();
-  persistCountItem(countItems[i]);
+  persistCountItem(countItems[i], who);
   updateCountDiffDisplay(i);
 }
 
 function checkCountQty(i, val) {
+  var who = counterName || (ROLES[role]?ROLES[role].label:'—');
   var qty = val === '' ? '' : (parseFloat(val) || 0);
-  countItems[i].actual_qty = qty;
-  countItems[i].counted_by = counterName || (ROLES[role]?ROLES[role].label:'—');
-  countItems[i].counted_at = new Date().toISOString();
-  if (qty !== '') persistCountItem(countItems[i]);
+  applyMyContribution(countItems[i], who, qty, new Date().toISOString());
+  if (qty !== '') persistCountItem(countItems[i], who);
   updateCountDiffDisplay(i);
 }
 
-async function persistCountItem(item) {
+// بيحفظ مساهمتي أنا بس (myQty) — مش الإجمالي المجمّع — عشان كل شخص له صف مستقل في القاعدة ومايداسش على التاني
+async function persistCountItem(item, by) {
   if (!countSession) return;
+  var who = by || counterName || (ROLES[role]?ROLES[role].label:'—');
   try {
-    await sbWrite('stock_count_items?on_conflict=session_id,sku', {
+    await sbWrite('stock_count_items?on_conflict=session_id,sku,counted_by', {
       method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
       body: JSON.stringify([{
         session_id: countSession.id, sku: item.sku, product_name: item.name, unit: item.unit,
-        barcode: item.bc||null, system_qty_snapshot: item.system_qty, actual_qty: item.actual_qty===''?null:item.actual_qty,
-        cost: item.cost, counted_by: item.counted_by, counted_at: item.counted_at
+        barcode: item.bc||null, system_qty_snapshot: item.system_qty,
+        actual_qty: (item.myQty===''||item.myQty==null) ? null : item.myQty,
+        cost: item.cost, counted_by: who, counted_at: item.counted_at
       }])
     }, { opType:'جرد_صنف', label: 'جرد: '+item.name });
   } catch(e) {}
 }
 
 // ── تحديث فوري من مستخدم آخر بيعدّ على نفس الجلسة + تنبيه لو الاتنين عدّوا نفس الصنف ──
+// تحديث فوري من شخص تاني بيعدّ على نفس الجلسة — بندمج مساهمته مع بعض المساهمين التانيين (مش نداس فوق حد)،
+// ولو ده صنف اتنين عدّوه، بنبلّغ إن الرقم بقى تجميعي (ده متوقع وصح، مش تعارض ولا مشكلة)
 function onRemoteCountItemChange(row) {
   var myName = counterName || (ROLES[role]?ROLES[role].label:'—');
+  if (row.counted_by === myName) return; // دي رجّعت من كتابتي أنا نفسي — عندي أحدث نسخة محلياً بالفعل
   var idx = findCountIndexBySku(row.sku);
-  var isConflict = idx >= 0 && row.counted_by && row.counted_by !== myName &&
-    countItems[idx].counted_by && countItems[idx].counted_by !== row.counted_by;
+  var remoteQty = row.actual_qty!=null ? parseFloat(row.actual_qty) : null;
 
   if (idx === -1) {
-    countItems.unshift({ sku: row.sku, name: row.product_name, unit: row.unit||'', bc: row.barcode||'',
-      system_qty: row.system_qty_snapshot!=null?parseFloat(row.system_qty_snapshot):0,
-      actual_qty: row.actual_qty!=null?parseFloat(row.actual_qty):'', cost: parseFloat(row.cost)||0,
-      counted_by: row.counted_by||'', counted_at: row.counted_at });
-  } else if (row.counted_by !== myName) {
-    // ما نبقاش نداس فوق تعديل محلي لسه مش متزامن — بس نحدّث لو التوقيت الوارد أحدث
-    countItems[idx].actual_qty = row.actual_qty!=null?parseFloat(row.actual_qty):countItems[idx].actual_qty;
-    countItems[idx].counted_by = row.counted_by||countItems[idx].counted_by;
-    countItems[idx].counted_at = row.counted_at||countItems[idx].counted_at;
+    var item = { sku: row.sku, name: row.product_name, unit: row.unit||'', bc: row.barcode||'',
+      system_qty: row.system_qty_snapshot!=null?parseFloat(row.system_qty_snapshot):0, cost: parseFloat(row.cost)||0, contributors: [] };
+    if (remoteQty != null) applyMyContribution(item, row.counted_by, remoteQty, row.counted_at);
+    else { item.actual_qty=''; item.myQty=''; item.counted_by=''; item.counted_at=row.counted_at; }
+    countItems.unshift(item);
+    if (remoteQty != null) toast('👤 '+row.counted_by+' بدأ يعدّ "'+(row.product_name||row.sku)+'" — '+fmt(remoteQty));
+  } else {
+    var before = countItems[idx].actual_qty;
+    var hadOtherContributor = (countItems[idx].contributors||[]).length > 0;
+    if (remoteQty != null) applyMyContribution(countItems[idx], row.counted_by, remoteQty, row.counted_at);
+    if (hadOtherContributor && before !== countItems[idx].actual_qty) {
+      toast('➕ '+row.counted_by+' زوّد على "'+(row.product_name||row.sku)+'" — الإجمالي بقى '+fmt(countItems[idx].actual_qty));
+    }
   }
-
-  if (isConflict) toast('⚠️ '+row.counted_by+' عدّ صنف "'+(row.product_name||row.sku)+'" برضه — راجع الكمية');
   render();
 }
 
@@ -3195,6 +3302,9 @@ function buildFullCountRows() {
 
 async function approveCountSession() {
   if (!countSession) return;
+  toast('⏳ جاري جلب آخر تحديثات الجرد من كل العدّادين...');
+  await refreshCountItemsFromServer();
+  render();
   var counted = countedOnlyRows();
   if (!counted.length) { toast('⚠️ عدّ صنف واحد على الأقل قبل الاعتماد'); return; }
 
@@ -3258,7 +3368,10 @@ function countedOnlyRows() {
   });
 }
 
-function exportCountDiffReport(includeMissing) {
+async function exportCountDiffReport(includeMissing) {
+  toast('⏳ جاري جلب آخر تحديثات الجرد قبل التصدير...');
+  await refreshCountItemsFromServer();
+  render();
   var rows = includeMissing ? buildFullCountRows() : countedOnlyRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
@@ -3282,7 +3395,10 @@ function exportCountDiffReport(includeMissing) {
   toast('✅ تم تصدير تقرير الفروق');
 }
 
-function printCountDiffReport(includeMissing) {
+async function printCountDiffReport(includeMissing) {
+  toast('⏳ جاري جلب آخر تحديثات الجرد قبل الطباعة...');
+  await refreshCountItemsFromServer();
+  render();
   var rows = includeMissing ? buildFullCountRows() : countedOnlyRows();
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   rows = rows.slice().sort(function(a,b){
