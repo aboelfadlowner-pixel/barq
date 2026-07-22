@@ -75,6 +75,8 @@
   .unit-badge { background: #e8f5ee; color: var(--accent); border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
   .sales-info { font-size: 10px; color: var(--muted); }
   .sales-val { font-weight: 700; color: var(--accent2); }
+  .sales-info-big { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .sales-val-big { font-weight: 800; color: var(--accent2); font-size: 14px; }
   .qty-control { display: flex; align-items: center; background: var(--bg); border-radius: 10px; border: 1.5px solid var(--border); overflow: hidden; }
   .qty-btn { border: none; background: transparent; width: 34px; height: 34px; cursor: pointer; font-size: 18px; font-weight: 700; color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .qty-input { border: none; background: transparent; width: 50px; height: 34px; text-align: center; font-family: 'Cairo',sans-serif; font-size: 14px; font-weight: 800; color: var(--text); outline: none; -moz-appearance: textfield; }
@@ -709,7 +711,6 @@ const DEFAULT_COVERAGE_DAYS = 1;
 let defaultCoverageDays = parseFloat(localStorage.getItem('barq_default_coverage_days')) || DEFAULT_COVERAGE_DAYS; // القيمة العامة اللي بتتطبق على أي قسم لسه مالوش رقم خاص بيه
 let coverageDaysByDept = {}; // dept -> رقم مخصص لقسم بعينه بس (استثناء)، أي قسم مش هنا بياخد القيمة العامة
 try { coverageDaysByDept = JSON.parse(localStorage.getItem('barq_coverage_days_by_dept') || '{}'); } catch(e) { coverageDaysByDept = {}; }
-let suggestedSkus = new Set(); // skus لسه كميتها اقتراح تلقائي ماتلمستش يدويًا
 
 // استكمال استعادة الجلسة (بعد إعلان كل المتغيرات فوق) — بيرجع آخر شاشة والطلبية اللي كانت شغالة
 if (currentUser) {
@@ -809,18 +810,22 @@ function renderApp() {
       const qty = quantities[p.sku] || '';
       const filled = qty !== '' && parseFloat(qty) > 0;
       const daySales = getSalesForDay(p.sku, orderDate);
-      const monthly = getMonthlyTotal(p.sku);
       const onHand = getOnHand(p.sku);
       const rawOnHand = getRawOnHand(p.sku);
+      const suggested = getSuggestedQty(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
         const dayName = getDayName(orderDate);
-        salesText = `<span class="sales-info">${dayName} ${day}/4: <span class="sales-val">${formatNum(daySales)}</span> | الشهر: <span class="sales-val">${formatNum(monthly)}</span></span>`;
-      } else if (monthly > 0) {
-        salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
+        salesText = `<span class="sales-info-big">${dayName} ${day}/4: <span class="sales-val-big">${formatNum(daySales)}</span></span>`;
       }
-      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>${rawOnHand < 0 ? `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>` : ''}` : '';
+      let onHandText = onHand !== null ? `<span class="sales-info-big">📦 الموجود: <span class="sales-val-big">${formatNum(onHand)}</span></span>` : '';
+      if (suggested !== null) {
+        onHandText += `<span class="sales-info-big">🎯 المقترح: <span class="sales-val-big">${formatNum(suggested)}</span></span>`;
+      }
+      if (rawOnHand !== null && rawOnHand < 0) {
+        onHandText += `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>`;
+      }
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
@@ -913,7 +918,6 @@ function renderApp() {
           رقم خاص بـ"${tab}"
         </label>
       </span>
-      <button class="top-btn" style="background:var(--accent2);color:var(--primary)" onclick="applySuggestedQuantities();render()">🔄 إعادة الاقتراح</button>
     </div>
         <div class="select-all-bar" id="selectAllBar">
         <label><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"> تحديد الكل</label>
@@ -1244,18 +1248,22 @@ function renderProductsOnly() {
       const qty = quantities[p.sku] || '';
       const filled = qty !== '' && parseFloat(qty) > 0;
       const daySales = getSalesForDay(p.sku, orderDate);
-      const monthly = getMonthlyTotal(p.sku);
       const onHand = getOnHand(p.sku);
       const rawOnHand = getRawOnHand(p.sku);
+      const suggested = getSuggestedQty(p.sku);
       let salesText = '';
       if (daySales !== null && orderDate) {
         const day = parseInt(orderDate.split('-')[2]);
         const dayName = getDayName(orderDate);
-        salesText = `<span class="sales-info">${dayName} ${day}/4: <span class="sales-val">${formatNum(daySales)}</span> | الشهر: <span class="sales-val">${formatNum(monthly)}</span></span>`;
-      } else if (monthly > 0) {
-        salesText = `<span class="sales-info">إجمالي أبريل: <span class="sales-val">${formatNum(monthly)}</span></span>`;
+        salesText = `<span class="sales-info-big">${dayName} ${day}/4: <span class="sales-val-big">${formatNum(daySales)}</span></span>`;
       }
-      const onHandText = onHand !== null ? `<span class="sales-info">📦 الموجود: <span class="sales-val">${formatNum(onHand)}</span></span>${rawOnHand < 0 ? `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>` : ''}` : '';
+      let onHandText = onHand !== null ? `<span class="sales-info-big">📦 الموجود: <span class="sales-val-big">${formatNum(onHand)}</span></span>` : '';
+      if (suggested !== null) {
+        onHandText += `<span class="sales-info-big">🎯 المقترح: <span class="sales-val-big">${formatNum(suggested)}</span></span>`;
+      }
+      if (rawOnHand !== null && rawOnHand < 0) {
+        onHandText += `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>`;
+      }
       productsHTML += `
       <div class="product-card${filled ? ' filled' : ''}" id="card-${p.sku}">
         <input type="checkbox" class="prod-checkbox" ${selectedSkus.has(p.sku) ? 'checked' : ''} onchange="toggleProductCheck('${p.sku}',this.checked)">
@@ -1726,19 +1734,6 @@ function toggleDeptCoverageOverride(dept, enabled, currentVal) {
   localStorage.setItem('barq_coverage_days_by_dept', JSON.stringify(coverageDaysByDept));
 }
 
-function applySuggestedQuantities() {
-  const activeMap = getActiveSkuMap();
-  Object.keys(activeMap).forEach(sku => {
-    if (quantities[sku] !== undefined && !suggestedSkus.has(sku)) return; // الموظف عدلها يدوي، ما نلمسهاش
-    const suggested = getSuggestedQty(sku);
-    if (suggested === null) return;
-    const rounded = Math.round(suggested * 100) / 100;
-    if (rounded > 0) { quantities[sku] = rounded; suggestedSkus.add(sku); }
-    else { delete quantities[sku]; suggestedSkus.delete(sku); }
-  });
-  saveToStorage();
-}
-
 const STOCK_SKU_HEADERS = ['sku', 'product sku', 'كود المنتج', 'كود'];
 const STOCK_QTY_HEADERS = ['quantity', 'available quantity', 'qty', 'stock', 'available', 'الكمية', 'الكمية المتاحة', 'المتاح', 'المخزون'];
 
@@ -1772,7 +1767,6 @@ function applyStockRows(result) {
   stockLevels = result.levels;
   stockUpdatedAt = new Date().toISOString();
   saveStockToStorage();
-  applySuggestedQuantities();
   showToast(`✅ تم رفع الجرد لـ ${Object.keys(stockLevels).length} صنف`, 4000);
   render();
 }
@@ -1811,7 +1805,6 @@ function handleStockFileUpload(event) {
 const _setQty = setQty;
 window.setQty = function(sku, val) {
   _setQty(sku, val);
-  suggestedSkus.delete(sku); // الموظف عدل الكمية يدويًا فبقت مش اقتراح تلقائي
   saveToStorage();
 };
 
