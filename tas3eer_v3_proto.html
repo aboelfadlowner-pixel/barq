@@ -2511,6 +2511,20 @@ function getFinSuppliers() {
 }
 
 // ── Group invoices by PO/supplier (not per item) ──
+// حساب موحّد لرصيد المورد (يشمل الرصيد الافتتاحي) — يستخدمه كل من شاشة المالية وشاشة مدير المالية عشان ميختلفش المستحق بين الشاشتين
+function getSupplierBalance(name) {
+  var finSup = MOCK_SUPPLIERS.find(function(s){return s.name===name;}) || {payments:[],returns:[],opening:0};
+  var payments = finSup.payments || [];
+  var returns = finSup.returns || [];
+  var opening = parseFloat(finSup.opening) || 0;
+  var invoices = MOCK_REQUESTS.filter(function(r){ return r.supplier_name===name; });
+  var totalInvoiced = invoices.reduce(function(s,r){ return s+(parseFloat(r.new_cost)||0)*(parseFloat(r.qty_received)||0); }, 0);
+  var totalPaid = payments.reduce(function(s,p){ return s+p.amount; }, 0);
+  var totalReturns = returns.reduce(function(s,r){ return s+r.amount; }, 0);
+  var totalDue = opening + totalInvoiced - totalPaid - totalReturns;
+  return { opening: opening, totalInvoiced: totalInvoiced, totalPaid: totalPaid, totalReturns: totalReturns, totalDue: totalDue };
+}
+
 function buildSupplierAccounts() {
   var accounts = {};
   // Group all requests by PO number first, then by supplier
@@ -2559,10 +2573,7 @@ function renderFinanceSidebar() {
   var items = sups.map(function(s){
     var acc = accounts[s.name];
     var hasBalance = acc && acc.totalInvoiced > 0;
-    var finSup = MOCK_SUPPLIERS.find(function(x){return x.name===s.name;}) || {payments:[],returns:[]};
-    var paid = (finSup.payments||[]).reduce(function(t,p){return t+p.amount;},0);
-    var rets = (finSup.returns||[]).reduce(function(t,r){return t+r.amount;},0);
-    var due = hasBalance ? (acc.totalInvoiced - paid - rets) : 0;
+    var due = hasBalance ? getSupplierBalance(s.name).totalDue : 0;
     var isActive = financeSelectedSupplier === s.name;
     var dotColor = due <= 0 ? '#1a7a40' : '#c0392b';
     return '<div onclick="openSupplierDetail(\''+s.name.replace(/'/g,"\\'")+'\''+')" ' +
@@ -2572,8 +2583,8 @@ function renderFinanceSidebar() {
       'onmouseover="if(!'+isActive+')this.style.background=\'var(--bg)\'" onmouseout="if(!'+isActive+')this.style.background=\'\'">' +
       '<div style="width:7px;height:7px;border-radius:50%;background:'+(hasBalance?dotColor:'#ccc')+';flex-shrink:0"></div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+(isActive?'#fff':'var(--text)')+'">'+s.name+'</div>' +
-        '<div style="font-size:10px;color:'+(isActive?'rgba(255,255,255,.8)':'var(--muted)')+'">'+s.code+'</div>' +
+        '<div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+(isActive?'#fff':'var(--text)')+'">'+esc(s.name)+'</div>' +
+        '<div style="font-size:10px;color:'+(isActive?'rgba(255,255,255,.8)':'var(--muted)')+'">'+esc(s.code)+'</div>' +
       '</div>' +
       (hasBalance&&due>0 ? '<div style="font-size:10px;font-weight:700;color:'+(isActive?'#ffd':dotColor)+'">'+Math.round(due)+'</div>' : '') +
     '</div>';
@@ -2662,10 +2673,11 @@ function renderSupplierDetail(name) {
   var sups = getFinSuppliers();
   var supInfo = sups.find(function(s){return s.name===name;}) || {code:'—'};
 
-  var totalPaid    = finSup.payments.reduce(function(s,p){return s+p.amount;},0);
-  var totalReturns = finSup.returns.reduce(function(s,r){return s+r.amount;},0);
-  var opening      = parseFloat(finSup.opening)||0;
-  var totalDue     = opening + acc.totalInvoiced - totalPaid - totalReturns;
+  var bal = getSupplierBalance(name);
+  var totalPaid    = bal.totalPaid;
+  var totalReturns = bal.totalReturns;
+  var opening      = bal.opening;
+  var totalDue     = bal.totalDue;
 
   // Timeline — invoices grouped as single entries (not per item)
   var timeline = [];
@@ -3403,11 +3415,9 @@ function renderFinMgrSuppliers() {
   var rows = allNames.map(function(name){
     var finSup = MOCK_SUPPLIERS.find(function(s){return s.name===name;}) || {payments:[],returns:[]};
     var data = supMap[name] || {totalInvoiced:0,invoices:[]};
-    var totalPaid    = (finSup.payments||[]).reduce(function(s,p){return s+p.amount;},0);
-    var totalReturns = (finSup.returns||[]).reduce(function(s,r){return s+r.amount;},0);
-    var totalDue     = data.totalInvoiced - totalPaid - totalReturns;
+    var bal = getSupplierBalance(name);
     var lastPay = finSup.payments&&finSup.payments.length ? finSup.payments[finSup.payments.length-1] : null;
-    return { name:name, totalInvoiced:data.totalInvoiced, totalPaid:totalPaid, totalReturns:totalReturns, totalDue:totalDue, lastPay:lastPay, invoices:data.invoices };
+    return { name:name, totalInvoiced:data.totalInvoiced, totalPaid:bal.totalPaid, totalReturns:bal.totalReturns, totalDue:bal.totalDue, lastPay:lastPay, invoices:data.invoices };
   }).filter(function(r){ return r.totalInvoiced>0||r.totalPaid>0; });
 
   var grandInvoiced = rows.reduce(function(s,r){return s+r.totalInvoiced;},0);
@@ -3483,13 +3493,18 @@ function renderFinMgrDetail(name) {
   if (!finSup.returns)  finSup.returns=[];
 
   var invoices    = MOCK_REQUESTS.filter(function(r){return r.supplier_name===name;});
-  var totalInvoiced = invoices.reduce(function(s,r){return s+(parseFloat(r.new_cost)||0)*(parseFloat(r.qty_received)||0);},0);
-  var totalPaid     = finSup.payments.reduce(function(s,p){return s+p.amount;},0);
-  var totalReturns  = finSup.returns.reduce(function(s,r){return s+r.amount;},0);
-  var totalDue      = totalInvoiced - totalPaid - totalReturns;
+  var bal = getSupplierBalance(name);
+  var totalInvoiced = bal.totalInvoiced;
+  var totalPaid     = bal.totalPaid;
+  var totalReturns  = bal.totalReturns;
+  var totalDue      = bal.totalDue;
+  var opening       = bal.opening;
 
   // Timeline
   var timeline = [];
+  if (opening > 0) {
+    timeline.push({ type:'opening', rawDate:'2000-01-01', label:'رصيد افتتاحي', ref:'', detail:'رصيد مرحّل من قبل النظام', amount:opening });
+  }
   invoices.forEach(function(r){
     var line = (parseFloat(r.new_cost)||0)*(parseFloat(r.qty_received)||0);
     timeline.push({ type:'invoice', rawDate:r.created_at, label:'فاتورة', ref:r.po_number, detail:r.product_name, amount:line });
