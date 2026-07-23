@@ -1486,24 +1486,42 @@ function triggerProdUpload() {
   if (el) el.click();
 }
 
+// تحميل مكتبة خارجية (CDN) مع مهلة زمنية — لو الشبكة تعثّرت في نص التحميل ومحدث لا onload ولا onerror
+// (بيحصل كتير على شبكات الموبايل الضعيفة)، كان الزرار بيفضل "⏳ جاري التحميل" للأبد من غير أي رسالة خطأ،
+// وده بالظبط اللي بيحس المستخدم إن التطبيق "علّق". دلوقتي بعد 10 ثواني بتظهر رسالة واضحة تقدر تحاول تاني بعدها
+var EXT_SCRIPT_TIMEOUT_MS = 10000;
+function loadExternalScript(src, cb, label) {
+  var done = false;
+  var timer = setTimeout(function(){
+    if (done) return;
+    done = true;
+    toast('⚠️ تعذر تحميل '+label+' — تأكد من الاتصال بالإنترنت وحاول تاني');
+  }, EXT_SCRIPT_TIMEOUT_MS);
+  var s = document.createElement('script');
+  s.src = src;
+  s.onload = function(){
+    if (done) return;
+    done = true; clearTimeout(timer);
+    cb();
+  };
+  s.onerror = function(){
+    if (done) return;
+    done = true; clearTimeout(timer);
+    toast('⚠️ تعذر تحميل '+label);
+  };
+  document.body.appendChild(s);
+}
+
 var _xlsxLibLoaded = false;
 function loadXlsxLib(cb) {
   if (_xlsxLibLoaded || window.XLSX) { _xlsxLibLoaded = true; cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';
-  s.onload = function(){ _xlsxLibLoaded = true; cb(); };
-  s.onerror = function(){ toast('⚠️ تعذر تحميل مكتبة قراءة الإكسل'); };
-  document.body.appendChild(s);
+  loadExternalScript('https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js', function(){ _xlsxLibLoaded = true; cb(); }, 'مكتبة قراءة الإكسل');
 }
 
 var _barcodeLibLoaded = false;
 function loadBarcodeLib(cb) {
   if (_barcodeLibLoaded || window.JsBarcode) { _barcodeLibLoaded = true; cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/jsbarcode@3.11.5/dist/JsBarcode.all.min.js';
-  s.onload = function(){ _barcodeLibLoaded = true; cb(); };
-  s.onerror = function(){ toast('⚠️ تعذر تحميل مكتبة الباركود'); };
-  document.body.appendChild(s);
+  loadExternalScript('https://unpkg.com/jsbarcode@3.11.5/dist/JsBarcode.all.min.js', function(){ _barcodeLibLoaded = true; cb(); }, 'مكتبة الباركود');
 }
 
 // بيرسم باركود حقيقي (خطوط) لقيمة معيّنة على canvas مخفي ويرجّعه كصورة data-url —
@@ -2379,6 +2397,7 @@ function printFoodicsInvoice() {
   }).join('');
 
   var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
     '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>فاتورة شراء '+recvPO.po_number+'</title>' +
     '<style>' +
@@ -3582,6 +3601,7 @@ async function printCountDiffReport(includeMissing) {
   }).join('');
 
   var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
     '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير فروق الجرد</title>' +
     '<style>body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#1a1a1a}' +
@@ -3857,6 +3877,7 @@ function printPriceLabels() {
     }
 
     var win = window.open('', '_blank');
+    if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
     win.document.write(
       '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الأسعار</title>' +
       '<style>' +
@@ -3896,6 +3917,7 @@ function printPriceCheckReport() {
   }).join('');
 
   var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
     '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير تشيك الأسعار</title>' +
     '<style>body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#1a1a1a}' +
