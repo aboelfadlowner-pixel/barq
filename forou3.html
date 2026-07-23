@@ -886,14 +886,7 @@ function renderApp() {
       <button class="top-btn" style="background:${todayHasPromo ? '#e94560' : '#fff'};color:${todayHasPromo ? '#fff' : 'var(--text)'};font-weight:800;border:2px solid ${todayHasPromo ? '#e94560' : 'var(--accent)'};box-shadow:0 1px 4px rgba(0,0,0,0.12)" onclick="setTodayPromo(${todayHasPromo ? 'false' : 'true'})">
         🏷️ ${todayHasPromo ? 'في عرض النهاردة ✓' : 'في عرض النهاردة؟'}
       </button>
-      <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">
-        ${hasDeptCoverageOverride(tab) ? `أيام تغطية "${tab}":` : 'أيام التغطية (عام لكل الأقسام):'}
-        <input type="number" min="0.5" step="0.5" value="${getCoverageDays(tab)}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDaysForDept('${tab}', this.value);render()">
-        <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" ${hasDeptCoverageOverride(tab) ? 'checked' : ''} onchange="toggleDeptCoverageOverride('${tab}', this.checked, document.getElementById('coverageDaysWrap').querySelector('input[type=number]').value);render()">
-          رقم خاص بـ"${tab}"
-        </label>
-      </span>
+      <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">${coverageDaysWrapHTML(tab)}</span>
     </div>
         <div class="select-all-bar" id="selectAllBar">
         <label><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"> تحديد الكل</label>
@@ -1293,6 +1286,8 @@ function setTab(id) {
   });
   // إعادة رسم المنتجات فقط
   renderProductsOnly();
+  // تحديث شريط أيام التغطية عشان يعكس القسم الجديد (مش بيتحدث تلقائي مع renderProductsOnly)
+  updateCoverageDaysBar();
   // إعادة set السيرش
   const searchInput = document.querySelector('.search-input');
   if (searchInput) searchInput.value = '';
@@ -1696,6 +1691,24 @@ function setTodayPromo(checked) {
 
 function hasDeptCoverageOverride(dept) {
   return Object.prototype.hasOwnProperty.call(coverageDaysByDept, dept);
+}
+
+function coverageDaysWrapHTML(deptTab) {
+  return `
+    ${hasDeptCoverageOverride(deptTab) ? `أيام تغطية "${deptTab}":` : 'أيام التغطية (عام لكل الأقسام):'}
+    <input type="number" min="0.5" step="0.5" value="${getCoverageDays(deptTab)}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDaysForDept('${deptTab}', this.value);render()">
+    <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" ${hasDeptCoverageOverride(deptTab) ? 'checked' : ''} onchange="toggleDeptCoverageOverride('${deptTab}', this.checked, document.getElementById('coverageDaysWrap').querySelector('input[type=number]').value);render()">
+      رقم خاص بـ"${deptTab}"
+    </label>`;
+}
+
+// شريط أيام التغطية بيعتمد على القسم النشط، لكن التنقل بين الأقسام (setTab) بيعمل إعادة رسم جزئية للمنتجات بس
+// من غير ما يلمس الشريط ده — فلازم نحدّثه يدويًا هنا وإلا يفضل عالق على آخر قسم كان مفتوح وقت آخر render كامل
+function updateCoverageDaysBar() {
+  const wrap = document.getElementById('coverageDaysWrap');
+  if (!wrap || !activeTab) return;
+  wrap.innerHTML = coverageDaysWrapHTML(activeTab);
 }
 
 function getCoverageDays(dept) {
