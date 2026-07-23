@@ -3885,9 +3885,9 @@ function printPriceLabels() {
         var isPromo = it.is_promo && it.promo_price!=='' && it.promo_price!=null && parseFloat(it.promo_price) > 0;
         var priceHtml = isPromo ?
           '<div class="tag-promo-badge">🔥 عرض</div>' +
-          '<div class="tag-price-old">'+fmt(it.system_price)+' ج</div>' +
-          '<div class="tag-price-promo">'+fmt(it.promo_price)+' جنيهًا</div>'
-          : '<div class="tag-price">'+fmt(it.system_price)+' جنيهًا</div>';
+          '<div class="tag-price-old">'+fmt(it.system_price)+' LE</div>' +
+          '<div class="tag-price-promo">'+fmt(it.promo_price)+' LE</div>'
+          : '<div class="tag-price">'+fmt(it.system_price)+' LE</div>';
         return '<td class="tag'+(isPromo?' promo':'')+'">' +
           '<div class="tag-name">'+it.name+'</div>' +
           priceHtml +
@@ -3908,17 +3908,19 @@ function printPriceLabels() {
       // border-collapse:separate + border-spacing بيدّي مسافة واضحة بين كل ملصق والتاني عشان تقدر تقص بسهولة
       // من غير ما تقطع حرف من الملصق اللي جنبه
       'table{border-collapse:separate;border-spacing:10px;width:100%}' +
-      '.tag{border:1.5px dashed #666;border-radius:4px;text-align:center;padding:10px 8px;width:33.33%;vertical-align:middle}' +
+      '.tag{border:1.5px dashed #999;border-radius:6px;text-align:center;padding:10px 8px;width:33.33%;vertical-align:middle;background:#fff}' +
       '.tag.empty{border:none}' +
-      '.tag.promo{border-color:#c0392b}' +
-      '.tag-name{font-weight:700;font-size:13px;margin-bottom:4px}' +
-      // في العادي: السعر واضح وبالأخضر. وقت العرض: السعر الأساسي بخط أحمر فوقه علامة شطب، وسعر العرض بالأخضر وأكبر عشان يلفت الانتباه
-      '.tag-price{font-weight:800;font-size:16px;margin-bottom:6px;color:#1a7a40}' +
+      // الورقة الصفرا (زي ملصقات العروض المعروفة في المحلات) بتظهر بس في التاجات اللي عليها عرض —
+      // التاج العادي بيفضل خلفيته بيضا زي ما هو متفق عليه
+      '.tag.promo{background:#fff59d;border:1.5px solid #c0392b}' +
+      '.tag-name{font-weight:800;font-size:15px;margin-bottom:5px;color:#1a1a1a}' +
+      // في العادي: السعر واضح وبالأخضر الغامق فوق خلفية بيضا. وقت العرض: السعر الأساسي بخط أحمر فوقه علامة شطب، وسعر العرض بالأخضر وأكبر عشان يلفت الانتباه
+      '.tag-price{font-weight:800;font-size:20px;margin-bottom:6px;color:#0f5c2e}' +
       '.tag-promo-badge{display:inline-block;background:#c0392b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:4px}' +
-      '.tag-price-old{font-size:12px;font-weight:700;color:#c0392b;text-decoration:line-through;margin-bottom:2px}' +
-      '.tag-price-promo{font-weight:800;font-size:18px;margin-bottom:6px;color:#1a7a40}' +
+      '.tag-price-old{font-size:13px;font-weight:700;color:#c0392b;text-decoration:line-through;margin-bottom:2px}' +
+      '.tag-price-promo{font-weight:800;font-size:21px;margin-bottom:6px;color:#0f5c2e}' +
       '.tag-bc-img{max-width:100%;height:42px;margin-bottom:2px}' +
-      '.tag-bc-num{font-size:11px;letter-spacing:1px}' +
+      '.tag-bc-num{font-size:11px;letter-spacing:1px;color:#333}' +
       '@media print{body{padding:0}.tag{border-style:dashed}}' +
       '</style></head><body>' +
       '<table>'+rows.join('')+'</table>' +
