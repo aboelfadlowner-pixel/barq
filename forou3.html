@@ -680,7 +680,8 @@ let currentView = 'order'; // order | history | dashboard
 let orderHistory = []; // سجل الطلبيات
 let stockLevels = {}; // sku الأساسي -> الكمية الموجودة بالفرع (من تقرير الجرد اليومي من فوديكس)
 let stockUpdatedAt = null; // وقت آخر رفع لملف الجرد
-let learnedAvgCache = {}; // sku -> متوسط استهلاك متعلم من التاريخ الحقيقي لنفس يوم الأسبوع النهاردة (مش مرتبط بتاريخ ميلادي)
+let learnedBuckets = {}; // sku -> weekday -> promoKey(0/1) -> {value, anomalyAdjusted} — متعلم من التاريخ الحقيقي، مش مرتبط بتاريخ ميلادي
+let todayHasPromo = false; // فيه عرض النهاردة؟ بيتسأل قبل الطلبية وبيتحفظ مع جرد اليوم
 const DEFAULT_COVERAGE_DAYS = 1;
 let defaultCoverageDays = parseFloat(localStorage.getItem('barq_default_coverage_days')) || DEFAULT_COVERAGE_DAYS; // القيمة العامة اللي بتتطبق على أي قسم لسه مالوش رقم خاص بيه
 let coverageDaysByDept = {}; // dept -> رقم مخصص لقسم بعينه بس (استثناء)، أي قسم مش هنا بياخد القيمة العامة
@@ -692,6 +693,7 @@ if (currentUser) {
   orderDate = new Date().toISOString().split('T')[0];
   loadFromStorage();
   loadStockFromStorage();
+  loadTodayPromo();
   // مؤجل عشان السكريبت كامل يخلص تحميل الأول (SB_URL/SB_HEADERS متعرفين لاحقًا في الملف)
   setTimeout(() => refreshLearnedAverages().then(render), 0);
 }
@@ -791,6 +793,9 @@ function renderApp() {
       let onHandText = onHand !== null ? `<span class="sales-info-big">📦 الموجود: <span class="sales-val-big">${formatNum(onHand)}</span></span>` : '';
       if (suggested !== null) {
         onHandText += `<span class="sales-info-big">🎯 المقترح: <span class="sales-val-big">${formatNum(suggested)}</span></span>`;
+        if (isSuggestionAnomalyAdjusted(p.sku)) {
+          onHandText += `<span class="sales-info" style="color:#d68910">⚠️ ضغط غير معتاد في آخر ${todayHasPromo ? 'يوم بعرض' : 'يوم من غير عرض'} زي النهاردة — المقترح اتعدّل</span>`;
+        }
       }
       if (rawOnHand !== null && rawOnHand < 0) {
         onHandText += `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>`;
@@ -878,6 +883,10 @@ function renderApp() {
     <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
       <button class="top-btn" style="background:var(--accent);color:#fff" onclick="document.getElementById('stockFileInput').click()">📥 رفع الجرد</button>
       <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
+      <label style="display:flex;align-items:center;gap:4px;font-weight:700;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${todayHasPromo ? 'checked' : ''} onchange="setTodayPromo(this.checked)">
+        🏷️ في عرض النهاردة؟
+      </label>
       <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">
         ${hasDeptCoverageOverride(tab) ? `أيام تغطية "${tab}":` : 'أيام التغطية (عام لكل الأقسام):'}
         <input type="number" min="0.5" step="0.5" value="${getCoverageDays(tab)}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDaysForDept('${tab}', this.value);render()">
@@ -1158,6 +1167,7 @@ function doLogin() {
     quantities = {};
     orderDate = new Date().toISOString().split('T')[0];
     loadStockFromStorage();
+    loadTodayPromo();
     // تحديد الشاشة الأولى حسب الدور
     if (user.role === 'staff') currentView = 'data';
     else currentView = 'order';
@@ -1222,6 +1232,9 @@ function renderProductsOnly() {
       let onHandText = onHand !== null ? `<span class="sales-info-big">📦 الموجود: <span class="sales-val-big">${formatNum(onHand)}</span></span>` : '';
       if (suggested !== null) {
         onHandText += `<span class="sales-info-big">🎯 المقترح: <span class="sales-val-big">${formatNum(suggested)}</span></span>`;
+        if (isSuggestionAnomalyAdjusted(p.sku)) {
+          onHandText += `<span class="sales-info" style="color:#d68910">⚠️ ضغط غير معتاد في آخر ${todayHasPromo ? 'يوم بعرض' : 'يوم من غير عرض'} زي النهاردة — المقترح اتعدّل</span>`;
+        }
       }
       if (rawOnHand !== null && rawOnHand < 0) {
         onHandText += `<span class="sales-info" style="color:#c0392b">⚠️ عجز دفتري بفوديكس (${formatNum(rawOnHand)}) — غالبًا فرق أطباق مش نقص حقيقي</span>`;
@@ -1660,6 +1673,28 @@ function loadStockFromStorage() {
   } catch(e) { stockLevels = {}; stockUpdatedAt = null; }
 }
 
+// علم "فيه عرض النهاردة" — مرتبط باليوم والفرع، فبيترجع تلقائي false في يوم جديد
+function promoStorageKey() {
+  const d = new Date().toISOString().split('T')[0];
+  return `barq_promo_${currentUser.branchKey}_${d}`;
+}
+
+function loadTodayPromo() {
+  if (!currentUser) { todayHasPromo = false; return; }
+  todayHasPromo = localStorage.getItem(promoStorageKey()) === '1';
+}
+
+function setTodayPromo(checked) {
+  todayHasPromo = !!checked;
+  try { localStorage.setItem(promoStorageKey(), todayHasPromo ? '1' : '0'); } catch(e) {}
+  // لو جرد النهاردة اتحفظ أصلاً، حدّث العلم على نفس السجل من غير ما تطلب رفع تاني
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (currentUser && stockUpdatedAt && stockUpdatedAt.slice(0, 10) === todayStr) {
+    saveSnapshotToSupabase(todayStr, currentUser.branch, stockLevels, todayHasPromo);
+  }
+  render();
+}
+
 function hasDeptCoverageOverride(dept) {
   return Object.prototype.hasOwnProperty.call(coverageDaysByDept, dept);
 }
@@ -1720,12 +1755,12 @@ function parseStockCSV(text) {
 }
 
 // حفظ جرد اليوم في Supabase (جدول خفيف — صف واحد لكل يوم لكل فرع) عشان نقدر نتعلم الاستهلاك الحقيقي بمرور الوقت
-async function saveSnapshotToSupabase(dateStr, branch, levels) {
+async function saveSnapshotToSupabase(dateStr, branch, levels, hasPromo) {
   try {
     await fetch(`${SB_URL}/rest/v1/inventory_snapshots?on_conflict=snapshot_date,branch`, {
       method: 'POST',
       headers: Object.assign({}, SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ snapshot_date: dateStr, branch: branch, data: { levels: levels } })
+      body: JSON.stringify({ snapshot_date: dateStr, branch: branch, data: { levels: levels, has_promo: !!hasPromo } })
     });
   } catch(e) {
     console.error('[saveSnapshotToSupabase]', e);
@@ -1743,7 +1778,7 @@ function applyStockRows(result) {
   saveStockToStorage();
   const todayStr = new Date().toISOString().split('T')[0];
   if (currentUser) {
-    saveSnapshotToSupabase(todayStr, currentUser.branch, stockLevels).then(() => refreshLearnedAverages().then(render));
+    saveSnapshotToSupabase(todayStr, currentUser.branch, stockLevels, todayHasPromo).then(() => refreshLearnedAverages().then(render));
   }
   showToast(`✅ تم رفع الجرد لـ ${Object.keys(stockLevels).length} صنف`, 4000);
   render();
@@ -1977,9 +2012,27 @@ const SB_HEADERS = {
 
 // ===== التعلم من الجرد + الطلبيات الحقيقية (بدل مرجع أبريل الثابت) =====
 // بنقارن جرد كل يوم بجرد اليوم اللي بعده + الكمية اللي اتطلبت بينهم، عشان نطلع "الاستهلاك الفعلي" لكل صنف،
-// ونجمعه حسب يوم الأسبوع (مش تاريخ ميلادي) — كل يوم أسبوع بيتعلم من نفسه بمرور الوقت.
+// ونبوّبه حسب (يوم الأسبوع + فيه عرض ولا لأ) — مش تاريخ ميلادي، وكل حالة بتتعلم من نفسها بمرور الوقت.
+// بنحتفظ بكل البوابات (مش بس رقم النهاردة) عشان لو الموظف بدّل تفعيل العرض، الاقتراح يتغير فورًا من غير ما نطلب من السيرفر تاني.
 function getLearnedDailyAvg(sku) {
-  return learnedAvgCache[sku] !== undefined ? learnedAvgCache[sku] : null;
+  const weekday = new Date().getDay();
+  const promoKey = todayHasPromo ? 1 : 0;
+  const bucket = learnedBuckets[sku] && learnedBuckets[sku][weekday] && learnedBuckets[sku][weekday][promoKey];
+  return bucket ? bucket.value : null;
+}
+
+function isSuggestionAnomalyAdjusted(sku) {
+  const weekday = new Date().getDay();
+  const promoKey = todayHasPromo ? 1 : 0;
+  const bucket = learnedBuckets[sku] && learnedBuckets[sku][weekday] && learnedBuckets[sku][weekday][promoKey];
+  return !!(bucket && bucket.anomalyAdjusted);
+}
+
+// حساسية "متحفظة" للكشف التلقائي عن ضغط غير معتاد — عتبة ثابتة حسب نوع الوحدة، مش نسبة مئوية
+function isAnomalousDeviation(value, baseline, sku) {
+  const info = getActiveSkuMap()[sku];
+  const threshold = (info && info.unit === 'كيلو') ? 2 : 6;
+  return Math.abs(value - baseline) >= threshold;
 }
 
 async function refreshLearnedAverages() {
@@ -2003,14 +2056,15 @@ async function refreshLearnedAverages() {
       ordersByDate[d][it.sku] = (ordersByDate[d][it.sku] || 0) + (parseFloat(it.quantity) || 0);
     });
 
-    // لكل صنف ولكل يوم أسبوع (0-6): مجموع الاستهلاك المحسوب من كل زوج أيام متتاليين + عددهم
-    const buckets = {};
+    // series[sku][weekday][promoKey] = [{date, value}, ...] بترتيب زمني (snapshots أصلاً جايه مرتبة)
+    const series = {};
     for (let i = 0; i < snapshots.length - 1; i++) {
       const dayA = snapshots[i], dayB = snapshots[i + 1];
       const dateA = new Date(dayA.snapshot_date), dateB = new Date(dayB.snapshot_date);
       const diffDays = Math.round((dateB - dateA) / 86400000);
       if (diffDays !== 1) continue; // لازم يومين متتاليين فعليًا عشان الحساب يبقى سليم
       const weekday = dateA.getDay();
+      const promoKey = (dayA.data && dayA.data.has_promo) ? 1 : 0;
       const levelsA = (dayA.data && dayA.data.levels) || {};
       const levelsB = (dayB.data && dayB.data.levels) || {};
       const ordered = ordersByDate[dayA.snapshot_date] || {};
@@ -2021,20 +2075,37 @@ async function refreshLearnedAverages() {
         const rawConsumption = onHandA + (ordered[sku] || 0) - onHandB;
         if (rawConsumption <= 0) return; // رقم سالب/صفر معناه غالبًا خطأ بيانات (شحنة غير مسجلة مثلاً)، نتجاهله
         const corrected = applyTareCorrection(rawConsumption, sku);
-        if (!buckets[sku]) buckets[sku] = {};
-        if (!buckets[sku][weekday]) buckets[sku][weekday] = { total: 0, count: 0 };
-        buckets[sku][weekday].total += corrected;
-        buckets[sku][weekday].count += 1;
+        if (!series[sku]) series[sku] = {};
+        if (!series[sku][weekday]) series[sku][weekday] = {};
+        if (!series[sku][weekday][promoKey]) series[sku][weekday][promoKey] = [];
+        series[sku][weekday][promoKey].push(corrected);
       });
     }
 
-    const todayWeekday = new Date().getDay();
-    const newCache = {};
-    Object.keys(buckets).forEach(sku => {
-      const b = buckets[sku][todayWeekday];
-      if (b && b.count > 0) newCache[sku] = b.total / b.count;
+    // لكل بوابة (صنف + يوم أسبوع + عرض): لو آخر قيمة مسجلة بعيدة عن متوسط الباقي بمقدار العتبة، نستخدمها هي
+    // كأساس الاقتراح الجاي (تعديل لخطوة واحدة قدام)، بدل ما نستنى تتكرر كذا مرة عشان تدخل في المتوسط العادي.
+    const newBuckets = {};
+    Object.keys(series).forEach(sku => {
+      newBuckets[sku] = {};
+      Object.keys(series[sku]).forEach(weekday => {
+        newBuckets[sku][weekday] = {};
+        Object.keys(series[sku][weekday]).forEach(promoKey => {
+          const points = series[sku][weekday][promoKey];
+          if (!points.length) return;
+          const latest = points[points.length - 1];
+          const restBaseline = points.length > 1
+            ? points.slice(0, -1).reduce((s, v) => s + v, 0) / (points.length - 1)
+            : latest;
+          const anomalous = points.length > 1 && isAnomalousDeviation(latest, restBaseline, sku);
+          const plainAvg = points.reduce((s, v) => s + v, 0) / points.length;
+          newBuckets[sku][weekday][promoKey] = {
+            value: anomalous ? latest : plainAvg,
+            anomalyAdjusted: anomalous
+          };
+        });
+      });
     });
-    learnedAvgCache = newCache;
+    learnedBuckets = newBuckets;
   } catch(e) {
     console.error('[refreshLearnedAverages]', e);
   }
