@@ -883,7 +883,7 @@ function renderApp() {
     <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
       <button class="top-btn" style="background:var(--accent);color:#fff" onclick="document.getElementById('stockFileInput').click()">📥 رفع الجرد</button>
       <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
-      <button class="top-btn" style="background:${todayHasPromo ? '#e94560' : 'rgba(0,0,0,0.08)'};color:${todayHasPromo ? '#fff' : 'var(--text)'};font-weight:800" onclick="setTodayPromo(${todayHasPromo ? 'false' : 'true'})">
+      <button class="top-btn" style="background:${todayHasPromo ? '#e94560' : '#fff'};color:${todayHasPromo ? '#fff' : 'var(--text)'};font-weight:800;border:2px solid ${todayHasPromo ? '#e94560' : 'var(--accent)'};box-shadow:0 1px 4px rgba(0,0,0,0.12)" onclick="setTodayPromo(${todayHasPromo ? 'false' : 'true'})">
         🏷️ ${todayHasPromo ? 'في عرض النهاردة ✓' : 'في عرض النهاردة؟'}
       </button>
       <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">
