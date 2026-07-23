@@ -883,10 +883,9 @@ function renderApp() {
     <div class="stock-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;background:#eef7f0;border-bottom:1px solid var(--border);font-size:11px">
       <button class="top-btn" style="background:var(--accent);color:#fff" onclick="document.getElementById('stockFileInput').click()">📥 رفع الجرد</button>
       <span style="color:var(--muted)">${stockUpdatedAt ? '📦 آخر رفع جرد: ' + new Date(stockUpdatedAt).toLocaleString('ar-EG') : '⚠️ لسه ما اترفعش جرد النهاردة'}</span>
-      <label style="display:flex;align-items:center;gap:4px;font-weight:700;cursor:pointer;white-space:nowrap">
-        <input type="checkbox" ${todayHasPromo ? 'checked' : ''} onchange="setTodayPromo(this.checked)">
-        🏷️ في عرض النهاردة؟
-      </label>
+      <button class="top-btn" style="background:${todayHasPromo ? '#e94560' : 'rgba(0,0,0,0.08)'};color:${todayHasPromo ? '#fff' : 'var(--text)'};font-weight:800" onclick="setTodayPromo(${todayHasPromo ? 'false' : 'true'})">
+        🏷️ ${todayHasPromo ? 'في عرض النهاردة ✓' : 'في عرض النهاردة؟'}
+      </button>
       <span style="margin-right:auto;display:flex;align-items:center;gap:6px" id="coverageDaysWrap">
         ${hasDeptCoverageOverride(tab) ? `أيام تغطية "${tab}":` : 'أيام التغطية (عام لكل الأقسام):'}
         <input type="number" min="0.5" step="0.5" value="${getCoverageDays(tab)}" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border)" onchange="setCoverageDaysForDept('${tab}', this.value);render()">
