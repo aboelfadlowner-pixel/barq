@@ -610,6 +610,8 @@ var view = 'queue';
 var detailId = null;
 var recvPO = null;      // PO being received
 var recvItems = [];     // items during receiving
+var RECV_PAGE_SIZE = 30; // شاشة الاستلام (خصوصاً طلبية المصنع اللي بتكون طويلة) بتتقسّم لصفحات ٣٠ صنف بدل ما تتعرض كلها مرة واحدة
+var recvPageIndex = 0;
 var isManualInvoice = false; // فاتورة يدوية خارج أوامر الشراء (مؤقت)
 var manualSearchKind = 'product'; // فلتر بحث الفاتورة اليدوية/المرتجع: 'product' منتجات (افتراضي) | 'material' مواد مخزون
 var manualSearchQuery = ''; // نص البحث محفوظ في متغير عشان إعادة الرسم في الخلفية (مزامنة/تحديث فوري) متمسحوش وانت بتكتب
@@ -719,6 +721,7 @@ function restoreReceivingDraft() {
     var d = JSON.parse(raw);
     if (!d.recvPO || !d.recvItems || !d.recvItems.length) return false;
     recvPO = d.recvPO; recvItems = d.recvItems;
+    recvPageIndex = 0;
     isManualInvoice = !!d.isManualInvoice; isReturnMode = !!d.isReturnMode;
     returnPerson = d.returnPerson||''; returnReason = d.returnReason||'';
     return true;
@@ -1176,6 +1179,9 @@ function selectBranch(val) {
   resetScopedSessions();
   if (recvMode === 'count' && currentBranch) openOrCreateCountSession();
   else if (recvMode === 'pricecheck' && currentBranch) openOrCreatePriceCheckSession();
+  // كنا بنغيّر currentBranch بس من غير ما نجيب طلبية المصنع بتاعة الفرع الجديد —
+  // فلو المستخدم فاتح شاشة "استلام من المصنع" وغيّر الفرع من فوق، كانت الطلبية القديمة (فرع تاني) بتفضل ظاهرة
+  else if (isFactoryReceive && currentBranch) openFactoryReceive();
   else render();
 }
 
@@ -1238,6 +1244,7 @@ function openReceive(poId) {
       new_cost: '', match: 'pending', kind: 'product', et: !!prod.et
     };
   });
+  recvPageIndex = 0;
   render();
 }
 
@@ -1269,7 +1276,8 @@ async function openFactoryReceive() {
         stock_before: null, new_cost: '', match: 'pending', kind: 'product', et: !!prod.et
       };
     });
-    toast('✅ اتحملت طلبية '+recvItems.length+' صنف — امسح اللي وصلك وقارن');
+    recvPageIndex = 0;
+    toast('✅ اتحملت طلبية '+recvItems.length+' صنف — امسح اللي وصلك وقارن ('+Math.ceil(recvItems.length/RECV_PAGE_SIZE)+' صفحة، '+RECV_PAGE_SIZE+' صنف لكل صفحة)');
     render();
   } catch(e) {
     toast('⚠️ تعذر جلب طلبية المصنع: '+(e.message||'').slice(0,80));
@@ -1279,6 +1287,7 @@ async function openFactoryReceive() {
 function openManualInvoice() {
   recvPO = { id:'manual', po_number:'فاتورة-يدوية-'+Date.now().toString().slice(-5), supplier_name:'', officer_name: ROLES.receiving.label };
   recvItems = [];
+  recvPageIndex = 0;
   isManualInvoice = true;
   isReturnMode = false;
   isFactoryReceive = false;
@@ -1289,6 +1298,7 @@ function openManualInvoice() {
 function openReturnEntry() {
   recvPO = { id:'return', po_number:'مرتجع-'+Date.now().toString().slice(-5), supplier_name:'', officer_name: ROLES.receiving.label };
   recvItems = [];
+  recvPageIndex = 0;
   isManualInvoice = false;
   isReturnMode = true;
   isFactoryReceive = false;
@@ -1358,6 +1368,7 @@ function manualAddProduct(sku, kind) {
     old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
     new_cost: '', match: 'manual', kind: kind, et: !!prod.et
   });
+  recvPageIndex = Math.floor((recvItems.length-1)/RECV_PAGE_SIZE); // نتنقل تلقائياً للصفحة اللي فيها الصنف المضاف عشان يبان فورًا
   render();
   refocusScan();
 }
@@ -1976,15 +1987,14 @@ async function processDepartmentsRows(rows, filename) {
 }
 
 function renderReceiving() {
-  var cards = recvItems.map(function(item,i){
+  var allCards = recvItems.map(function(item,i){
     var noCost = !isFactoryReceive && (!item.old_cost || item.old_cost <= 0);
     var qtyOrderedLine = isManualInvoice ? '' :
       '<span style="color:var(--blue);font-weight:800">المطلوب: '+item.qty_ordered+'</span>';
     var removeBtn = isManualInvoice
       ? '<button onclick="manualRemoveItem('+i+')" style="background:none;border:none;color:#c0392b;font-size:18px;padding:4px 8px">✕</button>'
       : '';
-    var matchBadge = item.match==='ok' ? '<span style="background:#eafaf1;color:#1a7a40;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">✅ مطابق</span>'
-      : item.match==='diff' ? '<span style="background:#fce4ec;color:#c0392b;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">⚠️ فرق</span>' : '';
+    var matchBadge = '<span id="mbadge-'+i+'">'+matchBadgeHtml(item.match)+'</span>';
 
     return '<div class="item-card-mobile'+(noCost?' warn':'')+'" id="row-'+i+'">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
@@ -2018,7 +2028,22 @@ function renderReceiving() {
           'onchange="recvItems['+i+'].expiry_date=this.value">'
         : '') +
     '</div>';
-  }).join('');
+  });
+
+  var recvTotalPages = Math.max(1, Math.ceil(recvItems.length / RECV_PAGE_SIZE));
+  if (recvPageIndex >= recvTotalPages) recvPageIndex = recvTotalPages - 1;
+  if (recvPageIndex < 0) recvPageIndex = 0;
+  var recvPageStart = recvPageIndex * RECV_PAGE_SIZE;
+  var recvPageEnd = Math.min(recvPageStart + RECV_PAGE_SIZE, recvItems.length);
+  var cards = allCards.slice(recvPageStart, recvPageEnd).join('');
+  var recvPaginationBar = recvTotalPages > 1 ?
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">' +
+      '<div style="font-size:11px;color:var(--muted);font-weight:700">أصناف '+(recvPageStart+1)+'–'+recvPageEnd+' من '+recvItems.length+'</div>' +
+      '<div style="display:flex;gap:6px">' +
+        (recvPageIndex>0 ? '<button class="bn bn-g" style="font-size:12px;padding:6px 12px" onclick="changeRecvPage(-1)">‹ السابق</button>' : '') +
+        (recvPageIndex<recvTotalPages-1 ? '<button class="bn bn-p" style="font-size:12px;padding:6px 12px" onclick="changeRecvPage(1)">التالي ('+(recvItems.length-recvPageEnd)+' صنف) ›</button>' : '') +
+      '</div>' +
+    '</div>' : '';
 
   var headerTitle = isManualInvoice
     ? '🧾 فاتورة يدوية (خارج أوامر الشراء)'
@@ -2047,7 +2072,10 @@ function renderReceiving() {
         '<div style="font-size:14px;font-weight:800;color:var(--primary)">'+headerTitle+'</div>' +
         '<div style="font-size:11px;color:var(--muted)">🏪 '+(recvPO.supplier_name||'—')+' | 👤 '+recvPO.officer_name+'</div>' +
       '</div>' +
-      '<button style="background:none;border:none;font-size:13px;color:var(--muted);padding:6px" onclick="recvPO=null;isManualInvoice=false;isFactoryReceive=false;render()">✕</button>' +
+      '<div style="display:flex;align-items:center;gap:4px">' +
+        (isFactoryReceive ? '<button style="background:none;border:none;font-size:18px;color:var(--accent);padding:6px" onclick="openFactoryReceive()" title="تحديث الطلبية">🔄</button>' : '') +
+        '<button style="background:none;border:none;font-size:13px;color:var(--muted);padding:6px" onclick="recvPO=null;isManualInvoice=false;isFactoryReceive=false;render()">✕</button>' +
+      '</div>' +
     '</div>' +
 
     supplierBox + manualSearchBox +
@@ -2078,8 +2106,12 @@ function renderReceiving() {
     // عداد الأصناف
     (recvItems.length ? '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">📦 '+recvItems.length+' صنف</div>' : '') +
 
+    recvPaginationBar +
+
     // بطاقات الأصناف
     (cards || '<div class="empty"><div class="empty-i">📭</div><div>امسح أول صنف للبدء</div></div>') +
+
+    recvPaginationBar +
 
     // الأزرار — full-width تحت بعض
     '<div style="margin-top:16px">' +
@@ -2090,6 +2122,11 @@ function renderReceiving() {
     '</div>' +
     '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">بعد الاعتماد يتم الإرسال تلقائياً للمالية والتسعير</div>' +
   '</div>';
+}
+
+function changeRecvPage(delta) {
+  recvPageIndex = Math.max(0, recvPageIndex + delta);
+  render();
 }
 
 // ── زيادة/إنقاص الكمية بلمسة واحدة (Stepper) ──
@@ -2362,6 +2399,18 @@ function printFoodicsInvoice() {
   win.document.close();
 }
 
+// شارة "✅ مطابق / ⚠️ فرق" فوق كل صنف في شاشة الاستلام — بتتحدّث في مكانها من غير إعادة رسم الصفحة كلها
+// (زي updateCountDiffDisplay في شاشة الجرد) عشان فوكس خانة الكمية ميضيعش وانت لسه بتكتب
+function matchBadgeHtml(match) {
+  if (match==='ok') return '<span style="background:#eafaf1;color:#1a7a40;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">✅ مطابق</span>';
+  if (match==='diff') return '<span style="background:#fce4ec;color:#c0392b;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">⚠️ فرق</span>';
+  return '';
+}
+function updateMatchBadge(i) {
+  var el = document.getElementById('mbadge-'+i);
+  if (el) el.innerHTML = matchBadgeHtml(recvItems[i].match);
+}
+
 function checkQty(i, val) {
   var qty = parseFloat(val) || 0;
   recvItems[i].qty_received = qty;
@@ -2371,43 +2420,16 @@ function checkQty(i, val) {
     return;
   }
 
-  var icon = document.getElementById('mi-'+i);
-  var note = document.getElementById('mn-'+i);
-
   if (isManualInvoice) {
     recvItems[i].match = qty>0 ? 'manual' : 'pending';
-    if (icon) icon.textContent = qty>0 ? '➕' : '⬜';
-    if (note) note.textContent = '';
+    updateMatchBadge(i);
     return;
   }
 
   var ordered = recvItems[i].qty_ordered;
-  if (!qty) {
-    recvItems[i].match = 'pending';
-    if(icon) icon.textContent = '⬜';
-    if(note) note.textContent = '';
-    return;
-  }
-  if (qty === ordered) {
-    recvItems[i].match = 'ok';
-    if(icon) icon.textContent = '✅';
-    if(note) note.textContent = 'مطابق';
-    note.style.color = '#1a7a40';
-  } else {
-    recvItems[i].match = 'diff';
-    if(icon) icon.textContent = '⚠️';
-    var diff = qty - ordered;
-    if(note) note.textContent = (diff>0?'+':'')+diff;
-    note.style.color = '#c0392b';
-  }
-  // Highlight row
-  var row = document.getElementById('qr-'+i);
-  if (row) {
-    var tr = row.closest('tr');
-    if (tr) {
-      tr.className = qty===ordered ? 'match-ok' : 'match-diff';
-    }
-  }
+  if (!qty) { recvItems[i].match = 'pending'; updateMatchBadge(i); return; }
+  recvItems[i].match = (qty === ordered) ? 'ok' : 'diff';
+  updateMatchBadge(i);
 }
 
 // ═══════════════════════════════════════════════
@@ -2448,6 +2470,11 @@ function handleScan(code) {
     refocusScan();
     return;
   }
+
+  // لو الصنف اللي اتمسح في صفحة تانية غير المفتوحة دلوقتي (بعد تقسيم الشاشة لصفحات)، لازم ننتقل
+  // لصفحته الأول ونعمل render() عشان عناصر الـ DOM بتاعته (qr-/row-) تكون موجودة أصلاً قبل ما نحاول نلمسها
+  var scannedItemPage = Math.floor(idx / RECV_PAGE_SIZE);
+  if (scannedItemPage !== recvPageIndex) { recvPageIndex = scannedItemPage; render(); }
 
   // Increment received/returned qty by 1 (typical scanner behavior — scan each unit/carton once)
   var current = parseFloat(recvItems[idx].qty_received) || 0;
