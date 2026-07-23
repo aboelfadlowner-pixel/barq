@@ -3649,7 +3649,7 @@ async function openOrCreatePriceCheckSession() {
       priceCheckItems = (items||[]).map(function(it){
         return { sku: it.sku, name: it.product_name, bc: it.barcode||'', system_price: parseFloat(it.system_price)||0,
                   matches: it.matches, shelf_price: it.shelf_price!=null?parseFloat(it.shelf_price):'', issue_type: it.issue_type||'',
-                  checked_by: it.checked_by||'', checked_at: it.checked_at, label_qty:1 };
+                  checked_by: it.checked_by||'', checked_at: it.checked_at, label_qty:1, is_promo:false, promo_price:'' };
       });
     }
   } catch(e) {
@@ -3705,7 +3705,7 @@ function handlePriceCheckScan(code) {
   var prod = PRODUCTS[sku];
   if (idx === -1) {
     priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
-      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1 });
+      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1, is_promo:false, promo_price:'' });
     idx = 0;
   } else if (idx > 0) {
     // ارفعه لفوق تاني عشان يبان بسهولة لو اتمسح تاني
@@ -3775,6 +3775,15 @@ function renderPriceCheckItemCard(item, i) {
       '<button class="big-action-btn" style="margin:0;background:var(--red);color:#fff;padding:12px" onclick="markPriceCheckMismatch('+i+')">❌ مختلف</button>' +
     '</div>' +
     mismatchForm +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);margin:10px 0 4px;cursor:pointer">' +
+      '<input type="checkbox" '+(item.is_promo?'checked':'')+' onchange="togglePromoLabel('+i+',this.checked)"> 🔥 ملصق عرض/تخفيض (السعر الأساسي بخط أحمر + سعر العرض بالأخضر)' +
+    '</label>' +
+    (item.is_promo ?
+      '<div style="margin-bottom:8px">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">سعر العرض (بعد التخفيض)</label>' +
+        '<input type="number" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" value="'+(item.promo_price===''?'':item.promo_price)+'" oninput="setPromoPrice('+i+',this.value)">' +
+      '</div>'
+    : '') +
     '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">🖨️ عدد ملصقات السعر المطلوبة</label>' +
     '<div class="qty-stepper" style="height:44px">' +
       '<button type="button" onclick="stepLabelQty('+i+',1)">+</button>' +
@@ -3782,6 +3791,14 @@ function renderPriceCheckItemCard(item, i) {
       '<button type="button" onclick="stepLabelQty('+i+',-1)">−</button>' +
     '</div>' +
   '</div>';
+}
+
+function togglePromoLabel(i, checked) {
+  priceCheckItems[i].is_promo = !!checked;
+  render();
+}
+function setPromoPrice(i, val) {
+  priceCheckItems[i].promo_price = val === '' ? '' : (parseFloat(val)||0);
 }
 
 function stepLabelQty(i, delta) {
@@ -3865,9 +3882,15 @@ function printPriceLabels() {
       var rowCells = tags.slice(i,i+3).map(function(it){
         var bcValue = it.bc || it.sku;
         var bcImg = generateBarcodeDataUrl(bcValue);
-        return '<td class="tag">' +
+        var isPromo = it.is_promo && it.promo_price!=='' && it.promo_price!=null && parseFloat(it.promo_price) > 0;
+        var priceHtml = isPromo ?
+          '<div class="tag-promo-badge">🔥 عرض</div>' +
+          '<div class="tag-price-old">'+fmt(it.system_price)+' ج</div>' +
+          '<div class="tag-price-promo">'+fmt(it.promo_price)+' جنيهًا</div>'
+          : '<div class="tag-price">'+fmt(it.system_price)+' جنيهًا</div>';
+        return '<td class="tag'+(isPromo?' promo':'')+'">' +
           '<div class="tag-name">'+it.name+'</div>' +
-          '<div class="tag-price">'+fmt(it.system_price)+' جنيهًا</div>' +
+          priceHtml +
           (bcImg ? '<img class="tag-bc-img" src="'+bcImg+'">' : '') +
           '<div class="tag-bc-num">'+bcValue+'</div>' +
         '</td>';
@@ -3887,8 +3910,13 @@ function printPriceLabels() {
       'table{border-collapse:separate;border-spacing:10px;width:100%}' +
       '.tag{border:1.5px dashed #666;border-radius:4px;text-align:center;padding:10px 8px;width:33.33%;vertical-align:middle}' +
       '.tag.empty{border:none}' +
+      '.tag.promo{border-color:#c0392b}' +
       '.tag-name{font-weight:700;font-size:13px;margin-bottom:4px}' +
-      '.tag-price{font-weight:700;font-size:15px;margin-bottom:6px;color:#1a3a2a}' +
+      // في العادي: السعر واضح وبالأخضر. وقت العرض: السعر الأساسي بخط أحمر فوقه علامة شطب، وسعر العرض بالأخضر وأكبر عشان يلفت الانتباه
+      '.tag-price{font-weight:800;font-size:16px;margin-bottom:6px;color:#1a7a40}' +
+      '.tag-promo-badge{display:inline-block;background:#c0392b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:4px}' +
+      '.tag-price-old{font-size:12px;font-weight:700;color:#c0392b;text-decoration:line-through;margin-bottom:2px}' +
+      '.tag-price-promo{font-weight:800;font-size:18px;margin-bottom:6px;color:#1a7a40}' +
       '.tag-bc-img{max-width:100%;height:42px;margin-bottom:2px}' +
       '.tag-bc-num{font-size:11px;letter-spacing:1px}' +
       '@media print{body{padding:0}.tag{border-style:dashed}}' +
