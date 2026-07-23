@@ -1530,7 +1530,9 @@ function generateBarcodeDataUrl(value) {
   if (!value) return null;
   try {
     var canvas = document.createElement('canvas');
-    JsBarcode(canvas, String(value), { format:'CODE128', width:2, height:42, displayValue:false, margin:0 });
+    // ارتفاع الباركود لازم يفضل صغير عشان السعر يبقى الأكبر والأوضح في الملصق (زي الصورة المرجعية)
+    // ومش ياخد مساحة أكبر من اللازم على حساب أبعاد التاج الثابتة اللي بتتناسب مع حجم حامل السعر في الرف
+    JsBarcode(canvas, String(value), { format:'CODE128', width:1.4, height:22, displayValue:false, margin:0 });
     return canvas.toDataURL('image/png');
   } catch(e) { return null; }
 }
@@ -3919,7 +3921,7 @@ function printPriceLabels() {
       '.tag-promo-badge{display:inline-block;background:#c0392b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:4px}' +
       '.tag-price-old{font-size:13px;font-weight:700;color:#c0392b;text-decoration:line-through;margin-bottom:2px}' +
       '.tag-price-promo{font-weight:800;font-size:21px;margin-bottom:6px;color:#0f5c2e}' +
-      '.tag-bc-img{max-width:100%;height:42px;margin-bottom:2px}' +
+      '.tag-bc-img{max-width:80%;height:22px;margin-bottom:1px}' +
       '.tag-bc-num{font-size:11px;letter-spacing:1px;color:#333}' +
       '@media print{body{padding:0}.tag{border-style:dashed}}' +
       '</style></head><body>' +
