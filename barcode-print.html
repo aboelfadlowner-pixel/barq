@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>برق — طباعة الباركود</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --primary:#1a3a2a;--accent:#2d8653;--bg:#f4f6f4;--card:#fff;
+  --text:#1a2e1a;--muted:#6b8f71;--border:#d4e4d8;
+  --red:#c0392b;--orange:#e67e22;--blue:#1a3a5c;
+}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;padding-bottom:40px}
+button,input,select,textarea{font-family:'Cairo',sans-serif}
+
+.header{background:var(--primary);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.header .logo{font-size:20px;font-weight:900}
+.header .logo span{font-size:12px;font-weight:400;opacity:.8;margin-right:8px}
+
+.wrap{max-width:960px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;font-weight:800;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.field{flex:1;min-width:140px}
+.field label{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.field input,.field select{width:100%;padding:10px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:#fafffb}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+
+.btn{padding:11px 18px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#246e45}
+.btn-ghost{background:#fff;border:2px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent)}
+.btn-danger{background:#fff;border:2px solid var(--red);color:var(--red)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+.import-box{border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer}
+.import-box:hover{border-color:var(--accent);background:#f0f9f4}
+
+/* preview label */
+.preview-wrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.label-preview{background:#fff;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;overflow:hidden}
+.label-preview .lp-name{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.label-preview .lp-price{font-size:14px;font-weight:900;color:var(--primary)}
+.label-preview svg{max-width:100%}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f0f7f2;padding:8px;text-align:right;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border)}
+td{padding:8px;border-bottom:1px solid var(--border)}
+td input{width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:center}
+.qty-input{width:60px!important}
+.rm-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px}
+.empty-hint{text-align:center;color:var(--muted);padding:20px;font-size:13px}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:999;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media (max-width:600px){.row{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>🖨️ إعدادات الطابعة والليبل</h2>
+    <div class="row">
+      <div class="field">
+        <label>مقاس الليبل</label>
+        <select id="labelSize" onchange="onSizeChange()">
+          <option value="50x30">50 × 30 مم (شائع)</option>
+          <option value="40x30">40 × 30 مم</option>
+          <option value="60x40">60 × 40 مم</option>
+          <option value="30x20">30 × 20 مم</option>
+          <option value="custom">مقاس مخصص...</option>
+        </select>
+      </div>
+      <div class="field" id="customW-wrap" style="display:none">
+        <label>العرض (مم)</label>
+        <input type="number" id="customW" value="50" min="10" max="200">
+      </div>
+      <div class="field" id="customH-wrap" style="display:none">
+        <label>الارتفاع (مم)</label>
+        <input type="number" id="customH" value="30" min="10" max="200">
+      </div>
+      <div class="field">
+        <label>نوع الباركود</label>
+        <select id="bcType">
+          <option value="CODE128">Code 128 (افتراضي)</option>
+          <option value="EAN13">EAN-13</option>
+          <option value="EAN8">EAN-8</option>
+          <option value="CODE39">Code 39</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted)">
+      * وصّل طابعة الـ Xprinter بالكمبيوتر (USB) وتأكد إن الدرايفر متثبت وظاهرة في "الطابعات" بالويندوز، وحطّها كطابعة افتراضية أو اخترها من نافذة الطباعة. الطباعة بتفتح نافذة منفصلة مضبوطة على نفس مقاس الليبل فوق.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>➕ إضافة صنف</h2>
+    <div class="row">
+      <div class="field">
+        <label>اسم الصنف</label>
+        <input id="in-name" placeholder="مثال: أرز أبو كاس 1 كجم">
+      </div>
+      <div class="field">
+        <label>الباركود / SKU</label>
+        <input id="in-bc" placeholder="امسح بالسكانر أو اكتب يدوياً">
+      </div>
+      <div class="field">
+        <label>السعر (جنيه)</label>
+        <input id="in-price" type="number" step="0.01" placeholder="0.00">
+      </div>
+      <div class="field" style="max-width:100px">
+        <label>العدد</label>
+        <input id="in-qty" type="number" value="1" min="1" class="qty-input">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="addItem()">➕ إضافة للقائمة</button>
+      <label class="btn btn-ghost" style="display:inline-block">
+        📂 استيراد CSV / Excel
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)">
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">أعمدة الملف المتوقعة (بأي ترتيب): name, barcode, price</div>
+  </div>
+
+  <div class="card">
+    <h2>📋 قائمة الطباعة (<span id="itemCount">0</span> صنف)</h2>
+    <div id="itemsTableWrap"><div class="empty-hint">لسه ما فيش أصناف مضافة</div></div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-danger" onclick="clearAll()">🗑️ مسح الكل</button>
+      <button class="btn btn-primary" onclick="doPrint()">🖨️ طباعة كل الليبلات</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>👁️ معاينة</h2>
+    <div class="preview-wrap" id="previewWrap">
+      <div class="empty-hint">هتظهر هنا معاينة لأول صنف في القائمة</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var ITEMS = [];
+
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2000);
+}
+
+function onSizeChange(){
+  var v = document.getElementById('labelSize').value;
+  var isCustom = v === 'custom';
+  document.getElementById('customW-wrap').style.display = isCustom ? 'block' : 'none';
+  document.getElementById('customH-wrap').style.display = isCustom ? 'block' : 'none';
+  renderPreview();
+}
+
+function getLabelDims(){
+  var v = document.getElementById('labelSize').value;
+  if (v === 'custom') {
+    return {
+      w: parseFloat(document.getElementById('customW').value) || 50,
+      h: parseFloat(document.getElementById('customH').value) || 30
+    };
+  }
+  var parts = v.split('x');
+  return { w: parseFloat(parts[0]), h: parseFloat(parts[1]) };
+}
+
+function addItem(){
+  var name = document.getElementById('in-name').value.trim();
+  var bc = document.getElementById('in-bc').value.trim();
+  var price = parseFloat(document.getElementById('in-price').value) || 0;
+  var qty = parseInt(document.getElementById('in-qty').value) || 1;
+
+  if (!bc) { toast('⚠️ لازم تدخل باركود أو SKU'); return; }
+  if (!name) name = bc;
+
+  ITEMS.push({ name: name, barcode: bc, price: price, qty: qty });
+  document.getElementById('in-name').value = '';
+  document.getElementById('in-bc').value = '';
+  document.getElementById('in-price').value = '';
+  document.getElementById('in-qty').value = '1';
+  document.getElementById('in-bc').focus();
+  renderTable();
+  toast('✅ اتضاف: ' + name);
+}
+
+function removeItem(idx){
+  ITEMS.splice(idx, 1);
+  renderTable();
+}
+
+function clearAll(){
+  if (!ITEMS.length) return;
+  if (!confirm('متأكد عايز تمسح كل القائمة؟')) return;
+  ITEMS = [];
+  renderTable();
+}
+
+function renderTable(){
+  var wrap = document.getElementById('itemsTableWrap');
+  document.getElementById('itemCount').textContent = ITEMS.length;
+  if (!ITEMS.length) {
+    wrap.innerHTML = '<div class="empty-hint">لسه ما فيش أصناف مضافة</div>';
+    renderPreview();
+    return;
+  }
+  var rows = ITEMS.map(function(it, i){
+    return '<tr>' +
+      '<td>' + it.name + '</td>' +
+      '<td>' + it.barcode + '</td>' +
+      '<td>' + it.price.toFixed(2) + '</td>' +
+      '<td><input type="number" min="1" class="qty-input" value="' + it.qty + '" onchange="updateQty(' + i + ',this.value)"></td>' +
+      '<td><button class="rm-btn" onclick="removeItem(' + i + ')">✕</button></td>' +
+    '</tr>';
+  }).join('');
+  wrap.innerHTML = '<table><thead><tr><th>الاسم</th><th>الباركود</th><th>السعر</th><th>العدد</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  renderPreview();
+}
+
+function updateQty(idx, val){
+  ITEMS[idx].qty = parseInt(val) || 1;
+}
+
+function renderPreview(){
+  var wrap = document.getElementById('previewWrap');
+  if (!ITEMS.length) {
+    wrap.innerHTML = '<div class="empty-hint">هتظهر هنا معاينة لأول صنف في القائمة</div>';
+    return;
+  }
+  var dims = getLabelDims();
+  var pxW = dims.w * 3.78, pxH = dims.h * 3.78; // approx mm -> px at 96dpi
+  var it = ITEMS[0];
+  wrap.innerHTML =
+    '<div class="label-preview" style="width:' + pxW + 'px;height:' + pxH + 'px">' +
+      '<div class="lp-name">' + it.name + '</div>' +
+      '<svg id="prevSvg"></svg>' +
+      '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
+    '</div>';
+  try {
+    JsBarcode('#prevSvg', it.barcode, {
+      format: document.getElementById('bcType').value,
+      width: 1.6, height: Math.max(30, pxH * 0.35), displayValue: true, fontSize: 11, margin: 2
+    });
+  } catch (e) {
+    document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">باركود غير صالح لهذا النوع</div>';
+  }
+}
+
+function handleImport(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+
+  function ingest(rows){
+    var added = 0;
+    rows.forEach(function(row){
+      var name = pick(row, ['name','اسم','الصنف']);
+      var bc = pick(row, ['barcode','باركود','sku','bc']);
+      var price = parseFloat(pick(row, ['price','سعر','السعر'])) || 0;
+      if (!bc) return;
+      ITEMS.push({ name: name || bc, barcode: String(bc).trim(), price: price, qty: 1 });
+      added++;
+    });
+    renderTable();
+    toast('✅ استوردت ' + added + ' صنف');
+  }
+
+  function pick(row, keys){
+    for (var k in row) {
+      if (keys.indexOf(k.trim().toLowerCase()) !== -1 || keys.indexOf(k.trim()) !== -1) return row[k];
+    }
+    return '';
+  }
+
+  if (ext === 'csv') {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete: function(res){ ingest(res.data); }
+    });
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      ingest(json);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  evt.target.value = '';
+}
+
+function doPrint(){
+  if (!ITEMS.length) { toast('⚠️ القائمة فاضية'); return; }
+  var dims = getLabelDims();
+  var bcType = document.getElementById('bcType').value;
+
+  var labelsHTML = '';
+  ITEMS.forEach(function(it){
+    for (var i = 0; i < it.qty; i++) {
+      var svgId = 'bc_' + Math.random().toString(36).slice(2);
+      labelsHTML +=
+        '<div class="label">' +
+          '<div class="lname">' + escapeHtml(it.name) + '</div>' +
+          '<svg id="' + svgId + '" data-bc="' + escapeHtml(it.barcode) + '"></svg>' +
+          '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
+        '</div>';
+    }
+  });
+
+  var win = window.open('', '_blank');
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>طباعة الباركود</title>' +
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"><\/script>' +
+    '<style>' +
+    '@page{size:' + dims.w + 'mm ' + dims.h + 'mm;margin:0}' +
+    '*{box-sizing:border-box;margin:0;padding:0;font-family:Tahoma,Arial,sans-serif}' +
+    '.label{width:' + dims.w + 'mm;height:' + dims.h + 'mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;text-align:center;padding:1mm}' +
+    '.lname{font-size:2.4mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
+    '.lprice{font-size:3mm;font-weight:900}' +
+    'svg{max-width:96%}' +
+    '</style></head><body>' +
+    labelsHTML +
+    '<scr' + 'ipt>' +
+    'window.onload=function(){' +
+      'document.querySelectorAll("svg[data-bc]").forEach(function(el){' +
+        'try{JsBarcode(el, el.getAttribute("data-bc"), {format:"' + bcType + '", width:1.4, height:' + Math.max(20, dims.h * 3) + ', displayValue:true, fontSize:10, margin:0});}' +
+        'catch(e){el.outerHTML="<div style=\\"color:red;font-size:9px\\">باركود غير صالح</div>";}' +
+      '});' +
+      'setTimeout(function(){window.print();}, 200);' +
+    '};' +
+    '</scr' + 'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+renderTable();
+</script>
+</body>
+</html>
