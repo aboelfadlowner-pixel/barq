@@ -545,13 +545,22 @@ function renderPreview(){
       '<svg id="prevSvg"></svg>' +
       '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
     '</div>';
+  var chosenType = document.getElementById('bcType').value;
   try {
     JsBarcode('#prevSvg', it.barcode, {
-      format: document.getElementById('bcType').value,
+      format: chosenType,
       width: 1.6, height: Math.max(30, pxH * 0.35), displayValue: true, fontSize: 11, margin: 2
     });
   } catch (e) {
-    document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">باركود غير صالح لهذا النوع</div>';
+    // النوع المختار (EAN-13/EAN-8/Code 39) بيرفض أي كود مش مطابق للمواصفة بتاعته بالظبط —
+    // نرجع لـ Code 128 اللي بيقبل أي طول/شكل رقم، بدل ما نوقف المستخدم بخطأ
+    try {
+      JsBarcode('#prevSvg', it.barcode, {
+        format: 'CODE128', width: 1.6, height: Math.max(30, pxH * 0.35), displayValue: true, fontSize: 11, margin: 2
+      });
+    } catch (e2) {
+      document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">الباركود فاضي أو فيه رمز غير مدعوم</div>';
+    }
   }
 }
 
@@ -591,8 +600,13 @@ function doPrint(){
     '<scr' + 'ipt>' +
     'window.onload=function(){' +
       'document.querySelectorAll("svg[data-bc]").forEach(function(el){' +
-        'try{JsBarcode(el, el.getAttribute("data-bc"), {format:"' + bcType + '", width:1.4, height:' + Math.max(20, dims.h * 3) + ', displayValue:true, fontSize:10, margin:0});}' +
-        'catch(e){el.outerHTML="<div style=\\"color:red;font-size:9px\\">باركود غير صالح</div>";}' +
+        'var bcVal = el.getAttribute("data-bc");' +
+        'var opts = {width:1.4, height:' + Math.max(20, dims.h * 3) + ', displayValue:true, fontSize:10, margin:0};' +
+        'try{JsBarcode(el, bcVal, Object.assign({format:"' + bcType + '"}, opts));}' +
+        'catch(e){' +
+          'try{JsBarcode(el, bcVal, Object.assign({format:"CODE128"}, opts));}' +
+          'catch(e2){el.outerHTML="<div style=\\"color:red;font-size:9px\\">الباركود فاضي أو فيه رمز غير مدعوم</div>";}' +
+        '}' +
       '});' +
       'setTimeout(function(){window.print();}, 200);' +
     '};' +
