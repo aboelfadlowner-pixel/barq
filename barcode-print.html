@@ -266,6 +266,18 @@ function pick(row, keys){
   return '';
 }
 
+// بيحول أرقام عربي/فارسي لإنجليزي، وبيشيل رموز اتجاه النص المخفية (RTL/LTR marks, BOM, zero-width)
+// اللي بتتلصق أحياناً من الإكسل أو الكيبورد العربي وبتبوّظ الباركود
+function cleanBarcodeValue(v){
+  var arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  var persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+  return String(v == null ? '' : v)
+    .replace(/[​-‏‪-‮﻿]/g, '')
+    .replace(/[٠-٩]/g, function(d){ return String(arabicDigits.indexOf(d)); })
+    .replace(/[۰-۹]/g, function(d){ return String(persianDigits.indexOf(d)); })
+    .trim();
+}
+
 function isSoldByWeight(row){
   var v = pick(row, ['is_sold_by_weight']);
   if (v === '' || v === undefined || v === null) return false; // شيت مبسط من غير العمود ده = وحدة
@@ -278,12 +290,12 @@ function ingestMasterRows(rows){
   rows.forEach(function(row){
     if (isSoldByWeight(row)) { skippedWeight++; return; }
     var name = pick(row, ['name','اسم','الصنف']);
-    var sku = pick(row, ['sku']);
-    var barcode = pick(row, ['barcode','باركود','bc']);
-    var price = parseFloat(pick(row, ['price','سعر','السعر'])) || 0;
-    var key = String(barcode || sku || '').trim();
+    var sku = cleanBarcodeValue(pick(row, ['sku']));
+    var barcode = cleanBarcodeValue(pick(row, ['barcode','باركود','bc']));
+    var price = parseFloat(cleanBarcodeValue(pick(row, ['price','سعر','السعر']))) || 0;
+    var key = barcode || sku;
     if (!key) return;
-    var prod = { name: name || key, sku: String(sku||'').trim(), barcode: String(barcode||'').trim(), price: price };
+    var prod = { name: name || key, sku: sku, barcode: barcode, price: price };
     MASTER[key] = prod;
     if (prod.sku) MASTER[prod.sku] = prod;
     if (prod.barcode) MASTER[prod.barcode] = prod;
@@ -392,7 +404,7 @@ function onSearchInput(){
 
 function onSearchKeydown(evt){
   if (evt.key !== 'Enter') return;
-  var q = document.getElementById('searchBox').value.trim();
+  var q = cleanBarcodeValue(document.getElementById('searchBox').value);
   if (!q) return;
   // سكانر بيدوس Enter بعد ما يكتب الباركود كامل — نطابق مطابقة تامة
   var exact = MASTER[q];
@@ -452,7 +464,7 @@ function toggleManual(){
 
 function addManualItem(){
   var name = document.getElementById('man-name').value.trim();
-  var bc = document.getElementById('man-bc').value.trim();
+  var bc = cleanBarcodeValue(document.getElementById('man-bc').value);
   var price = parseFloat(document.getElementById('man-price').value) || 0;
   var date = document.getElementById('man-date').value;
   var qty = parseInt(document.getElementById('man-qty').value) || 1;
