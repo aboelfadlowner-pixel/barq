@@ -643,6 +643,7 @@ var countScopeMode = localStorage.getItem('barq_count_scope_mode') || 'guided'; 
 var countFocusSku = null;   // صنف متفوّتح يدوياً من البحث (بيبقى هو الظاهر في بطاقة العد بدل التالي في الطابور تلقائياً)
 var guidedQtyInput = '';    // القيمة المكتوبة في مربع "العدد الفعلي" ببطاقة الجرد — محفوظة عشان معادش تتمسح لو حصل ريفريش في الخلفية
 var countSearchQuery = '';  // نص البحث اليدوي عن صنف في الجرد
+var priceSearchQuery = '';  // نص البحث اليدوي عن صنف في تشيك الأسعار — منفصل عن خانة قراءة الباركود عشان الكتابة فيه ميتمسحش
 var GUIDED_PAGE_SIZE = 20;  // عدد الأصناف في كل صفحة من قائمة الجرد الموجّه
 var guidedPageIndex = 0;    // الصفحة الحالية في قائمة الجرد الموجّه (0 = أول 20 صنف)
 
@@ -3690,6 +3691,23 @@ async function persistPriceCheckItem(item) {
   } catch(e) {}
 }
 
+// بيضيف صنف (بالـ SKU) لقائمة تشيك الأسعار — أو يرفعه لفوق لو موجود بالفعل. مشتركة بين المسح بالباركود والبحث اليدوي بالاسم
+function addPriceCheckItemBySku(sku) {
+  var idx = findPriceCheckIndexBySku(sku);
+  var prod = PRODUCTS[sku];
+  if (idx === -1) {
+    priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
+      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1, is_promo:false, promo_price:'' });
+    idx = 0;
+  } else if (idx > 0) {
+    // ارفعه لفوق تاني عشان يبان بسهولة لو اتمسح تاني
+    var it = priceCheckItems.splice(idx,1)[0];
+    priceCheckItems.unshift(it);
+    idx = 0;
+  }
+  return idx;
+}
+
 function handlePriceCheckScan(code) {
   code = (code||'').trim();
   if (!code) return;
@@ -3707,24 +3725,53 @@ function handlePriceCheckScan(code) {
     return;
   }
 
-  var idx = findPriceCheckIndexBySku(sku);
-  var prod = PRODUCTS[sku];
-  if (idx === -1) {
-    priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
-      matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1, is_promo:false, promo_price:'' });
-    idx = 0;
-  } else if (idx > 0) {
-    // ارفعه لفوق تاني عشان يبان بسهولة لو اتمسح تاني
-    var it = priceCheckItems.splice(idx,1)[0];
-    priceCheckItems.unshift(it);
-    idx = 0;
-  }
+  var idx = addPriceCheckItemBySku(sku);
   playBeep('success');
   if (msg) { msg.innerHTML = '✅ <strong>'+priceCheckItems[idx].name+'</strong> — السعر: '+fmt(priceCheckItems[idx].system_price)+' ج'; msg.style.color = '#1a7a40'; }
   render();
   var row = document.getElementById('prow-0');
   if (row) { row.scrollIntoView({behavior:'smooth', block:'center'}); }
   refocusScan();
+}
+
+// خانة بحث منفصلة عن خانة قراءة الباركود — عشان تقدر تدوّر بالاسم أو جزء من الباركود من غير ما تحتاج
+// ماسح فعلي، وبحث نجمي (substring) يلاقي الصنف حتى لو كتبت جزء بس من الاسم أو الكود في أي مكان منه
+function renderPriceCheckSearchBox() {
+  var q = (priceSearchQuery||'').replace(/"/g,'&quot;');
+  return '<div style="margin-bottom:10px">' +
+    '<input type="text" id="price-search" class="fi" autocomplete="off" placeholder="🔍 دور على صنف بالاسم أو الكود أو الباركود..." ' +
+      'style="padding:12px;font-size:14px" value="'+q+'" oninput="priceCheckSearchProducts()">' +
+    '<div id="price-search-results" style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-top:6px"></div>' +
+  '</div>';
+}
+function priceCheckSearchProducts() {
+  var inp = document.getElementById('price-search');
+  if (inp) priceSearchQuery = inp.value;
+  var box = document.getElementById('price-search-results');
+  if (!box) return;
+  var qRaw = (priceSearchQuery||'').trim();
+  if (qRaw.length < 2) { box.innerHTML=''; return; }
+  var q = normalizeArabicSearch(qRaw);
+  var matches = Object.keys(PRODUCTS).filter(function(sku){
+    var p = PRODUCTS[sku];
+    return normalizeArabicSearch(p.n).indexOf(q)>=0 || sku.toLowerCase().indexOf(q)>=0 || (p.bc||'').indexOf(qRaw)>=0;
+  }).slice(0,8);
+  if (!matches.length) { box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">لا توجد نتائج</div>'; return; }
+  box.innerHTML = matches.map(function(sku){
+    var p = PRODUCTS[sku];
+    var already = findPriceCheckIndexBySku(sku) > -1;
+    return '<div onclick="selectPriceCheckSearchResult(\''+sku+'\')" style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
+      '<span>'+p.n+(already?' <span style="color:var(--accent);font-size:10px;font-weight:800">✓ مضاف</span>':'')+'</span><span style="color:var(--muted)">'+sku+'</span></div>';
+  }).join('');
+}
+function selectPriceCheckSearchResult(sku) {
+  if (!priceCheckSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
+  var idx = addPriceCheckItemBySku(sku);
+  priceSearchQuery = '';
+  playBeep('success');
+  render();
+  var row = document.getElementById('prow-0');
+  if (row) { row.scrollIntoView({behavior:'smooth', block:'center'}); }
 }
 
 function markPriceCheckMatch(i) {
@@ -3826,6 +3873,8 @@ function renderPriceCheckEntry() {
         '<div style="font-size:11px;color:var(--muted)">'+priceCheckItems.length+' صنف اتفحص'+(mismatchCount?' | ⚠️ '+mismatchCount+' مختلف':'')+'</div>' +
       '</div>' +
     '</div>' +
+
+    renderPriceCheckSearchBox() +
 
     '<div class="scan-bar-mobile">' +
       '<input type="text" id="scan-inp" class="scan-input-mobile" autocomplete="off" ' +
