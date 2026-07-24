@@ -25,12 +25,14 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 .wrap{max-width:960px;margin:0 auto;padding:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
 .card h2{font-size:15px;font-weight:800;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.card .sub{font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px}
 
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .field{flex:1;min-width:140px}
 .field label{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px}
 .field input,.field select{width:100%;padding:10px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:#fafffb}
 .field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field input[readonly]{background:#f0f4f1;color:var(--muted)}
 
 .btn{padding:11px 18px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:.15s}
 .btn-primary{background:var(--accent);color:#fff}
@@ -38,15 +40,34 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 .btn-ghost{background:#fff;border:2px solid var(--border);color:var(--text)}
 .btn-ghost:hover{border-color:var(--accent)}
 .btn-danger{background:#fff;border:2px solid var(--red);color:var(--red)}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 
 .import-box{border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer}
 .import-box:hover{border-color:var(--accent);background:#f0f9f4}
+.master-status{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f0f9f4;border:1px solid var(--border);border-radius:10px;font-size:12px;margin-bottom:12px}
+.master-status.empty{background:#fff8f0;color:var(--muted)}
+.master-status b{color:var(--primary)}
+
+.search-wrap{position:relative}
+.search-results{border:1px solid var(--border);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;background:#fff}
+.search-results .sr-item{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.search-results .sr-item:last-child{border-bottom:none}
+.search-results .sr-item:hover{background:#f0f9f4}
+.search-results .sr-name{font-weight:700}
+.search-results .sr-meta{color:var(--muted);font-size:11px;white-space:nowrap}
+.search-hint{font-size:12px;color:var(--muted);padding:8px 2px}
+
+.sel-panel{border:2px solid var(--accent);border-radius:12px;padding:14px;margin-top:10px;background:#f7fcf9}
+.sel-panel .sel-name{font-size:15px;font-weight:800;color:var(--primary);margin-bottom:10px}
+
+.manual-toggle{background:none;border:none;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;padding:4px 0}
 
 /* preview label */
 .preview-wrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
 .label-preview{background:#fff;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;overflow:hidden}
 .label-preview .lp-name{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.label-preview .lp-date{font-size:9px;color:#555}
 .label-preview .lp-price{font-size:14px;font-weight:900;color:var(--primary)}
 .label-preview svg{max-width:100%}
 
@@ -54,6 +75,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#f0f7f2;padding:8px;text-align:right;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border)}
 td{padding:8px;border-bottom:1px solid var(--border)}
 td input{width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:center}
+td input[type="date"]{width:120px}
 .qty-input{width:60px!important}
 .rm-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px}
 .empty-hint{text-align:center;color:var(--muted);padding:20px;font-size:13px}
@@ -110,33 +132,54 @@ td input{width:70px;padding:6px;border:1px solid var(--border);border-radius:6px
   </div>
 
   <div class="card">
-    <h2>➕ إضافة صنف</h2>
-    <div class="row">
-      <div class="field">
-        <label>اسم الصنف</label>
-        <input id="in-name" placeholder="مثال: أرز أبو كاس 1 كجم">
-      </div>
-      <div class="field">
-        <label>الباركود / SKU</label>
-        <input id="in-bc" placeholder="امسح بالسكانر أو اكتب يدوياً">
-      </div>
-      <div class="field">
-        <label>السعر (جنيه)</label>
-        <input id="in-price" type="number" step="0.01" placeholder="0.00">
-      </div>
-      <div class="field" style="max-width:100px">
-        <label>العدد</label>
-        <input id="in-qty" type="number" value="1" min="1" class="qty-input">
-      </div>
-    </div>
+    <h2>🗂️ قاعدة بيانات المنتجات</h2>
+    <div class="sub">ارفع شيت المنتجات المُصدَّر من فوديكس (أو أي CSV/Excel فيه name/barcode/price) — بيتفلتر أوتوماتيك على أصناف "الوحدة" (يُستبعد أي صنف بيباع بالوزن is_sold_by_weight)، وبيفضل محفوظ في المتصفح لحد ما ترفع نسخة جديدة.</div>
+    <div class="master-status empty" id="masterStatus">⚠️ لسه مفيش قاعدة منتجات متحملة — ارفع الشيت الأول</div>
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="addItem()">➕ إضافة للقائمة</button>
       <label class="btn btn-ghost" style="display:inline-block">
-        📂 استيراد CSV / Excel
-        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)">
+        📂 رفع شيت المنتجات (فوديكس / CSV / Excel)
+        <input type="file" id="masterFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleMasterImport(event)">
       </label>
+      <button class="btn btn-ghost" onclick="clearMaster()" id="clearMasterBtn" style="display:none">🗑️ مسح القاعدة</button>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">أعمدة الملف المتوقعة (بأي ترتيب): name, barcode, price</div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 بحث / سكان المنتج</h2>
+    <div class="sub">اكتب اسم أو باركود، أو امسح بالسكانر (بيدوس Enter تلقائي ويختار المطابقة بالظبط).</div>
+    <div class="search-wrap">
+      <input id="searchBox" placeholder="اسم الصنف أو الباركود..." oninput="onSearchInput()" onkeydown="onSearchKeydown(event)" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+    <div id="selPanel"></div>
+    <button class="manual-toggle" onclick="toggleManual()" id="manualToggleBtn" style="margin-top:10px">➕ الصنف مش موجود في القاعدة؟ ضيفه يدوي</button>
+    <div id="manualPanel" style="display:none;margin-top:10px">
+      <div class="row">
+        <div class="field">
+          <label>اسم الصنف</label>
+          <input id="man-name" placeholder="اسم الصنف">
+        </div>
+        <div class="field">
+          <label>الباركود / SKU</label>
+          <input id="man-bc" placeholder="باركود يدوي">
+        </div>
+        <div class="field">
+          <label>السعر (جنيه)</label>
+          <input id="man-price" type="number" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="max-width:180px">
+          <label>التاريخ</label>
+          <input id="man-date" type="date">
+        </div>
+        <div class="field" style="max-width:100px">
+          <label>العدد</label>
+          <input id="man-qty" type="number" value="1" min="1">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="addManualItem()">➕ إضافة للطباعة</button>
+    </div>
   </div>
 
   <div class="card">
@@ -161,6 +204,30 @@ td input{width:70px;padding:6px;border:1px solid var(--border);border-radius:6px
 
 <script>
 var ITEMS = [];
+var MASTER = {};       // key (barcode or sku) -> {name, sku, barcode, price}
+var CURRENT_SEL = null; // currently selected master product, pending add
+
+var LS_MASTER = 'barq_bc_master_v1';
+var LS_DATES  = 'barq_bc_dates_v1';
+
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function loadDates(){
+  try { return JSON.parse(localStorage.getItem(LS_DATES) || '{}'); } catch(e){ return {}; }
+}
+function saveDate(key, dateVal){
+  if (!key || !dateVal) return;
+  var d = loadDates();
+  d[key] = dateVal;
+  localStorage.setItem(LS_DATES, JSON.stringify(d));
+}
+function getSavedDate(key){
+  var d = loadDates();
+  return d[key] || '';
+}
 
 function toast(msg){
   var t = document.getElementById('toast');
@@ -189,24 +256,223 @@ function getLabelDims(){
   return { w: parseFloat(parts[0]), h: parseFloat(parts[1]) };
 }
 
-function addItem(){
-  var name = document.getElementById('in-name').value.trim();
-  var bc = document.getElementById('in-bc').value.trim();
-  var price = parseFloat(document.getElementById('in-price').value) || 0;
-  var qty = parseInt(document.getElementById('in-qty').value) || 1;
+// ── قاعدة بيانات المنتجات ──────────────────────────
+
+function pick(row, keys){
+  for (var k in row) {
+    var kk = k.trim().toLowerCase();
+    if (keys.indexOf(kk) !== -1 || keys.indexOf(k.trim()) !== -1) return row[k];
+  }
+  return '';
+}
+
+function isSoldByWeight(row){
+  var v = pick(row, ['is_sold_by_weight']);
+  if (v === '' || v === undefined || v === null) return false; // شيت مبسط من غير العمود ده = وحدة
+  var s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'y';
+}
+
+function ingestMasterRows(rows){
+  var added = 0, skippedWeight = 0;
+  rows.forEach(function(row){
+    if (isSoldByWeight(row)) { skippedWeight++; return; }
+    var name = pick(row, ['name','اسم','الصنف']);
+    var sku = pick(row, ['sku']);
+    var barcode = pick(row, ['barcode','باركود','bc']);
+    var price = parseFloat(pick(row, ['price','سعر','السعر'])) || 0;
+    var key = String(barcode || sku || '').trim();
+    if (!key) return;
+    var prod = { name: name || key, sku: String(sku||'').trim(), barcode: String(barcode||'').trim(), price: price };
+    MASTER[key] = prod;
+    if (prod.sku) MASTER[prod.sku] = prod;
+    if (prod.barcode) MASTER[prod.barcode] = prod;
+    added++;
+  });
+  localStorage.setItem(LS_MASTER, JSON.stringify(MASTER));
+  renderMasterStatus();
+  toast('✅ اتحمل ' + added + ' صنف بالوحدة' + (skippedWeight ? (' (استبعدنا ' + skippedWeight + ' صنف بيباع بالوزن)') : ''));
+}
+
+function handleMasterImport(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: function(res){ ingestMasterRows(res.data); } });
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      ingestMasterRows(json);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  evt.target.value = '';
+}
+
+function clearMaster(){
+  if (!confirm('مسح قاعدة المنتجات المحفوظة؟')) return;
+  MASTER = {};
+  localStorage.removeItem(LS_MASTER);
+  renderMasterStatus();
+  toast('🗑️ اتمسحت القاعدة');
+}
+
+function uniqueMasterCount(){
+  var seen = {};
+  Object.keys(MASTER).forEach(function(k){
+    var p = MASTER[k];
+    var id = p.barcode || p.sku;
+    seen[id] = true;
+  });
+  return Object.keys(seen).length;
+}
+
+function renderMasterStatus(){
+  var el = document.getElementById('masterStatus');
+  var n = uniqueMasterCount();
+  if (n > 0) {
+    el.className = 'master-status';
+    el.innerHTML = '✅ متحمّل <b>' + n + '</b> صنف بالوحدة — جاهز للبحث والسكان';
+    document.getElementById('clearMasterBtn').style.display = 'inline-block';
+  } else {
+    el.className = 'master-status empty';
+    el.innerHTML = '⚠️ لسه مفيش قاعدة منتجات متحملة — ارفع الشيت الأول';
+    document.getElementById('clearMasterBtn').style.display = 'none';
+  }
+}
+
+function loadMasterFromStorage(){
+  try {
+    var saved = JSON.parse(localStorage.getItem(LS_MASTER) || '{}');
+    MASTER = saved || {};
+  } catch(e){ MASTER = {}; }
+  renderMasterStatus();
+}
+
+// ── بحث / سكان ──────────────────────────────────────
+
+function uniqueMasterList(){
+  var seen = {}, out = [];
+  Object.keys(MASTER).forEach(function(k){
+    var p = MASTER[k];
+    var id = p.barcode || p.sku;
+    if (seen[id]) return;
+    seen[id] = true;
+    out.push(p);
+  });
+  return out;
+}
+
+function onSearchInput(){
+  var q = document.getElementById('searchBox').value.trim().toLowerCase();
+  var box = document.getElementById('searchResults');
+  if (!q) { box.innerHTML = ''; return; }
+  var list = uniqueMasterList().filter(function(p){
+    return p.name.toLowerCase().indexOf(q) !== -1 ||
+           (p.barcode||'').toLowerCase().indexOf(q) !== -1 ||
+           (p.sku||'').toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 8);
+
+  if (!list.length) {
+    box.innerHTML = '<div class="search-hint">مفيش نتائج مطابقة — تقدر تضيفه يدوي تحت</div>';
+    return;
+  }
+  box.innerHTML = '<div class="search-results">' + list.map(function(p){
+    var id = (p.barcode || p.sku).replace(/'/g, "\\'");
+    return '<div class="sr-item" onclick="selectProduct(\'' + id + '\')">' +
+      '<span class="sr-name">' + escapeHtml(p.name) + '</span>' +
+      '<span class="sr-meta">' + escapeHtml(p.barcode || p.sku) + ' · ' + p.price.toFixed(2) + ' ج.م</span>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function onSearchKeydown(evt){
+  if (evt.key !== 'Enter') return;
+  var q = document.getElementById('searchBox').value.trim();
+  if (!q) return;
+  // سكانر بيدوس Enter بعد ما يكتب الباركود كامل — نطابق مطابقة تامة
+  var exact = MASTER[q];
+  if (exact) {
+    selectProduct(exact.barcode || exact.sku);
+  } else {
+    toast('⚠️ الباركود ده مش موجود في القاعدة');
+  }
+}
+
+function selectProduct(key){
+  var p = MASTER[key];
+  if (!p) return;
+  CURRENT_SEL = p;
+  var dateKey = p.barcode || p.sku;
+  var savedDate = getSavedDate(dateKey);
+  document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('searchBox').value = '';
+  document.getElementById('selPanel').innerHTML =
+    '<div class="sel-panel">' +
+      '<div class="sel-name">' + escapeHtml(p.name) + '</div>' +
+      '<div class="row">' +
+        '<div class="field"><label>الباركود</label><input value="' + escapeHtml(p.barcode || p.sku) + '" readonly></div>' +
+        '<div class="field"><label>السعر (من الشيت)</label><input value="' + p.price.toFixed(2) + ' ج.م" readonly></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="field" style="max-width:180px"><label>التاريخ</label><input id="sel-date" type="date" value="' + savedDate + '"></div>' +
+        '<div class="field" style="max-width:100px"><label>العدد</label><input id="sel-qty" type="number" value="1" min="1"></div>' +
+      '</div>' +
+      (savedDate ? '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📌 التاريخ ده آخر تاريخ اتسجل لنفس الصنف — عدّله لو محتاج</div>' : '') +
+      '<button class="btn btn-primary" onclick="addSelectedToQueue()">➕ إضافة للطباعة</button>' +
+    '</div>';
+}
+
+function addSelectedToQueue(){
+  if (!CURRENT_SEL) return;
+  var date = document.getElementById('sel-date').value;
+  var qty = parseInt(document.getElementById('sel-qty').value) || 1;
+  if (!date) { toast('⚠️ اختار التاريخ الأول'); return; }
+  var dateKey = CURRENT_SEL.barcode || CURRENT_SEL.sku;
+  saveDate(dateKey, date);
+  ITEMS.push({ name: CURRENT_SEL.name, barcode: CURRENT_SEL.barcode || CURRENT_SEL.sku, price: CURRENT_SEL.price, qty: qty, date: date });
+  toast('✅ اتضاف: ' + CURRENT_SEL.name);
+  CURRENT_SEL = null;
+  document.getElementById('selPanel').innerHTML = '';
+  document.getElementById('searchBox').focus();
+  renderTable();
+}
+
+// ── إضافة يدوية (fallback) ─────────────────────────
+
+function toggleManual(){
+  var p = document.getElementById('manualPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') document.getElementById('man-date').value = todayStr();
+}
+
+function addManualItem(){
+  var name = document.getElementById('man-name').value.trim();
+  var bc = document.getElementById('man-bc').value.trim();
+  var price = parseFloat(document.getElementById('man-price').value) || 0;
+  var date = document.getElementById('man-date').value;
+  var qty = parseInt(document.getElementById('man-qty').value) || 1;
 
   if (!bc) { toast('⚠️ لازم تدخل باركود أو SKU'); return; }
   if (!name) name = bc;
 
-  ITEMS.push({ name: name, barcode: bc, price: price, qty: qty });
-  document.getElementById('in-name').value = '';
-  document.getElementById('in-bc').value = '';
-  document.getElementById('in-price').value = '';
-  document.getElementById('in-qty').value = '1';
-  document.getElementById('in-bc').focus();
+  if (date) saveDate(bc, date);
+  ITEMS.push({ name: name, barcode: bc, price: price, qty: qty, date: date });
+  document.getElementById('man-name').value = '';
+  document.getElementById('man-bc').value = '';
+  document.getElementById('man-price').value = '';
+  document.getElementById('man-qty').value = '1';
+  document.getElementById('man-date').value = todayStr();
+  document.getElementById('man-bc').focus();
   renderTable();
   toast('✅ اتضاف: ' + name);
 }
+
+// ── قائمة الطباعة ───────────────────────────────────
 
 function removeItem(idx){
   ITEMS.splice(idx, 1);
@@ -230,19 +496,25 @@ function renderTable(){
   }
   var rows = ITEMS.map(function(it, i){
     return '<tr>' +
-      '<td>' + it.name + '</td>' +
-      '<td>' + it.barcode + '</td>' +
+      '<td>' + escapeHtml(it.name) + '</td>' +
+      '<td>' + escapeHtml(it.barcode) + '</td>' +
       '<td>' + it.price.toFixed(2) + '</td>' +
+      '<td><input type="date" value="' + (it.date||'') + '" onchange="updateDate(' + i + ',this.value)"></td>' +
       '<td><input type="number" min="1" class="qty-input" value="' + it.qty + '" onchange="updateQty(' + i + ',this.value)"></td>' +
       '<td><button class="rm-btn" onclick="removeItem(' + i + ')">✕</button></td>' +
     '</tr>';
   }).join('');
-  wrap.innerHTML = '<table><thead><tr><th>الاسم</th><th>الباركود</th><th>السعر</th><th>العدد</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  wrap.innerHTML = '<table><thead><tr><th>الاسم</th><th>الباركود</th><th>السعر</th><th>التاريخ</th><th>العدد</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
   renderPreview();
 }
 
 function updateQty(idx, val){
   ITEMS[idx].qty = parseInt(val) || 1;
+}
+
+function updateDate(idx, val){
+  ITEMS[idx].date = val;
+  if (val) saveDate(ITEMS[idx].barcode, val);
 }
 
 function renderPreview(){
@@ -256,7 +528,8 @@ function renderPreview(){
   var it = ITEMS[0];
   wrap.innerHTML =
     '<div class="label-preview" style="width:' + pxW + 'px;height:' + pxH + 'px">' +
-      '<div class="lp-name">' + it.name + '</div>' +
+      '<div class="lp-name">' + escapeHtml(it.name) + '</div>' +
+      (it.date ? '<div class="lp-date">' + it.date + '</div>' : '') +
       '<svg id="prevSvg"></svg>' +
       '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
     '</div>';
@@ -268,50 +541,6 @@ function renderPreview(){
   } catch (e) {
     document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">باركود غير صالح لهذا النوع</div>';
   }
-}
-
-function handleImport(evt){
-  var file = evt.target.files[0];
-  if (!file) return;
-  var ext = file.name.split('.').pop().toLowerCase();
-
-  function ingest(rows){
-    var added = 0;
-    rows.forEach(function(row){
-      var name = pick(row, ['name','اسم','الصنف']);
-      var bc = pick(row, ['barcode','باركود','sku','bc']);
-      var price = parseFloat(pick(row, ['price','سعر','السعر'])) || 0;
-      if (!bc) return;
-      ITEMS.push({ name: name || bc, barcode: String(bc).trim(), price: price, qty: 1 });
-      added++;
-    });
-    renderTable();
-    toast('✅ استوردت ' + added + ' صنف');
-  }
-
-  function pick(row, keys){
-    for (var k in row) {
-      if (keys.indexOf(k.trim().toLowerCase()) !== -1 || keys.indexOf(k.trim()) !== -1) return row[k];
-    }
-    return '';
-  }
-
-  if (ext === 'csv') {
-    Papa.parse(file, {
-      header: true, skipEmptyLines: true,
-      complete: function(res){ ingest(res.data); }
-    });
-  } else {
-    var reader = new FileReader();
-    reader.onload = function(e){
-      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-      var sheet = wb.Sheets[wb.SheetNames[0]];
-      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      ingest(json);
-    };
-    reader.readAsArrayBuffer(file);
-  }
-  evt.target.value = '';
 }
 
 function doPrint(){
@@ -326,6 +555,7 @@ function doPrint(){
       labelsHTML +=
         '<div class="label">' +
           '<div class="lname">' + escapeHtml(it.name) + '</div>' +
+          (it.date ? '<div class="ldate">' + escapeHtml(it.date) + '</div>' : '') +
           '<svg id="' + svgId + '" data-bc="' + escapeHtml(it.barcode) + '"></svg>' +
           '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
         '</div>';
@@ -341,6 +571,7 @@ function doPrint(){
     '*{box-sizing:border-box;margin:0;padding:0;font-family:Tahoma,Arial,sans-serif}' +
     '.label{width:' + dims.w + 'mm;height:' + dims.h + 'mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;text-align:center;padding:1mm}' +
     '.lname{font-size:2.4mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
+    '.ldate{font-size:2mm;color:#444}' +
     '.lprice{font-size:3mm;font-weight:900}' +
     'svg{max-width:96%}' +
     '</style></head><body>' +
@@ -363,6 +594,7 @@ function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+loadMasterFromStorage();
 renderTable();
 </script>
 </body>
