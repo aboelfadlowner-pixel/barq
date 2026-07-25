@@ -2307,6 +2307,21 @@ function getQtyAlert(sku, qty) {
 
 
 // ===== EGG FUNCTIONS =====
+function calcEggTotals() {
+  const byType = {};
+  let grandTotal = 0;
+  EGG_SKUS.forEach(sku => {
+    const qty = parseFloat(quantities[sku]) || 0;
+    if (qty <= 0) return;
+    const cfg = EGG_CONFIG[sku];
+    if (!cfg) return;
+    const total = qty * cfg.count;
+    byType[cfg.type] = (byType[cfg.type] || 0) + total;
+    grandTotal += total;
+  });
+  return { byType, grandTotal };
+}
+
 function renderEggSummary() {
   const { byType, grandTotal } = calcEggTotals();
   if (grandTotal === 0) return '';
