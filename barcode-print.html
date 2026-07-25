@@ -278,6 +278,11 @@ function cleanBarcodeValue(v){
     .trim();
 }
 
+// أي باركود بيتطبع لازم يكون أرقام/حروف إنجليزية بس — نص عربي أو فاضي مش قابل للترميز خالص
+function isValidBarcodeText(v){
+  return /^[\x20-\x7E]+$/.test(String(v || ''));
+}
+
 function isSoldByWeight(row){
   var v = pick(row, ['is_sold_by_weight']);
   if (v === '' || v === undefined || v === null) return false; // شيت مبسط من غير العمود ده = وحدة
@@ -286,15 +291,19 @@ function isSoldByWeight(row){
 }
 
 function ingestMasterRows(rows){
-  var added = 0, skippedWeight = 0;
+  var added = 0, skippedWeight = 0, skippedNoCode = 0;
   rows.forEach(function(row){
     if (isSoldByWeight(row)) { skippedWeight++; return; }
     var name = pick(row, ['name','اسم','الصنف']);
     var sku = cleanBarcodeValue(pick(row, ['sku']));
     var barcode = cleanBarcodeValue(pick(row, ['barcode','باركود','bc']));
+    // لو الباركود مش أرقام/حروف إنجليزية (فاضي أو نص عربي زي "بدون باركود") نعتبره مش موجود
+    // ونرجع لكود المنتج (SKU) اللي بيبقى عادةً قابل للترميز
+    if (!isValidBarcodeText(barcode)) barcode = '';
+    if (!isValidBarcodeText(sku)) sku = '';
     var price = parseFloat(cleanBarcodeValue(pick(row, ['price','سعر','السعر']))) || 0;
     var key = barcode || sku;
-    if (!key) return;
+    if (!key) { skippedNoCode++; return; }
     var prod = { name: name || key, sku: sku, barcode: barcode, price: price };
     MASTER[key] = prod;
     if (prod.sku) MASTER[prod.sku] = prod;
@@ -303,7 +312,10 @@ function ingestMasterRows(rows){
   });
   localStorage.setItem(LS_MASTER, JSON.stringify(MASTER));
   renderMasterStatus();
-  toast('✅ اتحمل ' + added + ' صنف بالوحدة' + (skippedWeight ? (' (استبعدنا ' + skippedWeight + ' صنف بيباع بالوزن)') : ''));
+  var extra = [];
+  if (skippedWeight) extra.push('استبعدنا ' + skippedWeight + ' صنف بيباع بالوزن');
+  if (skippedNoCode) extra.push('استبعدنا ' + skippedNoCode + ' صنف من غير باركود ولا SKU صالح للطباعة');
+  toast('✅ اتحمل ' + added + ' صنف بالوحدة' + (extra.length ? (' (' + extra.join(' — ') + ')') : ''));
 }
 
 function handleMasterImport(evt){
@@ -470,6 +482,7 @@ function addManualItem(){
   var qty = parseInt(document.getElementById('man-qty').value) || 1;
 
   if (!bc) { toast('⚠️ لازم تدخل باركود أو SKU'); return; }
+  if (!isValidBarcodeText(bc)) { toast('⚠️ الباركود لازم يكون أرقام أو حروف إنجليزية بس (مش عربي)'); return; }
   if (!name) name = bc;
 
   if (date) saveDate(bc, date);
