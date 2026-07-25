@@ -321,6 +321,31 @@ function ingestMasterRows(rows){
   toast('✅ اتحمل ' + added + ' صنف بالوحدة' + (extra.length ? (' (' + extra.join(' — ') + ')') : ''));
 }
 
+// بعض الشيتات (زي شيت قوالب طباعة الرفوف) مش أعمدة عادية (اسم/باركود/سعر)،
+// دي شكلها 3 صفوف لكل صنف (باركود بين قوسين، نفس الباركود كرقم، الاسم) وعمودين جنب بعض،
+// وفيها صفوف فاضية كتير (placeholders). نكتشف الشكل ده تلقائي ونقرأه بطريقة مختلفة.
+function looksLikeShelfGridSheet(matrix){
+  if (!matrix || !matrix.length) return false;
+  var c = matrix[0] && matrix[0][0];
+  return typeof c === 'string' && /^\(.*\)$/.test(String(c).trim());
+}
+
+function parseShelfGridMatrix(matrix){
+  var out = [];
+  for (var i = 0; i + 2 < matrix.length; i += 4) {
+    var numRow = matrix[i + 1] || [];
+    var nameRow = matrix[i + 2] || [];
+    [0, 2].forEach(function(colIdx){
+      var bcRaw = numRow[colIdx];
+      var nameRaw = nameRow[colIdx];
+      if (bcRaw === undefined || bcRaw === null || bcRaw === '') return;
+      if (nameRaw === undefined || nameRaw === null || nameRaw === '') return;
+      out.push({ name: String(nameRaw).trim(), barcode: String(bcRaw).trim(), price: '' });
+    });
+  }
+  return out;
+}
+
 function handleMasterImport(evt){
   var file = evt.target.files[0];
   if (!file) return;
@@ -332,8 +357,14 @@ function handleMasterImport(evt){
     reader.onload = function(e){
       var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       var sheet = wb.Sheets[wb.SheetNames[0]];
-      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      ingestMasterRows(json);
+      var matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      if (looksLikeShelfGridSheet(matrix)) {
+        toast('📋 شيت قوالب رفوف اتكشف — بيتقرا بدون سعر (تقدر تضيف السعر يدوي بعد الإضافة)');
+        ingestMasterRows(parseShelfGridMatrix(matrix));
+      } else {
+        var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        ingestMasterRows(json);
+      }
     };
     reader.readAsArrayBuffer(file);
   }
