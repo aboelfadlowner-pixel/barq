@@ -96,10 +96,10 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 /* preview label */
 .preview-wrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
 .label-preview{background:#fff;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;overflow:hidden}
-.label-preview .lp-name{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.label-preview .lp-name{font-size:28px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .label-preview .lp-date{font-size:9px;color:#555}
-.label-preview .lp-price{font-size:17px;font-weight:900;color:var(--primary)}
-.label-preview svg{max-width:65%}
+.label-preview .lp-price{font-size:34px;font-weight:900;color:var(--primary)}
+.label-preview svg{max-width:33%}
 
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#f0f7f2;padding:8px;text-align:right;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border)}
@@ -120,7 +120,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v14</div>
+  <div style="font-size:11px;opacity:.7">إصدار v15</div>
 </div>
 
 <div class="wrap">
@@ -627,14 +627,14 @@ function renderPreview(){
   try {
     JsBarcode('#prevSvg', it.barcode, {
       format: chosenType,
-      width: 1.3, height: Math.max(26, pxH * 0.3), displayValue: true, fontSize: 10, margin: 2
+      width: 0.65, height: Math.max(26, pxH * 0.3), displayValue: true, fontSize: 10, margin: 2
     });
   } catch (e) {
     // النوع المختار (EAN-13/EAN-8/Code 39) بيرفض أي كود مش مطابق للمواصفة بتاعته بالظبط —
     // نرجع لـ Code 128 اللي بيقبل أي طول/شكل رقم، بدل ما نوقف المستخدم بخطأ
     try {
       JsBarcode('#prevSvg', it.barcode, {
-        format: 'CODE128', width: 1.3, height: Math.max(26, pxH * 0.3), displayValue: true, fontSize: 10, margin: 2
+        format: 'CODE128', width: 0.65, height: Math.max(26, pxH * 0.3), displayValue: true, fontSize: 10, margin: 2
       });
     } catch (e2) {
       document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">تعذّر رسم الباركود — تفاصيل: ' + escapeHtml(String(e2)) + '</div>';
@@ -655,7 +655,7 @@ function doPrint(){
         '<div class="label">' +
           '<div class="lname">' + escapeHtml(it.name) + '</div>' +
           (it.date ? '<div class="ldate">' + escapeHtml(it.date) + '</div>' : '') +
-          '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="1.3" jsbarcode-height="' + Math.max(16, dims.h * 2.2) + '" jsbarcode-displayvalue="true" jsbarcode-fontsize="9" jsbarcode-margin="0"></svg>' +
+          '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="0.65" jsbarcode-height="' + Math.max(16, dims.h * 2.2) + '" jsbarcode-displayvalue="true" jsbarcode-fontsize="9" jsbarcode-margin="0"></svg>' +
           '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
         '</div>';
     }
@@ -669,10 +669,10 @@ function doPrint(){
     '@page{size:' + dims.w + 'mm ' + dims.h + 'mm;margin:0}' +
     '*{box-sizing:border-box;margin:0;padding:0;font-family:Tahoma,Arial,sans-serif}' +
     '.label{width:' + dims.w + 'mm;height:' + dims.h + 'mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;text-align:center;padding:1mm}' +
-    '.lname{font-size:3mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
+    '.lname{font-size:6mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
     '.ldate{font-size:2mm;color:#444}' +
-    '.lprice{font-size:3.6mm;font-weight:900}' +
-    'svg{max-width:68%}' +
+    '.lprice{font-size:7.2mm;font-weight:900}' +
+    'svg{max-width:34%}' +
     '</style></head><body>' +
     labelsHTML +
     '<scr' + 'ipt>' +
