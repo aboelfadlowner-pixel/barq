@@ -90,7 +90,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v11</div>
+  <div style="font-size:11px;opacity:.7">إصدار v12</div>
 </div>
 
 <div class="wrap">
@@ -607,7 +607,7 @@ function renderPreview(){
         format: 'CODE128', width: 2, height: Math.max(30, pxH * 0.35), displayValue: true, fontSize: 11, margin: 2
       });
     } catch (e2) {
-      document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">الباركود فاضي أو فيه رمز غير مدعوم</div>';
+      document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">تعذّر رسم الباركود — تفاصيل: ' + escapeHtml(String(e2)) + '</div>';
     }
   }
 }
@@ -662,7 +662,7 @@ function doPrint(){
         'try{JsBarcode(el, bcVal, Object.assign({format: el.getAttribute("jsbarcode-format")}, opts));}' +
         'catch(e){' +
           'try{JsBarcode(el, bcVal, Object.assign({format:"CODE128"}, opts));}' +
-          'catch(e2){el.outerHTML="<div style=\\"color:red;font-size:9px\\">الباركود فاضي أو فيه رمز غير مدعوم</div>";}' +
+          'catch(e2){el.outerHTML="<div style=\\"color:red;font-size:8px\\">تعذّر رسم الباركود: "+String(e2).replace(/</g,"&lt;")+"</div>";}' +
         '}' +
       '});' +
       'setTimeout(function(){window.print();}, 200);' +
