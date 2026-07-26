@@ -90,7 +90,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v10</div>
+  <div style="font-size:11px;opacity:.7">إصدار v11</div>
 </div>
 
 <div class="wrap">
@@ -625,7 +625,7 @@ function doPrint(){
         '<div class="label">' +
           '<div class="lname">' + escapeHtml(it.name) + '</div>' +
           (it.date ? '<div class="ldate">' + escapeHtml(it.date) + '</div>' : '') +
-          '<svg id="' + svgId + '" data-bc="' + escapeHtml(it.barcode) + '"></svg>' +
+          '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="2" jsbarcode-height="' + Math.max(20, dims.h * 3) + '" jsbarcode-displayvalue="true" jsbarcode-fontsize="10" jsbarcode-margin="0"></svg>' +
           '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
         '</div>';
     }
@@ -647,10 +647,19 @@ function doPrint(){
     labelsHTML +
     '<scr' + 'ipt>' +
     'window.onload=function(){' +
-      'document.querySelectorAll("svg[data-bc]").forEach(function(el){' +
-        'var bcVal = el.getAttribute("data-bc");' +
-        'var opts = {width:2, height:' + Math.max(20, dims.h * 3) + ', displayValue:true, fontSize:10, margin:0};' +
-        'try{JsBarcode(el, bcVal, Object.assign({format:"' + bcType + '"}, opts));}' +
+      // كل SVG بياخد قيمته من jsbarcode-value وشكله من jsbarcode-format، بدل ما تتكتب كنص عادي جوه خلية —
+      // بنلف عليها واحدة واحدة (مش JsBarcode(".barcode").init() اللي بتوقف تماماً لو صنف واحد بس فيه كود غير صالح)
+      // عشان لو صنف واحد فشل، الباقي يتطبع عادي بدل ما الصفحة كلها تبوظ
+      'document.querySelectorAll("svg.barcode").forEach(function(el){' +
+        'var bcVal = el.getAttribute("jsbarcode-value");' +
+        'var opts = {' +
+          'width: parseFloat(el.getAttribute("jsbarcode-width")), ' +
+          'height: parseFloat(el.getAttribute("jsbarcode-height")), ' +
+          'displayValue: el.getAttribute("jsbarcode-displayvalue") === "true", ' +
+          'fontSize: parseFloat(el.getAttribute("jsbarcode-fontsize")), ' +
+          'margin: parseFloat(el.getAttribute("jsbarcode-margin"))' +
+        '};' +
+        'try{JsBarcode(el, bcVal, Object.assign({format: el.getAttribute("jsbarcode-format")}, opts));}' +
         'catch(e){' +
           'try{JsBarcode(el, bcVal, Object.assign({format:"CODE128"}, opts));}' +
           'catch(e2){el.outerHTML="<div style=\\"color:red;font-size:9px\\">الباركود فاضي أو فيه رمز غير مدعوم</div>";}' +
