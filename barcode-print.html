@@ -121,7 +121,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v17</div>
+  <div style="font-size:11px;opacity:.7">إصدار v18</div>
 </div>
 
 <div class="wrap">
@@ -623,21 +623,21 @@ function renderPreview(){
       '<img class="lp-logo" src="' + LOGO_DATA_URI + '" alt="">' +
       '<div class="lp-name">' + escapeHtml(it.name) + '</div>' +
       (it.date ? '<div class="lp-date">' + it.date + '</div>' : '') +
-      '<svg id="prevSvg"></svg>' +
+      '<svg id="prevSvg" style="height:' + Math.max(24, pxH * 0.35) + 'px;width:auto;max-width:90%"></svg>' +
       '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
     '</div>';
   var chosenType = document.getElementById('bcType').value;
   try {
     JsBarcode('#prevSvg', it.barcode, {
       format: chosenType,
-      width: 1.3, height: Math.max(16, pxH * 0.2), displayValue: true, fontSize: 10, margin: 2
+      width: 1.3, height: 40, displayValue: true, fontSize: 10, margin: 2
     });
   } catch (e) {
     // النوع المختار (EAN-13/EAN-8/Code 39) بيرفض أي كود مش مطابق للمواصفة بتاعته بالظبط —
     // نرجع لـ Code 128 اللي بيقبل أي طول/شكل رقم، بدل ما نوقف المستخدم بخطأ
     try {
       JsBarcode('#prevSvg', it.barcode, {
-        format: 'CODE128', width: 1.3, height: Math.max(16, pxH * 0.2), displayValue: true, fontSize: 10, margin: 2
+        format: 'CODE128', width: 1.3, height: 40, displayValue: true, fontSize: 10, margin: 2
       });
     } catch (e2) {
       document.getElementById('prevSvg').outerHTML = '<div style="color:var(--red);font-size:11px">تعذّر رسم الباركود — تفاصيل: ' + escapeHtml(String(e2)) + '</div>';
@@ -659,7 +659,7 @@ function doPrint(){
           '<img class="llogo" src="' + LOGO_DATA_URI + '" alt="">' +
           '<div class="lname">' + escapeHtml(it.name) + '</div>' +
           (it.date ? '<div class="ldate">' + escapeHtml(it.date) + '</div>' : '') +
-          '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="1.3" jsbarcode-height="' + Math.max(12, dims.h * 1.3) + '" jsbarcode-displayvalue="true" jsbarcode-fontsize="9" jsbarcode-margin="0"></svg>' +
+          '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="1.3" jsbarcode-height="40" jsbarcode-displayvalue="true" jsbarcode-fontsize="9" jsbarcode-margin="0"></svg>' +
           '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
         '</div>';
     }
@@ -677,7 +677,7 @@ function doPrint(){
     '.lname{font-size:4.2mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
     '.ldate{font-size:2mm;color:#444}' +
     '.lprice{font-size:7.2mm;font-weight:900}' +
-    'svg{max-width:68%}' +
+    'svg.barcode{height:' + Math.max(6, dims.h * 0.35) + 'mm;width:auto;max-width:90%}' +
     '</style></head><body>' +
     labelsHTML +
     '<scr' + 'ipt>' +
