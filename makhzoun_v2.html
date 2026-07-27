@@ -22,6 +22,9 @@
     --A: #1a7a40;
     --B: #0984e3;
     --C: #7a8c80;
+    --D: #f5a623;
+    --E: #e17055;
+    --F: #c0392b;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -137,6 +140,9 @@
   .card.A { border-top: 3px solid var(--A); }
   .card.B { border-top: 3px solid var(--B); }
   .card.C { border-top: 3px solid var(--C); }
+  .card.D { border-top: 3px solid var(--D); }
+  .card.E { border-top: 3px solid var(--E); }
+  .card.F { border-top: 3px solid var(--F); }
   .card.warn { border-top: 3px solid var(--red); }
   .card.ok { border-top: 3px solid var(--green); }
 
@@ -216,9 +222,16 @@
     font-weight: 700;
   }
 
-  .badge-A { background: rgba(245,166,35,0.15); color: var(--A); border: 1px solid rgba(245,166,35,0.3); }
+  .badge-A { background: rgba(26,122,64,0.15); color: var(--A); border: 1px solid rgba(26,122,64,0.3); }
   .badge-B { background: rgba(52,152,219,0.15); color: var(--B); border: 1px solid rgba(52,152,219,0.3); }
   .badge-C { background: rgba(136,144,168,0.15); color: var(--C); border: 1px solid rgba(136,144,168,0.3); }
+  .badge-D { background: rgba(245,166,35,0.15); color: var(--D); border: 1px solid rgba(245,166,35,0.3); }
+  .badge-E { background: rgba(225,112,85,0.15); color: var(--E); border: 1px solid rgba(225,112,85,0.3); }
+  .badge-F { background: rgba(192,57,43,0.15); color: var(--F); border: 1px solid rgba(192,57,43,0.3); }
+
+  .badge-imp-عالية { background: rgba(214,48,49,0.12); color: #d63031; border: 1px solid rgba(214,48,49,0.3); }
+  .badge-imp-متوسطة { background: rgba(212,172,13,0.12); color: #b7950b; border: 1px solid rgba(212,172,13,0.3); }
+  .badge-imp-منخفضة { background: rgba(136,144,168,0.12); color: #7a8c80; border: 1px solid rgba(136,144,168,0.3); }
 
   .order-yes { color: var(--red); font-weight: 700; font-size: 13px; }
   .order-no  { color: var(--green); font-weight: 700; font-size: 13px; }
@@ -611,9 +624,12 @@
       <div class="section-title">ملخص اليوم <span class="date-badge" id="uploadDateBadge"></span></div>
       <div class="cards">
         <div class="card ok"><div class="card-val" id="totalItems">0</div><div class="card-lbl">إجمالي الأصناف</div></div>
-        <div class="card A"><div class="card-val" id="countA">0</div><div class="card-lbl">شريحة A (عالي الأهمية)</div></div>
-        <div class="card B"><div class="card-val" id="countB">0</div><div class="card-lbl">شريحة B (متوسط)</div></div>
-        <div class="card C"><div class="card-val" id="countC">0</div><div class="card-lbl">شريحة C (أقل أهمية)</div></div>
+        <div class="card A"><div class="card-val" id="countA">0</div><div class="card-lbl">طلب عالي</div></div>
+        <div class="card B"><div class="card-val" id="countB">0</div><div class="card-lbl">طلب عادي</div></div>
+        <div class="card C"><div class="card-val" id="countC">0</div><div class="card-lbl">طلب متوسط</div></div>
+        <div class="card D"><div class="card-val" id="countD">0</div><div class="card-lbl">طلب منخفض</div></div>
+        <div class="card E"><div class="card-val" id="countE">0</div><div class="card-lbl">طلب منخفض جدًا</div></div>
+        <div class="card F"><div class="card-val" id="countF">0</div><div class="card-lbl">طلب متدني</div></div>
         <div class="card warn"><div class="card-val" id="orderNow">0</div><div class="card-lbl">يحتاج طلب الآن</div></div>
         <div class="card warn"><div class="card-val" id="negStock">0</div><div class="card-lbl">مخزون سالب ⚠️</div></div>
       </div>
@@ -642,18 +658,24 @@
   <div id="tab-orders" style="display:none">
     <div class="section-title">قرارات الطلب</div>
     <div class="legend">
-      <span><span class="dot" style="background:var(--A)"></span> A = عالي الأهمية</span>
-      <span><span class="dot" style="background:var(--B)"></span> B = متوسط</span>
-      <span><span class="dot" style="background:var(--C)"></span> C = أقل أهمية</span>
+      <span><span class="dot" style="background:var(--A)"></span> عالي</span>
+      <span><span class="dot" style="background:var(--B)"></span> عادي</span>
+      <span><span class="dot" style="background:var(--C)"></span> متوسط</span>
+      <span><span class="dot" style="background:var(--D)"></span> منخفض</span>
+      <span><span class="dot" style="background:var(--E)"></span> منخفض جدًا</span>
+      <span><span class="dot" style="background:var(--F)"></span> متدني</span>
     </div>
     <div class="filters">
       <input type="text" id="searchOrders" placeholder="ابحث عن صنف..." oninput="renderOrders()">
       <button class="filter-btn active" id="fAll" onclick="setOrderFilter('all')">الكل</button>
       <button class="filter-btn" id="fOrder" onclick="setOrderFilter('order')">🔴 اطلب الآن</button>
       <button class="filter-btn" id="fOk" onclick="setOrderFilter('ok')">🟢 لا تطلب</button>
-      <button class="filter-btn" id="fA" onclick="setOrderFilter('A')">A</button>
-      <button class="filter-btn" id="fB" onclick="setOrderFilter('B')">B</button>
-      <button class="filter-btn" id="fC" onclick="setOrderFilter('C')">C</button>
+      <button class="filter-btn" id="fA" onclick="setOrderFilter('A')">عالي</button>
+      <button class="filter-btn" id="fB" onclick="setOrderFilter('B')">عادي</button>
+      <button class="filter-btn" id="fC" onclick="setOrderFilter('C')">متوسط</button>
+      <button class="filter-btn" id="fD" onclick="setOrderFilter('D')">منخفض</button>
+      <button class="filter-btn" id="fE" onclick="setOrderFilter('E')">منخفض جدًا</button>
+      <button class="filter-btn" id="fF" onclick="setOrderFilter('F')">متدني</button>
       <button class="export-btn" onclick="exportOrders()">⬇ تصدير CSV</button>
     </div>
     <div class="table-wrap">
@@ -662,7 +684,9 @@
           <tr>
             <th onclick="sortBy('name')">اسم الصنف ↕</th>
             <th onclick="sortBy('sku')">SKU</th>
+            <th>الوحدة</th>
             <th onclick="sortBy('class')">شريحة ↕</th>
+            <th>الأهمية</th>
             <th onclick="sortBy('qty')">الكمية ↕</th>
             <th onclick="sortBy('minQty')">الحد الأدنى</th>
             <th>قرار الطلب</th>
@@ -681,9 +705,12 @@
     <div class="filters">
       <input type="text" id="searchAll" placeholder="ابحث..." oninput="renderAll()">
       <button class="filter-btn active" id="aAll" onclick="setAllFilter('all')">الكل</button>
-      <button class="filter-btn" id="aA" onclick="setAllFilter('A')">A</button>
-      <button class="filter-btn" id="aB" onclick="setAllFilter('B')">B</button>
-      <button class="filter-btn" id="aC" onclick="setAllFilter('C')">C</button>
+      <button class="filter-btn" id="aA" onclick="setAllFilter('A')">عالي</button>
+      <button class="filter-btn" id="aB" onclick="setAllFilter('B')">عادي</button>
+      <button class="filter-btn" id="aC" onclick="setAllFilter('C')">متوسط</button>
+      <button class="filter-btn" id="aD" onclick="setAllFilter('D')">منخفض</button>
+      <button class="filter-btn" id="aE" onclick="setAllFilter('E')">منخفض جدًا</button>
+      <button class="filter-btn" id="aF" onclick="setAllFilter('F')">متدني</button>
       <button class="export-btn" onclick="exportAll()">⬇ تصدير CSV</button>
     </div>
     <div class="table-wrap">
@@ -696,6 +723,7 @@
             <th onclick="sortAllBy('qty')">الكمية ↕</th>
             <th onclick="sortAllBy('cost')">التكلفة الإجمالية ↕</th>
             <th onclick="sortAllBy('class')">شريحة ↕</th>
+            <th>الأهمية</th>
             <th>قرار</th>
             <th>تعديل</th>
           </tr>
@@ -708,40 +736,34 @@
 
   <!-- SETTINGS TAB -->
   <div id="tab-settings" style="display:none">
-    <div class="section-title">⚙️ إعدادات التصنيف ABC</div>
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; max-width:600px; margin-bottom:24px;">
+    <div class="section-title">⚙️ إعدادات مستويات الطلب</div>
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; max-width:700px; margin-bottom:24px;">
       <p style="color:var(--muted); font-size:14px; margin-bottom:20px; line-height:1.8;">
-        التصنيف يعتمد على <strong style="color:var(--text)">نسبة التكلفة الإجمالية</strong> لكل صنف من الإجمالي الكلي.<br>
-        مثال: أعلى 70% من القيمة = شريحة A
+        كل صنف بيتصنف تلقائياً لمستوى طلب بناءً على <strong style="color:var(--text)">نسبة تكلفته التراكمية</strong> من إجمالي قيمة المخزون.
+        كل مستوى ليه حد أعلى % (نسبة تراكمية) وحد أدنى افتراضي للكمية (نقطة إعادة الطلب).
       </p>
 
-      <div class="form-group">
-        <label>شريحة A – الحد الأعلى % من إجمالي القيمة</label>
-        <input type="number" id="threshA" value="70" min="1" max="99" step="1">
-      </div>
-      <div class="form-group">
-        <label>شريحة B – الحد الأعلى % (ما بعد A)</label>
-        <input type="number" id="threshB" value="90" min="1" max="99" step="1">
-      </div>
-      <p style="color:var(--muted); font-size:12px; margin-bottom:20px;">الباقي يصبح شريحة C تلقائياً</p>
-
-      <div class="section-title">حدود إعادة الطلب (الحد الأدنى للمخزون)</div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
-        <div class="form-group">
-          <label>حد الطلب – A (كمية)</label>
-          <input type="number" id="minA" value="10" min="0">
-        </div>
-        <div class="form-group">
-          <label>حد الطلب – B (كمية)</label>
-          <input type="number" id="minB" value="5" min="0">
-        </div>
-        <div class="form-group">
-          <label>حد الطلب – C (كمية)</label>
-          <input type="number" id="minC" value="2" min="0">
-        </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>المستوى</th>
+              <th>الحد الأعلى % (تراكمي)</th>
+              <th>الحد الأدنى للكمية (نقطة الطلب)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge badge-A">عالي</span></td><td><input type="number" id="cut0" value="50" min="1" max="99" step="1"></td><td><input type="number" id="min0" value="15" min="0"></td></tr>
+            <tr><td><span class="badge badge-B">عادي</span></td><td><input type="number" id="cut1" value="70" min="1" max="99" step="1"></td><td><input type="number" id="min1" value="10" min="0"></td></tr>
+            <tr><td><span class="badge badge-C">متوسط</span></td><td><input type="number" id="cut2" value="85" min="1" max="99" step="1"></td><td><input type="number" id="min2" value="7" min="0"></td></tr>
+            <tr><td><span class="badge badge-D">منخفض</span></td><td><input type="number" id="cut3" value="93" min="1" max="99" step="1"></td><td><input type="number" id="min3" value="5" min="0"></td></tr>
+            <tr><td><span class="badge badge-E">منخفض جدًا</span></td><td><input type="number" id="cut4" value="97" min="1" max="99" step="1"></td><td><input type="number" id="min4" value="3" min="0"></td></tr>
+            <tr><td><span class="badge badge-F">متدني</span></td><td style="color:var(--muted);font-size:12px">الباقي تلقائياً</td><td><input type="number" id="min5" value="1" min="0"></td></tr>
+          </tbody>
+        </table>
       </div>
 
-      <button class="btn btn-primary" style="width:100%; margin-top:8px;" onclick="saveSettings()">💾 حفظ الإعدادات وإعادة التصنيف</button>
+      <button class="btn btn-primary" style="width:100%; margin-top:16px;" onclick="saveSettings()">💾 حفظ الإعدادات وإعادة التصنيف</button>
     </div>
 
     <div class="section-title">🔧 تعديل تصنيف صنف بعينه</div>
@@ -900,17 +922,33 @@
       <input type="text" id="editName" disabled="">
     </div>
     <div class="form-group">
-      <label>الشريحة (التصنيف اليدوي)</label>
+      <label>الشريحة (مستوى الطلب — التصنيف اليدوي)</label>
       <select id="editClass">
         <option value="">تلقائي (من البيانات)</option>
-        <option value="A">A – عالي الأهمية</option>
-        <option value="B">B – متوسط</option>
-        <option value="C">C – أقل أهمية</option>
+        <option value="A">عالي</option>
+        <option value="B">عادي</option>
+        <option value="C">متوسط</option>
+        <option value="D">منخفض</option>
+        <option value="E">منخفض جدًا</option>
+        <option value="F">متدني</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>الأهمية (تقييمك الشخصي للصنف — مستقل عن الشريحة)</label>
+      <select id="editImportance">
+        <option value="">بدون تقييم</option>
+        <option value="عالية">عالية</option>
+        <option value="متوسطة">متوسطة</option>
+        <option value="منخفضة">منخفضة</option>
       </select>
     </div>
     <div class="form-group">
       <label>الحد الأدنى للمخزون (يدوي)</label>
       <input type="number" id="editMin" placeholder="اتركه فارغاً للقيمة التلقائية" min="0">
+    </div>
+    <div class="form-group">
+      <label>💰 آخر سعر شراء (يدوي — هيتحدث تلقائي بعد ربط الداتا سنتر)</label>
+      <input type="number" id="editLastPrice" placeholder="مثال: 45.50" min="0" step="0.01">
     </div>
     <div class="form-group">
       <label>📝 ملاحظات (مورد، وقت توريد، أي تفاصيل...)</label>
@@ -937,9 +975,35 @@ let ordersPage = 1;
 let allPage = 1;
 const PAGE_SIZE = 50;
 
-let threshA = 70, threshB = 90, minA = 10, minB = 5, minC = 2;
+let tierCut = [50, 70, 85, 93, 97];
+let tierMin = [15, 10, 7, 5, 3, 1];
 let overrides = {}, suppliers = [], supEditId = null, supLinkedSkus = [];
 let history = [];
+
+// =================== TIER / IMPORTANCE / UNIT HELPERS ===================
+const TIER_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const TIER_LABELS = { A: 'عالي', B: 'عادي', C: 'متوسط', D: 'منخفض', E: 'منخفض جدًا', F: 'متدني' };
+
+function classifyPct(pct) {
+  for (let i = 0; i < tierCut.length; i++) { if (pct <= tierCut[i]) return TIER_KEYS[i]; }
+  return TIER_KEYS[TIER_KEYS.length - 1];
+}
+
+const IMPORTANCE_RANK = { 'عالية': 0, 'متوسطة': 1, 'منخفضة': 3 };
+function importanceRank(r) { return IMPORTANCE_RANK[r.importance] ?? 2; }
+
+const UNIT_LABELS = {
+  'kilogram':'كيلو','kg':'كيلو','كيلو':'كيلو','كيلوجرام':'كيلو',
+  'gram':'جرام','g':'جرام','جرام':'جرام','جم':'جرام',
+  'piece':'وحدة','pieces':'وحدة','each':'وحدة','وحدة':'وحدة',
+  'carton':'كرتونة','box':'كرتونة','كرتونة':'كرتونة','كرتون':'كرتونة',
+  'liter':'لتر','litre':'لتر','لتر':'لتر'
+};
+function unitLabel(u) {
+  if (!u) return '—';
+  const key = String(u).trim().toLowerCase();
+  return UNIT_LABELS[key] || String(u).trim();
+}
 
 // أسماء الأصناف بتيجي من ملف CSV مرفوع، والملاحظات/الموردين بيتكتبوا يدوي — لازم تتنضف قبل ما تدخل innerHTML
 function escapeHtml(s) {
@@ -993,16 +1057,21 @@ function flashSaved() {
 
 async function loadAllData() {
   const s = await dbGet('settings');
-  if (s) { threshA=s.threshA??70; threshB=s.threshB??90; minA=s.minA??10; minB=s.minB??5; minC=s.minC??2; }
+  if (s) { tierCut = s.tierCut || tierCut; tierMin = s.tierMin || tierMin; }
   const ov = await dbGet('overrides'); if (ov) Object.assign(overrides, ov);
   const sup = await dbGet('suppliers'); if (sup) suppliers = sup;
   const hist = await dbGet('history'); if (hist) { history.length=0; history.push(...hist); }
 }
 
+function applySettingsToInputs() {
+  tierCut.forEach((v, i) => { const el = document.getElementById('cut'+i); if (el) el.value = v; });
+  tierMin.forEach((v, i) => { const el = document.getElementById('min'+i); if (el) el.value = v; });
+}
+
 // =================== BACKUP ===================
 function exportBackup() {
-  const data = { version:1, exportedAt: new Date().toLocaleString('ar-EG'),
-    suppliers, overrides, settings:{threshA,threshB,minA,minB,minC}, history };
+  const data = { version:2, exportedAt: new Date().toLocaleString('ar-EG'),
+    suppliers, overrides, settings:{tierCut,tierMin}, history };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download = 'barq_backup_' + new Date().toISOString().slice(0,10) + '.json';
@@ -1018,14 +1087,10 @@ function importBackup(file) {
       if (d.suppliers) { suppliers=d.suppliers; await dbSet('suppliers',suppliers); }
       if (d.overrides) { Object.assign(overrides,d.overrides); await dbSet('overrides',overrides); }
       if (d.settings) {
-        threshA=d.settings.threshA??70; threshB=d.settings.threshB??90;
-        minA=d.settings.minA??10; minB=d.settings.minB??5; minC=d.settings.minC??2;
-        await dbSet('settings',{threshA,threshB,minA,minB,minC});
-        document.getElementById('threshA').value=threshA;
-        document.getElementById('threshB').value=threshB;
-        document.getElementById('minA').value=minA;
-        document.getElementById('minB').value=minB;
-        document.getElementById('minC').value=minC;
+        tierCut = d.settings.tierCut || tierCut;
+        tierMin = d.settings.tierMin || tierMin;
+        await dbSet('settings',{tierCut,tierMin});
+        applySettingsToInputs();
       }
       if (d.history) { history.length=0; history.push(...d.history); await dbSet('history',history); renderHistory(); }
       renderSuppliers();
@@ -1040,13 +1105,10 @@ function importBackup(file) {
 // =================== INIT ===================
 openDB().then(loadAllData).then(() => {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ar-EG');
-  document.getElementById('threshA').value = threshA;
-  document.getElementById('threshB').value = threshB;
-  document.getElementById('minA').value = minA;
-  document.getElementById('minB').value = minB;
-  document.getElementById('minC').value = minC;
+  applySettingsToInputs();
   renderHistory();
   renderSuppliers();
+  updateCartBadge();
 });
 
 // =================== FILE HANDLING ===================
@@ -1087,11 +1149,12 @@ function processData() {
     const cost = parseFloat(row['Total Cost']) || 0;
     cumulative += cost;
     const pct = totalCost > 0 ? (cumulative / totalCost) * 100 : 0;
-    let autoClass = pct <= threshA ? 'A' : pct <= threshB ? 'B' : 'C';
+    let autoClass = classifyPct(pct);
     const sku = row['SKU'] || '';
     const ov = overrides[sku] || {};
     const finalClass = ov.class || autoClass;
-    const defaultMin = finalClass === 'A' ? minA : finalClass === 'B' ? minB : minC;
+    const tierIdx = TIER_KEYS.indexOf(finalClass);
+    const defaultMin = tierMin[tierIdx] ?? tierMin[tierMin.length - 1];
     const minQty = ov.minQty !== undefined ? ov.minQty : defaultMin;
     const qty = parseFloat(row['Quantity']) || 0;
     const needOrder = qty <= minQty;
@@ -1108,7 +1171,9 @@ function processData() {
       minQty,
       needOrder,
       pct,
-      notes: ov.notes || ''
+      notes: ov.notes || '',
+      importance: ov.importance || '',
+      lastPrice: ov.lastPrice !== undefined && ov.lastPrice !== null ? ov.lastPrice : null
     };
   });
 
@@ -1126,40 +1191,38 @@ function processData() {
 // =================== SUMMARY ===================
 function updateSummary() {
   document.getElementById('totalItems').textContent = processedData.length;
-  document.getElementById('countA').textContent = processedData.filter(r => r.class === 'A').length;
-  document.getElementById('countB').textContent = processedData.filter(r => r.class === 'B').length;
-  document.getElementById('countC').textContent = processedData.filter(r => r.class === 'C').length;
+  TIER_KEYS.forEach(k => {
+    const el = document.getElementById('count' + k);
+    if (el) el.textContent = processedData.filter(r => r.class === k).length;
+  });
   document.getElementById('orderNow').textContent = processedData.filter(r => r.needOrder).length;
   document.getElementById('negStock').textContent = processedData.filter(r => r.qty < 0).length;
 
-  // Urgent list
-  const urgent = processedData.filter(r => r.needOrder && r.class === 'A').slice(0, 10);
+  // Urgent list — أهم الأصناف (الأهمية اليدوية أولاً، بعدين الشريحة الأعلى)
+  const urgent = processedData.filter(r => r.needOrder && (r.class === 'A' || r.importance === 'عالية'))
+    .sort((a, b) => importanceRank(a) - importanceRank(b))
+    .slice(0, 10);
   document.getElementById('urgentList').innerHTML = urgent.length
     ? urgent.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
         <span>${escapeHtml(r.name)}</span>
         <span class="${r.qty < 0 ? 'qty-neg' : 'qty-low'}">${r.qty.toFixed(2)}</span>
       </div>`).join('')
-    : '<p style="color:var(--muted);font-size:13px;margin-top:12px;">✅ لا توجد أصناف A تحتاج طلب فوري</p>';
+    : '<p style="color:var(--muted);font-size:13px;margin-top:12px;">✅ لا توجد أصناف عالية الطلب تحتاج طلب فوري</p>';
 }
 
 // =================== CHART ===================
 function drawChart() {
   const canvas = document.getElementById('abcChart');
   const ctx = canvas.getContext('2d');
-  const cA = processedData.filter(r => r.class === 'A').length;
-  const cB = processedData.filter(r => r.class === 'B').length;
-  const cC = processedData.filter(r => r.class === 'C').length;
-  const total = cA + cB + cC;
+  const counts = TIER_KEYS.map(k => processedData.filter(r => r.class === k).length);
+  const total = counts.reduce((s, c) => s + c, 0);
   if (!total) return;
 
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
   const cx = W / 2 - 30, cy = H / 2, r = Math.min(cx, cy) - 20;
-  const data = [
-    { val: cA, color: '#f5a623', label: `A (${cA})` },
-    { val: cB, color: '#3498db', label: `B (${cB})` },
-    { val: cC, color: '#8890a8', label: `C (${cC})` }
-  ];
+  const tierColors = { A:'#1a7a40', B:'#0984e3', C:'#7a8c80', D:'#f5a623', E:'#e17055', F:'#c0392b' };
+  const data = TIER_KEYS.map((k, i) => ({ val: counts[i], color: tierColors[k], label: `${TIER_LABELS[k]} (${counts[i]})` }));
   let start = -Math.PI / 2;
   data.forEach(d => {
     const angle = (d.val / total) * 2 * Math.PI;
@@ -1189,8 +1252,8 @@ function drawChart() {
 function setOrderFilter(f) {
   orderFilter = f;
   ordersPage = 1;
-  ['fAll','fOrder','fOk','fA','fB','fC'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-  const map = { all: 'fAll', order: 'fOrder', ok: 'fOk', A: 'fA', B: 'fB', C: 'fC' };
+  ['fAll','fOrder','fOk','fA','fB','fC','fD','fE','fF'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  const map = { all: 'fAll', order: 'fOrder', ok: 'fOk', A: 'fA', B: 'fB', C: 'fC', D: 'fD', E: 'fE', F: 'fF' };
   document.getElementById(map[f])?.classList.add('active');
   renderOrders();
 }
@@ -1208,13 +1271,15 @@ function renderOrders() {
 
   if (orderFilter === 'order') data = data.filter(r => r.needOrder);
   else if (orderFilter === 'ok') data = data.filter(r => !r.needOrder);
-  else if (['A','B','C'].includes(orderFilter)) data = data.filter(r => r.class === orderFilter);
+  else if (TIER_KEYS.includes(orderFilter)) data = data.filter(r => r.class === orderFilter);
 
   if (q) data = data.filter(r => r.name.includes(q) || r.sku.toLowerCase().includes(q));
 
   const fmap = { name: 'name', sku: 'sku', class: 'class', qty: 'qty', minQty: 'minQty', totalCost: 'totalCost' };
   const f = fmap[sortField] || 'totalCost';
   data.sort((a, b) => {
+    const imp = importanceRank(a) - importanceRank(b);
+    if (imp !== 0) return imp;
     const va = typeof a[f] === 'string' ? a[f] : a[f] ?? 0;
     const vb = typeof b[f] === 'string' ? b[f] : b[f] ?? 0;
     return va > vb ? sortDir : va < vb ? -sortDir : 0;
@@ -1230,17 +1295,20 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
-      <td><span class="badge badge-${r.class}">${r.class}</span></td>
+      <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
+      <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
+      <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
       <td style="color:var(--muted)">${r.minQty}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
+  `).join('') || '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('ordersPager', pages, ordersPage, p => { ordersPage = p; renderOrders(); });
 }
@@ -1249,8 +1317,8 @@ function renderOrders() {
 function setAllFilter(f) {
   allFilter = f;
   allPage = 1;
-  ['aAll','aA','aB','aC'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-  const map = { all: 'aAll', A: 'aA', B: 'aB', C: 'aC' };
+  ['aAll','aA','aB','aC','aD','aE','aF'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  const map = { all: 'aAll', A: 'aA', B: 'aB', C: 'aC', D: 'aD', E: 'aE', F: 'aF' };
   document.getElementById(map[f])?.classList.add('active');
   renderAll();
 }
@@ -1271,6 +1339,8 @@ function renderAll() {
   const fmap = { name: 'name', sku: 'sku', class: 'class', qty: 'qty', cost: 'totalCost' };
   const f = fmap[sortFieldAll] || 'totalCost';
   data.sort((a, b) => {
+    const imp = importanceRank(a) - importanceRank(b);
+    if (imp !== 0) return imp;
     const va = typeof a[f] === 'string' ? a[f] : a[f] ?? 0;
     const vb = typeof b[f] === 'string' ? b[f] : b[f] ?? 0;
     return va > vb ? sortDirAll : va < vb ? -sortDirAll : 0;
@@ -1284,18 +1354,20 @@ function renderAll() {
     <tr>
       <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
-      <td style="color:var(--muted)">${r.unit}</td>
+      <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
       <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
       <td>${r.totalCost.toLocaleString('ar-EG', {minimumFractionDigits:0})} ج</td>
-      <td><span class="badge badge-${r.class}">${r.class}</span></td>
+      <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
+      <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
+  `).join('') || '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('allPager', pages, allPage, p => { allPage = p; renderAll(); });
 }
@@ -1319,14 +1391,23 @@ function renderManualList() {
   const q = (document.getElementById('searchManual')?.value || '').toLowerCase();
   const data = processedData.filter(r => !q || r.name.includes(q) || r.sku.toLowerCase().includes(q)).slice(0, 30);
   document.getElementById('manualList').innerHTML = data.map(r => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:10px;">
-      <span style="font-size:13px;flex:1">${escapeHtml(r.name)}</span>
-      <span class="badge badge-${r.autoClass}" style="font-size:11px">${r.autoClass} تلقائي</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;">
+      <span style="font-size:13px;flex:1;min-width:120px">${escapeHtml(r.name)}</span>
+      <span class="badge badge-${r.autoClass}" style="font-size:11px">${TIER_LABELS[r.autoClass]} تلقائي</span>
       <select onchange="quickOverride('${r.sku}', this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Cairo',sans-serif;font-size:12px;">
         <option value="" ${!overrides[r.sku]?.class ? 'selected' : ''}>تلقائي</option>
-        <option value="A" ${overrides[r.sku]?.class === 'A' ? 'selected' : ''}>A</option>
-        <option value="B" ${overrides[r.sku]?.class === 'B' ? 'selected' : ''}>B</option>
-        <option value="C" ${overrides[r.sku]?.class === 'C' ? 'selected' : ''}>C</option>
+        <option value="A" ${overrides[r.sku]?.class === 'A' ? 'selected' : ''}>عالي</option>
+        <option value="B" ${overrides[r.sku]?.class === 'B' ? 'selected' : ''}>عادي</option>
+        <option value="C" ${overrides[r.sku]?.class === 'C' ? 'selected' : ''}>متوسط</option>
+        <option value="D" ${overrides[r.sku]?.class === 'D' ? 'selected' : ''}>منخفض</option>
+        <option value="E" ${overrides[r.sku]?.class === 'E' ? 'selected' : ''}>منخفض جدًا</option>
+        <option value="F" ${overrides[r.sku]?.class === 'F' ? 'selected' : ''}>متدني</option>
+      </select>
+      <select onchange="quickOverrideImportance('${r.sku}', this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Cairo',sans-serif;font-size:12px;">
+        <option value="" ${!overrides[r.sku]?.importance ? 'selected' : ''}>بدون أهمية</option>
+        <option value="عالية" ${overrides[r.sku]?.importance === 'عالية' ? 'selected' : ''}>أهمية عالية</option>
+        <option value="متوسطة" ${overrides[r.sku]?.importance === 'متوسطة' ? 'selected' : ''}>أهمية متوسطة</option>
+        <option value="منخفضة" ${overrides[r.sku]?.importance === 'منخفضة' ? 'selected' : ''}>أهمية منخفضة</option>
       </select>
     </div>
   `).join('');
@@ -1339,6 +1420,13 @@ function quickOverride(sku, val) {
   if (processedData.length) processData();
 }
 
+function quickOverrideImportance(sku, val) {
+  if (val) overrides[sku] = { ...overrides[sku], importance: val };
+  else if (overrides[sku]) delete overrides[sku].importance;
+  saveOverrides();
+  if (processedData.length) processData();
+}
+
 // =================== EDIT MODAL ===================
 function openEdit(sku) {
   const row = processedData.find(r => r.sku === sku);
@@ -1346,7 +1434,9 @@ function openEdit(sku) {
   document.getElementById('editSku').value = sku;
   document.getElementById('editName').value = row.name;
   document.getElementById('editClass').value = overrides[sku]?.class || '';
+  document.getElementById('editImportance').value = overrides[sku]?.importance || '';
   document.getElementById('editMin').value = overrides[sku]?.minQty !== undefined ? overrides[sku].minQty : '';
+  document.getElementById('editLastPrice').value = overrides[sku]?.lastPrice !== undefined && overrides[sku]?.lastPrice !== null ? overrides[sku].lastPrice : '';
   document.getElementById('editNotes').value = overrides[sku]?.notes || '';
   document.getElementById('editModal').classList.add('open');
 }
@@ -1358,12 +1448,15 @@ function closeModal() {
 function saveEdit() {
   const sku = document.getElementById('editSku').value;
   const cls = document.getElementById('editClass').value;
+  const imp = document.getElementById('editImportance').value;
   const mn = document.getElementById('editMin').value;
+  const lp = document.getElementById('editLastPrice').value;
   const notes = document.getElementById('editNotes').value.trim();
-  const prevNotes = overrides[sku]?.notes || '';
   overrides[sku] = {};
   if (cls) overrides[sku].class = cls;
+  if (imp) overrides[sku].importance = imp;
   if (mn !== '') overrides[sku].minQty = parseFloat(mn);
+  if (lp !== '') overrides[sku].lastPrice = parseFloat(lp);
   if (notes) overrides[sku].notes = notes;
   saveOverrides();
   closeModal();
@@ -1376,12 +1469,12 @@ async function saveOverrides() {
 
 // =================== SETTINGS ===================
 async function saveSettings() {
-  threshA = parseFloat(document.getElementById('threshA').value) || 70;
-  threshB = parseFloat(document.getElementById('threshB').value) || 90;
-  minA = parseFloat(document.getElementById('minA').value) ?? 10;
-  minB = parseFloat(document.getElementById('minB').value) ?? 5;
-  minC = parseFloat(document.getElementById('minC').value) ?? 2;
-  await dbSet('settings', { threshA, threshB, minA, minB, minC });
+  tierCut = [0,1,2,3,4].map(i => parseFloat(document.getElementById('cut'+i).value) || tierCut[i]);
+  tierMin = [0,1,2,3,4,5].map(i => {
+    const v = parseFloat(document.getElementById('min'+i).value);
+    return isNaN(v) ? tierMin[i] : v;
+  });
+  await dbSet('settings', { tierCut, tierMin });
   if (processedData.length) processData();
   alert('✅ تم الحفظ وإعادة التصنيف');
 }
@@ -1416,7 +1509,7 @@ function exportOrders() {
   let data = [...processedData];
   if (orderFilter === 'order') data = data.filter(r => r.needOrder);
   else if (orderFilter === 'ok') data = data.filter(r => !r.needOrder);
-  else if (['A','B','C'].includes(orderFilter)) data = data.filter(r => r.class === orderFilter);
+  else if (TIER_KEYS.includes(orderFilter)) data = data.filter(r => r.class === orderFilter);
   if (q) data = data.filter(r => r.name.includes(q) || r.sku.toLowerCase().includes(q));
   exportCSV(data, 'barq_orders');
 }
@@ -1430,10 +1523,10 @@ function exportAll() {
 }
 
 function exportCSV(data, name) {
-  const headers = ['الاسم', 'SKU', 'الوحدة', 'الكمية', 'الحد الأدنى', 'الشريحة', 'القرار', 'التكلفة الإجمالية'];
+  const headers = ['الاسم', 'SKU', 'الوحدة', 'الكمية', 'الحد الأدنى', 'الشريحة', 'الأهمية', 'القرار', 'آخر سعر', 'التكلفة الإجمالية'];
   const rows = data.map(r => [
-    r.name, r.sku, r.unit, r.qty.toFixed(2), r.minQty, r.class,
-    r.needOrder ? 'اطلب' : 'لا تطلب', r.totalCost.toFixed(2)
+    r.name, r.sku, unitLabel(r.unit), r.qty.toFixed(2), r.minQty, TIER_LABELS[r.class], r.importance || '—',
+    r.needOrder ? 'اطلب' : 'لا تطلب', r.lastPrice != null ? r.lastPrice.toFixed(2) : '—', r.totalCost.toFixed(2)
   ]);
   const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -1502,10 +1595,11 @@ function runAIAnalysis() {
       // أعلى 10 أصناف من حيث القيمة (أكتر حاجة بتاخد فلوس)
       const top10Cost = [...processedData].sort((a, b) => b.totalCost - a.totalCost).slice(0, 10);
 
-      // أصناف حرجة تحتاج طلب فوري (أولوية لـ A ثم B ثم C)
+      // أصناف حرجة تحتاج طلب فوري (أولوية للأهمية اليدوية ثم الشريحة الأعلى)
       const criticalItems = [...needOrder].sort((a, b) => {
-        const p = { A: 3, B: 2, C: 1 };
-        return (p[b.class] || 0) - (p[a.class] || 0);
+        const imp = importanceRank(a) - importanceRank(b);
+        if (imp !== 0) return imp;
+        return TIER_KEYS.indexOf(a.class) - TIER_KEYS.indexOf(b.class);
       }).slice(0, 15);
 
       // أصناف راكدة: شريحة C بس كمية عالية جداً (يعني تكلفة معدومة لكن مخزون مكدّس)
@@ -1924,8 +2018,9 @@ function saveSnapshot() { exportBackup(); }
         <div id="po-search-results" style="margin-bottom:10px;max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;display:none;background:var(--surface);"></div>
 
         <!-- Selected items list -->
-        <div id="po-selected-header" style="display:none;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">
-          الأصناف المختارة:
+        <div id="po-selected-header" style="display:none;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;justify-content:space-between;align-items:center;">
+          <span>الأصناف المختارة:</span>
+          <button class="filter-btn" style="padding:4px 10px;font-size:11px" onclick="clearCart()">🧹 امسح السلة</button>
         </div>
         <div id="po-items-list" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;">
           <div id="po-items-empty" style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">لم يتم اختيار أصناف بعد</div>
@@ -2030,9 +2125,10 @@ var poItems = []; // [{sku, name, unit, qty, stock}]  — no price field
 var poEditId = null;
 
 // ── New Order ──
+// ملحوظة: poItems عبارة عن "سلة" مستمرة — ممكن تتضاف لها أصناف من جدول المخزون مباشرة
+// (زرار 🧾+) قبل ما تفتح "أمر جديد"، فمش بنصفرها هنا عشان محدش يفقد الأصناف اللي ضافها بالفعل.
 function poNewOrder() {
   poEditId = null;
-  poItems = [];
   poShowView('new');
   setTimeout(function(){
     poPopulateSuppliers();
@@ -2043,6 +2139,40 @@ function poNewOrder() {
       d.value = dt.toISOString().split('T')[0];
     }
   }, 30);
+}
+
+// ── Cart (from inventory tables) ──
+function addToCart(sku) {
+  var row = (typeof processedData !== 'undefined') ? processedData.find(function(p){ return p.sku === sku; }) : null;
+  if (!row) return;
+  var exists = poItems.find(function(x){ return x.sku === sku; });
+  if (exists) { showToast('⚠️ الصنف موجود بالفعل في سلة أمر الشراء'); return; }
+  poItems.push({ sku: row.sku, name: row.name, unit: row.unit || '', qty: 1, stock: row.qty || 0, lastPrice: row.lastPrice ?? null });
+  updateCartBadge();
+  poRenderItemsList();
+  showToast('✅ اتضاف لسلة أمر الشراء (' + poItems.length + ' صنف) — اضغط "🧾 أوامر الشراء" للمتابعة');
+}
+
+function clearCart() {
+  if (!poItems.length) return;
+  if (!confirm('تفريغ سلة أمر الشراء الحالية؟')) return;
+  poItems = [];
+  updateCartBadge();
+  poRenderItemsList();
+}
+
+function updateCartBadge() {
+  var btn = document.getElementById('btn-po');
+  if (!btn) return;
+  var badge = document.getElementById('poCartBadge');
+  if (!poItems.length) { if (badge) badge.remove(); return; }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'poCartBadge';
+    badge.style.cssText = 'background:#d63031;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:6px;';
+    btn.appendChild(badge);
+  }
+  badge.textContent = poItems.length;
 }
 
 // ── Load POs ──
@@ -2296,7 +2426,7 @@ function poRenderSearchBox() {
       '<div style="width:20px;height:20px;border-radius:4px;border:2px solid #ccc;display:flex;align-items:center;justify-content:center;font-size:13px;color:white;flex-shrink:0;transition:all .15s;' + checkStyle + '" id="po-chk-' + i + '">' + checkMark + '</div>' +
       '<div style="flex:1;min-width:0;">' +
         '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + p.name + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);">' + (p.sku||'—') + ' | ' + (p.unit||'—') + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);">' + (p.sku||'—') + ' | ' + unitLabel(p.unit) + '</div>' +
       '</div>' +
       '<span style="font-size:12px;font-weight:700;color:' + stockColor + ';flex-shrink:0;margin-left:8px;">' + (parseFloat(p.qty)||0).toFixed(1) + '</span>' +
     '</div>';
@@ -2351,12 +2481,13 @@ function poAddSelected() {
     if (!p) return;
     var exists = poItems.find(function(x){ return x.sku === (p.sku||'') && x.name === p.name; });
     if (!exists) {
-      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0 });
+      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
       added++;
     }
   });
   poSelectedIdx = [];
   poRenderItemsList();
+  updateCartBadge();
   // Clear search
   var q = document.getElementById('po-item-q'); if(q) q.value='';
   var box = document.getElementById('po-search-results'); if(box){ box.style.display='none'; box.innerHTML=''; }
@@ -2372,9 +2503,10 @@ function poAddLowStock() {
   });
   if (!low.length) { showToast('لا توجد أصناف ناقصة غير مضافة'); return; }
   low.forEach(function(p){
-    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0 });
+    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
   });
   poRenderItemsList();
+  updateCartBadge();
   showToast('✅ تم إضافة ' + low.length + ' صنف ناقص');
   // Re-render search to update checkboxes
   var q = document.getElementById('po-item-q');
@@ -2397,7 +2529,7 @@ function poRenderItemsList() {
     return;
   }
 
-  if (hdr) hdr.style.display = 'block';
+  if (hdr) hdr.style.display = 'flex';
   if (emptyMsg) emptyMsg.style.display = 'none';
 
   container.innerHTML = poItems.map(function(item, i){
@@ -2408,7 +2540,8 @@ function poRenderItemsList() {
       // Name + SKU
       '<div style="flex:1;min-width:120px;">' +
         '<div style="font-size:13px;font-weight:600;">' + (item.name||'—') + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);">' + (item.sku||'—') + ' | ' + (item.unit||'—') + ' | مخزون: <span style="color:' + stockColor + ';font-weight:700;">' + (item.stock||0).toFixed(1) + '</span></div>' +
+        '<div style="font-size:11px;color:var(--muted);">' + (item.sku||'—') + ' | ' + unitLabel(item.unit) + ' | مخزون: <span style="color:' + stockColor + ';font-weight:700;">' + (item.stock||0).toFixed(1) + '</span>' +
+          ' | آخر سعر: <strong>' + (item.lastPrice != null ? parseFloat(item.lastPrice).toFixed(2) + ' ج' : '—') + '</strong></div>' +
       '</div>' +
       // Qty
       '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
@@ -2429,6 +2562,7 @@ function poRenderItemsList() {
 function poRemoveItem(i) {
   poItems.splice(i, 1);
   poRenderItemsList();
+  updateCartBadge();
   // Refresh checkboxes
   var q = document.getElementById('po-item-q');
   if (q && q.value.length >= 2) poSearchItems();
@@ -2500,7 +2634,7 @@ function poEdit(id) {
   if (!po) return;
   poEditId = id;
   poItems = (po.purchase_order_items || []).map(function(i){
-    return { sku:i.sku||'', name:i.product_name||'', unit:i.unit||'', qty:i.qty_ordered||1, stock:i.current_stock||0 };
+    return { sku:i.sku||'', name:i.product_name||'', unit:i.unit||'', qty:i.qty_ordered||1, stock:i.current_stock||0, lastPrice: i.unit_price || null };
   });
   poShowView('new');
   setTimeout(function(){
@@ -2511,6 +2645,7 @@ function poEdit(id) {
     if (g('po-exp-date'))    g('po-exp-date').value    = po.expected_date || '';
     if (g('po-notes-inp'))   g('po-notes-inp').value   = po.notes         || '';
     poRenderItemsList();
+    updateCartBadge();
   }, 60);
 }
 
@@ -2618,6 +2753,7 @@ function poReset() {
   var spr = document.getElementById('po-sup-results'); if(spr){spr.style.display='none';spr.innerHTML='';}
   var ofr = document.getElementById('po-officer-results'); if(ofr){ofr.style.display='none';ofr.innerHTML='';}
   poRenderItemsList();
+  updateCartBadge();
 }
 
 // ── Supplier searchable typeahead ──
