@@ -1157,7 +1157,7 @@ async function syncDataCenter() {
   setSyncStatus('⏳ جاري سحب أحدث نسخة من الملفات وتحديث اللي اتغيّر...');
   try {
     const r = await fetch(PO_SB_URL + '/functions/v1/dc-sync', {
-      method: 'POST', headers: Object.assign({}, PO_SB_H, {'Content-Type':'application/json'}), body: JSON.stringify({})
+      method: 'POST', headers: {'apikey': PO_SB_KEY, 'Authorization': 'Bearer ' + PO_SB_KEY, 'Content-Type':'application/json'}, body: JSON.stringify({})
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
