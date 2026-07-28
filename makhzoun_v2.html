@@ -613,11 +613,12 @@
 
   <!-- DASHBOARD TAB -->
   <div id="tab-dashboard" style="display: none;">
-    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvFile').click()">
-      <div class="icon">📂</div>
-      <h3>ارفع تقرير المخزون اليومي</h3>
-      <p>CSV من Foodics – مستويات المخزون</p>
-      <input type="file" id="csvFile" accept=".csv" onchange="handleFile(this.files[0])">
+    <div class="upload-zone" id="syncZone">
+      <div class="icon">🔄</div>
+      <h3>الداتا سنتر</h3>
+      <p id="syncStatusText">جاري المزامنة...</p>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="syncDataCenter()">🔄 مزامنة الآن</button>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">الملفات بترفع في مجلد الداتا سنتر على Drive — مفيش رفع يدوي هنا تاني</p>
     </div>
 
     <div id="summaryCards" style="display:none">
@@ -649,8 +650,8 @@
 
     <div id="emptyDash" class="empty">
       <div class="icon">📊</div>
-      <h3>ارفع تقرير المخزون لتبدأ</h3>
-      <p>CSV من Foodics → مستويات المخزون</p>
+      <h3>جاري تحميل بيانات المخزون من الداتا سنتر...</h3>
+      <p>لو الصفحة فضلت هنا، دوس "🔄 مزامنة الآن" فوق</p>
     </div>
   </div>
 
@@ -1125,35 +1126,57 @@ openDB().then(loadAllData).then(() => {
   renderHistory();
   renderSuppliers();
   updateCartBadge();
-  loadDcCurrentCost();
+  syncDataCenter(); // مزامنة تلقائية أول ما تفتح الصفحة — بدل الرفع اليدوي
 });
 
-// =================== FILE HANDLING ===================
-const zone = document.getElementById('uploadZone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+// =================== الداتا سنتر — مصدر مستويات المخزون (بدل الرفع اليدوي) ===================
+// كل الرفع بقى مركزي: الملفات بتترفع في مجلد الداتا سنتر على Drive، والمزامنة هنا
+// بتسحب النسخة الأحدث من Supabase (بعد ما تكون اتزامنت من هناك) وتبني عليها التحليل.
+function setSyncStatus(msg, isError) {
+  const el = document.getElementById('syncStatusText');
+  if (el) { el.textContent = msg; el.style.color = isError ? 'var(--red)' : ''; }
+}
 
-const REQUIRED_INVENTORY_HEADERS = ['SKU','Name','Quantity','Storage Unit','Cost Per Unit','Total Cost'];
-function handleFile(file) {
-  if (!file) return;
-  Papa.parse(file, {
-    header: true,
-    skipEmptyLines: true,
-    complete: (results) => {
-      const fields = results.meta && results.meta.fields || [];
-      const missing = REQUIRED_INVENTORY_HEADERS.filter(h => fields.indexOf(h) === -1);
-      if (missing.length) {
-        showToast('⚠️ الملف مش بصيغة تقرير المخزون المتوقعة — الأعمدة الناقصة: ' + missing.join('، '), 6000);
-        return;
-      }
-      rawData = results.data;
-      processData();
-      saveToHistory(file.name);
-      document.getElementById('lastUpload').textContent = new Date().toLocaleTimeString('ar-EG');
-      document.getElementById('uploadDateBadge').textContent = new Date().toLocaleDateString('ar-EG');
+async function loadStockFromDataCenter() {
+  const r = await fetch(PO_SB_URL + '/rest/v1/dc_stock_levels?select=sku,name,unit,barcode,qty,cost_per_unit,total_cost', { headers: PO_SB_H });
+  if (!r.ok) throw new Error('تعذّر تحميل مستويات المخزون من الداتا سنتر');
+  const rows = await r.json();
+  if (!rows.length) return false;
+  rawData = rows.map(row => ({
+    'SKU': row.sku || '', 'Name': row.name || '', 'Storage Unit': row.unit || '',
+    'Quantity': row.qty ?? 0, 'Cost Per Unit': row.cost_per_unit ?? 0, 'Total Cost': row.total_cost ?? 0
+  }));
+  processData();
+  saveToHistory('مزامنة الداتا سنتر');
+  document.getElementById('lastUpload').textContent = new Date().toLocaleTimeString('ar-EG');
+  document.getElementById('uploadDateBadge').textContent = new Date().toLocaleDateString('ar-EG');
+  return true;
+}
+
+async function syncDataCenter() {
+  setSyncStatus('⏳ جاري سحب أحدث نسخة من الملفات وتحديث اللي اتغيّر...');
+  try {
+    const r = await fetch(PO_SB_URL + '/functions/v1/dc-sync', {
+      method: 'POST', headers: Object.assign({}, PO_SB_H, {'Content-Type':'application/json'}), body: JSON.stringify({})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const failed = (data.results || []).filter(x => x.status === 'failed');
+    if (failed.length) {
+      setSyncStatus('⚠️ فيه مشكلة في المزامنة: ' + failed.map(f => f.table + ' — ' + f.error).join(' | '), true);
+    } else {
+      const summary = (data.results || []).map(x => x.table + ': ' + (x.inserted!=null ? `+${x.inserted} جديد / ${x.updated} اتحدّث / ${x.unchanged} زي ما هو` : `${x.total} صف`)).join(' — ');
+      setSyncStatus('✅ آخر مزامنة: ' + new Date().toLocaleString('ar-EG') + ' — ' + summary);
     }
-  });
+  } catch (e) {
+    setSyncStatus('⚠️ تعذّرت المزامنة التلقائية (' + e.message + ') — هنعرض آخر نسخة محفوظة', true);
+  }
+  try {
+    await loadDcCurrentCost();
+    await loadStockFromDataCenter();
+  } catch (e) {
+    setSyncStatus('⚠️ ' + e.message, true);
+  }
 }
 
 // =================== PROCESS DATA ===================
