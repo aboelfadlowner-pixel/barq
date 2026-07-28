@@ -1110,13 +1110,27 @@ function importBackup(file) {
 // المصدر الموحّد للتكلفة الحالية، تُستخدم في أمر الشراء وأي مكان محتاج "آخر سعر"
 async function loadDcCurrentCost() {
   try {
-    const r = await fetch(PO_SB_URL + '/rest/v1/dc_current_cost?select=sku,current_cost', { headers: PO_SB_H });
-    if (!r.ok) return;
-    const rows = await r.json();
+    const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_current_cost?select=sku,current_cost');
     dcCostMap = {};
     rows.forEach(row => { if (row.sku && row.current_cost != null) dcCostMap[row.sku] = parseFloat(row.current_cost); });
     if (rawData.length) processData(); // نعيد الحساب لو الملف كان محمّل قبل ما التكلفة توصل
   } catch (e) { console.error('[loadDcCurrentCost]', e); }
+}
+
+// Supabase/PostgREST بيحدد أقصى 1000 صف في الرد الواحد افتراضيًا — لازم نصفّح لو العدد أكبر
+async function fetchAllPaginated(url) {
+  const pageSize = 1000;
+  let offset = 0;
+  let all = [];
+  while (true) {
+    const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'offset=' + offset + '&limit=' + pageSize, { headers: PO_SB_H });
+    if (!r.ok) break;
+    const page = await r.json();
+    all = all.concat(page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
 }
 
 // =================== INIT ===================
@@ -1138,9 +1152,7 @@ function setSyncStatus(msg, isError) {
 }
 
 async function loadStockFromDataCenter() {
-  const r = await fetch(PO_SB_URL + '/rest/v1/dc_stock_levels?select=sku,name,unit,barcode,qty,cost_per_unit,total_cost', { headers: PO_SB_H });
-  if (!r.ok) throw new Error('تعذّر تحميل مستويات المخزون من الداتا سنتر');
-  const rows = await r.json();
+  const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_stock_levels?select=sku,name,unit,barcode,qty,cost_per_unit,total_cost');
   if (!rows.length) return false;
   rawData = rows.map(row => ({
     'SKU': row.sku || '', 'Name': row.name || '', 'Storage Unit': row.unit || '',
