@@ -689,6 +689,7 @@
             <th>الأهمية</th>
             <th onclick="sortBy('qty')">الكمية ↕</th>
             <th onclick="sortBy('minQty')">الحد الأدنى</th>
+            <th>آخر سعر</th>
             <th>قرار الطلب</th>
             <th>تعديل</th>
           </tr>
@@ -724,6 +725,7 @@
             <th onclick="sortAllBy('cost')">التكلفة الإجمالية ↕</th>
             <th onclick="sortAllBy('class')">شريحة ↕</th>
             <th>الأهمية</th>
+            <th>آخر سعر</th>
             <th>قرار</th>
             <th>تعديل</th>
           </tr>
@@ -947,7 +949,7 @@
       <input type="number" id="editMin" placeholder="اتركه فارغاً للقيمة التلقائية" min="0">
     </div>
     <div class="form-group">
-      <label>💰 آخر سعر شراء (يدوي — هيتحدث تلقائي بعد ربط الداتا سنتر)</label>
+      <label>💰 آخر سعر شراء (تعديل يدوي — يتفوق على قيمة الداتا سنتر التلقائية)</label>
       <input type="number" id="editLastPrice" placeholder="مثال: 45.50" min="0" step="0.01">
     </div>
     <div class="form-group">
@@ -978,6 +980,7 @@ const PAGE_SIZE = 50;
 let tierCut = [50, 70, 85, 93, 97];
 let tierMin = [15, 10, 7, 5, 3, 1];
 let overrides = {}, suppliers = [], supEditId = null, supLinkedSkus = [];
+let dcCostMap = {}; // sku -> آخر تكلفة من الداتا سنتر (dc_current_cost)
 let history = [];
 
 // =================== TIER / IMPORTANCE / UNIT HELPERS ===================
@@ -1102,6 +1105,19 @@ function importBackup(file) {
   document.getElementById('importFile').value='';
 }
 
+// =================== DATA CENTER — آخر تكلفة (dc_current_cost) ===================
+// المصدر الموحّد للتكلفة الحالية، تُستخدم في أمر الشراء وأي مكان محتاج "آخر سعر"
+async function loadDcCurrentCost() {
+  try {
+    const r = await fetch(PO_SB_URL + '/rest/v1/dc_current_cost?select=sku,current_cost', { headers: PO_SB_H });
+    if (!r.ok) return;
+    const rows = await r.json();
+    dcCostMap = {};
+    rows.forEach(row => { if (row.sku && row.current_cost != null) dcCostMap[row.sku] = parseFloat(row.current_cost); });
+    if (rawData.length) processData(); // نعيد الحساب لو الملف كان محمّل قبل ما التكلفة توصل
+  } catch (e) { console.error('[loadDcCurrentCost]', e); }
+}
+
 // =================== INIT ===================
 openDB().then(loadAllData).then(() => {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ar-EG');
@@ -1109,6 +1125,7 @@ openDB().then(loadAllData).then(() => {
   renderHistory();
   renderSuppliers();
   updateCartBadge();
+  loadDcCurrentCost();
 });
 
 // =================== FILE HANDLING ===================
@@ -1173,7 +1190,8 @@ function processData() {
       pct,
       notes: ov.notes || '',
       importance: ov.importance || '',
-      lastPrice: ov.lastPrice !== undefined && ov.lastPrice !== null ? ov.lastPrice : null
+      lastPrice: ov.lastPrice !== undefined && ov.lastPrice !== null ? ov.lastPrice : (dcCostMap[sku] ?? null),
+      lastPriceFromDC: !(ov.lastPrice !== undefined && ov.lastPrice !== null) && dcCostMap[sku] != null
     };
   });
 
@@ -1300,6 +1318,7 @@ function renderOrders() {
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
       <td style="color:var(--muted)">${r.minQty}</td>
+      <td>${r.lastPrice != null ? r.lastPrice.toFixed(2) + ' ج' : '<span style="color:var(--muted);font-size:12px">—</span>'}${r.lastPriceFromDC ? ' <span style="font-size:9px;color:#1a7a40">DC</span>' : ''}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
@@ -1308,7 +1327,7 @@ function renderOrders() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
+  `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('ordersPager', pages, ordersPage, p => { ordersPage = p; renderOrders(); });
 }
@@ -1359,6 +1378,7 @@ function renderAll() {
       <td>${r.totalCost.toLocaleString('ar-EG', {minimumFractionDigits:0})} ج</td>
       <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+      <td>${r.lastPrice != null ? r.lastPrice.toFixed(2) + ' ج' : '<span style="color:var(--muted);font-size:12px">—</span>'}${r.lastPriceFromDC ? ' <span style="font-size:9px;color:#1a7a40">DC</span>' : ''}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
       <td style="display:flex;align-items:center;gap:6px">
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
@@ -1367,7 +1387,7 @@ function renderAll() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
+  `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('allPager', pages, allPage, p => { allPage = p; renderAll(); });
 }
@@ -2147,7 +2167,7 @@ function addToCart(sku) {
   if (!row) return;
   var exists = poItems.find(function(x){ return x.sku === sku; });
   if (exists) { showToast('⚠️ الصنف موجود بالفعل في سلة أمر الشراء'); return; }
-  poItems.push({ sku: row.sku, name: row.name, unit: row.unit || '', qty: 1, stock: row.qty || 0, lastPrice: row.lastPrice ?? null });
+  poItems.push({ sku: row.sku, name: row.name, unit: row.unit || '', qty: 1, stock: row.qty || 0, lastPrice: row.lastPrice ?? null, lastPriceFromDC: !!row.lastPriceFromDC });
   updateCartBadge();
   poRenderItemsList();
   showToast('✅ اتضاف لسلة أمر الشراء (' + poItems.length + ' صنف) — اضغط "🧾 أوامر الشراء" للمتابعة');
@@ -2481,7 +2501,7 @@ function poAddSelected() {
     if (!p) return;
     var exists = poItems.find(function(x){ return x.sku === (p.sku||'') && x.name === p.name; });
     if (!exists) {
-      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
+      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null, lastPriceFromDC: !!p.lastPriceFromDC });
       added++;
     }
   });
@@ -2503,7 +2523,7 @@ function poAddLowStock() {
   });
   if (!low.length) { showToast('لا توجد أصناف ناقصة غير مضافة'); return; }
   low.forEach(function(p){
-    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
+    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null, lastPriceFromDC: !!p.lastPriceFromDC });
   });
   poRenderItemsList();
   updateCartBadge();
@@ -2541,7 +2561,8 @@ function poRenderItemsList() {
       '<div style="flex:1;min-width:120px;">' +
         '<div style="font-size:13px;font-weight:600;">' + (item.name||'—') + '</div>' +
         '<div style="font-size:11px;color:var(--muted);">' + (item.sku||'—') + ' | ' + unitLabel(item.unit) + ' | مخزون: <span style="color:' + stockColor + ';font-weight:700;">' + (item.stock||0).toFixed(1) + '</span>' +
-          ' | آخر سعر: <strong>' + (item.lastPrice != null ? parseFloat(item.lastPrice).toFixed(2) + ' ج' : '—') + '</strong></div>' +
+          ' | آخر سعر: <strong>' + (item.lastPrice != null ? parseFloat(item.lastPrice).toFixed(2) + ' ج' : '—') + '</strong>' +
+          (item.lastPriceFromDC ? ' <span style="background:#eafaf1;color:#1a7a40;border-radius:8px;padding:1px 6px;font-size:10px;">من الداتا سنتر</span>' : '') + '</div>' +
       '</div>' +
       // Qty
       '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
