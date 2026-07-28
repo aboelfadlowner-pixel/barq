@@ -2011,6 +2011,7 @@ function saveSnapshot() { exportBackup(); }
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button class="primary-btn" onclick="poShowView('list')">📋 الأوامر</button>
       <button class="secondary-btn" onclick="poNewOrder()">➕ أمر جديد</button>
+      <button class="secondary-btn" id="btn-po-split" onclick="poOpenSplit()" style="display:none;">🧮 وزّع السلة على الموردين (<span id="po-split-count">0</span>)</button>
     </div>
 
     <!-- ── LIST VIEW ── -->
@@ -2091,7 +2092,7 @@ function saveSnapshot() { exportBackup(); }
           <button class="primary-btn" onclick="poSave('draft')">💾 حفظ مسودة</button>
           <button class="primary-btn" style="background:#1a3a5c;" onclick="poSave('sent')">📤 إرسال وتأكيد</button>
           <button class="primary-btn" style="background:#555;" onclick="poPrint()">🖨️ طباعة</button>
-          <button class="secondary-btn" onclick="poShowView('list')">إلغاء</button>
+          <button class="secondary-btn" onclick="poCancelNew()">إلغاء</button>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:8px;">
           ⓘ "إرسال وتأكيد" يرسل الأمر لمطابقة الفاتورة ومراجعة الكميات والتسعير في آن واحد
@@ -2101,6 +2102,9 @@ function saveSnapshot() { exportBackup(); }
 
     <!-- ── DETAIL VIEW ── -->
     <div id="po-view-detail" style="display:none;"></div>
+
+    <!-- ── SPLIT-BY-SUPPLIER VIEW ── -->
+    <div id="po-view-split" style="display:none;"></div>
   </div>
 
   <!-- Print Frame -->
@@ -2217,6 +2221,7 @@ function clearCart() {
 }
 
 function updateCartBadge() {
+  if (typeof poUpdateSplitButton === 'function') poUpdateSplitButton();
   var btn = document.getElementById('btn-po');
   if (!btn) return;
   var badge = document.getElementById('poCartBadge');
@@ -2630,6 +2635,157 @@ function poCalcTotal() {
   if (el) el.textContent = poItems.length + ' صنف';
 }
 
+// =================== توزيع سلة الشراء على الموردين ===================
+// السلة ممكن تتجمع من موردين مختلفين (من قرارات الطلب/كل الأصناف) — هنا بنقسّمها
+// لمجموعات حسب المورد المرتبط بكل SKU، وبنسيب اللي بلا مورد أو المرتبط بأكتر من مورد
+// عشان المستخدم يحددهم يدويًا قبل ما ينشئ أمر شراء منفصل لكل مورد.
+var poPendingSplit = null;   // باقي أصناف السلة اللي لسه محتاجة أمر شراء لموردها بعد إنشاء أمر لمورد واحد
+var poSplitAssign = {};      // sku -> supplierId (تحديد يدوي مؤقت للأصناف بلا مورد أو بأكتر من مورد)
+
+function poCartGroups() {
+  var sups = (typeof suppliers !== 'undefined') ? suppliers : [];
+  var groups = {};      // supplierId -> items[]
+  var unassigned = [];  // مفيش مورد مرتبط بيه، ومفيش تحديد يدوي
+  var ambiguous = [];   // مرتبط بأكتر من مورد، ومفيش تحديد يدوي
+
+  poItems.forEach(function(item){
+    if (poSplitAssign[item.sku]) {
+      var sid = poSplitAssign[item.sku];
+      (groups[sid] = groups[sid] || []).push(item);
+      return;
+    }
+    var matches = sups.filter(function(s){ return (s.skus||[]).includes(item.sku); });
+    if (matches.length === 1) {
+      (groups[matches[0].id] = groups[matches[0].id] || []).push(item);
+    } else if (matches.length > 1) {
+      ambiguous.push({ item: item, matches: matches });
+    } else {
+      unassigned.push(item);
+    }
+  });
+
+  return { groups: groups, unassigned: unassigned, ambiguous: ambiguous, suppliers: sups };
+}
+
+function poUpdateSplitButton() {
+  var btn = document.getElementById('btn-po-split');
+  var cnt = document.getElementById('po-split-count');
+  if (!btn) return;
+  if (!poItems.length) { btn.style.display = 'none'; return; }
+  var g = poCartGroups();
+  var supplierCount = Object.keys(g.groups).length + (g.unassigned.length ? 1 : 0) + (g.ambiguous.length ? 1 : 0);
+  if (supplierCount > 1) {
+    btn.style.display = 'inline-block';
+    if (cnt) cnt.textContent = poItems.length;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function poOpenSplit() {
+  poShowView('split');
+  poRenderSplitView();
+}
+
+function poRenderSplitView() {
+  var c = document.getElementById('po-view-split');
+  if (!c) return;
+  if (!poItems.length) {
+    c.innerHTML = '<div class="po-card" style="text-align:center;padding:30px;color:var(--muted);">السلة فاضية</div>';
+    return;
+  }
+
+  var g = poCartGroups();
+  var html = '<div class="po-card"><h3 style="font-size:15px;font-weight:700;color:var(--accent);margin:0 0 10px;">🧮 توزيع السلة على الموردين</h3>' +
+    '<p style="font-size:12px;color:var(--muted);margin:0 0 16px;">كل مجموعة هتتحول لأمر شراء منفصل لمورده. الأصناف اللي بلا مورد أو مرتبطة بأكتر من مورد لازم تتحدد يدويًا الأول.</p>';
+
+  // Groups with a known single supplier
+  Object.keys(g.groups).forEach(function(sid){
+    var sup = g.suppliers.find(function(s){ return s.id === sid; });
+    var items = g.groups[sid];
+    html += '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+        '<strong style="font-size:14px;">🏭 ' + escapeHtml(sup ? sup.name : 'مورد محذوف') + '</strong>' +
+        '<button class="primary-btn" style="padding:5px 12px;font-size:12px;" onclick="poSplitCreateOrder(\'' + sid + '\')">🧾 إنشاء أمر شراء (' + items.length + ' صنف)</button>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--muted);">' + items.map(function(i){ return escapeHtml(i.name); }).join('، ') + '</div>' +
+    '</div>';
+  });
+
+  // Ambiguous: linked to more than one supplier — quick pick
+  if (g.ambiguous.length) {
+    html += '<div style="border:1px solid #f0c419;background:#fffbea;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<strong style="font-size:13px;">⚠️ أصناف مرتبطة بأكتر من مورد — حدد المورد لكل صنف</strong>';
+    g.ambiguous.forEach(function(pair){
+      html += '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-top:1px solid #f0e0a0;">' +
+        '<span style="font-size:12px;">' + escapeHtml(pair.item.name) + '</span>' +
+        '<select onchange="poSplitAssign[\'' + pair.item.sku + '\']=this.value; poRenderSplitView();" class="po-field" style="width:auto;font-size:12px;">' +
+          '<option value="">اختر مورد...</option>' +
+          pair.matches.map(function(s){ return '<option value="' + s.id + '">' + escapeHtml(s.name) + '</option>'; }).join('') +
+        '</select>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Unassigned: no supplier linked at all — manual pick + optional permanent save
+  if (g.unassigned.length) {
+    html += '<div style="border:1px solid #e74c3c;background:#fdf2f0;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<strong style="font-size:13px;">🔗 أصناف بلا مورد مرتبط — حدد المورد يدويًا</strong>';
+    g.unassigned.forEach(function(item){
+      html += '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-top:1px solid #f5d5d0;flex-wrap:wrap;">' +
+        '<span style="font-size:12px;">' + escapeHtml(item.name) + ' <span style="color:var(--muted);">(' + escapeHtml(item.sku||'—') + ')</span></span>' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<select id="po-split-manual-' + item.sku + '" class="po-field" style="width:auto;font-size:12px;">' +
+            '<option value="">اختر مورد...</option>' +
+            g.suppliers.map(function(s){ return '<option value="' + s.id + '">' + escapeHtml(s.name) + '</option>'; }).join('') +
+          '</select>' +
+          '<button class="secondary-btn" style="padding:4px 10px;font-size:11px;" onclick="poSplitConfirmManual(\'' + item.sku + '\')">تحديد</button>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<button class="secondary-btn" onclick="poShowView(\'list\')">إغلاق</button></div>';
+  c.innerHTML = html;
+}
+
+function poSplitConfirmManual(sku) {
+  var sel = document.getElementById('po-split-manual-' + sku);
+  if (!sel || !sel.value) { showToast('⚠️ اختار المورد الأول'); return; }
+  poSplitAssign[sku] = sel.value;
+  // اسأل لو عايز يحفظ الربط دائمًا عشان المرة الجاية يتجمع تلقائي
+  var sup = suppliers.find(function(s){ return s.id === sel.value; });
+  if (sup && confirm('تحفظ ربط "' + (poItems.find(function(i){return i.sku===sku;})||{}).name + '" بمورد "' + sup.name + '" بشكل دائم عشان يتجمع تلقائي المرة الجاية؟')) {
+    sup.skus = sup.skus || [];
+    if (!sup.skus.includes(sku)) sup.skus.push(sku);
+    saveSuppliers();
+  }
+  poRenderSplitView();
+}
+
+function poSplitCreateOrder(supplierId) {
+  var g = poCartGroups();
+  var groupItems = g.groups[supplierId] || [];
+  if (!groupItems.length) return;
+  var sup = suppliers.find(function(s){ return s.id === supplierId; });
+
+  // الباقي (من موردين تانيين) بيفضل في السلة لحد ما يتعمله أمر شراء منفصل
+  var remaining = poItems.filter(function(i){ return groupItems.indexOf(i) === -1; });
+  poPendingSplit = remaining;
+  poItems = groupItems;
+  poSplitAssign = {}; // اتستخدم بالفعل في التجميع
+
+  poNewOrder();
+  setTimeout(function(){
+    var searchInp = document.getElementById('po-sup-search');
+    var hidden = document.getElementById('po-sup-sel');
+    if (searchInp && sup) searchInp.value = sup.name;
+    if (hidden && sup) hidden.value = sup.id;
+  }, 40);
+}
+
 // ── View Detail ──
 function poViewDetail(id) {
   var po = poList.find(function(p){ return p.id == id; });
@@ -2791,7 +2947,7 @@ function poShowPrint(po) {
 
 // ── Show sub-views ──
 function poShowView(view) {
-  ['list','new','detail'].forEach(function(v){
+  ['list','new','detail','split'].forEach(function(v){
     var el = document.getElementById('po-view-' + v);
     if (el) el.style.display = v === view ? 'block' : 'none';
   });
@@ -2800,8 +2956,21 @@ function poShowView(view) {
   if (view !== 'new' && sr) { sr.style.display='none'; sr.innerHTML=''; }
 }
 
+function poCancelNew() {
+  // لو جايين من "توزيع السلة" وألغى قبل ما يحفظ، رجّع باقي الأصناف (لموردين تانيين) للسلة
+  if (poPendingSplit && poPendingSplit.length) {
+    poItems = poItems.concat(poPendingSplit);
+    poPendingSplit = null;
+    updateCartBadge();
+  }
+  poShowView('list');
+}
+
 function poReset() {
-  poItems = []; poEditId = null;
+  // لو جايين من تدفق "توزيع السلة على الموردين"، رجّع باقي الأصناف (لموردين تانيين) للسلة بدل ما تتمسح
+  poItems = (poPendingSplit && poPendingSplit.length) ? poPendingSplit : [];
+  poPendingSplit = null;
+  poEditId = null;
   ['po-sup-search','po-sup-sel','po-officer-inp','po-exp-date','po-notes-inp','po-item-q'].forEach(function(id){
     var e = document.getElementById(id); if(e) e.value='';
   });
