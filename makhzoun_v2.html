@@ -1186,9 +1186,46 @@ async function syncDataCenter() {
   try {
     await loadDcCurrentCost();
     await loadStockFromDataCenter();
+    await loadDcSupplierLinks();
   } catch (e) {
     setSyncStatus('⚠️ ' + e.message, true);
   }
+}
+
+// =================== الداتا سنتر — ربط الموردين وأصنافهم (لتوزيع سلة الشراء تلقائي) ===================
+// بندمج دليل موردين الداتا سنتر (dc_suppliers) + ربط الأصناف بالموردين (dc_supplier_items)
+// في دليل الموردين المحلي، عشان توزيع سلة الشراء يعرف مورد كل صنف تلقائي من غير ربط يدوي.
+async function loadDcSupplierLinks() {
+  try {
+    const [dcSuppliers, dcLinks] = await Promise.all([
+      fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_suppliers?select=name,code,contact_name,phone'),
+      fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_supplier_items?select=supplier_name,inventory_item_sku')
+    ]);
+    if (!dcSuppliers.length) return;
+
+    const skusByName = {};
+    dcLinks.forEach(l => {
+      if (!l.supplier_name || !l.inventory_item_sku) return;
+      (skusByName[l.supplier_name] = skusByName[l.supplier_name] || []).push(l.inventory_item_sku);
+    });
+
+    let changed = false;
+    dcSuppliers.forEach(dc => {
+      if (!dc.name) return;
+      let local = suppliers.find(s => (s.name || '').trim() === dc.name.trim());
+      if (!local) {
+        local = { id: 'dc-' + dc.name.trim(), name: dc.name.trim(), phone: dc.phone || '', company: '', note: '', skus: [] };
+        suppliers.push(local);
+        changed = true;
+      }
+      const dcSkus = skusByName[dc.name] || [];
+      const merged = Array.from(new Set([...(local.skus || []), ...dcSkus]));
+      if (merged.length !== (local.skus || []).length) { local.skus = merged; changed = true; }
+      if (!local.phone && dc.phone) { local.phone = dc.phone; changed = true; }
+    });
+
+    if (changed) { await saveSuppliers(); renderSuppliers(); if (typeof poUpdateSplitButton === 'function') poUpdateSplitButton(); }
+  } catch (e) { console.error('[loadDcSupplierLinks]', e); }
 }
 
 // =================== PROCESS DATA ===================
