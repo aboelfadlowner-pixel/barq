@@ -499,6 +499,8 @@ var PRODUCTS = {
   'sk-011': {n:'سمن بقري 500جم',      c:65.00, p:88.00, margin:26.1, bc:'6221031234565'}
 };
 
+var DC_COST = {}; // sku -> آخر تكلفة من الداتا سنتر (dc_current_cost) — مرجع مستقل عن سجل الفواتير المحلي
+
 var MOCK_REQUESTS = [];
 var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائياً عند أول فاتورة)
 
@@ -929,6 +931,20 @@ async function loadFromSupabase() {
         PRODUCTS_MASTER_LOADED = true;
       }
     } catch(e) { /* products_master may not exist yet */ }
+
+    // 7b. Load dc_current_cost (آخر تكلفة موحّدة من الداتا سنتر — مرجع للمقارنة وقت الاستلام والتسعير)
+    try {
+      var dcRows = [];
+      var dOffset = 0, dBatch = 1000;
+      while (true) {
+        var dBatch2 = await sbFetch('dc_current_cost?select=sku,current_cost&limit='+dBatch+'&offset='+dOffset);
+        if (!dBatch2 || !dBatch2.length) break;
+        dcRows = dcRows.concat(dBatch2);
+        if (dBatch2.length < dBatch) break;
+        dOffset += dBatch;
+      }
+      dcRows.forEach(function(r){ if (r.sku && r.current_cost != null) DC_COST[r.sku] = parseFloat(r.current_cost); });
+    } catch(e) { /* data center tables may not exist yet */ }
 
     // 8. Load menu_analysis (تصنيف Star/Dog/Workhorse/Challenge)
     try {
@@ -1456,6 +1472,8 @@ function renderReceiving() {
       '<input type="number" id="nc-'+i+'" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" ' +
         'value="'+(item.new_cost===''?'':item.new_cost)+'" ' +
         'oninput="recvItems['+i+'].new_cost=parseFloat(this.value)||0">' +
+      (DC_COST[item.sku] != null ?
+        '<div style="font-size:11px;color:#1a7a40;margin-top:4px">💡 آخر تكلفة في الداتا سنتر: '+fmt(DC_COST[item.sku])+' ج</div>' : '') +
     '</div>';
   }).join('');
 
