@@ -2019,8 +2019,12 @@ function saveSnapshot() { exportBackup(); }
 
         <!-- Selected items list -->
         <div id="po-selected-header" style="display:none;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;justify-content:space-between;align-items:center;">
-          <span>الأصناف المختارة:</span>
-          <button class="filter-btn" style="padding:4px 10px;font-size:11px" onclick="clearCart()">🧹 امسح السلة</button>
+          <span>الأصناف المختارة (فك تحديد أي صنف مش لمورد الأمر ده — هيفضل في السلة لأمر تاني):</span>
+          <span style="display:flex;gap:6px;">
+            <button class="filter-btn" style="padding:4px 10px;font-size:11px" onclick="poSelectAll(true)">✅ تحديد الكل</button>
+            <button class="filter-btn" style="padding:4px 10px;font-size:11px" onclick="poSelectAll(false)">◻️ إلغاء الكل</button>
+            <button class="filter-btn" style="padding:4px 10px;font-size:11px" onclick="clearCart()">🧹 امسح السلة</button>
+          </span>
         </div>
         <div id="po-items-list" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;">
           <div id="po-items-empty" style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">لم يتم اختيار أصناف بعد</div>
@@ -2147,7 +2151,7 @@ function addToCart(sku) {
   if (!row) return;
   var exists = poItems.find(function(x){ return x.sku === sku; });
   if (exists) { showToast('⚠️ الصنف موجود بالفعل في سلة أمر الشراء'); return; }
-  poItems.push({ sku: row.sku, name: row.name, unit: row.unit || '', qty: 1, stock: row.qty || 0, lastPrice: row.lastPrice ?? null });
+  poItems.push({ sku: row.sku, name: row.name, unit: row.unit || '', qty: 1, stock: row.qty || 0, lastPrice: row.lastPrice ?? null, selected: true });
   updateCartBadge();
   poRenderItemsList();
   showToast('✅ اتضاف لسلة أمر الشراء (' + poItems.length + ' صنف) — اضغط "🧾 أوامر الشراء" للمتابعة');
@@ -2162,6 +2166,7 @@ function clearCart() {
 }
 
 function updateCartBadge() {
+  poPersistCart();
   var btn = document.getElementById('btn-po');
   if (!btn) return;
   var badge = document.getElementById('poCartBadge');
@@ -2173,6 +2178,26 @@ function updateCartBadge() {
     btn.appendChild(badge);
   }
   badge.textContent = poItems.length;
+}
+
+// ── Cart persistence (survives accidental tab close / reload while distributing across suppliers) ──
+var PO_CART_KEY = 'barq_po_cart_v1';
+function poPersistCart() {
+  try {
+    if (poItems.length) localStorage.setItem(PO_CART_KEY, JSON.stringify(poItems));
+    else localStorage.removeItem(PO_CART_KEY);
+  } catch(e) {}
+}
+function poRestoreCart() {
+  try {
+    var raw = localStorage.getItem(PO_CART_KEY);
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    if (Array.isArray(saved) && saved.length) {
+      poItems = saved;
+      updateCartBadge();
+    }
+  } catch(e) {}
 }
 
 // ── Load POs ──
@@ -2247,9 +2272,11 @@ async function poSave(status) {
     if (exactMatch) supId = exactMatch.id;
   }
 
+  var itemsForOrder = poItems.filter(function(i){ return i.selected !== false; });
+
   if (!supId)     { showToast('⚠️ اختار المورد من القائمة (اضغط على الاسم اللي يظهر تحت الحقل)'); return; }
   if (!officer.trim()) { showToast('⚠️ اكتب اسم المسؤول'); return; }
-  if (!poItems.length) { showToast('⚠️ أضف أصناف للأمر'); return; }
+  if (!itemsForOrder.length) { showToast('⚠️ أضف أصناف للأمر أو حدد أصناف من السلة'); return; }
 
   poSaveOfficerName(officer.trim());
 
@@ -2283,7 +2310,7 @@ async function poSave(status) {
     }
 
     // Save items (no price — price comes later from invoice matching)
-    var itemsPayload = poItems.map(function(item){
+    var itemsPayload = itemsForOrder.map(function(item){
       return {
         po_id: savedId,
         sku: item.sku || '',
@@ -2321,10 +2348,28 @@ async function poSave(status) {
     }
 
     poSetStatus('ok');
-    showToast(status === 'sent' ? '📤 تم الإرسال — مطابقة فاتورة + مراجعة كميات + تسعير ✓' : '💾 تم الحفظ كمسودة ✓');
-    poReset();
-    await poLoad();
-    poShowView('list');
+
+    // Only remove the items that were actually part of THIS order — any item left
+    // unchecked (bound for another supplier) stays in the cart instead of being wiped.
+    poItems = poItems.filter(function(i){ return itemsForOrder.indexOf(i) === -1; });
+    var remaining = poItems.length;
+
+    if (remaining) {
+      poEditId = null;
+      ['po-sup-search','po-sup-sel','po-notes-inp'].forEach(function(id){
+        var e = document.getElementById(id); if (e) e.value = '';
+      });
+      var spr = document.getElementById('po-sup-results'); if (spr) { spr.style.display='none'; spr.innerHTML=''; }
+      poRenderItemsList();
+      updateCartBadge();
+      showToast((status === 'sent' ? '📤 تم الإرسال ✓' : '💾 تم الحفظ كمسودة ✓') + ' — باقي ' + remaining + ' صنف في السلة، اختار المورد التالي وكمّل التوزيع');
+      await poLoad();
+    } else {
+      showToast(status === 'sent' ? '📤 تم الإرسال — مطابقة فاتورة + مراجعة كميات + تسعير ✓' : '💾 تم الحفظ كمسودة ✓');
+      poReset();
+      await poLoad();
+      poShowView('list');
+    }
   } catch(e) {
     poSetStatus('err');
     showToast('⚠️ خطأ: ' + (e.message || '').slice(0,80));
@@ -2481,7 +2526,7 @@ function poAddSelected() {
     if (!p) return;
     var exists = poItems.find(function(x){ return x.sku === (p.sku||'') && x.name === p.name; });
     if (!exists) {
-      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
+      poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty:1, stock:parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null, selected: true });
       added++;
     }
   });
@@ -2503,7 +2548,7 @@ function poAddLowStock() {
   });
   if (!low.length) { showToast('لا توجد أصناف ناقصة غير مضافة'); return; }
   low.forEach(function(p){
-    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null });
+    poItems.push({ sku:p.sku||'', name:p.name, unit:p.unit||'', qty: parseFloat(p.minQty)||1, stock: parseFloat(p.qty)||0, lastPrice: p.lastPrice ?? null, selected: true });
   });
   poRenderItemsList();
   updateCartBadge();
@@ -2534,7 +2579,11 @@ function poRenderItemsList() {
 
   container.innerHTML = poItems.map(function(item, i){
     var stockColor = item.stock <= 0 ? '#c0392b' : (item.stock < 5 ? '#d4ac0d' : '#1a7a40');
-    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;">' +
+    var checked = item.selected !== false;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;' + (checked ? '' : 'opacity:.5;') + '">' +
+      // Include-in-this-order checkbox
+      '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="poItems[' + i + '].selected=this.checked;poRenderItemsList();" ' +
+        'title="مضاف لأمر الشراء الحالي" style="width:17px;height:17px;flex-shrink:0;cursor:pointer;">' +
       // Remove button
       '<button onclick="poRemoveItem(' + i + ')" style="padding:2px 7px;border:none;background:#c0392b;color:white;border-radius:5px;cursor:pointer;font-size:12px;flex-shrink:0;">✕</button>' +
       // Name + SKU
@@ -2569,9 +2618,15 @@ function poRemoveItem(i) {
 }
 
 function poCalcTotal() {
-  // No prices at this stage — just show item count
+  // No prices at this stage — just show item count (selected for this order / total in cart)
   var el = document.getElementById('po-grand-tot');
-  if (el) el.textContent = poItems.length + ' صنف';
+  var selCount = poItems.filter(function(i){ return i.selected !== false; }).length;
+  if (el) el.textContent = selCount + ' صنف لهذا الأمر' + (selCount !== poItems.length ? ' (من إجمالي ' + poItems.length + ' في السلة)' : '');
+}
+
+function poSelectAll(v) {
+  poItems.forEach(function(i){ i.selected = v; });
+  poRenderItemsList();
 }
 
 // ── View Detail ──
@@ -2634,7 +2689,7 @@ function poEdit(id) {
   if (!po) return;
   poEditId = id;
   poItems = (po.purchase_order_items || []).map(function(i){
-    return { sku:i.sku||'', name:i.product_name||'', unit:i.unit||'', qty:i.qty_ordered||1, stock:i.current_stock||0, lastPrice: i.unit_price || null };
+    return { sku:i.sku||'', name:i.product_name||'', unit:i.unit||'', qty:i.qty_ordered||1, stock:i.current_stock||0, lastPrice: i.unit_price || null, selected: true };
   });
   poShowView('new');
   setTimeout(function(){
@@ -2880,6 +2935,7 @@ function poPopulateSuppliers() {
 
 // ── Test connection on load ──
 window.addEventListener('load', function(){
+  poRestoreCart();
   setTimeout(function(){
     poSbFetch('purchase_orders?select=id&limit=1')
       .then(function(){ poSetStatus('ok'); })
