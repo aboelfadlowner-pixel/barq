@@ -500,6 +500,12 @@ var PRODUCTS = {
 };
 
 var DC_COST = {}; // sku -> آخر تكلفة من الداتا سنتر (dc_current_cost) — مرجع مستقل عن سجل الفواتير المحلي
+// كانت DC_COST بتتعرض كسطر معلومات بس، من غير ما تُستخدم فعليًا في old_cost — فالتنبيه
+// "بدون تكلفة سابقة" ومقارنة التكلفة وحفظ الطلب كانوا لسه معتمدين على كتالوج PRODUCTS المحلي
+// (اللي بيتحدث بس لما الاستلام يمر من نفس الأداة). دلوقتي DC_COST هي المرجع الأول الفعلي.
+function getCurrentCost(sku) {
+  return (DC_COST[sku] != null && DC_COST[sku] > 0) ? DC_COST[sku] : ((PRODUCTS[sku]||{}).c || 0);
+}
 
 var MOCK_REQUESTS = [];
 var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائياً عند أول فاتورة)
@@ -663,11 +669,25 @@ function now() { return new Date().toLocaleDateString('ar-EG',{year:'numeric',mo
 function render() {
   var root = document.getElementById('root');
   if (!root) return;
-  if (!role) { root.innerHTML = renderAuth(); return; }
-  if (detailId) { root.innerHTML = renderDetail(); updateConnBadge(); return; }
-  root.innerHTML = renderTopBar() + '<div class="pg">' + renderMain() + '</div>';
-  updateConnBadge();
-  updateOfflineIndicator();
+  try {
+    if (!role) { root.innerHTML = renderAuth(); return; }
+    if (detailId) { root.innerHTML = renderDetail(); updateConnBadge(); return; }
+    root.innerHTML = renderTopBar() + '<div class="pg">' + renderMain() + '</div>';
+    updateConnBadge();
+    updateOfflineIndicator();
+  } catch (e) {
+    // من غير try/catch هنا، أي خطأ وسط بناء الشاشة كان بيسيب الشاشة القديمة زي ما هي —
+    // فبيحصل إحساس إن الأداة "علّقت" وأي زرار تضغطه بيرجّعك لنفس الشاشة (لأن الحالة اتغيرت
+    // فعليًا في الذاكرة بس الشاشة نفسها ما اتحدّثتش). دلوقتي بنعرض شاشة خطأ فيها رجوع/تحديث بدل التجميد الصامت.
+    console.error('render() failed:', e);
+    root.innerHTML = '<div style="padding:40px 20px;text-align:center">' +
+      '<div style="font-size:40px;margin-bottom:10px">⚠️</div>' +
+      '<div style="font-weight:800;margin-bottom:8px">حصل خطأ غير متوقع في عرض الشاشة</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:18px;direction:ltr">'+esc((e&&e.message)||'')+'</div>' +
+      '<button class="big-action-btn" onclick="detailId=null;view=\'queue\';render()">🔙 الرجوع لقائمة الطلبات</button>' +
+      '<button class="big-action-btn" style="margin-top:8px;background:var(--bg);border:1px solid var(--border)" onclick="location.reload()">🔄 إعادة تحميل الصفحة</button>' +
+    '</div>';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1072,7 +1092,7 @@ function openReceive(poId) {
     return {
       sku: item.sku||'', name: item.product_name||'', unit: item.unit||'', bc: prod.bc||'',
       qty_ordered: item.qty_ordered||0, qty_received: '',
-      old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
+      old_cost: getCurrentCost(item.sku), old_price: prod.p||0, stored_margin: prod.margin||22,
       stock_before: (item.current_stock!==undefined && item.current_stock!==null) ? item.current_stock : null,
       new_cost: '', match: 'pending'
     };
@@ -1153,7 +1173,7 @@ function manualAddProduct(sku) {
   recvItems.push({
     sku: sku, name: prod.n, unit: 'وحدة', bc: prod.bc||'',
     qty_ordered: 0, qty_received: 1,
-    old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
+    old_cost: getCurrentCost(sku), old_price: prod.p||0, stored_margin: prod.margin||22,
     new_cost: '', match: 'manual'
   });
   render();
@@ -1469,11 +1489,11 @@ function renderReceiving() {
         '<button type="button" onclick="stepQty('+i+',-1)">−</button>' +
       '</div>' +
       '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">تكلفة الشراء (للوحدة)</label>' +
-      '<input type="number" id="nc-'+i+'" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" ' +
+      '<input type="number" id="nc-'+i+'" class="cost-input-mobile" inputmode="decimal" placeholder="'+(item.old_cost>0?item.old_cost.toFixed(2):'0.00')+'" ' +
         'value="'+(item.new_cost===''?'':item.new_cost)+'" ' +
         'oninput="recvItems['+i+'].new_cost=parseFloat(this.value)||0">' +
-      (DC_COST[item.sku] != null ?
-        '<div style="font-size:11px;color:#1a7a40;margin-top:4px">💡 آخر تكلفة في الداتا سنتر: '+fmt(DC_COST[item.sku])+' ج</div>' : '') +
+      (item.old_cost>0 ?
+        '<div style="font-size:11px;color:#1a7a40;margin-top:4px">💡 آخر تكلفة مسجلة: '+fmt(item.old_cost)+' ج</div>' : '') +
     '</div>';
   }).join('');
 
