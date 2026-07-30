@@ -499,6 +499,15 @@ var PRODUCTS = {
   'sk-011': {n:'سمن بقري 500جم',      c:65.00, p:88.00, margin:26.1, bc:'6221031234565'}
 };
 
+// sku -> {cost, invoiceRef, purchasedAt} — آخر تكلفة فعلية من فاتورة شراء حقيقية (dc_last_purchase_cost)
+var DC_LAST_COST = {};
+function getCurrentCost(sku) {
+  var lc = DC_LAST_COST[sku];
+  if (lc && lc.cost > 0) return lc.cost;
+  var p = PRODUCTS[sku];
+  return (p && p.c) ? p.c : 0;
+}
+
 var MOCK_REQUESTS = [];
 var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائياً عند أول فاتورة)
 
@@ -930,6 +939,22 @@ async function loadFromSupabase() {
       }
     } catch(e) { /* products_master may not exist yet */ }
 
+    // 7b. Load dc_last_purchase_cost (آخر تكلفة فعلية من فاتورة شراء حقيقية — المرجع الأدق للتكلفة الحالية)
+    try {
+      var lastCostOffset = 0, lastCostBatch = 1000;
+      while (true) {
+        var lcBatch = await sbFetch('dc_last_purchase_cost?select=sku,unit_cost,invoice_ref,purchased_at&limit='+lastCostBatch+'&offset='+lastCostOffset);
+        if (!lcBatch || !lcBatch.length) break;
+        lcBatch.forEach(function(r){
+          if (r.sku && r.unit_cost != null) {
+            DC_LAST_COST[r.sku] = { cost: parseFloat(r.unit_cost)||0, invoiceRef: r.invoice_ref||'', purchasedAt: r.purchased_at||'' };
+          }
+        });
+        if (lcBatch.length < lastCostBatch) break;
+        lastCostOffset += lastCostBatch;
+      }
+    } catch(e) { /* dc_last_purchase_cost may not exist yet */ }
+
     // 8. Load menu_analysis (تصنيف Star/Dog/Workhorse/Challenge)
     try {
       var menuRows = [];
@@ -1053,10 +1078,12 @@ function openReceive(poId) {
   var items=[]; try{items=JSON.parse(po.items);}catch(e){}
   recvItems = items.map(function(item){
     var prod = PRODUCTS[item.sku] || {};
+    var lc = DC_LAST_COST[item.sku];
     return {
       sku: item.sku||'', name: item.product_name||'', unit: item.unit||'', bc: prod.bc||'',
       qty_ordered: item.qty_ordered||0, qty_received: '',
-      old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
+      old_cost: getCurrentCost(item.sku), old_price: prod.p||0, stored_margin: prod.margin||22,
+      last_invoice_ref: lc ? lc.invoiceRef : '', last_purchased_at: lc ? lc.purchasedAt : '',
       stock_before: (item.current_stock!==undefined && item.current_stock!==null) ? item.current_stock : null,
       new_cost: '', match: 'pending'
     };
@@ -1134,10 +1161,12 @@ function manualAddProduct(sku) {
   var prod = PRODUCTS[sku];
   if (!prod) return;
   if (recvItems.find(function(it){return it.sku===sku;})) { toast('الصنف مضاف بالفعل'); return; }
+  var lc = DC_LAST_COST[sku];
   recvItems.push({
     sku: sku, name: prod.n, unit: 'وحدة', bc: prod.bc||'',
     qty_ordered: 0, qty_received: 1,
-    old_cost: prod.c||0, old_price: prod.p||0, stored_margin: prod.margin||22,
+    old_cost: getCurrentCost(sku), old_price: prod.p||0, stored_margin: prod.margin||22,
+    last_invoice_ref: lc ? lc.invoiceRef : '', last_purchased_at: lc ? lc.purchasedAt : '',
     new_cost: '', match: 'manual'
   });
   render();
@@ -1440,7 +1469,10 @@ function renderReceiving() {
         '</div>' +
         removeBtn +
       '</div>' +
-      (noCost ? '<div style="background:#c0392b;color:#fff;font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;display:inline-block;margin-bottom:8px">⚠️ بدون تكلفة سابقة</div>' : '') +
+      (noCost ? '<div style="background:#c0392b;color:#fff;font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;display:inline-block;margin-bottom:8px">⚠️ بدون تكلفة سابقة</div>' :
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">💰 آخر تكلفة شراء: <strong>'+fmt(item.old_cost)+' ج</strong>' +
+          (item.last_invoice_ref ? ' — فاتورة '+esc(item.last_invoice_ref)+(item.last_purchased_at?' ('+esc(item.last_purchased_at)+')':'') : '') +
+        '</div>') +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
         qtyOrderedLine + matchBadge +
       '</div>' +
@@ -1453,7 +1485,7 @@ function renderReceiving() {
         '<button type="button" onclick="stepQty('+i+',-1)">−</button>' +
       '</div>' +
       '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">تكلفة الشراء (للوحدة)</label>' +
-      '<input type="number" id="nc-'+i+'" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" ' +
+      '<input type="number" id="nc-'+i+'" class="cost-input-mobile" inputmode="decimal" placeholder="'+(item.old_cost>0?item.old_cost.toFixed(2):'0.00')+'" ' +
         'value="'+(item.new_cost===''?'':item.new_cost)+'" ' +
         'oninput="recvItems['+i+'].new_cost=parseFloat(this.value)||0">' +
     '</div>';
