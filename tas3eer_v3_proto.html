@@ -670,11 +670,25 @@ function now() { return new Date().toLocaleDateString('ar-EG',{year:'numeric',mo
 function render() {
   var root = document.getElementById('root');
   if (!root) return;
-  if (!role) { root.innerHTML = renderAuth(); return; }
-  if (detailId) { root.innerHTML = renderDetail(); updateConnBadge(); return; }
-  root.innerHTML = renderTopBar() + '<div class="pg">' + renderMain() + '</div>';
-  updateConnBadge();
-  updateOfflineIndicator();
+  try {
+    if (!role) { root.innerHTML = renderAuth(); return; }
+    if (detailId) { root.innerHTML = renderDetail(); updateConnBadge(); return; }
+    root.innerHTML = renderTopBar() + '<div class="pg">' + renderMain() + '</div>';
+    updateConnBadge();
+    updateOfflineIndicator();
+  } catch (e) {
+    // من غير try/catch هنا، أي خطأ وسط بناء الشاشة كان بيسيب الشاشة القديمة زي ما هي —
+    // فبيحصل إحساس إن الأداة "علّقت" وأي زرار تضغطه بيرجّعك لنفس الشاشة (لأن الحالة اتغيرت
+    // فعليًا في الذاكرة بس الشاشة نفسها ما اتحدّثتش). دلوقتي بنعرض شاشة خطأ فيها رجوع/تحديث بدل التجميد الصامت.
+    console.error('render() failed:', e);
+    root.innerHTML = '<div style="padding:40px 20px;text-align:center">' +
+      '<div style="font-size:40px;margin-bottom:10px">⚠️</div>' +
+      '<div style="font-weight:800;margin-bottom:8px">حصل خطأ غير متوقع في عرض الشاشة</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:18px;direction:ltr">'+esc((e&&e.message)||'')+'</div>' +
+      '<button class="big-action-btn" onclick="detailId=null;view=\'queue\';render()">🔙 الرجوع لقائمة الطلبات</button>' +
+      '<button class="big-action-btn" style="margin-top:8px;background:var(--bg);border:1px solid var(--border)" onclick="location.reload()">🔄 إعادة تحميل الصفحة</button>' +
+    '</div>';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -809,7 +823,7 @@ async function refreshPricingRequests() {
       };
     });
     render();
-  } catch(e) {}
+  } catch(e) { console.error('refreshPricingRequests failed:', e); }
 }
 
 // ── تحديث بيانات الموردين (دفعات/مرتجعات) ──
