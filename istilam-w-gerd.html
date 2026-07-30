@@ -938,6 +938,11 @@ async function loadFromSupabase() {
   var root = document.getElementById('root');
   if (root) root.innerHTML = '<div class="auth-wrap"><div style="color:#fff;font-size:16px">⏳ جاري تحميل البيانات...</div></div>';
 
+  // مزامنة كتالوج المنتجات/المواد من الداتا سنتر (جوجل درايف → dc_* → products_master/materials_master) —
+  // بتتطلق في الخلفية كل مرة حد يفتح التطبيق (بدل معاد يومي ثابت)، من غير ما نستنى نتيجتها عشان متبطأش تحميل الشاشة.
+  // فيها حماية داخلية في السيرفر (10 دقايق) تمنع تكرارها لو أكتر من موظف فتحوا التطبيق قريب من بعض
+  sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) }).catch(function(){});
+
   try {
     // كل الجداول دي مستقلة عن بعض — بنجيبها كلها مع بعض (parallel) بدل واحد ورا التاني، عشان التحميل يبقى
     // أسرع بكتير خصوصاً على نت الفروع الضعيف (كان بياخد عشرات الثواني وهو بينتظر كل جدول لوحده بالدور)
