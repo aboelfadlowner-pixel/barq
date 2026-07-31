@@ -548,6 +548,16 @@ var SUPPLIERS_DB = [];
 // أكواد الأصناف (SKU) بتاعتها ممكن تتداخل رقمياً مع أكواد المنتجات، فمينفعش تتخزن في نفس القاموس ──
 var MATERIALS = {};
 
+// ── خريطة "SKU المنتج → SKU مادة المخزون الحقيقية اللي رصيدها بيتتبّع بيها" — بعض المنتجات (نوتيلا بالوزن
+// مثلاً) ليها SKU بيعي مستقل، لكن الرصيد الفعلي في المخزون متسجّل تحت SKU مادة خام مختلفة تمامًا.
+// من غير الخريطة دي، رصيد المنتج وقت الجرد كان بيطلع صفر لأن مفيش حد بيرفع رصيد لـ SKU المنتج نفسه —
+// الرصيد الحقيقي موجود بس تحت SKU المادة. بتتحمّل من جدول product_stock_map (متزامن تلقائي من الداتا سنتر)
+var PRODUCT_STOCK_MAP = {};
+// بيرجّع SKU مادة المخزون المرتبطة بمنتج معيّن لو موجودة خريطة له، وإلا SKU الصنف نفسه من غير تغيير
+function countStockSku(sku) { return PRODUCT_STOCK_MAP[sku] || sku; }
+// بيرجّع النوع الصح (product/material) اللي لازم نقرا بيه الرصيد — لو الصنف منتج له خريطة، النوع بقى "مادة"
+function countStockKind(sku) { return PRODUCT_STOCK_MAP[sku] ? 'material' : skuKind(sku); }
+
 // ── تقسيم الأصناف على أقسام الفروع (زي ما بيتطلب من المصنع بالظبط) — sku → اسم القسم.
 // المصدر: ملف "الفروع" (شيت الطلبية) اللي بيرفعه المستخدم، مش فئة فوديكس (category_reference) ──
 var DEPARTMENTS = {};
@@ -690,7 +700,8 @@ function expectedSkusForCurrentScope() {
   return allSkus.filter(function(sku){
     var kind = skuKind(sku);
     var p = catalogDict(kind)[sku];
-    if (!(getBranchQty(sku, kind) > 0)) return false;
+    // لو الصنف منتج ليه مادة مخزون مرتبطة (زي "نوتيلا بالوزن")، الرصيد بيتقرا من المادة مش من SKU المنتج نفسه
+    if (!(getBranchQty(countStockSku(sku), countStockKind(sku)) > 0)) return false;
     if (countScopeMode === 'department') {
       if (countCategory && DEPARTMENTS[sku] !== countCategory) return false;
     } else if (countCategory && p.cat !== countCategory) return false;
@@ -972,11 +983,13 @@ async function loadFromSupabase() {
       fetchAllPaged('suppliers_master?select=*&order=name'),
       fetchAllPaged('materials_master?select=*&order=sku'),
       fetchAllPaged('sku_departments?select=*&order=sku'),
-      fetchAllPaged('branch_stock?select=*')
+      fetchAllPaged('branch_stock?select=*'),
+      fetchAllPaged('product_stock_map?select=*')
     ]);
     var reqs = results[0], accs = results[1], pays = results[2], rets = results[3];
     var logs = results[5], allProducts = results[6], allSuppliers = results[7],
-        allMaterials = results[8], allDepts = results[9], allStock = results[10];
+        allMaterials = results[8], allDepts = results[9], allStock = results[10],
+        allStockMap = results[11];
 
     // 1. Pricing requests (استلام + تسعير)
     MOCK_REQUESTS = (reqs || []).map(function(r){
@@ -1057,6 +1070,10 @@ async function loadFromSupabase() {
     allStock.forEach(function(r){
       setBranchQtyLocal(r.branch, r.kind, r.sku, parseFloat(r.system_qty)||0, r.system_qty_updated_at||null);
     });
+
+    // 12. product_stock_map (SKU المنتج → SKU مادة المخزون الحقيقية اللي رصيدها بيتتبّع بيها وقت الجرد)
+    PRODUCT_STOCK_MAP = {};
+    (allStockMap||[]).forEach(function(m){ PRODUCT_STOCK_MAP[m.product_sku] = m.material_sku; });
 
     SB_CONNECTED = true;
     startRealtime();
@@ -2787,7 +2804,7 @@ function renderDepartmentPicker() {
       renderDepartmentsUploadWidget();
   }
   var cards = depts.map(function(d){
-    var count = Object.keys(DEPARTMENTS).filter(function(sku){ return DEPARTMENTS[sku] === d && (PRODUCTS[sku]||MATERIALS[sku]) && getBranchQty(sku, skuKind(sku)) > 0; }).length;
+    var count = Object.keys(DEPARTMENTS).filter(function(sku){ return DEPARTMENTS[sku] === d && (PRODUCTS[sku]||MATERIALS[sku]) && getBranchQty(countStockSku(sku), countStockKind(sku)) > 0; }).length;
     return '<div class="mode-home-card" onclick="pickCountDepartment(\''+d.replace(/'/g,"\\'")+'\')">' +
       '<div class="mode-home-icon">🏢</div>' +
       '<div class="mode-home-label">'+d+'</div>' +
@@ -2922,7 +2939,7 @@ function renderCountEntryCard(sku, opts) {
     '<div style="font-size:19px;font-weight:900;color:var(--primary);margin-bottom:2px">'+(p.n||sku)+(kind==='material'?' <span style="background:#eef2f7;color:#555;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">📦 مادة مخزون</span>':'')+'</div>' +
     '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+sku+(p.bc?' | 🏷️'+p.bc:'')+'</div>' +
     '<div class="count-sysqty-box" style="text-align:center;margin-bottom:14px">' +
-      '<label>📦 الرصيد على الجهاز — '+currentBranch+' (مستويات المخزون)</label><span>'+fmt(getBranchQty(sku,kind))+'</span>' +
+      '<label>📦 الرصيد على الجهاز — '+currentBranch+' (مستويات المخزون)</label><span>'+fmt(getBranchQty(countStockSku(sku),countStockKind(sku)))+'</span>' +
     '</div>' +
     othersBox +
     '<label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">' +
@@ -2981,7 +2998,7 @@ function renderGuidedPrompt() {
     return '<div onclick="focusCountItem(\''+sku+'\')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer'+(isDone?';background:#f0f9f4':'')+'">' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.n||sku)+matBadge+'</div>' +
-        '<div style="font-size:11px;color:var(--muted)">'+sku+' | رصيد الجهاز: '+fmt(getBranchQty(sku,kind))+'</div>' +
+        '<div style="font-size:11px;color:var(--muted)">'+sku+' | رصيد الجهاز: '+fmt(getBranchQty(countStockSku(sku),countStockKind(sku)))+'</div>' +
       '</div>' +
       (isDone ? '<span style="color:#1a7a40;font-weight:800;font-size:13px;flex-shrink:0">✅ '+fmt(countedSkus[sku])+'</span>' : '<span style="color:var(--muted);font-size:18px;flex-shrink:0">‹</span>') +
     '</div>';
@@ -3336,7 +3353,7 @@ function addCountScanned(sku, explicitQty) {
   var at = new Date().toISOString();
   if (idx === -1) {
     var item = { sku:sku, name:prod.n, unit:'وحدة', bc:prod.bc||'',
-      system_qty: getBranchQty(sku,kind), cost: prod.c||0, contributors: [] };
+      system_qty: getBranchQty(countStockSku(sku),countStockKind(sku)), cost: prod.c||0, contributors: [] };
     applyMyContribution(item, who, explicitQty!=null?explicitQty:1, at);
     countItems.unshift(item);
     idx = 0;
@@ -3480,7 +3497,7 @@ function missingCountRows() {
   return missingCountSkus().map(function(sku){
     var kind = skuKind(sku);
     var p = catalogDict(kind)[sku] || {};
-    return { sku: sku, name: p.n||sku, unit:'', bc: p.bc||'', system_qty: getBranchQty(sku,kind), actual_qty: 0,
+    return { sku: sku, name: p.n||sku, unit:'', bc: p.bc||'', system_qty: getBranchQty(countStockSku(sku),countStockKind(sku)), actual_qty: 0,
              cost: p.c||0, counted_by: '— لم يُعد —', counted_at: '' };
   });
 }
@@ -3515,9 +3532,12 @@ async function approveCountSession() {
         var live = catalogDict(kind)[it.sku];
         var liveCost = live ? live.c : 0;
         var cost = (liveCost > 0) ? liveCost : (it.cost||0);
+        // الرصيد بيتحفظ على SKU مادة المخزون الحقيقية لو الصنف منتج له خريطة (زي "نوتيلا بالوزن")، مش على SKU
+        // المنتج نفسه — عشان نفس المكان اللي الرصيد بيتقرا منه وقت الجرد هو نفسه اللي بيتكتب فيه بعد الاعتماد
         return { sku: it.sku, kind: kind, name: it.name, cost: cost, price: live?live.p:0,
                  margin: live?live.margin:22, barcode: live?live.bc:'',
-                 qty: parseFloat(it.actual_qty)||0 };
+                 qty: parseFloat(it.actual_qty)||0,
+                 stockSku: countStockSku(it.sku), stockKind: countStockKind(it.sku) };
       });
       var productUpdates = updates.filter(function(u){ return u.kind === 'product'; });
       var materialUpdates = updates.filter(function(u){ return u.kind === 'material'; });
@@ -3536,13 +3556,27 @@ async function approveCountSession() {
         }, { opType:'اعتماد_جرد', label:'اعتماد جرد (تكلفة مواد): '+currentBranch });
       }
 
-      // الرصيد (system_qty) خاص بالفرع الحالي بس — بيتحفظ في branch_stock بنوعه الصح (منتج/مادة)، مش دايمًا 'product'
+      // الرصيد (system_qty) بيتحفظ في branch_stock بـ SKU/نوع مادة المخزون الحقيقية (stockSku/stockKind)،
+      // مش بالضرورة نفس SKU الصنف المعروض. أكتر من منتج ممكن يبقوا متربطين بنفس مادة المخزون بالظبط (زي
+      // أحجام/تقطيعات مختلفة من نفس الصنف الخام)، فلو اتعدّوا مع بعض في نفس الجرد لازم نجمعهم في صف واحد
+      // بدل ما نبعت صفين بنفس المفتاح في نفس الدفعة (ده كان هيرمي خطأ من Postgres ON CONFLICT أو يبوّظ الرصيد)
+      var stockByKey = {};
+      updates.forEach(function(u){
+        var key = u.stockKind+'|'+u.stockSku;
+        if (!stockByKey[key]) stockByKey[key] = { kind:u.stockKind, sku:u.stockSku, qty:0, parts:[] };
+        stockByKey[key].qty += u.qty;
+        stockByKey[key].parts.push(u.name+' ('+fmt(u.qty)+')');
+      });
+      var mergedStock = Object.keys(stockByKey).map(function(k){ return stockByKey[k]; });
+      var mergedNote = mergedStock.filter(function(s){ return s.parts.length > 1; })
+        .map(function(s){ return s.sku+': '+s.parts.join(' + ')+' = '+fmt(s.qty); }).join(' | ');
+
       await sbWrite('branch_stock?on_conflict=branch,kind,sku', {
         method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify(updates.map(function(u){ return { branch: currentBranch, kind:u.kind, sku:u.sku, system_qty:u.qty, system_qty_updated_at: qtyAt }; }))
-      }, { opType:'تحديث_رصيد_فرع', label:'اعتماد جرد (رصيد فرع '+currentBranch+')' });
+        body: JSON.stringify(mergedStock.map(function(s){ return { branch: currentBranch, kind:s.kind, sku:s.sku, system_qty:s.qty, system_qty_updated_at: qtyAt }; }))
+      }, { opType:'تحديث_رصيد_فرع', label:'اعتماد جرد (رصيد فرع '+currentBranch+')'+(mergedNote?' — أصناف مجمّعة: '+mergedNote:'') });
 
-      updates.forEach(function(u){ setBranchQtyLocal(currentBranch, u.kind, u.sku, u.qty, qtyAt); });
+      mergedStock.forEach(function(s){ setBranchQtyLocal(currentBranch, s.kind, s.sku, s.qty, qtyAt); });
 
       await sbWrite('stock_count_sessions?id=eq.'+countSession.id, {
         method:'PATCH', headers:{'Prefer':'return=minimal'},
