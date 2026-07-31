@@ -2772,11 +2772,11 @@ function poRenderSplitView() {
     g.unassigned.forEach(function(item){
       html += '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-top:1px solid #f5d5d0;flex-wrap:wrap;">' +
         '<span style="font-size:12px;">' + escapeHtml(item.name) + ' <span style="color:var(--muted);">(' + escapeHtml(item.sku||'—') + ')</span></span>' +
-        '<div style="display:flex;align-items:center;gap:6px;">' +
-          '<select id="po-split-manual-' + item.sku + '" class="po-field" style="width:auto;font-size:12px;">' +
-            '<option value="">اختر مورد...</option>' +
-            g.suppliers.map(function(s){ return '<option value="' + s.id + '">' + escapeHtml(s.name) + '</option>'; }).join('') +
-          '</select>' +
+        '<div style="display:flex;align-items:center;gap:6px;position:relative;">' +
+          '<input type="text" id="po-split-search-' + item.sku + '" class="po-field" autocomplete="off" placeholder="🔍 دور على المورد بالاسم..." ' +
+            'style="width:170px;font-size:12px;padding:6px 8px;" oninput="poSplitSupplierSearch(\'' + item.sku + '\', this.value)">' +
+          '<input type="hidden" id="po-split-sel-' + item.sku + '">' +
+          '<div id="po-split-results-' + item.sku + '" style="display:none;position:absolute;top:100%;left:0;right:auto;min-width:200px;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;z-index:60;box-shadow:0 6px 18px rgba(0,0,0,.12);margin-top:3px;"></div>' +
           '<button class="secondary-btn" style="padding:4px 10px;font-size:11px;" onclick="poSplitConfirmManual(\'' + item.sku + '\')">تحديد</button>' +
         '</div>' +
       '</div>';
@@ -2788,12 +2788,51 @@ function poRenderSplitView() {
   c.innerHTML = html;
 }
 
+// ── بحث بالاسم للمورد في شاشة توزيع السلة (بدل قايمة منسدلة طويلة بكل الموردين) ──
+function poSplitSupplierSearch(sku, val) {
+  var box = document.getElementById('po-split-results-' + sku);
+  var hidden = document.getElementById('po-split-sel-' + sku);
+  if (!box) return;
+  if (hidden) hidden.value = ''; // الكتابة بتلغي أي اختيار سابق لحد ما يختار من النتائج تاني
+  var q = (val||'').trim().toLowerCase();
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  var sups = (typeof suppliers !== 'undefined') ? suppliers : [];
+  var matches = sups.filter(function(s){
+    return (s.name||'').toLowerCase().indexOf(q) >= 0 || (s.company||'').toLowerCase().indexOf(q) >= 0;
+  }).slice(0, 15);
+
+  if (!matches.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--muted);">لا يوجد مورد بهذا الاسم</div>';
+    return;
+  }
+
+  box.style.display = 'block';
+  box.innerHTML = matches.map(function(s){
+    return '<div onclick="poSplitSelectSupplier(\'' + sku + '\',\'' + s.id + '\',\'' + (s.name||'').replace(/'/g,"\\'") + '\')" ' +
+      'style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;" ' +
+      'onmouseover="this.style.background=\'var(--surface2,#f5f5f5)\'" onmouseout="this.style.background=\'\'">' +
+      escapeHtml(s.name) + (s.company ? ' <span style="color:var(--muted);font-size:11px;">(' + escapeHtml(s.company) + ')</span>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function poSplitSelectSupplier(sku, id, name) {
+  var inp = document.getElementById('po-split-search-' + sku);
+  var hidden = document.getElementById('po-split-sel-' + sku);
+  var box = document.getElementById('po-split-results-' + sku);
+  if (inp) inp.value = name;
+  if (hidden) hidden.value = id;
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
 function poSplitConfirmManual(sku) {
-  var sel = document.getElementById('po-split-manual-' + sku);
-  if (!sel || !sel.value) { showToast('⚠️ اختار المورد الأول'); return; }
-  poSplitAssign[sku] = sel.value;
+  var hidden = document.getElementById('po-split-sel-' + sku);
+  if (!hidden || !hidden.value) { showToast('⚠️ ابحث عن المورد واختاره من النتائج الأول'); return; }
+  poSplitAssign[sku] = hidden.value;
   // اسأل لو عايز يحفظ الربط دائمًا عشان المرة الجاية يتجمع تلقائي
-  var sup = suppliers.find(function(s){ return s.id === sel.value; });
+  var sup = suppliers.find(function(s){ return s.id === hidden.value; });
   if (sup && confirm('تحفظ ربط "' + (poItems.find(function(i){return i.sku===sku;})||{}).name + '" بمورد "' + sup.name + '" بشكل دائم عشان يتجمع تلقائي المرة الجاية؟')) {
     sup.skus = sup.skus || [];
     if (!sup.skus.includes(sku)) sup.skus.push(sku);
