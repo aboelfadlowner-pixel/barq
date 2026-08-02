@@ -515,9 +515,9 @@ function formatNum(n) {
 const ADMIN_CREDENTIALS = { username: 'admin', passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', branch: 'الإدارة', branchKey: 'admin', icon: '👑', role: 'admin', active: true };
 const DEFAULT_USERS = [{"username": "ainshams", "passwordHash": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4", "branch": "عين شمس", "branchKey": "فرع1", "icon": "🏬", "role": "manager", "active": true}, {"username": "smalhy", "passwordHash": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4", "branch": "السمليهي", "branchKey": "فرع2", "icon": "🏪", "role": "manager", "active": true}];
 const ROLES = {
-  admin:   { label: 'مدير عام',  icon: '👑', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer'] },
-  manager: { label: 'مدير فرع', icon: '🏪', can: ['order','dashboard','production','freezer'] },
-  staff:   { label: 'موظف',      icon: '👤', can: ['data_entry','admin_panel','freezer'] },
+  admin:   { label: 'مدير عام',  icon: '👑', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'] },
+  manager: { label: 'مدير فرع', icon: '🏪', can: ['order','dashboard','production','freezer','factory_receive'] },
+  staff:   { label: 'موظف',      icon: '👤', can: ['data_entry','admin_panel','freezer','factory_receive'] },
 };
 
 let usersDB = []; // بيتحمل من localStorage
@@ -869,6 +869,7 @@ function renderApp() {
       ${canDo('order') ? `<button class="nav-tab ${currentView==='order'?'active':''}" onclick="setView('order')">📋 الطلبية</button>` : ''}
       ${canDo('production') ? `<button class="nav-tab ${currentView==='production'?'active':''}" onclick="setView('production')">🏭 الإنتاج</button>` : ''}
       ${canDo('freezer') ? `<button class="nav-tab ${currentView==='freezer'?'active':''}" onclick="setView('freezer')">🍦 الفريزر</button>` : ''}
+      ${canDo('factory_receive') ? `<button class="nav-tab ${currentView==='receive'?'active':''}" onclick="setView('receive')">📦 استلام من المصنع</button>` : ''}
       ${canDo('dashboard') ? `<button class="nav-tab ${currentView==='dashboard'?'active':''}" onclick="setView('dashboard')">📊 تحليل</button>` : ''}
       ${canDo('history') ? `<button class="nav-tab ${currentView==='history'?'active':''}" onclick="setView('history')">🕐 السجل</button>` : ''}
       ${canDo('data_entry') && !canDo('order') ? `<button class="nav-tab ${currentView==='data'?'active':''}" onclick="setView('data')">📂 البيانات</button>` : ''}
@@ -905,6 +906,7 @@ function renderApp() {
     ${currentView === 'dashboard' ? renderDashboardView() : ''}
     ${currentView === 'production' ? renderProductionView() : ''}
     ${currentView === 'freezer' ? renderFreezerView() : ''}
+    ${currentView === 'receive' ? renderReceiveView() : ''}
     <div class="bottom-bar">
       <button class="action-btn btn-secondary" onclick="clearAll()" style="flex:0.6">🗑 مسح</button>
       <button class="action-btn btn-primary" onclick="toggleSummary()">📋 الطلبية (${filledCount})</button>
@@ -1839,7 +1841,7 @@ window.setQty = function(sku, val) {
 
 
 // ===== VIEW NAVIGATION =====
-function setView(v) { currentView = v; if (v === 'production') loadProductionData(); if (v === 'freezer') loadFreezerData(); render(); }
+function setView(v) { currentView = v; if (v === 'production') loadProductionData(); if (v === 'freezer') loadFreezerData(); if (v === 'receive') loadReceiveData(); render(); }
 
 // ===== الإنتاج (متابعة تحضير الطلبيات) =====
 let productionItems = [];
@@ -2100,6 +2102,155 @@ function renderFreezerView() {
     html += `</div>`;
   }
   html += `</div>`;
+  return html;
+}
+
+// ===== استلام طلبيات المصنع (تحويل داخلي بسيط — بيزود رصيد الفرع في branch_stock مباشرة =====
+// من غير ما يعدي على شاشة "المالية والتسعير" اللي مخصصة لفواتير الموردين الخارجيين فعلاً =====
+let receiveOrders = [];       // آخر طلبيات الفرع (ملخص بس)
+let receiveLoading = false;
+let activeReceiveOrder = null; // { id, created_at, items: [{sku,name,unit,qty_ordered,already_received}] }
+let activeReceiveLoading = false;
+
+async function loadReceiveData() {
+  if (!currentUser) return;
+  receiveLoading = true;
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/branch_orders?branch_name=eq.${encodeURIComponent(currentUser.branch)}&select=id,created_at,status&order=created_at.desc&limit=10`, { headers: SB_HEADERS });
+    receiveOrders = res.ok ? await res.json() : [];
+  } catch (e) {
+    console.error('[loadReceiveData]', e);
+  }
+  receiveLoading = false;
+  if (currentView === 'receive') render();
+}
+
+async function openReceiveOrder(orderId) {
+  activeReceiveLoading = true;
+  render();
+  try {
+    const [itemsRes, receiptsRes] = await Promise.all([
+      fetch(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}&select=sku,product_name,quantity,unit`, { headers: SB_HEADERS }),
+      fetch(`${SB_URL}/rest/v1/branch_order_receipts?order_id=eq.${orderId}&select=sku,qty_received`, { headers: SB_HEADERS })
+    ]);
+    const items = itemsRes.ok ? await itemsRes.json() : [];
+    const receipts = receiptsRes.ok ? await receiptsRes.json() : [];
+    const receivedBySku = {};
+    receipts.forEach(r => { receivedBySku[r.sku] = (receivedBySku[r.sku] || 0) + (parseFloat(r.qty_received) || 0); });
+    activeReceiveOrder = {
+      id: orderId,
+      items: items.map(it => {
+        const ordered = parseFloat(it.quantity) || 0;
+        const already = receivedBySku[it.sku] || 0;
+        const remaining = Math.max(0, ordered - already);
+        return { sku: it.sku, name: it.product_name || it.sku, unit: it.unit, ordered, already, remaining };
+      })
+    };
+  } catch (e) {
+    console.error('[openReceiveOrder]', e);
+    showToast('❌ فشل تحميل الطلبية', 3000);
+    activeReceiveOrder = null;
+  }
+  activeReceiveLoading = false;
+  render();
+}
+
+function closeReceiveOrder() { activeReceiveOrder = null; render(); }
+
+async function submitReceiveOrder() {
+  if (!activeReceiveOrder) return;
+  const rows = activeReceiveOrder.items.map(it => {
+    const input = document.getElementById('recvQty_' + it.sku);
+    const qty = input ? parseFloat(input.value) : 0;
+    return qty > 0 ? {
+      order_id: activeReceiveOrder.id,
+      branch: currentUser.branch,
+      sku: it.sku,
+      product_name: it.name,
+      qty_ordered: it.ordered,
+      qty_received: qty,
+      unit: it.unit,
+      received_by: currentUser.username || ''
+    } : null;
+  }).filter(Boolean);
+
+  if (!rows.length) { showToast('⚠️ أدخل كمية مستلمة لصنف واحد على الأقل', 2500); return; }
+
+  const btn = document.getElementById('confirmReceiveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...'; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/branch_order_receipts`, {
+      method: 'POST', headers: SB_HEADERS, body: JSON.stringify(rows)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(`✅ تم تسجيل استلام ${rows.length} صنف — اتضافوا لرصيد الفرع`, 3500);
+    activeReceiveOrder = null;
+    await loadReceiveData();
+  } catch (e) {
+    console.error(e);
+    showToast('❌ فشل الحفظ — تحقق من الاتصال', 3000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✅ تأكيد الاستلام'; }
+  }
+}
+
+function renderReceiveView() {
+  if (activeReceiveLoading) {
+    return `<div class="empty-state" style="padding:40px 16px"><div class="icon">⏳</div><h3>جاري التحميل...</h3></div>`;
+  }
+  if (activeReceiveOrder) {
+    let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px 120px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <h3 style="font-weight:900;font-size:16px">📦 استلام الطلبية</h3>
+        <button onclick="closeReceiveOrder()" style="background:none;border:1px solid #ccc;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer;color:#888">✕ رجوع</button>
+      </div>
+      <p style="font-size:12px;color:#888;margin:-4px 0 14px">اكتب الكمية اللي فعلاً وصلتك من كل صنف — هتتضاف فورًا لرصيد الفرع.</p>
+      <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:14px">`;
+    if (!activeReceiveOrder.items.length) {
+      html += `<div class="empty-state" style="padding:24px 16px"><div class="icon">📭</div><h3 style="font-size:14px">مفيش أصناف في الطلبية دي</h3></div>`;
+    }
+    activeReceiveOrder.items.forEach(it => {
+      const doneNote = it.already > 0 ? `<div style="font-size:11px;color:#0a8d4b;font-weight:700">✅ اتستلم قبل كده: ${it.already} ${it.unit || ''}</div>` : '';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid #f2f2f2;flex-wrap:wrap">
+        <div style="min-width:160px">
+          <div style="font-weight:700;font-size:13px">${it.name}</div>
+          <div style="font-size:11px;color:#888">المطلوب: ${it.ordered} ${it.unit || ''}</div>
+          ${doneNote}
+        </div>
+        <input id="recvQty_${it.sku}" type="number" min="0" step="0.5" value="${it.remaining || ''}" placeholder="الكمية المستلمة" style="width:110px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo;text-align:center">
+      </div>`;
+    });
+    html += `</div>
+      <button id="confirmReceiveBtn" onclick="submitReceiveOrder()" style="width:100%;background:#0a8d4b;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer">✅ تأكيد الاستلام</button>
+    </div>`;
+    return html;
+  }
+
+  if (receiveLoading) {
+    return `<div class="empty-state" style="padding:40px 16px"><div class="icon">⏳</div><h3>جاري التحميل...</h3></div>`;
+  }
+  if (!receiveOrders.length) {
+    return `<div class="empty-state" style="padding:40px 16px"><div class="icon">📭</div><h3>لا توجد طلبيات مرسلة بعد</h3></div>`;
+  }
+  let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px 120px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="font-weight:900;font-size:16px">📦 استلام من المصنع</h3>
+      <button onclick="loadReceiveData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+    </div>
+    <p style="font-size:12px;color:#888;margin:-4px 0 14px">اختار الطلبية اللي وصلتك من المصنع وسجّل الكمية الفعلية — الاستلام هنا تحويل داخلي بس، مش هيتبعت للمالية والتسعير.</p>
+    <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden">`;
+  receiveOrders.forEach(o => {
+    const dt = o.created_at ? new Date(o.created_at).toLocaleString('ar-EG', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    const statusLabel = o.status === 'done' ? '🏁 جاهزة للاستلام' : o.status === 'received' ? '✅ اتأكدت من المصنع' : '⏳ قيد التجهيز';
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f2f2f2">
+      <div>
+        <div style="font-weight:700;font-size:13px">📅 ${dt}</div>
+        <div style="font-size:11px;color:#888">${statusLabel}</div>
+      </div>
+      <button onclick="openReceiveOrder('${o.id}')" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">📦 استلام</button>
+    </div>`;
+  });
+  html += `</div></div>`;
   return html;
 }
 
