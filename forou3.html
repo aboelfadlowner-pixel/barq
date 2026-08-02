@@ -2032,6 +2032,7 @@ let freezerLoading = false;
 let freezerReportRows = null; // نتيجة جرد الحركات لمدة معينة (null = لسه ما اتعملش)
 let freezerReportLoading = false;
 let freezerReportRange = null; // { from, to } آخر مدة تم عرضها
+let freezerReportSkuSelected = ''; // '' = كل الأصناف، أو sku نكهة معينة
 
 function renderIcOfflineBadge() {
   const n = icOfflinePendingCount();
@@ -2072,17 +2073,28 @@ async function loadFreezerData() {
 }
 
 // جرد حركات الفريزر لمدة معينة: إجمالي المستلم من المصنع + إجمالي المسحوب، لكل نكهة، خلال المدة المختارة
+function setFreezerReportAllTime() {
+  const fromInput = document.getElementById('freezerReportFrom');
+  const toInput = document.getElementById('freezerReportTo');
+  if (fromInput) fromInput.value = '2020-01-01';
+  if (toInput) toInput.value = new Date().toISOString().slice(0, 10);
+  loadFreezerReport();
+}
+
 async function loadFreezerReport() {
   if (!currentUser) return;
   const fromInput = document.getElementById('freezerReportFrom');
   const toInput = document.getElementById('freezerReportTo');
   const from = fromInput ? fromInput.value : '';
   const to = toInput ? toInput.value : '';
+  const skuFilter = freezerReportSkuSelected;
   if (!from || !to) { showToast('⚠️ اختار المدة (من - إلى) الأول', 2500); return; }
   if (from > to) { showToast('⚠️ تاريخ البداية لازم يكون قبل تاريخ النهاية', 2500); return; }
 
   const branch = currentUser.branch;
-  const flavors = getIceCreamFlavors();
+  const allFlavors = getIceCreamFlavors();
+  if (!allFlavors.length) return;
+  const flavors = skuFilter ? allFlavors.filter(f => f.sku === skuFilter) : allFlavors;
   if (!flavors.length) return;
   freezerReportLoading = true;
   render();
@@ -2104,7 +2116,7 @@ async function loadFreezerReport() {
     freezerReportRows = flavors.map(f => {
       const received = receivedBySku[f.sku] || 0;
       const drawn = drawnBySku[f.sku] || 0;
-      return { sku: f.sku, name: f.name, unit: f.unit, received, drawn, net: received - drawn };
+      return { sku: f.sku, name: f.name, unit: f.unit, received, drawn, net: received - drawn, balance: freezerBalances[f.sku] ?? 0 };
     });
     freezerReportRange = { from, to };
   } catch (e) {
@@ -2153,32 +2165,39 @@ async function submitAllFreezerDraws() {
 }
 
 function renderFreezerReportTable() {
-  const rows = freezerReportRows.filter(r => r.received > 0 || r.drawn > 0);
+  const isFiltered = !!freezerReportSkuSelected;
+  // لو فلترنا على نكهة واحدة بالاسم، اعرضها حتى لو مفيهاش حركات في المدة دي — عشان تقدر تشوف رصيدها الحالي برضه
+  const rows = isFiltered ? freezerReportRows : freezerReportRows.filter(r => r.received > 0 || r.drawn > 0);
   if (!rows.length) {
     return `<div style="margin-top:12px;font-size:13px;color:#888;text-align:center;padding:10px">لا توجد حركات (استلام أو سحب) مسجلة في المدة دي</div>`;
   }
-  let totalReceived = 0, totalDrawn = 0;
+  let totalReceived = 0, totalDrawn = 0, totalBalance = 0;
   let html = `<div style="margin-top:12px;overflow-x:auto">
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:11px;font-weight:800;color:#888;border-bottom:2px solid #eee;min-width:420px">
-      <div>النكهة</div><div style="text-align:center">مستلم من المصنع</div><div style="text-align:center">مسحوب من الفريزر</div><div style="text-align:center">الصافي</div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:11px;font-weight:800;color:#888;border-bottom:2px solid #eee;min-width:500px">
+      <div>النكهة</div><div style="text-align:center">مستلم من المصنع</div><div style="text-align:center">مسحوب من الفريزر</div><div style="text-align:center">الصافي</div><div style="text-align:center">الرصيد الحالي</div>
     </div>`;
   rows.forEach(r => {
-    totalReceived += r.received; totalDrawn += r.drawn;
+    totalReceived += r.received; totalDrawn += r.drawn; totalBalance += r.balance;
     const netColor = r.net > 0 ? '#0a8d4b' : (r.net < 0 ? '#e94560' : '#888');
-    html += `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:12px;border-bottom:1px solid #f2f2f2;min-width:420px">
+    const balColor = r.balance <= 0 ? '#e94560' : (r.balance < 3 ? '#e08e00' : '#0a8d4b');
+    html += `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:12px;border-bottom:1px solid #f2f2f2;min-width:500px">
       <div style="font-weight:700">${r.name}</div>
       <div style="text-align:center;color:#0a8d4b;font-weight:700">${r.received} ${r.unit || ''}</div>
       <div style="text-align:center;color:#e94560;font-weight:700">${r.drawn} ${r.unit || ''}</div>
       <div style="text-align:center;color:${netColor};font-weight:800">${r.net > 0 ? '+' : ''}${r.net}</div>
+      <div style="text-align:center;color:${balColor};font-weight:800">${r.balance} ${r.unit || ''}</div>
     </div>`;
   });
-  html += `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:12px;font-weight:900;background:#f7f9f8;min-width:420px">
+  if (rows.length > 1) {
+    html += `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;padding:8px 6px;font-size:12px;font-weight:900;background:#f7f9f8;min-width:500px">
       <div>الإجمالي</div>
       <div style="text-align:center;color:#0a8d4b">${totalReceived}</div>
       <div style="text-align:center;color:#e94560">${totalDrawn}</div>
       <div style="text-align:center">${totalReceived - totalDrawn > 0 ? '+' : ''}${totalReceived - totalDrawn}</div>
-    </div>
-  </div>`;
+      <div style="text-align:center">${totalBalance}</div>
+    </div>`;
+  }
+  html += `</div>`;
   return html;
 }
 
@@ -2196,6 +2215,12 @@ function renderFreezerView() {
     <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px;margin-bottom:18px">
       <h4 style="font-weight:900;font-size:14px;margin:0 0 10px">📋 جرد حركات لمدة معينة</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:12px;color:#888;font-weight:700">النكهة
+          <select id="freezerReportSku" onchange="freezerReportSkuSelected=this.value" style="display:block;margin-top:4px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo;min-width:150px">
+            <option value="">كل الأصناف</option>
+            ${flavors.map(f => `<option value="${f.sku}"${freezerReportSkuSelected === f.sku ? ' selected' : ''}>${f.name}</option>`).join('')}
+          </select>
+        </label>
         <label style="font-size:12px;color:#888;font-weight:700">من
           <input id="freezerReportFrom" type="date" value="${freezerReportRange ? freezerReportRange.from : ''}" style="display:block;margin-top:4px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo">
         </label>
@@ -2203,6 +2228,7 @@ function renderFreezerView() {
           <input id="freezerReportTo" type="date" value="${freezerReportRange ? freezerReportRange.to : ''}" style="display:block;margin-top:4px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo">
         </label>
         <button onclick="loadFreezerReport()" style="align-self:flex-end;background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:Cairo;font-weight:800;cursor:pointer">${freezerReportLoading ? '⏳ جاري الحساب...' : '📋 عرض الجرد'}</button>
+        <button onclick="setFreezerReportAllTime()" style="align-self:flex-end;background:#fff;color:#0a8d4b;border:2px solid #0a8d4b;border-radius:8px;padding:9px 14px;font-family:Cairo;font-weight:800;cursor:pointer">⏱️ كل الوقت</button>
       </div>
       ${freezerReportRows ? renderFreezerReportTable() : ''}
     </div>
