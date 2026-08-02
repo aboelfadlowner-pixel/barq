@@ -472,6 +472,13 @@ function applyTareCorrection(rawQty, sku) {
 function getRawOnHand(sku) {
   const vmeta = VIRTUAL_SKU_MAP[sku];
   const baseSku = vmeta ? vmeta.base : sku;
+  // الأيس كريم مش محتاج رفع جرد يدوي — رصيد الفريزر (branch_stock) دقيق ومتزامن أوتوماتيك مع كل استلام/سحب
+  const info = getActiveSkuMap()[baseSku];
+  if (info && info.dept === ICE_CREAM_DEPT) {
+    const fb = freezerBalances[baseSku];
+    if (fb === undefined) return null;
+    return vmeta ? fb / vmeta.factor : fb;
+  }
   const v = stockLevels[baseSku];
   if (v === undefined) return null;
   return vmeta ? v / vmeta.factor : v;
@@ -696,6 +703,7 @@ if (currentUser) {
   loadTodayPromo();
   // مؤجل عشان السكريبت كامل يخلص تحميل الأول (SB_URL/SB_HEADERS متعرفين لاحقًا في الملف)
   setTimeout(() => refreshLearnedAverages().then(render), 0);
+  setTimeout(() => loadFreezerData(), 0);
 }
 let showAdmin = false;
 let showScanner = false;
@@ -1171,6 +1179,7 @@ function doLogin() {
     try { localStorage.setItem('barq_session', JSON.stringify({ username: user.username, role: user.role, branch: user.branch, branchKey: user.branchKey, icon: user.icon, view: currentView })); } catch(e) {}
     addSecurityLog('تسجيل دخول ناجح', 'success', u);
     refreshLearnedAverages().then(render);
+    loadFreezerData();
     render();
   } else {
     // فشل تسجيل الدخول
@@ -2069,7 +2078,7 @@ async function loadFreezerData() {
     console.error('[loadFreezerData]', e);
   }
   freezerLoading = false;
-  if (currentView === 'freezer') render();
+  render(); // بيأثر برضه على رصيد الأيس كريم المعروض في شاشة الطلبية نفسها (getRawOnHand)، مش بس تبويب الفريزر
 }
 
 // جرد حركات الفريزر لمدة معينة: إجمالي المستلم من المصنع + إجمالي المسحوب، لكل نكهة، خلال المدة المختارة
