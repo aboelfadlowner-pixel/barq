@@ -1982,6 +1982,48 @@ function renderProductionView() {
   return html;
 }
 
+// ===== حفظ محلي + رفع تلقائي لعمليات الأيس كريم (سحب فريزر / استلام مصنع) لما مفيش نت =====
+const IC_OFFLINE_KEY = 'barq_ic_offline_queue';
+
+function loadIcOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem(IC_OFFLINE_KEY) || '[]'); } catch (e) { return []; }
+}
+function saveIcOfflineQueue(q) {
+  try { localStorage.setItem(IC_OFFLINE_KEY, JSON.stringify(q)); } catch (e) {}
+}
+function queueIcOfflineWrite(table, rows) {
+  const q = loadIcOfflineQueue();
+  q.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2), table, rows, queuedAt: new Date().toISOString() });
+  saveIcOfflineQueue(q);
+}
+function icOfflinePendingCount() { return loadIcOfflineQueue().length; }
+
+let icSyncing = false;
+async function syncIcOfflineQueue() {
+  if (icSyncing) return;
+  const q = loadIcOfflineQueue();
+  if (!q.length) return;
+  icSyncing = true;
+  const remaining = [];
+  for (const item of q) {
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/${item.table}`, { method: 'POST', headers: SB_HEADERS, body: JSON.stringify(item.rows) });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (e) {
+      remaining.push(item);
+    }
+  }
+  saveIcOfflineQueue(remaining);
+  icSyncing = false;
+  if (remaining.length < q.length) {
+    showToast(`✅ اترفعت ${q.length - remaining.length} عملية كانت متأخرة (${remaining.length ? remaining.length + ' لسه محتاجة نت' : 'كله اترفع'})`, 3500);
+    if (currentView === 'freezer') loadFreezerData();
+    if (currentView === 'receive') loadReceiveData();
+  }
+}
+window.addEventListener('online', syncIcOfflineQueue);
+setInterval(function() { if (navigator.onLine) syncIcOfflineQueue(); }, 20000);
+
 // ===== الفريزر (سحب الأيس كريم من فريزر الفرع — بينقص من رصيد الفرع تلقائيًا عبر trigger في قاعدة البيانات) =====
 const ICE_CREAM_DEPT = 'ايس كريم';
 let freezerBalances = {}; // sku -> qty متبقي في فريزر الفرع الحالي
@@ -1990,6 +2032,12 @@ let freezerLoading = false;
 let freezerReportRows = null; // نتيجة جرد الحركات لمدة معينة (null = لسه ما اتعملش)
 let freezerReportLoading = false;
 let freezerReportRange = null; // { from, to } آخر مدة تم عرضها
+
+function renderIcOfflineBadge() {
+  const n = icOfflinePendingCount();
+  if (!n) return '';
+  return `<div style="background:#fff3d6;color:#a86a00;border:2px solid #ffdf9e;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:800;margin-bottom:12px">📴 عندك ${n} عملية اتحفظت محليًا ولسه مترفعتش (هتترفع تلقائي لما النت يرجع)</div>`;
+}
 
 function getIceCreamFlavors() {
   const skuMap = getActiveSkuMap();
@@ -2097,7 +2145,8 @@ async function submitAllFreezerDraws() {
     await loadFreezerData();
   } catch (e) {
     console.error(e);
-    showToast('❌ فشل تسجيل السحب — تحقق من الاتصال', 3000);
+    queueIcOfflineWrite('ice_cream_draws', rows);
+    showToast('📴 مفيش نت — اتحفظ السحب محليًا وهيترفع تلقائي لما النت يرجع', 4000);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '➖ سحب'; }
   }
@@ -2143,6 +2192,7 @@ function renderFreezerView() {
       <h3 style="font-weight:900;font-size:16px">🍦 سحب الأيس كريم من الفريزر</h3>
       <button onclick="loadFreezerData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
+    ${renderIcOfflineBadge()}
     <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px;margin-bottom:18px">
       <h4 style="font-weight:900;font-size:14px;margin:0 0 10px">📋 جرد حركات لمدة معينة</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2221,21 +2271,26 @@ async function openReceiveOrder(orderId) {
   activeReceiveLoading = true;
   render();
   try {
-    const [itemsRes, receiptsRes] = await Promise.all([
+    const [itemsRes, receiptsRes, shipmentsRes] = await Promise.all([
       fetch(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}&select=sku,product_name,quantity,unit`, { headers: SB_HEADERS }),
-      fetch(`${SB_URL}/rest/v1/branch_order_receipts?order_id=eq.${orderId}&select=sku,qty_received`, { headers: SB_HEADERS })
+      fetch(`${SB_URL}/rest/v1/branch_order_receipts?order_id=eq.${orderId}&select=sku,qty_received`, { headers: SB_HEADERS }),
+      fetch(`${SB_URL}/rest/v1/ice_cream_shipments?order_id=eq.${orderId}&select=sku,qty_sent`, { headers: SB_HEADERS })
     ]);
     const items = itemsRes.ok ? await itemsRes.json() : [];
     const receipts = receiptsRes.ok ? await receiptsRes.json() : [];
+    const shipments = shipmentsRes.ok ? await shipmentsRes.json() : [];
     const receivedBySku = {};
     receipts.forEach(r => { receivedBySku[r.sku] = (receivedBySku[r.sku] || 0) + (parseFloat(r.qty_received) || 0); });
+    const sentBySku = {};
+    shipments.forEach(s => { sentBySku[s.sku] = (sentBySku[s.sku] || 0) + (parseFloat(s.qty_sent) || 0); });
     activeReceiveOrder = {
       id: orderId,
       items: items.map(it => {
         const ordered = parseFloat(it.quantity) || 0;
         const already = receivedBySku[it.sku] || 0;
         const remaining = Math.max(0, ordered - already);
-        return { sku: it.sku, name: it.product_name || it.sku, unit: it.unit, ordered, already, remaining };
+        const sent = sentBySku[it.sku]; // undefined لو الصنف مش أيس كريم (مفيش شحنات مسجلة له أصلاً)
+        return { sku: it.sku, name: it.product_name || it.sku, unit: it.unit, ordered, already, remaining, sent };
       })
     };
   } catch (e) {
@@ -2280,7 +2335,10 @@ async function submitReceiveOrder() {
     await loadReceiveData();
   } catch (e) {
     console.error(e);
-    showToast('❌ فشل الحفظ — تحقق من الاتصال', 3000);
+    queueIcOfflineWrite('branch_order_receipts', rows);
+    showToast('📴 مفيش نت — اتحفظ الاستلام محليًا وهيترفع تلقائي لما النت يرجع', 4000);
+    activeReceiveOrder = null;
+    render();
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '✅ تأكيد الاستلام'; }
   }
@@ -2303,10 +2361,12 @@ function renderReceiveView() {
     }
     activeReceiveOrder.items.forEach(it => {
       const doneNote = it.already > 0 ? `<div style="font-size:11px;color:#0a8d4b;font-weight:700">✅ اتستلم قبل كده: ${it.already} ${it.unit || ''}</div>` : '';
+      const sentNote = it.sent !== undefined ? `<div style="font-size:11px;color:#c0392b;font-weight:700">📤 المصنع بعت: ${it.sent} ${it.unit || ''}</div>` : '';
       html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid #f2f2f2;flex-wrap:wrap">
         <div style="min-width:160px">
           <div style="font-weight:700;font-size:13px">${it.name}</div>
           <div style="font-size:11px;color:#888">المطلوب: ${it.ordered} ${it.unit || ''}</div>
+          ${sentNote}
           ${doneNote}
         </div>
         <input id="recvQty_${it.sku}" type="number" min="0" step="0.5" value="${it.remaining || ''}" placeholder="الكمية المستلمة" style="width:110px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo;text-align:center">
@@ -2329,6 +2389,7 @@ function renderReceiveView() {
       <h3 style="font-weight:900;font-size:16px">📦 استلام من المصنع</h3>
       <button onclick="loadReceiveData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
+    ${renderIcOfflineBadge()}
     <p style="font-size:12px;color:#888;margin:-4px 0 14px">اختار الطلبية اللي وصلتك من المصنع وسجّل الكمية الفعلية — الاستلام هنا تحويل داخلي بس، مش هيتبعت للمالية والتسعير.</p>
     <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden">`;
   receiveOrders.forEach(o => {
@@ -3984,6 +4045,7 @@ loadAdminFromStorage();
 loadHistoryFromStorage();
 // فحص دوري للـ force logout
 setInterval(checkForceLogout, 5000);
+syncIcOfflineQueue();
 render();
 </script>
 </body>
