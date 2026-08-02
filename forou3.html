@@ -2020,32 +2020,33 @@ async function loadFreezerData() {
   if (currentView === 'freezer') render();
 }
 
-async function submitFreezerDraw(sku, name, unit) {
-  const qtyInput = document.getElementById('freezerQty_' + sku);
-  const noteInput = document.getElementById('freezerNote_' + sku);
-  const qty = parseFloat(qtyInput ? qtyInput.value : '');
-  if (!qty || qty <= 0) { showToast('⚠️ أدخل كمية صحيحة أكبر من صفر', 2500); return; }
+async function submitAllFreezerDraws() {
+  const flavors = getIceCreamFlavors();
+  const rows = flavors.map(f => {
+    const qtyInput = document.getElementById('freezerQty_' + f.sku);
+    const noteInput = document.getElementById('freezerNote_' + f.sku);
+    const qty = qtyInput ? parseFloat(qtyInput.value) : 0;
+    return qty > 0 ? {
+      branch: currentUser.branch,
+      sku: f.sku,
+      flavor_name: f.name,
+      qty,
+      unit: f.unit || 'علبة',
+      drawn_by: currentUser.username || '',
+      note: noteInput ? (noteInput.value || '').trim() : ''
+    } : null;
+  }).filter(Boolean);
 
-  const btn = document.getElementById('freezerBtn_' + sku);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  if (!rows.length) { showToast('⚠️ أدخل كمية لصنف واحد على الأقل', 2500); return; }
+
+  const btn = document.getElementById('submitFreezerDrawsBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...'; }
   try {
     const res = await fetch(`${SB_URL}/rest/v1/ice_cream_draws`, {
-      method: 'POST',
-      headers: SB_HEADERS,
-      body: JSON.stringify({
-        branch: currentUser.branch,
-        sku,
-        flavor_name: name,
-        qty,
-        unit: unit || 'علبة',
-        drawn_by: currentUser.username || '',
-        note: noteInput ? (noteInput.value || '').trim() : ''
-      })
+      method: 'POST', headers: SB_HEADERS, body: JSON.stringify(rows)
     });
     if (!res.ok) throw new Error(await res.text());
-    if (qtyInput) qtyInput.value = '';
-    if (noteInput) noteInput.value = '';
-    showToast('✅ اتسجل السحب: ' + qty + ' ' + (unit || 'علبة') + ' ' + name, 3000);
+    showToast(`✅ اتسجل سحب ${rows.length} صنف`, 3000);
     await loadFreezerData();
   } catch (e) {
     console.error(e);
@@ -2065,8 +2066,8 @@ function renderFreezerView() {
       <h3 style="font-weight:900;font-size:16px">🍦 سحب الأيس كريم من الفريزر</h3>
       <button onclick="loadFreezerData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
-    <p style="font-size:12px;color:#888;margin:-4px 0 14px">سجّل هنا كل نوع بتسحبه من الفريزر أول بأول — الكمية بتتخصم فورًا من رصيد الفرع وبتتسجل في سجل الحركات.</p>
-    <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:18px">`;
+    <p style="font-size:12px;color:#888;margin:-4px 0 14px">اكتب الكمية اللي سحبتها من كل صنف، وبعد ما تخلص كل الأصناف دوس زرار "سحب" مرة واحدة تحت — كل الكميات هتتسجل مع بعض دفعة واحدة.</p>
+    <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:14px">`;
   flavors.forEach(f => {
     const bal = freezerBalances[f.sku] ?? 0;
     const balColor = bal <= 0 ? '#e94560' : (bal < 3 ? '#e08e00' : '#0a8d4b');
@@ -2078,11 +2079,11 @@ function renderFreezerView() {
       <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:220px;justify-content:flex-end">
         <input id="freezerQty_${f.sku}" type="number" min="0" step="0.5" placeholder="الكمية" style="width:80px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo;text-align:center">
         <input id="freezerNote_${f.sku}" type="text" placeholder="ملاحظة (اختياري)" style="width:120px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo">
-        <button id="freezerBtn_${f.sku}" onclick="submitFreezerDraw('${f.sku}', '${f.name.replace(/'/g,"\\'")}', '${(f.unit||'علبة').replace(/'/g,"\\'")}')" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">➖ سحب</button>
       </div>
     </div>`;
   });
-  html += `</div>`;
+  html += `</div>
+    <button id="submitFreezerDrawsBtn" onclick="submitAllFreezerDraws()" style="width:100%;background:#e94560;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:18px">➖ سحب</button>`;
 
   html += `<h3 style="font-weight:900;font-size:14px;margin-bottom:8px">🕐 آخر حركات السحب</h3>`;
   if (!freezerDraws.length) {
