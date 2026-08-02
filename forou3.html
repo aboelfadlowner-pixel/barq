@@ -2043,6 +2043,96 @@ let freezerReportLoading = false;
 let freezerReportRange = null; // { from, to } آخر مدة تم عرضها
 let freezerReportSkuSelected = ''; // '' = كل الأصناف، أو sku نكهة معينة
 
+// ضبط رصيد أول / جرد فعلي للأيس كريم — أدمن بس، لأي فرع (مش بس فرعه هو)
+let adminAdjustBranch = '';
+let adminAdjustBalances = {};
+let adminAdjustLoading = false;
+
+function getBranchOptionsForAdjust() {
+  return [...new Set(usersDB.filter(u => u.role !== 'admin' && u.branch).map(u => u.branch))];
+}
+
+async function selectAdminAdjustBranch(branch) {
+  adminAdjustBranch = branch;
+  if (!branch) { adminAdjustBalances = {}; render(); return; }
+  adminAdjustLoading = true;
+  render();
+  try {
+    const flavors = getIceCreamFlavors();
+    const skuList = flavors.map(f => f.sku).join(',');
+    const res = await fetch(`${SB_URL}/rest/v1/branch_stock?branch=eq.${encodeURIComponent(branch)}&kind=eq.product&sku=in.(${skuList})&select=sku,system_qty`, { headers: SB_HEADERS });
+    const rows = res.ok ? await res.json() : [];
+    const balances = {};
+    rows.forEach(r => { balances[r.sku] = parseFloat(r.system_qty) || 0; });
+    adminAdjustBalances = balances;
+  } catch (e) {
+    console.error('[selectAdminAdjustBranch]', e);
+    showToast('❌ فشل تحميل رصيد الفرع', 3000);
+  }
+  adminAdjustLoading = false;
+  render();
+}
+
+async function submitAdminAdjustments() {
+  if (!adminAdjustBranch) { showToast('⚠️ اختار الفرع الأول', 2500); return; }
+  const flavors = getIceCreamFlavors();
+  const rows = flavors.map(f => {
+    const input = document.getElementById('adjQty_' + f.sku);
+    const val = input ? input.value : '';
+    if (val === '') return null;
+    const counted = parseFloat(val);
+    if (isNaN(counted) || counted < 0) return null;
+    return {
+      branch: adminAdjustBranch,
+      sku: f.sku,
+      product_name: f.name,
+      previous_qty: adminAdjustBalances[f.sku] ?? 0,
+      counted_qty: counted,
+      unit: f.unit || 'علبة',
+      adjusted_by: currentUser.username || ''
+    };
+  }).filter(Boolean);
+
+  if (!rows.length) { showToast('⚠️ اكتب رصيد لصنف واحد على الأقل', 2500); return; }
+
+  const btn = document.getElementById('submitAdminAdjustBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...'; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/ice_cream_adjustments`, {
+      method: 'POST', headers: SB_HEADERS, body: JSON.stringify(rows)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(`✅ اتحفظ رصيد ${rows.length} صنف لفرع ${adminAdjustBranch}`, 3500);
+    await selectAdminAdjustBranch(adminAdjustBranch);
+    if (adminAdjustBranch === currentUser.branch) loadFreezerData();
+  } catch (e) {
+    console.error(e);
+    queueIcOfflineWrite('ice_cream_adjustments', rows);
+    showToast('📴 مفيش نت — اتحفظ الجرد محليًا وهيترفع تلقائي لما النت يرجع', 4000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 حفظ الجرد'; }
+  }
+}
+
+function renderAdminAdjustRows() {
+  if (adminAdjustLoading) return `<div style="text-align:center;padding:16px;color:#888;font-size:13px">⏳ جاري تحميل رصيد الفرع...</div>`;
+  const flavors = getIceCreamFlavors();
+  let html = `<div style="border-top:1px solid #f2e2c0;padding-top:10px">`;
+  flavors.forEach(f => {
+    const current = adminAdjustBalances[f.sku] ?? 0;
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f7f0e0;flex-wrap:wrap">
+      <div style="min-width:140px">
+        <div style="font-weight:700;font-size:12px">${f.name}</div>
+        <div style="font-size:11px;color:#888">الرصيد المسجل حاليًا: ${current} ${f.unit || 'علبة'}</div>
+      </div>
+      <input id="adjQty_${f.sku}" type="number" min="0" step="0.5" placeholder="العدد الفعلي" style="width:100px;padding:7px;border:1px solid #f0d9a8;border-radius:8px;font-family:Cairo;text-align:center">
+    </div>`;
+  });
+  html += `</div>
+    <button id="submitAdminAdjustBtn" onclick="submitAdminAdjustments()" style="width:100%;margin-top:10px;background:#e08e00;color:#fff;border:none;border-radius:10px;padding:11px;font-family:Cairo;font-size:14px;font-weight:800;cursor:pointer">💾 حفظ الجرد</button>`;
+  return html;
+}
+
 function renderIcOfflineBadge() {
   const n = icOfflinePendingCount();
   if (!n) return '';
@@ -2221,6 +2311,16 @@ function renderFreezerView() {
       <button onclick="loadFreezerData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
     ${renderIcOfflineBadge()}
+    ${currentUser.role === 'admin' ? `
+    <div style="background:#fffaf0;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px;margin-bottom:18px;border:2px solid #ffb703">
+      <h4 style="font-weight:900;font-size:14px;margin:0 0 10px;color:#a86a00">🛠️ ضبط رصيد أول / جرد فعلي (أدمن فقط)</h4>
+      <p style="font-size:12px;color:#888;margin:0 0 10px">اختار الفرع واكتب العدد الفعلي اللي عددته دلوقتي لكل نكهة — هيحل محل الرصيد المسجل تمامًا (مش إضافة عليه).</p>
+      <select onchange="selectAdminAdjustBranch(this.value)" style="padding:8px;border:1px solid #f0d9a8;border-radius:8px;font-family:Cairo;min-width:160px">
+        <option value="">— اختار الفرع —</option>
+        ${getBranchOptionsForAdjust().map(b => `<option value="${b}"${adminAdjustBranch === b ? ' selected' : ''}>${b}</option>`).join('')}
+      </select>
+      ${adminAdjustBranch ? renderAdminAdjustRows() : ''}
+    </div>` : ''}
     <div style="background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px;margin-bottom:18px">
       <h4 style="font-weight:900;font-size:14px;margin:0 0 10px">📋 جرد حركات لمدة معينة</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
