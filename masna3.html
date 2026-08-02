@@ -1187,7 +1187,7 @@ function parseRows(rows,filename) {
 }
 
 // ===== ICONS =====
-const ICONS={'معمل':'🧀','مقطعات':'🥩','مجمدات':'❄️','مصنعات':'🥛','مصنعات لحوم و موالح':'🍖','مستهلكات':'📦','موالح ومخلل':'🫒','ثلاجة':'🧊','vip':'⭐','معلبات':'🥫','بيض':'🥚','أخرى':'📋'};
+const ICONS={'معمل':'🧀','مقطعات':'🥩','مجمدات':'❄️','مصنعات':'🥛','مصنعات لحوم و موالح':'🍖','مستهلكات':'📦','موالح ومخلل':'🫒','ثلاجة':'🧊','vip':'⭐','معلبات':'🥫','بيض':'🥚','ايس كريم':'🍦','أخرى':'📋'};
 
 // ===== RENDER =====
 function renderAll() {
@@ -1269,6 +1269,10 @@ function renderSection() {
           <button class="btn-add-row" onclick="toggleAdd('${did}')">+ إضافة</button>
           <button class="btn-move-dept" onclick="showMoveDialog()">🔀 نقل المحدد</button>
           <button class="btn-print-dept" onclick="printDept('${ed(activeDept)}')">🖨 طباعة</button>
+          ${activeDept === 'ايس كريم' ? (orderMeta.orderId
+            ? `<button class="btn-print-dept" style="background:#e94560" onclick="sendIceCreamOrderToBranch()">📤 إرسال طلبية الجيلاتي للفروع</button>`
+            : `<span style="font-size:11px;color:var(--muted)">⚠️ الطلبية دي مش محمّلة من نظام الفروع — مينفعش تتبعت</span>`
+          ) : ''}
         </div>
       </div>
 
@@ -2087,7 +2091,8 @@ async function loadOrderFromSupabase(orderId) {
     orderData = arrangePkgRows(newData);
     orderMeta = {
       branch: order.branch_name,
-      date: new Date(order.created_at).toLocaleDateString('ar-EG')
+      date: new Date(order.created_at).toLocaleDateString('ar-EG'),
+      orderId: order.id
     };
     saveData();
     renderAll();
@@ -2103,6 +2108,41 @@ async function loadOrderFromSupabase(orderId) {
 
   } catch(e) {
     showToast('❌ فشل تحميل الطلبية');
+    console.error(e);
+  }
+}
+
+// إرسال طلبية الجيلاتي للفرع — بيسجل الكمية الفعلية (عمود "الفعلي"، أو "المطلوب" لو الفعلي فاضي) في ice_cream_shipments
+// عشان تبان في شاشة "استلام من المصنع" بتطبيق الفروع فورًا، من غير أي شاشة إضافية أو تسجيل دخول قسم منفصل
+async function sendIceCreamOrderToBranch() {
+  const items = orderData['ايس كريم'];
+  if (!orderMeta.orderId || !items || !items.length) { showToast('❌ مفيش طلبية جيلاتي محمّلة'); return; }
+
+  const rows = items.map(it => {
+    const qty = it.actual === '' || it.actual === undefined || it.actual === null ? it.requested : parseFloat(it.actual);
+    return qty > 0 ? {
+      order_id: orderMeta.orderId,
+      branch: orderMeta.branch,
+      sku: it.sku,
+      product_name: it.name,
+      qty_ordered: it.requested,
+      qty_sent: qty,
+      unit: it.unit,
+      sent_by: (currentUser && currentUser.username) || ''
+    } : null;
+  }).filter(Boolean);
+
+  if (!rows.length) { showToast('⚠️ مفيش كميات لإرسالها'); return; }
+  if (!confirm(`تأكيد إرسال ${rows.length} صنف جيلاتي لفرع ${orderMeta.branch}؟`)) return;
+
+  try {
+    const res = await fetchWithTimeout(`${SB_URL}/rest/v1/ice_cream_shipments`, {
+      method: 'POST', headers: SB_HDR, body: JSON.stringify(rows)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(`📤 اترسلت طلبية الجيلاتي (${rows.length} صنف) لفرع ${orderMeta.branch}`, 4000);
+  } catch (e) {
+    showToast('❌ فشل الإرسال — تحقق من الاتصال');
     console.error(e);
   }
 }
