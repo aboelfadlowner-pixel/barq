@@ -97,11 +97,13 @@ const DEPTS = {
   'vip':                      { label: 'VIP',              password: '7001' },
   'مصنعات':                   { label: 'مصنعات',           password: '7002' },
   'مصنعات لحوم و موالح':      { label: 'مصنعات لحوم ودواجن', password: '7003' },
-  'معمل':                     { label: 'معمل',             password: '7004' }
+  'معمل':                     { label: 'معمل',             password: '7004' },
+  'ايس كريم':                 { label: 'ايس كريم',         password: '7005' }
 };
 
 let currentDept = null;
 let pollTimer = null;
+let icSentByOrderSku = {}; // "orderId|sku" -> إجمالي الكمية اللي اترسلت قبل كده (قسم الأيس كريم بس)
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -229,6 +231,19 @@ async function loadAndRender() {
     // فلترة على أصناف القسم الحالي فقط
     const myRows = rows.filter(r => deptOfSku(r.sku) === currentDept);
 
+    // قسم الأيس كريم بس: إجمالي الكمية اللي اترسلت قبل كده لكل (طلبية × صنف) عشان نحسب الباقي
+    if (currentDept === 'ايس كريم' && myRows.length) {
+      const orderIds = [...new Set(myRows.map(r => r.order_id))].join(',');
+      const sentRes = await fetch(`${SB_URL}/rest/v1/ice_cream_shipments?order_id=in.(${orderIds})&select=order_id,sku,qty_sent`, { headers: SB_HDR });
+      const sentRows = sentRes.ok ? await sentRes.json() : [];
+      const sentMap = {};
+      sentRows.forEach(s => {
+        const key = s.order_id + '|' + s.sku;
+        sentMap[key] = (sentMap[key] || 0) + (parseFloat(s.qty_sent) || 0);
+      });
+      icSentByOrderSku = sentMap;
+    }
+
     // تجميع حسب الطلبية (الفرع)
     const groups = {};
     myRows.forEach(r => {
@@ -318,6 +333,30 @@ function renderList(groups, ids) {
     const itemsHtml = g.items.map(item => {
       const isDone = item.prep_status === 'done';
       const isShortage = item.prep_status === 'shortage';
+
+      // قسم الأيس كريم بس: بدل تم/نقص، بنسجل الكمية الفعلية المرسلة (ممكن تختلف عن المطلوب)
+      if (currentDept === 'ايس كريم') {
+        const ordered = parseFloat(item.quantity) || 0;
+        const alreadySent = icSentByOrderSku[item.order_id + '|' + item.sku] || 0;
+        const remaining = Math.max(0, ordered - alreadySent);
+        const sentNote = alreadySent > 0 ? `<div class="item-meta">📤 اترسل قبل كده: ${alreadySent} ${esc(item.unit || '')}</div>` : '';
+        const shipBtns = readOnly
+          ? `<div class="status-btns"><span class="status-btn ${alreadySent >= ordered ? 'done' : 'pending'}">${alreadySent >= ordered ? '✅ اترسل بالكامل' : '⏳ مترسلش كله'}</span></div>`
+          : `<div class="status-btns">
+              <input type="number" min="0" step="0.5" id="icShipQty_${item.id}" value="${remaining || ''}" placeholder="الكمية" style="width:90px;padding:9px;border:2px solid #e3ede6;border-radius:10px;font-size:14px;text-align:center;font-family:Cairo">
+              <button class="status-btn pending" onclick="sendIceCreamItem('${item.id}','${item.order_id}','${item.sku}','${esc(g.branch)}','${esc(item.product_name).replace(/'/g,"\\'")}',${ordered},'${esc(item.unit||'')}')">📤 إرسال للفروع</button>
+            </div>`;
+        return `
+          <div class="item-row">
+            <div class="item-info">
+              <div class="item-name">${esc(item.product_name)}</div>
+              <div class="item-qty">المطلوب: ${item.quantity} ${esc(item.unit || '')}</div>
+              ${sentNote}
+            </div>
+            ${shipBtns}
+          </div>`;
+      }
+
       let btns;
       if (readOnly) {
         btns = `<div class="status-btns"><span class="status-btn ${isDone ? 'done' : isShortage ? 'shortage-done' : 'pending'}">${isDone ? '✅ تم التجهيز' : isShortage ? '⚠️ نقص' : '⏳ لم يبدأ'}</span></div>`;
@@ -382,6 +421,38 @@ async function updateItem(itemId, status, note) {
     loadAndRender();
   } catch (e) {
     showToast('❌ حصل خطأ، حاول تاني');
+  }
+}
+
+// قسم الأيس كريم بس: تسجيل الكمية الفعلية اللي اترسلت للفرع (منفصل تمامًا عن تم/نقص — مفيهوش قرار تكلفة أو تسعير)
+async function sendIceCreamItem(itemId, orderId, sku, branch, productName, ordered, unit) {
+  const input = document.getElementById('icShipQty_' + itemId);
+  const qty = input ? parseFloat(input.value) : 0;
+  if (!qty || qty <= 0) { showToast('⚠️ اكتب كمية صحيحة أكبر من صفر'); return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/ice_cream_shipments`, {
+      method: 'POST',
+      headers: SB_HDR,
+      body: JSON.stringify({
+        order_id: orderId, branch, sku, product_name: productName,
+        qty_ordered: ordered, qty_sent: qty, unit,
+        sent_by: DEPTS['ايس كريم'].label
+      })
+    });
+    if (!res.ok) throw new Error('send failed');
+
+    const alreadySent = (icSentByOrderSku[orderId + '|' + sku] || 0) + qty;
+    if (alreadySent >= ordered) {
+      await fetch(`${SB_URL}/rest/v1/branch_order_items?id=eq.${itemId}`, {
+        method: 'PATCH',
+        headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ prep_status: 'done', prep_updated_by: DEPTS['ايس كريم'].label, prep_updated_at: new Date().toISOString() })
+      });
+    }
+    showToast(`📤 اترسل ${qty} ${unit || ''} — ${productName}`);
+    loadAndRender();
+  } catch (e) {
+    showToast('❌ فشل الإرسال، حاول تاني');
   }
 }
 
