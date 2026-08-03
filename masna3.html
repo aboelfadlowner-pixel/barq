@@ -1516,7 +1516,10 @@ function printDept(did, densityMode) {
       'td.note { font-size: ' + fontSmall + '; color: #555; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }' +
       'tr { page-break-inside: avoid; }' +
       'thead { display: table-header-group; }' +
+      '.print-btn { position: fixed; top: 8px; left: 8px; z-index: 999; background: #0a8d4b; color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font-size: 15px; font-weight: 800; font-family: Cairo, Tahoma, Arial, sans-serif; }' +
+      '@media print { .print-btn { display: none; } }' +
     '</style></head><body>' +
+      '<button class="print-btn" onclick="window.print()">🖨 اطبع دلوقتي</button>' +
       '<div class="header">' +
         '<div><span class="brand">⚡ برق المصنع</span> <span class="dept-name">— ' + did + '</span></div>' +
         '<div class="meta">🏪 ' + branch + ' · ' + dateStr + ' · ' + items.length + ' صنف</div>' +
@@ -1672,7 +1675,10 @@ function printAllDepts() {
       'td.note { font-size: 8.5px; color: #555; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }' +
       'tr { page-break-inside: avoid; }' +
       'thead { display: table-header-group; }' +
-    '</style></head><body>' + allSections + '</body></html>';
+      '.print-btn { position: fixed; top: 8px; left: 8px; z-index: 999; background: #0a8d4b; color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font-size: 15px; font-weight: 800; font-family: Cairo, Tahoma, Arial, sans-serif; }' +
+      '@media print { .print-btn { display: none; } }' +
+    '</style></head><body>' +
+      '<button class="print-btn" onclick="window.print()">🖨 اطبع دلوقتي</button>' + allSections + '</body></html>';
     
     const win = openPrintWindow(html);
     if (!win) return;
