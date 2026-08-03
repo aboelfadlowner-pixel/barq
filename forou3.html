@@ -2702,12 +2702,25 @@ async function sendOrderToFactory() {
   const btn2 = document.getElementById('sendFactoryBtn2');
   [btn, btn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جاري الإرسال...'; } });
 
+  // منع تضاعف الطلبية: لو الإرسال فشل ظاهريًا بسبب نت بطيء (والطلبية كانت اتسجلت فعلاً على السيرفر)
+  // والموظف حاول يبعت تاني، بنستخدم نفس الـ id بتاع الطلبية والأصناف لو المحتوى مطابق لمحاولة سابقة
+  // قريبة — upsert بالـ id يضمن إنها متتسجلش مرتين بدل ما تتكرر كطلبيتين منفصلتين
+  const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+  const submissionFingerprint = (currentUser?.branch || '') + '|' + items.map(i => i.sku + ':' + i.quantity).sort().join(',');
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem('barq_pending_order_submission') || 'null'); } catch(e) {}
+  const canReuse = pending && pending.fingerprint === submissionFingerprint && pending.itemIds && pending.itemIds.length === items.length && (Date.now() - pending.ts) < 10 * 60 * 1000;
+  const orderId = canReuse ? pending.orderId : genId();
+  const itemIds = canReuse ? pending.itemIds : items.map(genId);
+  try { localStorage.setItem('barq_pending_order_submission', JSON.stringify({ fingerprint: submissionFingerprint, orderId, itemIds, ts: Date.now() })); } catch(e) {}
+
   try {
     // إنشاء الطلبية
-    const orderRes = await fetch(`${SB_URL}/rest/v1/branch_orders`, {
+    const orderRes = await fetch(`${SB_URL}/rest/v1/branch_orders?on_conflict=id`, {
       method: 'POST',
-      headers: SB_HEADERS,
+      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({
+        id: orderId,
         branch_name: currentUser?.branch || 'غير محدد',
         branch_key: currentUser?.branchKey || '',
         username: currentUser?.username || '',
@@ -2719,24 +2732,25 @@ async function sendOrderToFactory() {
 
     if (!orderRes.ok) throw new Error(await orderRes.text());
     const order = await orderRes.json();
-    const orderId = order[0].id;
+    const confirmedOrderId = order[0] ? order[0].id : orderId;
 
     // إضافة المنتجات
-    const itemsPayload = items.map(i => ({ order_id: orderId, sku: i.sku, product_name: i.product_name, quantity: i.quantity, unit: i.unit }));
-    const itemsRes = await fetch(`${SB_URL}/rest/v1/branch_order_items`, {
+    const itemsPayload = items.map((i, idx) => ({ id: itemIds[idx], order_id: confirmedOrderId, sku: i.sku, product_name: i.product_name, quantity: i.quantity, unit: i.unit }));
+    const itemsRes = await fetch(`${SB_URL}/rest/v1/branch_order_items?on_conflict=id`, {
       method: 'POST',
-      headers: SB_HEADERS,
+      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(itemsPayload)
     });
 
     if (!itemsRes.ok) throw new Error(await itemsRes.text());
 
     showToast(`✅ تم إرسال الطلبية للمصنع (${items.length} صنف)`, 4000);
+    try { localStorage.removeItem('barq_pending_order_submission'); } catch(e) {}
     saveOrderToHistory();
 
   } catch(e) {
     console.error(e);
-    showToast('❌ فشل الإرسال — تحقق من الاتصال', 3000);
+    showToast('❌ فشل الإرسال — تحقق من الاتصال، ولو تحاول تاني مش هتتبعت مرتين', 3500);
   } finally {
     [btn, btn2].forEach(b => { if(b) { b.disabled = false; b.textContent = '📤 إرسال للمصنع'; } });
   }

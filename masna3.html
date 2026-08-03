@@ -2215,8 +2215,14 @@ function moveCheckedToDept(target) {
       const idx = orderData[dept].findIndex(r => r.sku === sku);
       if (idx !== -1) {
         const [item] = orderData[dept].splice(idx, 1);
-        item.dept = target;
-        orderData[target].push(item);
+        // لو القسم الهدف فيه بالفعل نفس الصنف، ندمج الكمية في نفس الصف بدل ما نضيف صف مكرر (كان ده سبب تضاعف الكمية في الطباعة)
+        const existing = orderData[target].find(r => r.sku === sku);
+        if (existing) {
+          existing.requested = (parseFloat(existing.requested) || 0) + (parseFloat(item.requested) || 0);
+        } else {
+          item.dept = target;
+          orderData[target].push(item);
+        }
         if (orderData[dept].length === 0) delete orderData[dept];
       }
     });
