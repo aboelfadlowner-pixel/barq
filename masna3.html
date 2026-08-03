@@ -1413,7 +1413,41 @@ function confirmAdd(did,dept) {
   saveData(); renderAll(); showToast('✅ تمت الإضافة');
 }
 
-// ===== PRINT A4 ===== 
+// ===== PRINT A4 =====
+// بنفتح نافذة/تاب فعلي (مش iframe مخفي برّه الشاشة) عشان الطباعة من الموبايل (أندرويد بالذات) —
+// خدمة الطباعة على الموبايل بتفشل غالبًا في تصوير محتوى iframe مخفي أو موضوع برّه حدود الشاشة
+// (بتطلع صفحة فاضية زي ما حصل)، لكن نافذة/تاب حقيقي بيتعامل معاه زي أي صفحة عادية.
+function openPrintWindow(html) {
+  const win = window.open('', '_blank');
+  if (!win) {
+    showToast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة (Popups) لهذا الموقع وحاول تاني', 4500);
+    return null;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  return win;
+}
+
+function triggerPrintWindow(win) {
+  let printed = false;
+  function doPrint() {
+    if (printed) return;
+    printed = true;
+    try {
+      win.focus();
+      win.print();
+      win.onafterprint = function() { try { win.close(); } catch(e) {} };
+    } catch(err) {
+      showToast('❌ فشل في الطباعة: ' + err.message, 3000);
+    }
+  }
+  if (win.document.fonts && win.document.fonts.ready) {
+    win.document.fonts.ready.then(function(){ setTimeout(doPrint, 150); }).catch(function(){ setTimeout(doPrint, 150); });
+  }
+  setTimeout(doPrint, 900);
+}
+
 function printDept(did, densityMode) {
   // densityMode: 'tight' / 'compact' / 'standard'
   if (!densityMode) {
@@ -1501,37 +1535,9 @@ function printDept(did, densityMode) {
       '</table>' +
     '</body></html>';
     
-    // ازالة iframe قديم لو موجود
-    const oldFrame = document.getElementById('barqPrintFrame');
-    if (oldFrame) oldFrame.remove();
-    
-    // إنشاء iframe جديد
-    const iframe = document.createElement('iframe');
-    iframe.id = 'barqPrintFrame';
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0;visibility:hidden';
-    document.body.appendChild(iframe);
-    
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    
-    let barqPrinted1 = false;
-    function barqTriggerPrint1() {
-      if (barqPrinted1) return;
-      barqPrinted1 = true;
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        setTimeout(function() { iframe.remove(); }, 1000);
-      } catch(err) {
-        showToast('❌ فشل في الطباعة: ' + err.message, 3000);
-      }
-    }
-    if (doc.fonts && doc.fonts.ready) {
-      doc.fonts.ready.then(function(){ setTimeout(barqTriggerPrint1, 150); }).catch(function(){});
-    }
-    setTimeout(barqTriggerPrint1, 900);
+    const win = openPrintWindow(html);
+    if (!win) return;
+    triggerPrintWindow(win);
   } catch(e) {
     console.error('[printDept]', e);
     if (window._barqLogEvent) window._barqLogEvent('printDept ERROR', { msg: e.message });
@@ -1668,35 +1674,9 @@ function printAllDepts() {
       'thead { display: table-header-group; }' +
     '</style></head><body>' + allSections + '</body></html>';
     
-    const oldFrame = document.getElementById('barqPrintFrame');
-    if (oldFrame) oldFrame.remove();
-    
-    const iframe = document.createElement('iframe');
-    iframe.id = 'barqPrintFrame';
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0;visibility:hidden';
-    document.body.appendChild(iframe);
-    
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    
-    let barqPrinted2 = false;
-    function barqTriggerPrint2() {
-      if (barqPrinted2) return;
-      barqPrinted2 = true;
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        setTimeout(function() { iframe.remove(); }, 1000);
-      } catch(err) {
-        showToast('❌ فشل في الطباعة', 3000);
-      }
-    }
-    if (doc.fonts && doc.fonts.ready) {
-      doc.fonts.ready.then(function(){ setTimeout(barqTriggerPrint2, 150); }).catch(function(){});
-    }
-    setTimeout(barqTriggerPrint2, 900);
+    const win = openPrintWindow(html);
+    if (!win) return;
+    triggerPrintWindow(win);
   } catch(e) {
     console.error('[printAllDepts]', e);
     showToast('❌ خطأ: ' + e.message, 3000);
@@ -2135,14 +2115,26 @@ async function sendIceCreamOrderToBranch() {
   if (!rows.length) { showToast('⚠️ مفيش كميات لإرسالها'); return; }
   if (!confirm(`تأكيد إرسال ${rows.length} صنف جيلاتي لفرع ${orderMeta.branch}؟`)) return;
 
+  // منع تسجيل نفس الإرسال مرتين (لو ضغط إرسال تاني على نفس الطلبية بنفس الكميات) — نفس فكرة idempotency
+  // المستخدمة في إرسال الطلبية من الفروع، عشان "المصنع بعت" متتضاعفش وتبوظ صورة الرصيد
+  const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+  const fingerprint = orderMeta.orderId + '|' + rows.map(r => r.sku + ':' + r.qty_sent).sort().join(',');
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem('barq_pending_ic_shipment') || 'null'); } catch (e) {}
+  const canReuse = pending && pending.fingerprint === fingerprint && pending.ids && pending.ids.length === rows.length && (Date.now() - pending.ts) < 10 * 60 * 1000;
+  const ids = canReuse ? pending.ids : rows.map(genId);
+  try { localStorage.setItem('barq_pending_ic_shipment', JSON.stringify({ fingerprint, ids, ts: Date.now() })); } catch (e) {}
+  rows.forEach((r, idx) => { r.id = ids[idx]; });
+
   try {
-    const res = await fetchWithTimeout(`${SB_URL}/rest/v1/ice_cream_shipments`, {
-      method: 'POST', headers: SB_HDR, body: JSON.stringify(rows)
+    const res = await fetchWithTimeout(`${SB_URL}/rest/v1/ice_cream_shipments?on_conflict=id`, {
+      method: 'POST', headers: { ...SB_HDR, 'Prefer': 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows)
     });
     if (!res.ok) throw new Error(await res.text());
     showToast(`📤 اترسلت طلبية الجيلاتي (${rows.length} صنف) لفرع ${orderMeta.branch}`, 4000);
+    try { localStorage.removeItem('barq_pending_ic_shipment'); } catch (e) {}
   } catch (e) {
-    showToast('❌ فشل الإرسال — تحقق من الاتصال');
+    showToast('❌ فشل الإرسال — تحقق من الاتصال، ولو تحاول تاني مش هتتبعت مرتين');
     console.error(e);
   }
 }
