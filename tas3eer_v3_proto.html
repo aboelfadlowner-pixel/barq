@@ -507,6 +507,10 @@ function getCurrentCost(sku) {
   return (DC_COST[sku] != null && DC_COST[sku] > 0) ? DC_COST[sku] : ((PRODUCTS[sku]||{}).c || 0);
 }
 
+// inventory_item_sku (مادة مخزون) -> [{productSku, productName, quantity, unit, oldIngredientCost}]
+// شيت المكونات (dc_product_ingredients) — يربط كل مادة بالمنتجات اللي بتدخل في تركيبها
+var DC_INGREDIENTS_BY_MATERIAL = {};
+
 var MOCK_REQUESTS = [];
 var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائياً عند أول فاتورة)
 
@@ -965,6 +969,26 @@ async function loadFromSupabase() {
       }
       dcRows.forEach(function(r){ if (r.sku && r.current_cost != null) DC_COST[r.sku] = parseFloat(r.current_cost); });
     } catch(e) { /* data center tables may not exist yet */ }
+
+    // 7c. Load dc_product_ingredients (شيت المكونات — أي مادة مخزون داخلة في تركيب أي منتجات)
+    // بيسمح إننا لما مادة يزيد سعرها، نعرف فورًا كل المنتجات المتأثرة قبل ما تتباع بسعر قديم أقل من التكلفة الحقيقية
+    try {
+      var ingOffset = 0, ingBatch = 1000;
+      while (true) {
+        var ingRows = await sbFetch('dc_product_ingredients?select=product_sku,product_name,inventory_item_sku,quantity,unit,ingredient_cost&limit='+ingBatch+'&offset='+ingOffset);
+        if (!ingRows || !ingRows.length) break;
+        ingRows.forEach(function(r){
+          if (!r.inventory_item_sku || !r.product_sku || r.product_sku === r.inventory_item_sku) return; // استبعاد "تعبئة نفس الصنف" — مش وصفة مركّبة فعلية
+          (DC_INGREDIENTS_BY_MATERIAL[r.inventory_item_sku] = DC_INGREDIENTS_BY_MATERIAL[r.inventory_item_sku] || []).push({
+            productSku: r.product_sku, productName: r.product_name||'',
+            quantity: parseFloat(r.quantity)||0, unit: r.unit||'',
+            oldIngredientCost: parseFloat(r.ingredient_cost)||0
+          });
+        });
+        if (ingRows.length < ingBatch) break;
+        ingOffset += ingBatch;
+      }
+    } catch(e) { /* dc_product_ingredients may not exist yet */ }
 
     // 8. Load menu_analysis (تصنيف Star/Dog/Workhorse/Challenge)
     try {
@@ -2353,6 +2377,28 @@ function renderDetail() {
       '✅ التكلفة لم تتغير — السعر مطابق ولا يحتاج تعديل</div>';
   }
 
+  // ── تأثير الوصفة: المادة دي داخلة في تركيب منتجات تانية (شيت المكونات) — لازم تتراجع أسعارها كمان قبل البيع ──
+  var affectedHTML = '';
+  var affected = (costAlert && diff > 0) ? (DC_INGREDIENTS_BY_MATERIAL[r.sku] || []) : [];
+  if (affected.length) {
+    var ratio = r.old_cost > 0 ? (r.new_cost / r.old_cost) : null;
+    var rows = affected.map(function(ing){
+      var estNew = ratio != null ? ing.oldIngredientCost * ratio : null;
+      var estDiff = estNew != null ? (estNew - ing.oldIngredientCost) : null;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<span style="flex:1">'+esc(ing.productName)+' <span style="color:var(--muted);font-size:10px">('+esc(ing.productSku)+')</span></span>' +
+        '<span style="color:#c0392b;font-weight:700;white-space:nowrap">' +
+          (estDiff != null ? '+'+estDiff.toFixed(2)+' ج تقريبًا' : 'راجع يدويًا') +
+        '</span>' +
+      '</div>';
+    }).join('');
+    affectedHTML = '<div style="padding:14px;background:#fff3e0;border:1px solid #f0c419;border-radius:10px;margin-bottom:12px">' +
+      '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🔗 المادة دي داخلة في تركيب '+affected.length+' منتج — راجع أسعارهم قبل البيع</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">تقدير تقريبي بناءً على نسبة زيادة تكلفة المادة نفسها — مش حساب دقيق للوصفة الكاملة، لازم مراجعة يدوية قبل تغيير أي سعر</div>' +
+      '<div style="max-height:220px;overflow-y:auto;border-radius:8px;background:var(--card)">' + rows + '</div>' +
+    '</div>';
+  }
+
   var canEdit = role==='pricing' && (r.status===STATUSES.sent || r.status===STATUSES.pricing || r.status===STATUSES.deferred);
   var mustDecide = costAlert && canEdit; // إلزام اتخاذ قرار عند تغيّر التكلفة لتقليل المخاطر
 
@@ -2384,6 +2430,7 @@ function renderDetail() {
     backBtn +
   '</div></div><div class="pg">' +
     alertBox +
+    affectedHTML +
     menuClassBadge(r.sku) +
     '<div class="cd"><div class="ct">بيانات الصنف</div>' +
       '<div class="px-row">' +
