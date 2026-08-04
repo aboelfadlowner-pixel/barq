@@ -3731,7 +3731,10 @@ function addPriceCheckItemBySku(sku) {
   var idx = findPriceCheckIndexBySku(sku);
   var prod = PRODUCTS[sku];
   if (idx === -1) {
-    priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0,
+    // رصيد مستوى المخزون بتاع المنتج ده في الفرع الحالي — بيمر على product_stock_map لو المنتج ده
+    // رصيده الحقيقي متسجل تحت SKU مادة مخزون تانية (نفس المنطق المستخدم في شاشة الجرد)
+    var stockQty = getBranchQty(countStockSku(sku), countStockKind(sku));
+    priceCheckItems.unshift({ sku:sku, name:prod.n, bc:prod.bc||'', system_price: prod.p||0, manual_price:'', stock_qty: stockQty,
       matches:null, shelf_price:'', issue_type:'', checked_by:'', checked_at:'', label_qty:1, is_promo:false, promo_price:'' });
     idx = 0;
   } else if (idx > 0) {
@@ -3749,8 +3752,15 @@ function handlePriceCheckScan(code) {
   if (!priceCheckSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
   var msg = document.getElementById('scan-msg');
 
+  // ممكن أكتر من صنف (SKU) يشتركوا في نفس الباركود فعليًا — زي وحدة البيع بالتجزئة وكرتونة التعبئة
+  // (بيانات فوديكس بتوثقهم بنفس الباركود). في الحالة دي لازم نفضّل صنف التجزئة اللي له سعر بيع حقيقي
+  // (price > 0) بدل ما نقع على صنف الكرتونة/التكلفة اللي سعره صفر عشوائيًا حسب ترتيب المفاتيح
   var sku = null;
-  Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) sku = s; });
+  var bcCandidates = [];
+  Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) bcCandidates.push(s); });
+  if (bcCandidates.length) {
+    sku = bcCandidates.find(function(s){ return (PRODUCTS[s].p||0) > 0; }) || bcCandidates[0];
+  }
 
   if (!sku) {
     playBeep('unknown');
@@ -3762,7 +3772,9 @@ function handlePriceCheckScan(code) {
 
   var idx = addPriceCheckItemBySku(sku);
   playBeep('success');
-  if (msg) { msg.innerHTML = '✅ <strong>'+priceCheckItems[idx].name+'</strong> — السعر: '+fmt(priceCheckItems[idx].system_price)+' ج'; msg.style.color = '#1a7a40'; }
+  var addedItem = priceCheckItems[idx];
+  var priceLabel = effectivePriceCheckPrice(addedItem) > 0 ? (fmt(effectivePriceCheckPrice(addedItem))+' ج') : 'غير موجود — يتضاف يدوي';
+  if (msg) { msg.innerHTML = '✅ <strong>'+addedItem.name+'</strong> — السعر: '+priceLabel; msg.style.color = '#1a7a40'; }
   render();
   var row = document.getElementById('prow-0');
   if (row) { row.scrollIntoView({behavior:'smooth', block:'center'}); }
@@ -3836,6 +3848,15 @@ function setPriceCheckShelfPrice(i, val) {
   persistPriceCheckItem(priceCheckItems[i]);
 }
 
+// السعر الفعلي المستخدم في العرض/الطباعة: سعر النظام لو موجود، وإلا السعر المدخل يدويًا لو المنتج ملوش سعر مسجل
+function effectivePriceCheckPrice(it) {
+  if (it.system_price && it.system_price > 0) return it.system_price;
+  return (it.manual_price !== '' && it.manual_price != null) ? it.manual_price : 0;
+}
+function setPriceCheckManualPrice(i, val) {
+  priceCheckItems[i].manual_price = val === '' ? '' : (parseFloat(val)||0);
+}
+
 function renderPriceCheckItemCard(item, i) {
   var statusBadge = item.matches===true ? '<span class="diff-badge diff-ok">✅ مطابق</span>'
     : item.matches===false ? '<span class="diff-badge diff-short">❌ مختلف</span>' : '';
@@ -3851,13 +3872,23 @@ function renderPriceCheckItemCard(item, i) {
     '</div>'
   ) : '';
 
+  var hasSystemPrice = item.system_price && item.system_price > 0;
+  var manualPriceForm = !hasSystemPrice ? (
+    '<div style="margin:8px 0;padding:8px;border-radius:8px;background:#fff3cd;border:1px solid #ffe08a">' +
+      '<label style="display:block;font-size:11px;font-weight:700;color:#8a6d00;margin-bottom:4px">⚠️ السعر مش موجود على النظام — اكتبه يدوي عشان يتطبع على الملصق</label>' +
+      '<input type="number" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" value="'+(item.manual_price===''?'':item.manual_price)+'" oninput="setPriceCheckManualPrice('+i+',this.value)">' +
+    '</div>'
+  ) : '';
+
   return '<div class="item-card-mobile" id="prow-'+i+'">' +
     '<div class="item-name">'+item.name+'</div>' +
     '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+(item.checked_by?' | 👤 '+item.checked_by:'')+'</div>' +
-    '<div style="display:flex;gap:8px;align-items:center;margin:8px 0">' +
-      '<div class="count-sysqty-box"><label>السعر على النظام</label><span>'+fmt(item.system_price)+' ج</span></div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">' +
+      '<div class="count-sysqty-box"><label>السعر على النظام</label><span>'+(hasSystemPrice?fmt(item.system_price)+' ج':'—')+'</span></div>' +
+      '<div class="count-sysqty-box"><label>رصيد المخزون</label><span>'+fmt(item.stock_qty||0)+'</span></div>' +
       statusBadge +
     '</div>' +
+    manualPriceForm +
     '<div style="display:flex;gap:8px">' +
       '<button class="big-action-btn" style="margin:0;background:var(--accent);color:#fff;padding:12px" onclick="markPriceCheckMatch('+i+')">✅ مطابق</button>' +
       '<button class="big-action-btn" style="margin:0;background:var(--red);color:#fff;padding:12px" onclick="markPriceCheckMismatch('+i+')">❌ مختلف</button>' +
@@ -3973,15 +4004,17 @@ function printPriceLabels() {
         var bcValue = it.bc || it.sku;
         var bcImg = generateBarcodeDataUrl(bcValue);
         var isPromo = it.is_promo && it.promo_price!=='' && it.promo_price!=null && parseFloat(it.promo_price) > 0;
+        // السعر المطبوع: سعر النظام لو موجود، وإلا السعر اللي اتكتب يدوي وقت التشيك (للمنتجات الناقصة سعرها)
+        var basePrice = effectivePriceCheckPrice(it);
         // وقت العرض: السعرين وكلمة "عرض" في صف واحد جمب بعض بدل ما يترصّوا فوق بعض — عشان
         // ارتفاع تاج العرض يفضل زي بالظبط ارتفاع التاج العادي (نفس مقاس حامل السعر في الرف)
         var priceHtml = isPromo ?
           '<div class="tag-promo-row">' +
-            '<span class="tag-price-old">'+fmt(it.system_price)+' LE</span>' +
+            '<span class="tag-price-old">'+fmt(basePrice)+' LE</span>' +
             '<span class="tag-promo-badge">عرض</span>' +
             '<span class="tag-price-promo">'+fmt(it.promo_price)+' LE</span>' +
           '</div>'
-          : '<div class="tag-price">'+fmt(it.system_price)+' LE</div>';
+          : '<div class="tag-price">'+fmt(basePrice)+' LE</div>';
         return '<td class="tag'+(isPromo?' promo':'')+'">' +
           '<div class="tag-header"><img class="tag-logo" src="'+SHOP_LOGO_DATA_URL+'"><span class="tag-name">'+it.name+'</span></div>' +
           priceHtml +
