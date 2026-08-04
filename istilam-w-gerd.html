@@ -3325,15 +3325,22 @@ function handleCountScan(code) {
 
   var idx = findCountIndexBySku(code);
   var sku = idx>=0 ? countItems[idx].sku : null;
+  // ممكن أكتر من SKU يشتركوا في نفس الباركود فعليًا (وحدة تجزئة وكرتونة تعبئة بنفس الباركود، زي حالة
+  // عصير المراعي في الشيلفات) — لازم نفضّل الصنف اللي فعلاً له رصيد مخزون بالفرع الحالي (يعني هو الصنف
+  // الحقيقي اللي بيتتبّع)، بدل ما نوقع عشوائي على أي واحد حسب ترتيب المفاتيح، وإلا هنعدّ على الصنف الغلط
   if (!sku) {
-    Object.keys(PRODUCTS).forEach(function(s){
-      if (PRODUCTS[s].bc === code || s === code) sku = s;
-    });
+    var prodCandidates = [];
+    Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) prodCandidates.push(s); });
+    if (prodCandidates.length) {
+      sku = prodCandidates.find(function(s){ return getBranchQty(countStockSku(s), countStockKind(s)) > 0; }) || prodCandidates[0];
+    }
   }
   if (!sku) {
-    Object.keys(MATERIALS).forEach(function(s){
-      if (MATERIALS[s].bc === code || s === code) sku = s;
-    });
+    var matCandidates = [];
+    Object.keys(MATERIALS).forEach(function(s){ if (MATERIALS[s].bc === code || s === code) matCandidates.push(s); });
+    if (matCandidates.length) {
+      sku = matCandidates.find(function(s){ return getBranchQty(countStockSku(s), countStockKind(s)) > 0; }) || matCandidates[0];
+    }
   }
 
   if (!sku) {
@@ -3597,9 +3604,23 @@ async function exportInventoryCountUploadSheet() {
   if (!rows.length) { toast('⚠️ لا توجد أصناف معدودة بعد'); return; }
   loadXlsxLib(function(){
     try {
-      var aoa = [['Inventory Item Name','Inventory Item SKU','Storage quantity','Ingredients quantity','Inventory Count ID']];
+      // فوديكس بيتتبّع الرصيد بـ SKU مادة المخزون الحقيقية، مش SKU المنتج المعروض (نفس المنطق بالظبط
+      // المستخدم وقت اعتماد الجرد) — ولازم نجمع أي أصناف بترصّ على نفس SKU المادة في صف واحد بدل
+      // ما نبعت صفوف مكررة لنفس الكود (فوديكس هياخد آخر صف بس وتضيع باقي الكمية)
+      var byRealSku = {}; var order = [];
       rows.forEach(function(it){
-        aoa.push([it.name||'', it.sku, parseFloat(it.actual_qty)||0, '', '']);
+        var realSku = countStockSku(it.sku);
+        if (!byRealSku[realSku]) {
+          var realName = (realSku !== it.sku) ? (catalogEntry(realSku).n || it.name) : it.name;
+          byRealSku[realSku] = { sku: realSku, name: realName, qty: 0 };
+          order.push(realSku);
+        }
+        byRealSku[realSku].qty += parseFloat(it.actual_qty)||0;
+      });
+      var aoa = [['Inventory Item Name','Inventory Item SKU','Storage quantity','Ingredients quantity','Inventory Count ID']];
+      order.forEach(function(realSku){
+        var r = byRealSku[realSku];
+        aoa.push([r.name||'', r.sku, r.qty, '', '']);
       });
       var ws = XLSX.utils.aoa_to_sheet(aoa);
       var wb = XLSX.utils.book_new();
