@@ -915,6 +915,24 @@
   </div>
 </div>
 
+<!-- ITEM RECIPE POPUP (شيت المكونات — مواد داخلة في تصنيع هذه المادة) -->
+<div class="overlay" id="itemRecipeModal">
+  <div class="modal" style="max-width:480px">
+    <h3>🧪 مكونات هذا الصنف</h3>
+    <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--muted)" id="itemRecipeName"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">لو الصنف ده مادة مُنتَجة (متصنّعة) من مواد مخزون تانية، ضيفها هنا — لما سعر أي مكون منها يزيد، هيتنبّهك في شاشة التسعير إن الصنف ده محتاج مراجعة سعر.</div>
+    <div style="position:relative;margin-bottom:10px">
+      <input type="text" id="recipeCompSearch" class="po-field" autocomplete="off" placeholder="🔍 دور على مكون بالاسم أو SKU..." oninput="recipeComponentSearch()">
+      <div id="recipeCompResults" style="display:none;position:absolute;top:100%;right:0;left:0;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:60;box-shadow:0 6px 18px rgba(0,0,0,.12);margin-top:3px"></div>
+    </div>
+    <div id="itemRecipeList" class="item-sup-list"></div>
+    <p id="itemRecipeEmpty" style="color:var(--muted);font-size:13px;display:none">لسه مفيش مكونات مضافة لهذا الصنف.</p>
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-ghost" onclick="closeItemRecipeModal()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT MODAL -->
 <div class="overlay" id="editModal">
   <div class="modal">
@@ -1396,6 +1414,7 @@ function renderOrders() {
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemRecipeModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="مكونات هذا الصنف">🧪</button>
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
@@ -1456,6 +1475,7 @@ function renderAll() {
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="addToCart('${r.sku}')" title="أضف لسلة أمر الشراء">🧾+</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openEdit('${r.sku}')">✏️</button>
         <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemSupModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="موردو هذا الصنف">🏪</button>
+        <button class="filter-btn" style="padding:5px 10px;font-size:12px" onclick="openItemRecipeModal('${r.sku}','${r.name.replace(/'/g,"\\'")}')" title="مكونات هذا الصنف">🧪</button>
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
@@ -2008,6 +2028,121 @@ function closeItemSupModal() {
 
 document.getElementById('supModal').addEventListener('click', function(e) { if (e.target === this) closeSupModal(); });
 document.getElementById('itemSupModal').addEventListener('click', function(e) { if (e.target === this) closeItemSupModal(); });
+
+// =================== شيت المكونات (مواد داخلة في تصنيع مادة أخرى) ===================
+// بيتخزن في Supabase (custom_material_recipes) — مش IndexedDB زي الموردين، عشان أداة
+// التسعير (tas3eer_v3_proto.html) لازم تقدر تقراه هي كمان لحساب تأثير تغيّر التكلفة
+var recipeCurrentSku = null;
+var recipeCurrentName = '';
+var recipeItems = []; // [{id, componentSku, componentName, quantity, unit}] — للصنف المفتوح حاليًا
+var recipeCompMatches = [];
+
+async function openItemRecipeModal(sku, name) {
+  recipeCurrentSku = sku;
+  recipeCurrentName = name;
+  document.getElementById('itemRecipeName').textContent = name;
+  document.getElementById('recipeCompSearch').value = '';
+  document.getElementById('recipeCompResults').style.display = 'none';
+  document.getElementById('itemRecipeModal').classList.add('open');
+  document.getElementById('itemRecipeList').innerHTML = '<p style="color:var(--muted);font-size:13px">⏳ جاري التحميل...</p>';
+  try {
+    var rows = await poSbFetch('custom_material_recipes?select=*&produced_sku=eq.' + encodeURIComponent(sku));
+    recipeItems = (rows || []).map(function(r){
+      return { id: r.id, componentSku: r.component_sku, componentName: r.component_name, quantity: r.quantity, unit: r.unit };
+    });
+  } catch(e) {
+    recipeItems = [];
+    showToast('⚠️ تعذر تحميل المكونات: ' + (e.message || '').slice(0, 80));
+  }
+  renderItemRecipeList();
+}
+
+function closeItemRecipeModal() {
+  document.getElementById('itemRecipeModal').classList.remove('open');
+}
+document.getElementById('itemRecipeModal').addEventListener('click', function(e) { if (e.target === this) closeItemRecipeModal(); });
+
+function renderItemRecipeList() {
+  const list = document.getElementById('itemRecipeList');
+  const empty = document.getElementById('itemRecipeEmpty');
+  if (!recipeItems.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = recipeItems.map(function(c, i){
+    return `<div class="item-sup-row">
+      <span class="sup-name">🧪 ${escapeHtml(c.componentName || c.componentSku)} <span style="color:var(--muted);font-size:11px">(${escapeHtml(c.componentSku)})</span></span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--muted)">${c.quantity != null ? c.quantity : ''} ${escapeHtml(c.unit || '')}</span>
+        <button class="filter-btn" style="padding:3px 8px;font-size:11px;background:#c0392b;color:#fff" onclick="removeRecipeComponent(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function recipeComponentSearch() {
+  const q = (document.getElementById('recipeCompSearch').value || '').trim().toLowerCase();
+  const box = document.getElementById('recipeCompResults');
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; recipeCompMatches = []; return; }
+  recipeCompMatches = processedData.filter(function(p){
+    return p.sku !== recipeCurrentSku &&
+      !recipeItems.some(function(c){ return c.componentSku === p.sku; }) &&
+      (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+  }).slice(0, 15);
+  if (!recipeCompMatches.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">لا توجد نتائج</div>';
+    return;
+  }
+  box.style.display = 'block';
+  box.innerHTML = recipeCompMatches.map(function(p, i){
+    return `<div onclick="addRecipeComponent(${i})" style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onmouseover="this.style.background='var(--surface2,#f5f5f5)'" onmouseout="this.style.background=''">
+      <strong>${escapeHtml(p.name)}</strong> <span style="color:var(--muted);font-size:11px">(${escapeHtml(p.sku)})</span>
+    </div>`;
+  }).join('');
+}
+
+async function addRecipeComponent(i) {
+  const p = recipeCompMatches[i];
+  if (!p) return;
+  const qtyStr = prompt('الكمية المستخدمة من "' + p.name + '" في تصنيع "' + recipeCurrentName + '"؟ (اختياري)', '1');
+  if (qtyStr === null) return; // المستخدم لغى
+  const unitStr = prompt('الوحدة؟ (مثال: كيلو، جرام، قطعة)', unitLabel(p.unit) || '');
+  const payload = {
+    produced_sku: recipeCurrentSku, produced_name: recipeCurrentName,
+    component_sku: p.sku, component_name: p.name,
+    quantity: parseFloat(qtyStr) || null, unit: unitStr || null
+  };
+  try {
+    const res = await poSbFetch('custom_material_recipes?on_conflict=produced_sku,component_sku', {
+      method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify(payload)
+    });
+    const saved = (res && res[0]) || payload;
+    recipeItems.push({ id: saved.id, componentSku: p.sku, componentName: p.name, quantity: payload.quantity, unit: payload.unit });
+    document.getElementById('recipeCompSearch').value = '';
+    document.getElementById('recipeCompResults').style.display = 'none';
+    renderItemRecipeList();
+    showToast('✅ اتضاف "' + p.name + '" كمكون');
+  } catch(e) {
+    showToast('⚠️ فشل الحفظ: ' + (e.message || '').slice(0, 80));
+  }
+}
+
+async function removeRecipeComponent(i) {
+  const c = recipeItems[i];
+  if (!c) return;
+  if (!confirm('تشيل "' + (c.componentName || c.componentSku) + '" من مكونات "' + recipeCurrentName + '"؟')) return;
+  try {
+    if (c.id) await poSbFetch('custom_material_recipes?id=eq.' + c.id, { method: 'DELETE' });
+    recipeItems.splice(i, 1);
+    renderItemRecipeList();
+  } catch(e) {
+    showToast('⚠️ فشل الحذف: ' + (e.message || '').slice(0, 80));
+  }
+}
 
 // =================== SAVE SNAPSHOT (replaced by exportBackup) ===================
 function saveSnapshot() { exportBackup(); }

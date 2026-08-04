@@ -511,6 +511,36 @@ function getCurrentCost(sku) {
 // شيت المكونات (dc_product_ingredients) — يربط كل مادة بالمنتجات اللي بتدخل في تركيبها
 var DC_INGREDIENTS_BY_MATERIAL = {};
 
+// component_sku (مادة خام) -> [{producedSku, producedName, quantity, unit}]
+// شيت المكونات اليدوي (custom_material_recipes) — مواد مخزون بتتصنّع من مواد مخزون تانية
+// (مثال: "كيري بسطرمة" مادة مُنتَجة من كيري + بسطرمة + زبدة) — ده مش موجود في تصدير فودكس
+// أصلاً، فبيتحفظ ويتقرأ من عندنا مباشرة
+var CUSTOM_RECIPES_BY_COMPONENT = {};
+
+// بيرجع كل المواد/المنتجات المتأثرة (على أي عدد من المستويات) لما مادة خام يتغير سعرها —
+// بيتتبع "المادة X داخلة في تصنيع المادة Y" (شيت يدوي) ثم "المادة Y داخلة في تركيب المنتج Z" (شيت فودكس)
+// مع الحماية من الحلقات اللانهائية (لو حصل خطأ إدخال دوّار)
+function getAffectedChain(rootSku) {
+  var results = []; // [{sku, name, kind:'material'|'product', path:[names], isRepack}]
+  var visited = {};
+  function walk(sku, path) {
+    if (visited[sku] || path.length > 8) return;
+    visited[sku] = true;
+    (CUSTOM_RECIPES_BY_COMPONENT[sku] || []).forEach(function(m){
+      var nextPath = path.concat(m.producedName || m.producedSku);
+      results.push({ sku: m.producedSku, name: m.producedName, kind: 'material', path: nextPath, isRepack: false });
+      walk(m.producedSku, nextPath);
+    });
+    (DC_INGREDIENTS_BY_MATERIAL[sku] || []).forEach(function(p){
+      var nextPath = path.concat(p.productName || p.productSku);
+      results.push({ sku: p.productSku, name: p.productName, kind: 'product', path: nextPath, isRepack: !!p.isRepack });
+      walk(p.productSku, nextPath);
+    });
+  }
+  walk(rootSku, []);
+  return results;
+}
+
 var MOCK_REQUESTS = [];
 var MOCK_SUPPLIERS = []; // حسابات الموردين (تتبنى تلقائياً عند أول فاتورة)
 
@@ -992,6 +1022,24 @@ async function loadFromSupabase() {
         ingOffset += ingBatch;
       }
     } catch(e) { /* dc_product_ingredients may not exist yet */ }
+
+    // 7d. Load custom_material_recipes (شيت المكونات اليدوي — مواد مخزون بتتصنّع من مواد مخزون تانية)
+    try {
+      var cmrOffset = 0, cmrBatch = 1000;
+      while (true) {
+        var cmrRows = await sbFetch('custom_material_recipes?select=produced_sku,produced_name,component_sku,component_name,quantity,unit&limit='+cmrBatch+'&offset='+cmrOffset);
+        if (!cmrRows || !cmrRows.length) break;
+        cmrRows.forEach(function(r){
+          if (!r.component_sku || !r.produced_sku) return;
+          (CUSTOM_RECIPES_BY_COMPONENT[r.component_sku] = CUSTOM_RECIPES_BY_COMPONENT[r.component_sku] || []).push({
+            producedSku: r.produced_sku, producedName: r.produced_name||'',
+            quantity: r.quantity, unit: r.unit||''
+          });
+        });
+        if (cmrRows.length < cmrBatch) break;
+        cmrOffset += cmrBatch;
+      }
+    } catch(e) { /* custom_material_recipes may not exist yet */ }
 
     // 8. Load menu_analysis (تصنيف Star/Dog/Workhorse/Challenge)
     try {
@@ -2380,28 +2428,27 @@ function renderDetail() {
       '✅ التكلفة لم تتغير — السعر مطابق ولا يحتاج تعديل</div>';
   }
 
-  // ── تأثير الوصفة: المادة دي داخلة في تركيب منتجات تانية (شيت المكونات) — لازم تتراجع أسعارها كمان قبل البيع ──
+  // ── تأثير الوصفة: المادة دي داخلة (على أي عدد من المستويات) في تصنيع مواد/منتجات تانية — شيت المكونات ──
   var affectedHTML = '';
-  var affected = (costAlert && diff > 0) ? (DC_INGREDIENTS_BY_MATERIAL[r.sku] || []) : [];
-  if (affected.length) {
-    var ratio = r.old_cost > 0 ? (r.new_cost / r.old_cost) : null;
-    var rows = affected.map(function(ing){
-      var estNew = ratio != null ? ing.oldIngredientCost * ratio : null;
-      var estDiff = estNew != null ? (estNew - ing.oldIngredientCost) : null;
-      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px">' +
-        '<span style="flex:1">' + esc(ing.productName) +
-          (ing.isRepack ? ' <span style="background:#e8f4fd;color:#1a5a8a;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">🔁 نفس المادة معاد بيعها</span>' : '') +
-          '<br><span style="color:var(--muted);font-size:11px;font-family:monospace;direction:ltr;display:inline-block">SKU: '+esc(ing.productSku)+'</span>' +
-        '</span>' +
-        '<span style="color:#c0392b;font-weight:700;white-space:nowrap">' +
-          (estDiff != null ? '+'+estDiff.toFixed(2)+' ج تقريبًا' : 'راجع يدويًا') +
-        '</span>' +
+  var affectedChain = (costAlert && diff > 0) ? getAffectedChain(r.sku) : [];
+  // إزالة تكرار نفس الـ sku لو وصلناله من أكتر من مسار
+  var seenSku = {};
+  var displayNodes = affectedChain.filter(function(n){ if (seenSku[n.sku]) return false; seenSku[n.sku]=true; return true; });
+
+  if (displayNodes.length) {
+    var rows = displayNodes.map(function(n){
+      return '<div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<div>' + (n.kind === 'product' ? '🏷️' : '🧪') + ' ' + esc(n.name || n.sku) +
+          (n.isRepack ? ' <span style="background:#e8f4fd;color:#1a5a8a;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">🔁 نفس المادة معاد بيعها</span>' : '') +
+        '</div>' +
+        '<div style="color:var(--muted);font-size:11px;font-family:monospace;direction:ltr;display:inline-block">SKU: '+esc(n.sku)+'</div>' +
+        '<div style="color:var(--muted);font-size:10px;margin-top:2px">المسار: '+esc(r.product_name)+' ← '+n.path.map(esc).join(' ← ')+'</div>' +
       '</div>';
     }).join('');
     affectedHTML = '<div style="padding:14px;background:#fff3e0;border:1px solid #f0c419;border-radius:10px;margin-bottom:12px">' +
-      '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🔗 المادة دي داخلة في تركيب '+affected.length+' منتج — راجع أسعارهم قبل البيع</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">تقدير تقريبي بناءً على نسبة زيادة تكلفة المادة نفسها — مش حساب دقيق للوصفة الكاملة، لازم مراجعة يدوية قبل تغيير أي سعر. لو فاكر إن المادة دي بتدخل في منتجات أكتر ومش ظاهرة هنا، يبقى شيت الوصفات (المكونات) اللي جاي من فودكس ناقص بيانات المنتجات دي — محتاج يتزود من فودكس نفسه، مش حاجة تتصلح من هنا.</div>' +
-      '<div style="max-height:220px;overflow-y:auto;border-radius:8px;background:var(--card)">' + rows + '</div>' +
+      '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🔗 المادة دي بتأثر على '+displayNodes.length+' صنف — راجع أسعارهم قبل البيع</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">🏷️ = منتج نهائي بيتباع في الفرع، 🧪 = مادة مخزون مُصنّعة (مكوّن وسيط). لو مادة مُصنّعة ظاهرة من غير منتج نهائي بعدها، يبقى لسه محتاج تربطها بالمنتج بتاعها من شاشة "مكونات هذا الصنف" في المخزون.</div>' +
+      '<div style="max-height:260px;overflow-y:auto;border-radius:8px;background:var(--card)">' + rows + '</div>' +
     '</div>';
   }
 
