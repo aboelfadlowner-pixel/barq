@@ -511,24 +511,24 @@ function getCurrentCost(sku) {
 // شيت المكونات (dc_product_ingredients) — يربط كل مادة بالمنتجات اللي بتدخل في تركيبها
 var DC_INGREDIENTS_BY_MATERIAL = {};
 
-// component_sku (مادة خام) -> [{producedSku, producedName, quantity, unit}]
-// شيت المكونات اليدوي (custom_material_recipes) — مواد مخزون بتتصنّع من مواد مخزون تانية
-// (مثال: "كيري بسطرمة" مادة مُنتَجة من كيري + بسطرمة + زبدة) — ده مش موجود في تصدير فودكس
-// أصلاً، فبيتحفظ ويتقرأ من عندنا مباشرة
+// component_sku (مادة خام) -> [{producedSku, producedName, quantity, unit, source}]
+// مصدرين: dc_inventory_item_ingredients (تقرير "Inventory Items Ingredients" الحقيقي من
+// فودكس نفسه — مادة مُصنّعة من مواد تانية، مثال: "كيري بسطرمة" مُصنّعة من كيري+بسطرمة+زبدة)
+// و custom_material_recipes (شيت يدوي احتياطي لأي صنف مش موجود في تصدير فودكس)
 var CUSTOM_RECIPES_BY_COMPONENT = {};
 
 // بيرجع كل المواد/المنتجات المتأثرة (على أي عدد من المستويات) لما مادة خام يتغير سعرها —
-// بيتتبع "المادة X داخلة في تصنيع المادة Y" (شيت يدوي) ثم "المادة Y داخلة في تركيب المنتج Z" (شيت فودكس)
+// بيتتبع "المادة X داخلة في تصنيع المادة Y" (شيت المكونات) ثم "المادة Y داخلة في تركيب المنتج Z" (شيت فودكس)
 // مع الحماية من الحلقات اللانهائية (لو حصل خطأ إدخال دوّار)
 function getAffectedChain(rootSku) {
-  var results = []; // [{sku, name, kind:'material'|'product', path:[names], isRepack}]
+  var results = []; // [{sku, name, kind:'material'|'product', path:[names], isRepack, source}]
   var visited = {};
   function walk(sku, path) {
     if (visited[sku] || path.length > 8) return;
     visited[sku] = true;
     (CUSTOM_RECIPES_BY_COMPONENT[sku] || []).forEach(function(m){
       var nextPath = path.concat(m.producedName || m.producedSku);
-      results.push({ sku: m.producedSku, name: m.producedName, kind: 'material', path: nextPath, isRepack: false });
+      results.push({ sku: m.producedSku, name: m.producedName, kind: 'material', path: nextPath, isRepack: false, source: m.source });
       walk(m.producedSku, nextPath);
     });
     (DC_INGREDIENTS_BY_MATERIAL[sku] || []).forEach(function(p){
@@ -1023,7 +1023,29 @@ async function loadFromSupabase() {
       }
     } catch(e) { /* dc_product_ingredients may not exist yet */ }
 
-    // 7d. Load custom_material_recipes (شيت المكونات اليدوي — مواد مخزون بتتصنّع من مواد مخزون تانية)
+    // 7d. Load dc_inventory_item_ingredients — الشيت الحقيقي من فودكس نفسه (تقرير "Inventory
+    // Items Ingredients"، مختلف عن "Product Ingredients" اللي في dc_product_ingredients):
+    // بيربط مادة مخزون مُصنّعة بمكوناتها من مواد مخزون تانية (مثال حقيقي: "سبريد كريمي بسطرمة"
+    // مُصنّع من زبدة + "الوراق كيري بسطرمة" + هدر + زيت). ده المصدر الأساسي والموثوق.
+    try {
+      var diiOffset = 0, diiBatch = 1000;
+      while (true) {
+        var diiRows = await sbFetch('dc_inventory_item_ingredients?select=inventory_item_sku,inventory_item_name,ingredient_item_sku,ingredient_name,quantity,unit&limit='+diiBatch+'&offset='+diiOffset);
+        if (!diiRows || !diiRows.length) break;
+        diiRows.forEach(function(r){
+          if (!r.ingredient_item_sku || !r.inventory_item_sku) return;
+          (CUSTOM_RECIPES_BY_COMPONENT[r.ingredient_item_sku] = CUSTOM_RECIPES_BY_COMPONENT[r.ingredient_item_sku] || []).push({
+            producedSku: r.inventory_item_sku, producedName: r.inventory_item_name||'',
+            quantity: r.quantity, unit: r.unit||'', source: 'foodics'
+          });
+        });
+        if (diiRows.length < diiBatch) break;
+        diiOffset += diiBatch;
+      }
+    } catch(e) { /* dc_inventory_item_ingredients may not exist yet */ }
+
+    // 7e. Load custom_material_recipes (شيت مكونات يدوي احتياطي — لأي صنف مش موجود في تصدير
+    // فودكس، أو لو حابب تسجّل وصفة إضافية بنفسك)
     try {
       var cmrOffset = 0, cmrBatch = 1000;
       while (true) {
@@ -1033,7 +1055,7 @@ async function loadFromSupabase() {
           if (!r.component_sku || !r.produced_sku) return;
           (CUSTOM_RECIPES_BY_COMPONENT[r.component_sku] = CUSTOM_RECIPES_BY_COMPONENT[r.component_sku] || []).push({
             producedSku: r.produced_sku, producedName: r.produced_name||'',
-            quantity: r.quantity, unit: r.unit||''
+            quantity: r.quantity, unit: r.unit||'', source: 'manual'
           });
         });
         if (cmrRows.length < cmrBatch) break;
@@ -2440,6 +2462,8 @@ function renderDetail() {
       return '<div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px">' +
         '<div>' + (n.kind === 'product' ? '🏷️' : '🧪') + ' ' + esc(n.name || n.sku) +
           (n.isRepack ? ' <span style="background:#e8f4fd;color:#1a5a8a;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">🔁 نفس المادة معاد بيعها</span>' : '') +
+          (n.source === 'foodics' ? ' <span style="background:#eafaf1;color:#1a7a40;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">✅ من فودكس</span>'
+            : n.source === 'manual' ? ' <span style="background:#f0eefc;color:#5b3fa8;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">✍️ يدوي</span>' : '') +
         '</div>' +
         '<div style="color:var(--muted);font-size:11px;font-family:monospace;direction:ltr;display:inline-block">SKU: '+esc(n.sku)+'</div>' +
         '<div style="color:var(--muted);font-size:10px;margin-top:2px">المسار: '+esc(r.product_name)+' ← '+n.path.map(esc).join(' ← ')+'</div>' +
