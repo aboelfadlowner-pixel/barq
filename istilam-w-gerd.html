@@ -3746,6 +3746,20 @@ function addPriceCheckItemBySku(sku) {
   return idx;
 }
 
+// حذف صنف من قائمة تشيك الأسعار (زي لو اتمسح غلط أو مش عايزه في الطباعة) — بيتشال من الشاشة فورًا،
+// وبيتشال من السيرفر كمان لو كان اتسجل عليه مطابق/مختلف قبل كده عشان ميرجعش لو الجلسة اتفتحت تاني
+function removePriceCheckItem(i) {
+  var it = priceCheckItems[i];
+  if (!it) return;
+  priceCheckItems.splice(i, 1);
+  render();
+  if (priceCheckSession) {
+    sbWrite('price_check_items?session_id=eq.'+priceCheckSession.id+'&sku=eq.'+encodeURIComponent(it.sku),
+      { method:'DELETE', headers:{'Prefer':'return=minimal'} }, { label:'حذف من تشيك الأسعار: '+it.name }
+    ).catch(function(){});
+  }
+}
+
 function handlePriceCheckScan(code) {
   code = (code||'').trim();
   if (!code) return;
@@ -3881,8 +3895,11 @@ function renderPriceCheckItemCard(item, i) {
   ) : '';
 
   return '<div class="item-card-mobile" id="prow-'+i+'">' +
-    '<div class="item-name">'+item.name+'</div>' +
-    '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+(item.checked_by?' | 👤 '+item.checked_by:'')+'</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+      '<div style="flex:1"><div class="item-name">'+item.name+'</div>' +
+      '<div class="item-meta">'+item.sku+(item.bc?' | 🏷️'+item.bc:'')+(item.checked_by?' | 👤 '+item.checked_by:'')+'</div></div>' +
+      '<button type="button" title="حذف من القائمة" onclick="removePriceCheckItem('+i+')" style="background:none;border:none;color:var(--red);font-size:20px;line-height:1;padding:4px 6px;cursor:pointer;flex-shrink:0">🗑️</button>' +
+    '</div>' +
     '<div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">' +
       '<div class="count-sysqty-box"><label>السعر على النظام</label><span>'+(hasSystemPrice?fmt(item.system_price)+' ج':'—')+'</span></div>' +
       '<div class="count-sysqty-box"><label>رصيد المخزون</label><span>'+fmt(item.stock_qty||0)+'</span></div>' +
