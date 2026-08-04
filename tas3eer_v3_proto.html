@@ -978,11 +978,14 @@ async function loadFromSupabase() {
         var ingRows = await sbFetch('dc_product_ingredients?select=product_sku,product_name,inventory_item_sku,quantity,unit,ingredient_cost&limit='+ingBatch+'&offset='+ingOffset);
         if (!ingRows || !ingRows.length) break;
         ingRows.forEach(function(r){
-          if (!r.inventory_item_sku || !r.product_sku || r.product_sku === r.inventory_item_sku) return; // استبعاد "تعبئة نفس الصنف" — مش وصفة مركّبة فعلية
+          if (!r.inventory_item_sku || !r.product_sku) return;
+          // كنا بنستبعد صفوف "المنتج نفسه = المادة نفسها" باعتبارها مش وصفة مركّبة —
+          // ده غلط: دي عملية "إعادة تعبئة/بيع نفس المادة كمنتج" ولو سعر المادة زاد، المنتج ده لازم سعره يتراجع برضه
           (DC_INGREDIENTS_BY_MATERIAL[r.inventory_item_sku] = DC_INGREDIENTS_BY_MATERIAL[r.inventory_item_sku] || []).push({
             productSku: r.product_sku, productName: r.product_name||'',
             quantity: parseFloat(r.quantity)||0, unit: r.unit||'',
-            oldIngredientCost: parseFloat(r.ingredient_cost)||0
+            oldIngredientCost: parseFloat(r.ingredient_cost)||0,
+            isRepack: r.product_sku === r.inventory_item_sku
           });
         });
         if (ingRows.length < ingBatch) break;
@@ -2386,7 +2389,10 @@ function renderDetail() {
       var estNew = ratio != null ? ing.oldIngredientCost * ratio : null;
       var estDiff = estNew != null ? (estNew - ing.oldIngredientCost) : null;
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px">' +
-        '<span style="flex:1">'+esc(ing.productName)+' <span style="color:var(--muted);font-size:10px">('+esc(ing.productSku)+')</span></span>' +
+        '<span style="flex:1">' + esc(ing.productName) +
+          (ing.isRepack ? ' <span style="background:#e8f4fd;color:#1a5a8a;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">🔁 نفس المادة معاد بيعها</span>' : '') +
+          '<br><span style="color:var(--muted);font-size:11px;font-family:monospace;direction:ltr;display:inline-block">SKU: '+esc(ing.productSku)+'</span>' +
+        '</span>' +
         '<span style="color:#c0392b;font-weight:700;white-space:nowrap">' +
           (estDiff != null ? '+'+estDiff.toFixed(2)+' ج تقريبًا' : 'راجع يدويًا') +
         '</span>' +
@@ -2394,7 +2400,7 @@ function renderDetail() {
     }).join('');
     affectedHTML = '<div style="padding:14px;background:#fff3e0;border:1px solid #f0c419;border-radius:10px;margin-bottom:12px">' +
       '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🔗 المادة دي داخلة في تركيب '+affected.length+' منتج — راجع أسعارهم قبل البيع</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">تقدير تقريبي بناءً على نسبة زيادة تكلفة المادة نفسها — مش حساب دقيق للوصفة الكاملة، لازم مراجعة يدوية قبل تغيير أي سعر</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">تقدير تقريبي بناءً على نسبة زيادة تكلفة المادة نفسها — مش حساب دقيق للوصفة الكاملة، لازم مراجعة يدوية قبل تغيير أي سعر. لو فاكر إن المادة دي بتدخل في منتجات أكتر ومش ظاهرة هنا، يبقى شيت الوصفات (المكونات) اللي جاي من فودكس ناقص بيانات المنتجات دي — محتاج يتزود من فودكس نفسه، مش حاجة تتصلح من هنا.</div>' +
       '<div style="max-height:220px;overflow-y:auto;border-radius:8px;background:var(--card)">' + rows + '</div>' +
     '</div>';
   }
