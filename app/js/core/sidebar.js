@@ -205,9 +205,10 @@ var BarqApp = (function () {
       container.innerHTML = '<div class="placeholder-card"><div class="pic">🔒</div><h3>لا توجد أقسام متاحة لهذا الدور</h3></div>';
       return;
     }
-    var mod = BARQ_MODULES[activeSub || activeSection];
+    var key = activeSub || activeSection;
+    var mod = BARQ_MODULES[key];
     if (mod && typeof mod.mount === 'function') {
-      mod.mount(container);
+      mod.mount(container, key);
       return;
     }
     var def = BARQ_SECTIONS.find(function (s) { return s.key === activeSection; });
