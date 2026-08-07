@@ -32,89 +32,35 @@ var BarqApp = (function () {
     renderShell(user);
   }
 
-  // ---------------- شاشة الدخول ----------------
-  var authMode = 'password'; // password | pin
-  var selectedPinRole = null;
+  // ---------------- شاشة الدخول (بسيطة: اسم مستخدم + كلمة سر بس) ----------------
   var authError = '';
 
   function renderAuth() {
-    var pinRolesHtml = BARQ_AUTH.pinRoles().map(function (r) {
-      return '<button type="button" class="role-btn ' + (selectedPinRole === r.key ? 'sel' : '') + '" data-role="' + r.key + '">' +
-        '<div class="ri">' + r.icon + '</div><div class="rn">' + r.label + '</div>' +
-        '</button>';
-    }).join('');
-
     root().innerHTML =
       '<div class="auth-screen">' +
       '  <div class="auth-card">' +
       '    <div class="auth-logo">⚡</div>' +
       '    <h1>برق</h1>' +
-      '    <p class="sub">تسجيل الدخول لنظام إدارة الفروع</p>' +
-      '    <div class="auth-mode-toggle">' +
-      '      <button type="button" data-mode="password" class="' + (authMode === 'password' ? 'active' : '') + '">فروع (اسم مستخدم)</button>' +
-      '      <button type="button" data-mode="pin" class="' + (authMode === 'pin' ? 'active' : '') + '">إدارة (دور + رقم سري)</button>' +
-      '    </div>' +
-      (authMode === 'password' ?
-        '    <form id="auth-form-password">' +
-        '      <input class="auth-field" type="text" id="f-username" placeholder="اسم المستخدم" autocomplete="username">' +
-        '      <input class="auth-field" type="password" id="f-password" placeholder="كلمة السر" autocomplete="current-password">' +
-        '      <button type="submit" class="auth-btn">دخول</button>' +
-        '    </form>'
-        :
-        '    <div class="role-grid">' + pinRolesHtml + '</div>' +
-        '    <form id="auth-form-pin">' +
-        '      <input class="auth-field" type="password" inputmode="numeric" id="f-pin" placeholder="الرقم السري" maxlength="4" ' + (selectedPinRole ? '' : 'disabled') + '>' +
-        '      <button type="submit" class="auth-btn" ' + (selectedPinRole ? '' : 'disabled') + '>دخول</button>' +
-        '    </form>'
-      ) +
+      '    <p class="sub">سجّل دخولك للمتابعة</p>' +
+      '    <form id="auth-form">' +
+      '      <input class="auth-field" type="text" id="f-username" placeholder="اسم المستخدم" autocomplete="username" autofocus>' +
+      '      <input class="auth-field" type="password" id="f-password" placeholder="كلمة المرور" autocomplete="current-password">' +
+      '      <button type="submit" class="auth-btn">دخول</button>' +
+      '    </form>' +
       (authError ? '<div class="auth-error">' + authError + '</div>' : '') +
       '  </div>' +
       '</div>';
 
-    var toggleBtns = root().querySelectorAll('.auth-mode-toggle button');
-    toggleBtns.forEach(function (b) {
-      b.addEventListener('click', function () {
-        authMode = b.getAttribute('data-mode');
-        authError = '';
-        selectedPinRole = null;
-        render();
-      });
+    var form = document.getElementById('auth-form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var u = document.getElementById('f-username').value.trim();
+      var p = document.getElementById('f-password').value;
+      var res = BARQ_AUTH.login(u, p);
+      if (!res.ok) { authError = res.error; render(); return; }
+      authError = '';
+      render();
     });
-
-    if (authMode === 'password') {
-      var form = document.getElementById('auth-form-password');
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var u = document.getElementById('f-username').value.trim();
-        var p = document.getElementById('f-password').value;
-        var res = BARQ_AUTH.loginWithPassword(u, p);
-        if (!res.ok) { authError = res.error; render(); return; }
-        authError = '';
-        render();
-      });
-    } else {
-      root().querySelectorAll('.role-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          selectedPinRole = btn.getAttribute('data-role');
-          authError = '';
-          render();
-          var pinInput = document.getElementById('f-pin');
-          if (pinInput) pinInput.focus();
-        });
-      });
-      var pinForm = document.getElementById('auth-form-pin');
-      if (pinForm) {
-        pinForm.addEventListener('submit', function (e) {
-          e.preventDefault();
-          var pin = document.getElementById('f-pin').value;
-          var res = BARQ_AUTH.loginWithPin(selectedPinRole, pin);
-          if (!res.ok) { authError = res.error; render(); return; }
-          authError = '';
-          selectedPinRole = null;
-          render();
-        });
-      }
-    }
   }
 
   // ---------------- هيكل التطبيق بعد الدخول ----------------

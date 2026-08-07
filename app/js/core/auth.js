@@ -21,13 +21,14 @@ var BARQ_AUTH = (function () {
     manager:  { label: 'مدير فرع',   icon: '🏪', method: 'password', can: ['order','dashboard','production','freezer','factory_receive'], sections: ['orders'] },
     staff:    { label: 'موظف',       icon: '👤', method: 'password', can: ['data_entry','admin_panel','freezer','factory_receive'], sections: ['orders'] },
 
-    // أدوار الإدارة — من tas3eer_v3_proto.html (دور + رقم سري)
-    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', pass: '1111', sections: ['receiving','stocktake'] },
-    pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', pass: '2222', sections: ['pricing'] },
-    finance:   { label: 'أمين الخزينة — أحمد صلاح',      icon: '🏦', method: 'pin', pass: '3333', sections: ['finance'] },
-    finmgr:    { label: 'مدير المالية — عمر أبو الفضل',  icon: '📊', method: 'pin', pass: '4444', sections: ['finance'] },
-    purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', pass: '5555', sections: ['purchasing'] },
-    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', pass: '9999', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] }
+    // أدوار الإدارة — من tas3eer_v3_proto.html (كانت دور + رقم سري، دلوقتي
+    // بقى ليها اسم مستخدم ظاهري عشان تدخل من نفس نموذج الدخول البسيط)
+    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', username: 'receiving', pass: '1111', sections: ['receiving','stocktake'] },
+    pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', username: 'pricing',   pass: '2222', sections: ['pricing'] },
+    finance:   { label: 'أمين الخزينة — أحمد صلاح',      icon: '🏦', method: 'pin', username: 'finance',   pass: '3333', sections: ['finance'] },
+    finmgr:    { label: 'مدير المالية — عمر أبو الفضل',  icon: '📊', method: 'pin', username: 'finmgr',    pass: '4444', sections: ['finance'] },
+    purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', username: 'purchmgr',  pass: '5555', sections: ['purchasing'] },
+    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', username: 'ceo',       pass: '9999', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] }
   };
 
   var SESSION_KEY = 'barq_unified_session';
@@ -168,7 +169,7 @@ var BARQ_AUTH = (function () {
     return { ok: true, user: currentUser };
   }
 
-  // ---------- دخول بدور + رقم سري ----------
+  // ---------- دخول بدور + رقم سري (لسه موجودة داخليًا، مش مستخدمة من واجهة الدخول البسيطة) ----------
   function loginWithPin(roleKey, pin) {
     var roleDef = ROLES[roleKey];
     if (!roleDef || roleDef.method !== 'pin') return { ok: false, error: 'دور غير معروف' };
@@ -181,6 +182,49 @@ var BARQ_AUTH = (function () {
     };
     saveSession();
     return { ok: true, user: currentUser };
+  }
+
+  // ---------- دخول موحّد: اسم مستخدم + كلمة سر بس ----------
+  // بيدوّر أول حاجة على أدوار الفروع (usersDB بكلمة سر مشفّرة)، ولو مالقاش
+  // بيدوّر على أدوار الإدارة (username الظاهري + الرقم السري بتاعها كـ"كلمة سر").
+  function login(username, password) {
+    username = (username || '').trim();
+
+    loadUsersDB();
+    var user = findUser(username);
+    if (user) {
+      if (!user.active) return { ok: false, error: 'الحساب موقوف' };
+      if (hashPassword(password) !== user.passwordHash) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+      var roleDef = ROLES[user.role];
+      currentUser = {
+        method: 'password',
+        role: user.role,
+        label: roleDef.label,
+        icon: roleDef.icon,
+        username: user.username,
+        branch: user.branch
+      };
+      saveSession();
+      return { ok: true, user: currentUser };
+    }
+
+    var pinRoleKey = Object.keys(ROLES).find(function (k) {
+      return ROLES[k].method === 'pin' && ROLES[k].username && ROLES[k].username.toLowerCase() === username.toLowerCase();
+    });
+    if (pinRoleKey && ROLES[pinRoleKey].pass === password) {
+      var pd = ROLES[pinRoleKey];
+      currentUser = {
+        method: 'pin',
+        role: pinRoleKey,
+        label: pd.label,
+        icon: pd.icon,
+        username: pd.username
+      };
+      saveSession();
+      return { ok: true, user: currentUser };
+    }
+
+    return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
   }
 
   function logout() {
@@ -210,6 +254,7 @@ var BARQ_AUTH = (function () {
     ROLES: ROLES,
     getCurrentUser: function () { return currentUser; },
     restoreSession: restoreSession,
+    login: login,
     loginWithPassword: loginWithPassword,
     loginWithPin: loginWithPin,
     logout: logout,
