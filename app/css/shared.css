@@ -176,7 +176,10 @@ html, body {
 }
 
 @media (max-width: 860px) {
-  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 40; transform: translateX(100%); transition: transform .25s; }
+  /* الصفحة RTL — القائمة الجانبية أصلها على اليمين، فلازم تتثبّت على right:0
+     وتتزحلق برّه الشاشة ناحية اليمين (translateX موجب) وهي مقفولة، مش على
+     left:0 زي صفحة LTR (كانت هي سبب ظهورها نص الشاشة على الموبايل) */
+  .sidebar { position: fixed; inset: 0 0 0 auto; z-index: 40; transform: translateX(100%); transition: transform .25s; }
   .sidebar.open { transform: translateX(0); }
   .topbar .menu-toggle { display: block; }
   .app-shell.sidebar-open::after {
