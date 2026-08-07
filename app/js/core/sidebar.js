@@ -122,7 +122,8 @@ var BarqApp = (function () {
     var allowed = BARQ_AUTH.allowedSections();
     if (!activeSection || allowed.indexOf(activeSection) === -1) {
       activeSection = allowed[0] || null;
-      activeSub = null;
+      var initDef = BARQ_SECTIONS.find(function (s) { return s.key === activeSection; });
+      activeSub = (initDef && initDef.subsections && initDef.subsections[0]) ? initDef.subsections[0].key : null;
     }
 
     var sectionsHtml = BARQ_SECTIONS.filter(function (s) {
@@ -178,7 +179,8 @@ var BarqApp = (function () {
       el.addEventListener('click', function (e) {
         if (e.target.closest('.sidebar-subitem')) return;
         activeSection = el.getAttribute('data-section');
-        activeSub = null;
+        var secDef = BARQ_SECTIONS.find(function (s) { return s.key === activeSection; });
+        activeSub = (secDef && secDef.subsections && secDef.subsections[0]) ? secDef.subsections[0].key : null;
         render();
         mountActiveContent();
       });
