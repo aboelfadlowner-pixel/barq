@@ -17,8 +17,13 @@ var BARQ_SECTIONS = [
   { key: 'stocktake',   label: 'جرد',                    icon: '🔢' },
   { key: 'shelf-check', label: 'شيلفات',                 icon: '🔖' },
   // نفس موديول "تحضير الأقسام" (تبويب فرعي جوه الطلبيات) بس كقسم مستقل —
-  // ده اللي بيظهر لليوزر المخصص deptprep، اللي مالوش صلاحية على "الطلبيات" نفسها
+  // ده اللي بيظهر لليوزر المخصص deptprep (كل الأقسام)، اللي مالوش صلاحية
+  // على "الطلبيات" نفسها. وتحته 4 يوزرات مخصصة، كل واحد لقسم واحد بس
   { key: 'dept-prep',   label: 'تحضير الأقسام',          icon: '🏭' },
+  { key: 'dept-vip',      label: 'تحضير — VIP',              icon: '🏭' },
+  { key: 'dept-masnaat',  label: 'تحضير — مصنعات',           icon: '🏭' },
+  { key: 'dept-lahom',    label: 'تحضير — مصنعات لحوم ودواجن', icon: '🏭' },
+  { key: 'dept-mo3mal',   label: 'تحضير — معمل',              icon: '🏭' },
   { key: 'access-list', label: 'المستخدمين والصلاحيات', icon: '👥' }
 ];
 

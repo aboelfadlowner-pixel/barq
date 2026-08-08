@@ -365,9 +365,21 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// كل قسم من الأقسام الأربعة (VIP/مصنعات/مصنعات لحوم و موالح/معمل) بقى ليه
+// يوزر مستقل من الشاشة الموحّدة — لو دخل بيوزر مخصص لقسم بعينه، بيوديه
+// عليه على طول من غير ما يشوف شاشة اختيار القسم/الباسورد الداخلية خالص
+const SECTION_TO_DEPT = { 'dept-vip': 'vip', 'dept-masnaat': 'مصنعات', 'dept-lahom': 'مصنعات لحوم و موالح', 'dept-mo3mal': 'معمل' };
+
 /* ================= بدء التشغيل ================= */
-function mount(container) {
+function mount(container, sectionKey) {
   container.innerHTML = BARQ_DEPT_MARKUP;
+  var forcedDept = SECTION_TO_DEPT[sectionKey];
+  if (forcedDept) {
+    currentDept = forcedDept;
+    sessionStorage.setItem('barq_dept', forcedDept);
+    renderMain();
+    return;
+  }
   const saved = sessionStorage.getItem('barq_dept');
   if (saved && DEPTS[saved]) {
     currentDept = saved;
@@ -401,3 +413,7 @@ function mount(container) {
 window.BARQ_MODULES = window.BARQ_MODULES || {};
 window.BARQ_MODULES['orders-dept'] = { mount: BARQ_DEPT.mount };
 window.BARQ_MODULES['dept-prep'] = { mount: BARQ_DEPT.mount };
+window.BARQ_MODULES['dept-vip'] = { mount: BARQ_DEPT.mount };
+window.BARQ_MODULES['dept-masnaat'] = { mount: BARQ_DEPT.mount };
+window.BARQ_MODULES['dept-lahom'] = { mount: BARQ_DEPT.mount };
+window.BARQ_MODULES['dept-mo3mal'] = { mount: BARQ_DEPT.mount };

@@ -27,7 +27,13 @@ var BARQ_AUTH = (function () {
     // يوزرات مستقلة لكل وضع جوه "استلام وجرد" — كل واحد بيفتحله وضعه بس، من
     // غير شاشة اختيار ومن غير ما يشوف الأوضاع التانية خالص
     stockcount: { label: 'الجرد',                        icon: '🔢', method: 'pin', sections: ['stocktake'] },
-    shelfcheck: { label: 'شيلفات',                        icon: '🔖', method: 'pin', sections: ['shelf-check'] }
+    shelfcheck: { label: 'شيلفات',                        icon: '🔖', method: 'pin', sections: ['shelf-check'] },
+    // يوزرات مستقلة لكل قسم من أقسام "تحضير الأقسام" — كل واحد بيدخل بيوزره
+    // ويوصله على طول لقسمه بس، من غير شاشة اختيار القسم/الباسورد الداخلية
+    deptprep_vip:     { label: 'تحضير — VIP',              icon: '🏭', method: 'pin', sections: ['dept-vip'] },
+    deptprep_masnaat: { label: 'تحضير — مصنعات',           icon: '🏭', method: 'pin', sections: ['dept-masnaat'] },
+    deptprep_lahom:   { label: 'تحضير — مصنعات لحوم ودواجن', icon: '🏭', method: 'pin', sections: ['dept-lahom'] },
+    deptprep_mo3mal:  { label: 'تحضير — معمل',              icon: '🏭', method: 'pin', sections: ['dept-mo3mal'] }
   };
 
   var SESSION_KEY = 'barq_unified_session';
@@ -48,7 +54,11 @@ var BARQ_AUTH = (function () {
     { username: 'ceo',       passwordHash: '888df25ae35772424a560c7152a1de794440e0ea5cfee62828333a456a506e05', role: 'ceo',       active: true },
     { username: 'deptprep',  passwordHash: 'b698d86c67a2cff80405bd47af322216c552fd3a52f9c58a70f7b3a3313895b1', role: 'deptprep',  active: true },
     { username: 'stockcount', passwordHash: 'f4e99211184a248ac2b1bb736b2f241982bdbfb599a6a1b62d5c50a1cb7ddbe6', role: 'stockcount', active: true },
-    { username: 'shelfcheck', passwordHash: '00431bea7c112c6c03ed10860af49e6e791fd93819e027c15313a8e313bdaff9', role: 'shelfcheck', active: true }
+    { username: 'shelfcheck', passwordHash: '00431bea7c112c6c03ed10860af49e6e791fd93819e027c15313a8e313bdaff9', role: 'shelfcheck', active: true },
+    { username: 'dept-vip',     passwordHash: '931a4ddcbb47a6b7f558cd19c1405582f56dc9c2cd3590f47b5d8a0bde61c646', role: 'deptprep_vip',     active: true },
+    { username: 'dept-masnaat', passwordHash: '2378926a9bcc79f385034655e9f4e1027eb6ca96cfbfb872dcbb5d09dbbc196e', role: 'deptprep_masnaat', active: true },
+    { username: 'dept-lahom',   passwordHash: '46ece05546fb2626da88a216af6aa066b5172e824ad9eae6742d8e12ef6fbcc8', role: 'deptprep_lahom',   active: true },
+    { username: 'dept-mo3mal',  passwordHash: '6586fa95bc8f7da4564098ce83dd9c4198669a5815704816a9a98da51284abbe', role: 'deptprep_mo3mal',  active: true }
   ];
 
   var usersDB = [];
