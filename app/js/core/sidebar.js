@@ -45,13 +45,20 @@ var BarqApp = (function () {
       '  <div class="auth-card">' +
       '    <div class="auth-logo">⚡</div>' +
       '    <h1>برق</h1>' +
-      '    <p class="sub">سجّل دخولك للمتابعة</p>' +
+      '    <p class="sub">نظام إدارة الفروع — سجّل دخولك للمتابعة</p>' +
       '    <form id="auth-form">' +
-      '      <input class="auth-field" type="text" id="f-username" placeholder="اسم المستخدم" autocomplete="username" autofocus>' +
-      '      <input class="auth-field" type="password" id="f-password" placeholder="كلمة المرور" autocomplete="current-password">' +
+      '      <div class="auth-field-group">' +
+      '        <label class="auth-field-label" for="f-username">اسم المستخدم</label>' +
+      '        <input class="auth-field" type="text" id="f-username" autocomplete="username" autofocus>' +
+      '      </div>' +
+      '      <div class="auth-field-group">' +
+      '        <label class="auth-field-label" for="f-password">كلمة المرور</label>' +
+      '        <input class="auth-field" type="password" id="f-password" autocomplete="current-password">' +
+      '      </div>' +
       '      <button type="submit" class="auth-btn">دخول</button>' +
       '    </form>' +
       (authError ? '<div class="auth-error">' + authError + '</div>' : '') +
+      '    <div class="auth-footer-note">⚡ برق — نظام إدارة متكامل</div>' +
       '  </div>' +
       '</div>';
 
@@ -76,9 +83,11 @@ var BarqApp = (function () {
       activeSub = (initDef && initDef.subsections && initDef.subsections[0]) ? initDef.subsections[0].key : null;
     }
 
-    var sectionsHtml = BARQ_SECTIONS.filter(function (s) {
+    var visibleSections = BARQ_SECTIONS.filter(function (s) {
       return allowed.indexOf(s.key) !== -1;
-    }).map(function (s) {
+    });
+
+    var sectionsHtml = visibleSections.map(function (s, i) {
       var isActive = activeSection === s.key;
       var hasSub = !!s.subsections;
       var subHtml = '';
@@ -87,7 +96,9 @@ var BarqApp = (function () {
           return '<div class="sidebar-subitem ' + (isActive && activeSub === sub.key ? 'active' : '') + '" data-section="' + s.key + '" data-sub="' + sub.key + '">' + sub.label + '</div>';
         }).join('') + '</div>';
       }
-      return '<div class="sidebar-section ' + (hasSub ? 'has-sub' : '') + ' ' + (isActive ? 'open active' : '') + '" data-section="' + s.key + '">' +
+      // فاصل بسيط قبل "المستخدمين والصلاحيات" — قسم إداري منفصل عن الأقسام التشغيلية
+      var divider = (s.key === 'access-list') ? '<div class="sidebar-divider"></div>' : '';
+      return divider + '<div class="sidebar-section ' + (hasSub ? 'has-sub' : '') + ' ' + (isActive ? 'open active' : '') + '" data-section="' + s.key + '">' +
         '<span class="ic">' + s.icon + '</span><span>' + s.label + '</span>' +
         '</div>' + subHtml;
     }).join('');
@@ -98,7 +109,8 @@ var BarqApp = (function () {
       '<div class="app-shell" id="app-shell">' +
       '  <aside class="sidebar" id="sidebar">' +
       '    <div class="sidebar-header"><span class="logo">⚡</span><span class="title">برق</span></div>' +
-      '    <div class="sidebar-user"><span class="ic">' + user.icon + '</span><div class="info"><span class="name">' + (user.username || user.label) + '</span><span class="role">' + user.label + '</span></div></div>' +
+      '    <div class="sidebar-user"><span class="avatar">' + user.icon + '</span><div class="info"><span class="name">' + (user.username || user.label) + '</span><span class="role">' + user.label + '</span></div></div>' +
+      '    <div class="sidebar-eyebrow">الأقسام</div>' +
       '    <nav class="sidebar-nav">' + sectionsHtml + '</nav>' +
       '    <div class="sidebar-footer"><button class="sidebar-logout" id="btn-logout">تسجيل الخروج</button></div>' +
       '  </aside>' +
