@@ -525,7 +525,7 @@ function bgClass(st) {
   return m[st] || 'bg-recv';
 }
 function toast(msg,ms) {
-  var t=document.getElementById('toast');
+  var t=document.getElementById('tas-toast');
   if(!t)return; t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._t); t._t=setTimeout(function(){t.style.opacity='0';},ms||3000);
 }
@@ -548,7 +548,7 @@ function now() { return new Date().toLocaleDateString('ar-EG',{year:'numeric',mo
 // RENDER
 // ═══════════════════════════════════════════════
 function render() {
-  var root = document.getElementById('root');
+  var root = document.getElementById('tas-root');
   if (!root) return;
   try {
     if (!role) { root.innerHTML = renderAuth(); return; }
@@ -750,7 +750,7 @@ setInterval(function(){
 
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
-  var root = document.getElementById('root');
+  var root = document.getElementById('tas-root');
   if (root) root.innerHTML = '<div class="auth-wrap"><div style="color:#fff;font-size:16px">⏳ جاري تحميل البيانات...</div></div>';
 
   try {
@@ -2625,7 +2625,7 @@ function filterSidebar() {
 }
 
 function renderFinanceRoot() {
-  var root = document.getElementById('root');
+  var root = document.getElementById('tas-root');
   if (root) root.innerHTML = renderTopBar() + '<div class="pg">' + renderFinance() + '</div>';
 }
 
@@ -3494,7 +3494,7 @@ function renderFinMgrSuppliers() {
 function openFinMgrDetail(name) {
   finMgrSupplier = name;
   finMgrView = 'detail';
-  var root = document.getElementById('root');
+  var root = document.getElementById('tas-root');
   if (root) root.innerHTML = renderTopBar() + '<div class="pg">' + renderFinMgrDetail(name) + '</div>';
 }
 
@@ -4426,7 +4426,7 @@ function syncFromShellAuth(sectionKey) {
 }
 
 function mount(container, sectionKey) {
-  container.innerHTML = '<div id="toast"></div><div id="root" class="tas-mod"></div>';
+  container.innerHTML = '<div id="tas-toast"></div><div id="tas-root" class="tas-mod"></div>';
   syncFromShellAuth(sectionKey);
   render();
 }

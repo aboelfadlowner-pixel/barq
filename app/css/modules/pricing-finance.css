@@ -105,7 +105,7 @@
 .tas-mod .match-ok {background:#eafaf1!important}
 .tas-mod .match-diff {background:#fef9e7!important}
 .tas-mod .match-err {background:#fce4ec!important}
-.tas-mod #toast {position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e2235;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
+#tas-toast {position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e2235;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
 .tas-mod .empty {text-align:center;padding:30px;color:var(--muted)}
 .tas-mod .empty-i {font-size:40px;margin-bottom:8px}
 @media(max-width:500px) {

@@ -587,7 +587,7 @@ function fmt(n) {
   return Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 }
 function toast(msg,ms) {
-  var t=document.getElementById('toast');
+  var t=document.getElementById('ist-toast');
   if(!t)return; t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._t); t._t=setTimeout(function(){t.style.opacity='0';},ms||3000);
 }
@@ -628,7 +628,7 @@ function now() { return new Date().toLocaleDateString('ar-EG-u-nu-latn',{year:'n
 // RENDER
 // ═══════════════════════════════════════════════
 function render() {
-  var root = document.getElementById('root');
+  var root = document.getElementById('ist-root');
   if (!root) return;
   // نحافظ على مكان السكرول قبل أي إعادة رسم — عشان لو المستخدم نازل يكتب في نص الصفحة
   // (زي المزامنة في الخلفية أو تحديث فوري وصل) الصفحة متقفزش لفوق وتضيّعه
@@ -783,7 +783,7 @@ async function fetchAllPaged(pathBase) {
 
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
-  var root = document.getElementById('root');
+  var root = document.getElementById('ist-root');
   if (root) root.innerHTML = '<div class="auth-wrap"><div style="color:#fff;font-size:16px">⏳ جاري تحميل البيانات...</div></div>';
 
   // مزامنة كتالوج المنتجات/المواد من الداتا سنتر (جوجل درايف → dc_* → products_master/materials_master) —
@@ -4280,7 +4280,7 @@ function syncFromShellAuth() {
 }
 
 function mount(container, sectionKey) {
-  container.innerHTML = '<div id="toast"></div><div id="root" class="ist-mod"></div>';
+  container.innerHTML = '<div id="ist-toast"></div><div id="ist-root" class="ist-mod"></div>';
   syncFromShellAuth();
   if (sectionKey === 'receiving') {
     recvMode = 'receiving';

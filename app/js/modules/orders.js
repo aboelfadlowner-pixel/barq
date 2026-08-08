@@ -399,7 +399,7 @@ let customTabs = null; // Tabs مخصصة
 
 // ===== RENDER =====
 function render() {
-  const root = document.getElementById('root');
+  const root = document.getElementById('ord-root');
   if (!root) return; // الموديول مش ظاهر دلوقتي (المستخدم في قسم تاني) — من غير كراش
   if (!currentUser) {
     root.innerHTML = renderAuth();
@@ -607,7 +607,7 @@ function renderApp() {
     ${showAdmin ? renderAdminPanel() : ''}
     ${showUserMgmt ? renderUserMgmt() : ''}
     ${showScanner ? renderScanner() : ''}
-    <div class="toast" id="toast"></div>
+    <div class="toast" id="ord-toast"></div>
   </div>`;
 }
 
@@ -1071,7 +1071,7 @@ function clearAll() {
 }
 
 function showToast(msg, duration = 3000) {
-  const t = document.getElementById('toast');
+  const t = document.getElementById('ord-toast');
   if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
@@ -3909,7 +3909,7 @@ function syncFromShellAuth() {
 }
 
 function mount(container) {
-  container.innerHTML = '<div id="root" class="ord-mod"></div>';
+  container.innerHTML = '<div id="ord-root" class="ord-mod"></div>';
   syncFromShellAuth();
   render();
 }
