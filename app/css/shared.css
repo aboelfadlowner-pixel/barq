@@ -179,10 +179,14 @@ html, body {
   /* الصفحة RTL — القائمة الجانبية أصلها على اليمين، فلازم تتثبّت على right:0
      وتتزحلق برّه الشاشة ناحية اليمين (translateX موجب) وهي مقفولة، مش على
      left:0 زي صفحة LTR (كانت هي سبب ظهورها نص الشاشة على الموبايل) */
-  .sidebar { position: fixed; inset: 0 0 0 auto; z-index: 40; transform: translateX(100%); transition: transform .25s; }
+  /* z-index عالي عمدًا: موديولات كتير جوّه (كل واحد من ملفه الأصلي القديم)
+     عندها عناصر ثابتة (topbar لاصق) بـ z-index يوصل لـ 100-999، فلو القائمة
+     الجانبية z-index بتاعها أقل منهم، بتظهر تحتهم وقت الفتح على الموبايل
+     بدل ما تتغطى فوقهم بشكل نضيف — وده اللي كان بيسبب التداخل والتطفّي */
+  .sidebar { position: fixed; inset: 0 0 0 auto; z-index: 20000; transform: translateX(100%); transition: transform .25s; }
   .sidebar.open { transform: translateX(0); }
   .topbar .menu-toggle { display: block; }
   .app-shell.sidebar-open::after {
-    content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30;
+    content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19999;
   }
 }

@@ -17,10 +17,10 @@
 .ord-mod .auth-error { background: #fef0ef; border: 1.5px solid #f8cdc9; border-radius: 10px; padding: 10px; color: var(--red); font-size: 13px; margin-top: 10px; }
 .ord-mod .users-hint { margin-top: 16px; font-size: 11px; color: var(--muted); background: var(--bg); border-radius: 10px; padding: 10px 14px; text-align: right; }
 .ord-mod .app { display: flex; flex-direction: column; min-height: 100vh; }
-.ord-mod .top-bar { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(0,0,0,0.2); }
-.ord-mod .top-bar h2 { font-size: 16px; font-weight: 800; }
-.ord-mod .top-bar-info { font-size: 11px; opacity: 0.8; }
-.ord-mod .top-actions { display: flex; gap: 8px; align-items: center; }
+.ord-mod .top-bar { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(0,0,0,0.2); gap: 10px; overflow-x: auto; }
+.ord-mod .top-bar h2 { font-size: 16px; font-weight: 800; white-space: nowrap; }
+.ord-mod .top-bar-info { font-size: 11px; opacity: 0.8; white-space: nowrap; }
+.ord-mod .top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 .ord-mod .top-btn { background: rgba(255,255,255,0.15); border: none; color: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 600; transition: background 0.2s; white-space: nowrap; }
 .ord-mod .top-btn:hover { background: rgba(255,255,255,0.25); }
 .ord-mod .badge { background: var(--accent2); color: var(--primary); border-radius: 20px; padding: 5px 12px; font-size: 13px; font-weight: 800; }

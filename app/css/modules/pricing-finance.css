@@ -19,11 +19,15 @@
 .tas-mod .auth-inp:focus {outline:none;border-color:var(--accent)}
 .tas-mod .auth-btn {width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--primary));color:#fff;font-size:15px;font-weight:800;cursor:pointer}
 .tas-mod .auth-err {color:var(--red);font-size:12px;margin-top:6px;min-height:16px}
-.tas-mod .topbar {background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.2);flex-wrap:wrap;gap:6px}
-.tas-mod .tb-role {font-size:14px;font-weight:800}
-.tas-mod .tb-sub {font-size:10px;opacity:.8}
-.tas-mod .tb-btns {display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-.tas-mod .tb {background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer}
+/* flex-wrap على .topbar نفسه كان بيعمل تضارب مع position:sticky على الموبايل
+   الضيق (الارتفاع المحسوب بيتجاهل السطر التاني اللي بيلف، فأزرار .tb-btns
+   كانت بتطفو فوق الكارت اللي تحتها) — الحل الأسلم: صف واحد بيتحرك أفقيًا
+   (overflow-x) بدل ما يلف، زي أي شريط أزرار على شاشة ضيقة */
+.tas-mod .topbar {background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.2);gap:10px;flex-wrap:nowrap;overflow-x:auto}
+.tas-mod .tb-role {font-size:14px;font-weight:800;white-space:nowrap}
+.tas-mod .tb-sub {font-size:10px;opacity:.8;white-space:nowrap}
+.tas-mod .tb-btns {display:flex;gap:5px;align-items:center;flex-wrap:nowrap;flex-shrink:0}
+.tas-mod .tb {background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .tas-mod .tb:hover, .tas-mod .tb.on {background:rgba(255,255,255,.32)}
 .tas-mod .pg {padding:12px;max-width:900px;margin:0 auto}
 .tas-mod .cd {background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
