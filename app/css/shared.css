@@ -45,7 +45,7 @@ html, body {
 /* ===================== شاشة تسجيل الدخول ===================== */
 .auth-screen {
   min-height: 100vh;
-  min-height: -webkit-fill-available;
+  min-height: 100dvh;
   background:
     radial-gradient(760px circle at 18% 12%, rgba(45,134,83,0.30), transparent 55%),
     radial-gradient(900px circle at 88% 92%, rgba(15,36,25,0.55), transparent 50%),
