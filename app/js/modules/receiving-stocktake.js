@@ -4261,7 +4261,10 @@ window.addEventListener('load', async function(){
 // ============================================================
 function syncFromShellAuth() {
   var shellUser = window.BARQ_AUTH && BARQ_AUTH.getCurrentUser();
-  var allowed = shellUser && shellUser.method === 'pin' && (shellUser.role === 'receiving' || shellUser.role === 'ceo');
+  var allowed = shellUser && (
+    (shellUser.method === 'pin' && (shellUser.role === 'receiving' || shellUser.role === 'ceo')) ||
+    shellUser.role === 'admin' // مدير عام (يوزر/باسورد) عنده صلاحية استلامات/جرد في القائمة الموحّدة برضه
+  );
   if (allowed) {
     if (role !== 'receiving') {
       role = 'receiving';

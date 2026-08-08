@@ -4403,9 +4403,20 @@ window.addEventListener('load', async function(){
 // المعرّفة أصلاً في ROLES هنا وفي auth.js الموحّد)، بدل ما يدخل تاني مرة.
 // render() هنا أصلاً فيه حماية لو #root مش موجود، فمحتجناش نلمسها.
 // ============================================================
-function syncFromShellAuth() {
+function syncFromShellAuth(sectionKey) {
   var shellUser = window.BARQ_AUTH && BARQ_AUTH.getCurrentUser();
-  var newRole = (shellUser && shellUser.method === 'pin' && ROLES[shellUser.role]) ? shellUser.role : null;
+  var newRole = null;
+  if (shellUser && shellUser.method === 'pin' && ROLES[shellUser.role]) {
+    // مستخدم من أدوار الإدارة (pricing/finance/finmgr/purchmgr/receiving/ceo) —
+    // نفس الدور اللي دخل بيه فعلاً هو اللي بيحدد الشاشة، زي الأصل بالظبط.
+    newRole = shellUser.role;
+  } else if (shellUser && shellUser.role === 'admin') {
+    // مدير عام (يوزر/باسورد) عنده صلاحية "تسعير" و"مالية" في القائمة الموحّدة
+    // بس مش من أدوار PIN المعروفة هنا — من غير المابّينج ده كان بيشوف شاشة
+    // اختيار الدور الداخلية القديمة بدل المحتوى مباشرة. نربطه بالدور المناسب
+    // لنفس القسم اللي فتحه فعلاً من القائمة الجانبية.
+    newRole = (sectionKey === 'finance') ? 'finmgr' : 'pricing';
+  }
   if (newRole && newRole !== role) {
     role = newRole; view = 'queue'; detailId = null; recvPO = null;
     loadFromSupabase();
@@ -4414,9 +4425,9 @@ function syncFromShellAuth() {
   }
 }
 
-function mount(container) {
+function mount(container, sectionKey) {
   container.innerHTML = '<div id="toast"></div><div id="root" class="tas-mod"></div>';
-  syncFromShellAuth();
+  syncFromShellAuth(sectionKey);
   render();
 }
 

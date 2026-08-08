@@ -17,7 +17,8 @@ var BARQ_SECTIONS = [
   { key: 'stocktake',   label: 'جرد',                    icon: '🔢' },
   // نفس موديول "تحضير الأقسام" (تبويب فرعي جوه الطلبيات) بس كقسم مستقل —
   // ده اللي بيظهر لليوزر المخصص deptprep، اللي مالوش صلاحية على "الطلبيات" نفسها
-  { key: 'dept-prep',   label: 'تحضير الأقسام',          icon: '🏭' }
+  { key: 'dept-prep',   label: 'تحضير الأقسام',          icon: '🏭' },
+  { key: 'access-list', label: 'المستخدمين والصلاحيات', icon: '👥' }
 ];
 
 // سجل الموديولات — كل مرحلة قادمة بتسجل نفسها هنا: BARQ_MODULES['orders'] = { mount(container){...} }

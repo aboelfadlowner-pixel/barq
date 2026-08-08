@@ -1,63 +1,71 @@
 // ============================================================
 // برق — نظام الدخول والصلاحيات الموحد
 //
-// يجمع أسلوبَي الدخول الموجودين فعليًا في الملفات الحالية:
-//  - اسم مستخدم + كلمة سر (منقول حرفيًا من forou3.html: ADMIN_CREDENTIALS,
-//    DEFAULT_USERS, hashPassword/_sha256, findUser) — لأدوار الفروع.
-//  - دور + رقم سري 4 أرقام (منقول من tas3eer_v3_proto.html: ROLES) — لأدوار الإدارة.
-//
-// كل الأدوار اتجمعت هنا في سجل واحد (BARQ_ROLES) بخاصية إضافية "sections"
-// بتحدد أقسام القائمة الجانبية المسموحة لكل دور. منطق الصلاحيات الداخلي
-// لكل دور (role.can[] لأدوار الفروع) اتحفظ زي ما هو عشان الموديولات
-// المنقولة تكمل تستخدمه من غير تعديل.
+// كل المستخدمين (فروع + إدارة) بقوا في قائمة وصول واحدة قابلة للتعديل
+// (usersDB، محفوظة في localStorage['barq_unified_users_db']) — كل مستخدم عنده
+// اسم مستخدم + كلمة سر مشفّرة + دور. الدور نفسه (ROLES) هو اللي بيحدد
+// الصلاحيات وأقسام القائمة الجانبية (sections) ومنطق can[] الداخلي.
+// دخول واحد بس: اسم مستخدم + كلمة سر، والدور المرتبط بالحساب هو اللي
+// بيستدعي الصلاحيات تلقائيًا. الإدارة (admin/ceo) تقدر تضيف/تعدّل/تمسح
+// مستخدمين من شاشة "المستخدمين والصلاحيات".
 // ============================================================
 
 var BARQ_AUTH = (function () {
 
-  // ---------- سجل الأدوار الموحّد (superset) ----------
+  // ---------- سجل الأدوار (الصلاحيات وأقسام القائمة الجانبية بس، من غير أي بيانات دخول) ----------
   var ROLES = {
-    // أدوار الفروع — من forou3.html (اسم مستخدم + كلمة سر)
-    admin:    { label: 'مدير عام',   icon: '👑', method: 'password', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'], sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] },
+    admin:    { label: 'مدير عام',   icon: '👑', method: 'password', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'], sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','access-list'] },
     manager:  { label: 'مدير فرع',   icon: '🏪', method: 'password', can: ['order','dashboard','production','freezer','factory_receive'], sections: ['orders'] },
     staff:    { label: 'موظف',       icon: '👤', method: 'password', can: ['data_entry','admin_panel','freezer','factory_receive'], sections: ['orders'] },
-
-    // أدوار الإدارة — من tas3eer_v3_proto.html (كانت دور + رقم سري، دلوقتي
-    // بقى ليها اسم مستخدم ظاهري عشان تدخل من نفس نموذج الدخول البسيط)
-    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', username: 'receiving', pass: '1111', sections: ['receiving','stocktake'] },
-    pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', username: 'pricing',   pass: '2222', sections: ['pricing'] },
-    finance:   { label: 'أمين الخزينة — أحمد صلاح',      icon: '🏦', method: 'pin', username: 'finance',   pass: '3333', sections: ['finance'] },
-    finmgr:    { label: 'مدير المالية — عمر أبو الفضل',  icon: '📊', method: 'pin', username: 'finmgr',    pass: '4444', sections: ['finance'] },
-    purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', username: 'purchmgr',  pass: '5555', sections: ['purchasing'] },
-    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', username: 'ceo',       pass: '9999', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] },
-
-    // يوزر مستقل لتحضير الأقسام بس — مش جزء من هيكل "الطلبيات"، يوزر
-    // بيفتح عليه القسم ده لوحده بس (مفيش أي قسم تاني ظاهر ليه في القائمة)
-    deptprep:  { label: 'تحضير الأقسام',                 icon: '🏭', method: 'pin', username: 'deptprep', pass: '7000', sections: ['dept-prep'] }
+    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', sections: ['receiving','stocktake'] },
+    pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', sections: ['pricing'] },
+    finance:   { label: 'أمين الخزينة',                 icon: '🏦', method: 'pin', sections: ['finance'] },
+    finmgr:    { label: 'مدير المالية',                 icon: '📊', method: 'pin', sections: ['finance'] },
+    purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', sections: ['purchasing'] },
+    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','access-list'] },
+    deptprep:  { label: 'تحضير الأقسام',                 icon: '🏭', method: 'pin', sections: ['dept-prep'] }
   };
 
   var SESSION_KEY = 'barq_unified_session';
 
-  // ---------- أسلوب الدخول بالاسم وكلمة السر (منقول من forou3.html) ----------
-  var ADMIN_CREDENTIALS = { username: 'admin', passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', branch: 'الإدارة', branchKey: 'admin', icon: '👑', role: 'admin', active: true };
+  // ---------- قائمة المستخدمين (اسم مستخدم + كلمة سر مشفّرة + دور) ----------
+  // كلمات السر الافتراضية هنا هي نفسها القديمة (كانت أرقام PIN لأدوار
+  // الإدارة، وكلمة سر الفروع الأصلية) — مشفّرة بنفس دالة hashPassword
+  // عشان تفضل شغالة زي ما هي أول تشغيل، وبعد كده تتغيّر من شاشة الصلاحيات.
   var DEFAULT_USERS = [
-    { username: 'ainshams', passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', branch: 'عين شمس', branchKey: 'فرع1', icon: '🏬', role: 'manager', active: true },
-    { username: 'smalhy', passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', branch: 'السمليهي', branchKey: 'فرع2', icon: '🏪', role: 'manager', active: true }
+    { username: 'admin',     passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'admin',    branch: 'الإدارة',    branchKey: 'admin', icon: '👑', active: true },
+    { username: 'ainshams',  passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'manager',  branch: 'عين شمس',    branchKey: 'فرع1',  icon: '🏬', active: true },
+    { username: 'smalhy',    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'manager',  branch: 'السمليهي',  branchKey: 'فرع2',  icon: '🏪', active: true },
+    { username: 'receiving', passwordHash: '0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c', role: 'receiving', active: true },
+    { username: 'pricing',   passwordHash: 'edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9', role: 'pricing',   active: true },
+    { username: 'finance',   passwordHash: '318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69', role: 'finance',   active: true, label: 'أمين الخزينة — أحمد صلاح' },
+    { username: 'finmgr',    passwordHash: '79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619', role: 'finmgr',    active: true, label: 'مدير المالية — عمر أبو الفضل' },
+    { username: 'purchmgr',  passwordHash: 'c1f330d0aff31c1c87403f1e4347bcc21aff7c179908723535f2b31723702525', role: 'purchmgr',  active: true },
+    { username: 'ceo',       passwordHash: '888df25ae35772424a560c7152a1de794440e0ea5cfee62828333a456a506e05', role: 'ceo',       active: true },
+    { username: 'deptprep',  passwordHash: 'b698d86c67a2cff80405bd47af322216c552fd3a52f9c58a70f7b3a3313895b1', role: 'deptprep',  active: true }
   ];
 
   var usersDB = [];
+  var usersLoaded = false;
 
   function loadUsersDB() {
-    var saved = localStorage.getItem('barq_users_db');
+    if (usersLoaded) return;
+    var saved = localStorage.getItem('barq_unified_users_db');
     if (saved) {
       try { usersDB = JSON.parse(saved); } catch (e) { usersDB = DEFAULT_USERS.slice(); }
     } else {
       usersDB = DEFAULT_USERS.slice();
-      localStorage.setItem('barq_users_db', JSON.stringify(usersDB));
+      localStorage.setItem('barq_unified_users_db', JSON.stringify(usersDB));
     }
+    usersLoaded = true;
+  }
+
+  function saveUsersDB() {
+    localStorage.setItem('barq_unified_users_db', JSON.stringify(usersDB));
   }
 
   function findUser(username) {
-    if (username === ADMIN_CREDENTIALS.username) return ADMIN_CREDENTIALS;
+    loadUsersDB();
     return usersDB.find(function (u) { return u.username === username; });
   }
 
@@ -154,18 +162,22 @@ var BARQ_AUTH = (function () {
     return null;
   }
 
-  // ---------- دخول باسم مستخدم وكلمة سر ----------
-  function loginWithPassword(username, password) {
-    loadUsersDB();
+  // ---------- دخول موحّد: اسم مستخدم + كلمة سر بس ----------
+  // اليوزر والباسورد بيحددوا الحساب في usersDB، والدور المرتبط بيه (role)
+  // هو اللي بيستدعي الصلاحيات وأقسام القائمة الجانبية تلقائيًا.
+  function login(username, password) {
+    username = (username || '').trim();
     var user = findUser(username);
-    if (!user || !user.active) return { ok: false, error: 'اسم المستخدم غير صحيح' };
-    if (hashPassword(password) !== user.passwordHash) return { ok: false, error: 'كلمة السر غير صحيحة' };
+    if (!user) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+    if (!user.active) return { ok: false, error: 'الحساب موقوف — تواصل مع مدير النظام' };
+    if (hashPassword(password) !== user.passwordHash) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
     var roleDef = ROLES[user.role];
+    if (!roleDef) return { ok: false, error: 'الدور المرتبط بالحساب غير معروف' };
     currentUser = {
-      method: 'password',
+      method: roleDef.method,
       role: user.role,
-      label: roleDef.label,
-      icon: roleDef.icon,
+      label: user.label || roleDef.label,
+      icon: user.icon || roleDef.icon,
       username: user.username,
       branch: user.branch
     };
@@ -173,63 +185,8 @@ var BARQ_AUTH = (function () {
     return { ok: true, user: currentUser };
   }
 
-  // ---------- دخول بدور + رقم سري (لسه موجودة داخليًا، مش مستخدمة من واجهة الدخول البسيطة) ----------
-  function loginWithPin(roleKey, pin) {
-    var roleDef = ROLES[roleKey];
-    if (!roleDef || roleDef.method !== 'pin') return { ok: false, error: 'دور غير معروف' };
-    if (roleDef.pass !== pin) return { ok: false, error: 'الرقم السري غير صحيح' };
-    currentUser = {
-      method: 'pin',
-      role: roleKey,
-      label: roleDef.label,
-      icon: roleDef.icon
-    };
-    saveSession();
-    return { ok: true, user: currentUser };
-  }
-
-  // ---------- دخول موحّد: اسم مستخدم + كلمة سر بس ----------
-  // بيدوّر أول حاجة على أدوار الفروع (usersDB بكلمة سر مشفّرة)، ولو مالقاش
-  // بيدوّر على أدوار الإدارة (username الظاهري + الرقم السري بتاعها كـ"كلمة سر").
-  function login(username, password) {
-    username = (username || '').trim();
-
-    loadUsersDB();
-    var user = findUser(username);
-    if (user) {
-      if (!user.active) return { ok: false, error: 'الحساب موقوف' };
-      if (hashPassword(password) !== user.passwordHash) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
-      var roleDef = ROLES[user.role];
-      currentUser = {
-        method: 'password',
-        role: user.role,
-        label: roleDef.label,
-        icon: roleDef.icon,
-        username: user.username,
-        branch: user.branch
-      };
-      saveSession();
-      return { ok: true, user: currentUser };
-    }
-
-    var pinRoleKey = Object.keys(ROLES).find(function (k) {
-      return ROLES[k].method === 'pin' && ROLES[k].username && ROLES[k].username.toLowerCase() === username.toLowerCase();
-    });
-    if (pinRoleKey && ROLES[pinRoleKey].pass === password) {
-      var pd = ROLES[pinRoleKey];
-      currentUser = {
-        method: 'pin',
-        role: pinRoleKey,
-        label: pd.label,
-        icon: pd.icon,
-        username: pd.username
-      };
-      saveSession();
-      return { ok: true, user: currentUser };
-    }
-
-    return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
-  }
+  // للتوافق مع أي كود قديم بيستدعيها بالاسم ده
+  function loginWithPassword(username, password) { return login(username, password); }
 
   function logout() {
     currentUser = null;
@@ -248,9 +205,64 @@ var BARQ_AUTH = (function () {
     return (roleDef && roleDef.sections) || [];
   }
 
-  function pinRoles() {
-    return Object.keys(ROLES).filter(function (k) { return ROLES[k].method === 'pin'; }).map(function (k) {
-      return Object.assign({ key: k }, ROLES[k]);
+  // ---------- إدارة المستخدمين (شاشة "المستخدمين والصلاحيات") ----------
+  function listUsers() {
+    loadUsersDB();
+    return usersDB.map(function (u) {
+      var copy = Object.assign({}, u);
+      delete copy.passwordHash;
+      return copy;
+    });
+  }
+
+  function addUser(data) {
+    loadUsersDB();
+    var username = (data.username || '').trim();
+    if (!username) return { ok: false, error: 'اسم المستخدم مطلوب' };
+    if (!ROLES[data.role]) return { ok: false, error: 'دور غير معروف' };
+    if (findUser(username)) return { ok: false, error: 'اسم المستخدم ده موجود بالفعل' };
+    if (!data.password) return { ok: false, error: 'كلمة السر مطلوبة' };
+    usersDB.push({
+      username: username,
+      passwordHash: hashPassword(data.password),
+      role: data.role,
+      label: data.label || null,
+      active: true
+    });
+    saveUsersDB();
+    return { ok: true };
+  }
+
+  function updateUser(username, changes) {
+    loadUsersDB();
+    var user = findUser(username);
+    if (!user) return { ok: false, error: 'المستخدم مش موجود' };
+    if (changes.role) {
+      if (!ROLES[changes.role]) return { ok: false, error: 'دور غير معروف' };
+      user.role = changes.role;
+    }
+    if (typeof changes.active === 'boolean') user.active = changes.active;
+    if (changes.label !== undefined) user.label = changes.label || null;
+    if (changes.password) user.passwordHash = hashPassword(changes.password);
+    saveUsersDB();
+    return { ok: true };
+  }
+
+  function deleteUser(username) {
+    loadUsersDB();
+    if (currentUser && currentUser.username === username) {
+      return { ok: false, error: 'مينفعش تمسح الحساب اللي داخل بيه دلوقتي' };
+    }
+    var idx = usersDB.findIndex(function (u) { return u.username === username; });
+    if (idx === -1) return { ok: false, error: 'المستخدم مش موجود' };
+    usersDB.splice(idx, 1);
+    saveUsersDB();
+    return { ok: true };
+  }
+
+  function rolesList() {
+    return Object.keys(ROLES).map(function (k) {
+      return { key: k, label: ROLES[k].label, icon: ROLES[k].icon };
     });
   }
 
@@ -260,10 +272,13 @@ var BARQ_AUTH = (function () {
     restoreSession: restoreSession,
     login: login,
     loginWithPassword: loginWithPassword,
-    loginWithPin: loginWithPin,
     logout: logout,
     can: can,
     allowedSections: allowedSections,
-    pinRoles: pinRoles
+    listUsers: listUsers,
+    addUser: addUser,
+    updateUser: updateUser,
+    deleteUser: deleteUser,
+    rolesList: rolesList
   };
 })();
