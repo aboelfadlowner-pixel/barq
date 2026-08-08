@@ -601,7 +601,7 @@ function renderApp() {
       <button class="action-btn btn-primary" onclick="BARQ_ORD.toggleSummary()">📋 الطلبية (${filledCount})</button>
       <button class="action-btn btn-excel" onclick="BARQ_ORD.exportToExcel()">📄 CSV</button>
       <button class="action-btn btn-secondary" onclick="BARQ_ORD.printOrder()" style="flex:0.7;background:#1a3a2a;color:#fff">🖨 طباعة</button>
-      <button id="sendFactoryBtn" class="action-btn" onclick="sendOrderToFactory()" style="background:#e94560;color:#fff;flex:1">📤 إرسال للمصنع</button>
+      <button id="sendFactoryBtn" class="action-btn" onclick="BARQ_ORD.sendOrderToFactory()" style="background:#e94560;color:#fff;flex:1">📤 إرسال للمصنع</button>
     </div>
     ${summaryModal}
     ${showAdmin ? renderAdminPanel() : ''}
@@ -1634,11 +1634,11 @@ function renderProductionView() {
   let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="font-weight:900;font-size:16px">🏭 حالة تحضير الطلبيات</h3>
-      <button onclick="loadProductionData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+      <button onclick="BARQ_ORD.loadProductionData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
     <div id="prodMergeBar" style="position:sticky;top:0;background:#f0faf3;border:2px solid #0a8d4b;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;z-index:10">
       <span id="prodMergeCountSpan" style="font-weight:800;font-size:13px;color:#0a8d4b"></span>
-      <button onclick="deleteSelectedProduction()" style="margin-right:auto;background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">🗑 مسح المحدد</button>
+      <button onclick="BARQ_ORD.deleteSelectedProduction()" style="margin-right:auto;background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">🗑 مسح المحدد</button>
       <button onclick="BARQ_ORD.clearProdSelection()" style="background:transparent;color:#888;border:1px solid #ccc;border-radius:8px;padding:8px 12px;font-family:Cairo;font-size:12px;font-weight:700;cursor:pointer">إلغاء التحديد</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:#666;font-weight:700">
@@ -1812,7 +1812,7 @@ function renderAdminAdjustRows() {
     </div>`;
   });
   html += `</div>
-    <button id="submitAdminAdjustBtn" onclick="submitAdminAdjustments()" style="width:100%;margin-top:10px;background:#e08e00;color:#fff;border:none;border-radius:10px;padding:11px;font-family:Cairo;font-size:14px;font-weight:800;cursor:pointer">💾 حفظ الجرد</button>`;
+    <button id="submitAdminAdjustBtn" onclick="BARQ_ORD.submitAdminAdjustments()" style="width:100%;margin-top:10px;background:#e08e00;color:#fff;border:none;border-radius:10px;padding:11px;font-family:Cairo;font-size:14px;font-weight:800;cursor:pointer">💾 حفظ الجرد</button>`;
   return html;
 }
 
@@ -1991,14 +1991,14 @@ function renderFreezerView() {
   let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px 120px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="font-weight:900;font-size:16px">🍦 سحب الأيس كريم من الفريزر</h3>
-      <button onclick="loadFreezerData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+      <button onclick="BARQ_ORD.loadFreezerData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
     ${renderIcOfflineBadge()}
     ${currentUser.role === 'admin' ? `
     <div style="background:#fffaf0;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px;margin-bottom:18px;border:2px solid #ffb703">
       <h4 style="font-weight:900;font-size:14px;margin:0 0 10px;color:#a86a00">🛠️ ضبط رصيد أول / جرد فعلي (أدمن فقط)</h4>
       <p style="font-size:12px;color:#888;margin:0 0 10px">اختار الفرع واكتب العدد الفعلي اللي عددته دلوقتي لكل نكهة — هيحل محل الرصيد المسجل تمامًا (مش إضافة عليه).</p>
-      <select onchange="selectAdminAdjustBranch(this.value)" style="padding:8px;border:1px solid #f0d9a8;border-radius:8px;font-family:Cairo;min-width:160px">
+      <select onchange="BARQ_ORD.selectAdminAdjustBranch(this.value)" style="padding:8px;border:1px solid #f0d9a8;border-radius:8px;font-family:Cairo;min-width:160px">
         <option value="">— اختار الفرع —</option>
         ${getBranchOptionsForAdjust().map(b => `<option value="${b}"${adminAdjustBranch === b ? ' selected' : ''}>${b}</option>`).join('')}
       </select>
@@ -2019,7 +2019,7 @@ function renderFreezerView() {
         <label style="font-size:12px;color:#888;font-weight:700">إلى
           <input id="freezerReportTo" type="date" value="${freezerReportRange ? freezerReportRange.to : ''}" style="display:block;margin-top:4px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px;font-family:Cairo">
         </label>
-        <button onclick="loadFreezerReport()" style="align-self:flex-end;background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:Cairo;font-weight:800;cursor:pointer">${freezerReportLoading ? '⏳ جاري الحساب...' : '📋 عرض الجرد'}</button>
+        <button onclick="BARQ_ORD.loadFreezerReport()" style="align-self:flex-end;background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:Cairo;font-weight:800;cursor:pointer">${freezerReportLoading ? '⏳ جاري الحساب...' : '📋 عرض الجرد'}</button>
         <button onclick="BARQ_ORD.setFreezerReportAllTime()" style="align-self:flex-end;background:#fff;color:#0a8d4b;border:2px solid #0a8d4b;border-radius:8px;padding:9px 14px;font-family:Cairo;font-weight:800;cursor:pointer">⏱️ كل الوقت</button>
       </div>
       ${freezerReportRows ? renderFreezerReportTable() : ''}
@@ -2042,7 +2042,7 @@ function renderFreezerView() {
     </div>`;
   });
   html += `</div>
-    <button id="submitFreezerDrawsBtn" onclick="submitAllFreezerDraws()" style="width:100%;background:#e94560;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:18px">➖ سحب</button>`;
+    <button id="submitFreezerDrawsBtn" onclick="BARQ_ORD.submitAllFreezerDraws()" style="width:100%;background:#e94560;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:18px">➖ سحب</button>`;
 
   html += `<h3 style="font-weight:900;font-size:14px;margin-bottom:8px">🕐 آخر حركات السحب</h3>`;
   if (!freezerDraws.length) {
@@ -2191,7 +2191,7 @@ function renderReceiveView() {
       </div>`;
     });
     html += `</div>
-      <button id="confirmReceiveBtn" onclick="submitReceiveOrder()" style="width:100%;background:#0a8d4b;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer">✅ تأكيد الاستلام</button>
+      <button id="confirmReceiveBtn" onclick="BARQ_ORD.submitReceiveOrder()" style="width:100%;background:#0a8d4b;color:#fff;border:none;border-radius:12px;padding:14px;font-family:Cairo;font-size:15px;font-weight:800;cursor:pointer">✅ تأكيد الاستلام</button>
     </div>`;
     return html;
   }
@@ -2205,7 +2205,7 @@ function renderReceiveView() {
   let html = `<div style="max-width:900px;margin:12px auto;padding:0 16px 120px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="font-weight:900;font-size:16px">📦 استلام من المصنع</h3>
-      <button onclick="loadReceiveData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
+      <button onclick="BARQ_ORD.loadReceiveData()" style="background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-family:Cairo;font-weight:700;cursor:pointer">🔄 تحديث</button>
     </div>
     ${renderIcOfflineBadge()}
     <p style="font-size:12px;color:#888;margin:-4px 0 14px">اختار الطلبية اللي وصلتك من المصنع وسجّل الكمية الفعلية — الاستلام هنا تحويل داخلي بس، مش هيتبعت للمالية والتسعير.</p>
@@ -2218,7 +2218,7 @@ function renderReceiveView() {
         <div style="font-weight:700;font-size:13px">📅 ${dt}</div>
         <div style="font-size:11px;color:#888">${statusLabel}</div>
       </div>
-      <button onclick="openReceiveOrder('${o.id}')" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">📦 استلام</button>
+      <button onclick="BARQ_ORD.openReceiveOrder('${o.id}')" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">📦 استلام</button>
     </div>`;
   });
   html += `</div></div>`;
@@ -4054,6 +4054,17 @@ function mount(container) {
     updateCoverageDaysBar: updateCoverageDaysBar,
     updateProdMergeBar: updateProdMergeBar,
     updateTabCounts: updateTabCounts,
+    loadReceiveData: loadReceiveData,
+    submitAdminAdjustments: submitAdminAdjustments,
+    sendOrderToFactory: sendOrderToFactory,
+    loadFreezerData: loadFreezerData,
+    submitAllFreezerDraws: submitAllFreezerDraws,
+    deleteSelectedProduction: deleteSelectedProduction,
+    selectAdminAdjustBranch: selectAdminAdjustBranch,
+    submitReceiveOrder: submitReceiveOrder,
+    loadFreezerReport: loadFreezerReport,
+    loadProductionData: loadProductionData,
+    openReceiveOrder: openReceiveOrder,
     mount: mount
   };
 })();
