@@ -15,6 +15,7 @@ var BARQ_SECTIONS = [
   { key: 'finance',     label: 'مالية',                  icon: '🏦' },
   { key: 'barcode',     label: 'باركود وطباعة',          icon: '🏷️' },
   { key: 'stocktake',   label: 'جرد',                    icon: '🔢' },
+  { key: 'shelf-check', label: 'شيلفات',                 icon: '🔖' },
   // نفس موديول "تحضير الأقسام" (تبويب فرعي جوه الطلبيات) بس كقسم مستقل —
   // ده اللي بيظهر لليوزر المخصص deptprep، اللي مالوش صلاحية على "الطلبيات" نفسها
   { key: 'dept-prep',   label: 'تحضير الأقسام',          icon: '🏭' },

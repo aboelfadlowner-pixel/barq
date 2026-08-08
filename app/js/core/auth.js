@@ -14,16 +14,20 @@ var BARQ_AUTH = (function () {
 
   // ---------- سجل الأدوار (الصلاحيات وأقسام القائمة الجانبية بس، من غير أي بيانات دخول) ----------
   var ROLES = {
-    admin:    { label: 'مدير عام',   icon: '👑', method: 'password', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'], sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','access-list'] },
+    admin:    { label: 'مدير عام',   icon: '👑', method: 'password', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'], sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','shelf-check','access-list'] },
     manager:  { label: 'مدير فرع',   icon: '🏪', method: 'password', can: ['order','dashboard','production','freezer','factory_receive'], sections: ['orders'] },
     staff:    { label: 'موظف',       icon: '👤', method: 'password', can: ['data_entry','admin_panel','freezer','factory_receive'], sections: ['orders'] },
-    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', sections: ['receiving','stocktake'] },
+    receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', sections: ['receiving','stocktake','shelf-check'] },
     pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', sections: ['pricing'] },
     finance:   { label: 'أمين الخزينة',                 icon: '🏦', method: 'pin', sections: ['finance'] },
     finmgr:    { label: 'مدير المالية',                 icon: '📊', method: 'pin', sections: ['finance'] },
     purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', sections: ['purchasing'] },
-    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','access-list'] },
-    deptprep:  { label: 'تحضير الأقسام',                 icon: '🏭', method: 'pin', sections: ['dept-prep'] }
+    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','shelf-check','access-list'] },
+    deptprep:  { label: 'تحضير الأقسام',                 icon: '🏭', method: 'pin', sections: ['dept-prep'] },
+    // يوزرات مستقلة لكل وضع جوه "استلام وجرد" — كل واحد بيفتحله وضعه بس، من
+    // غير شاشة اختيار ومن غير ما يشوف الأوضاع التانية خالص
+    stockcount: { label: 'الجرد',                        icon: '🔢', method: 'pin', sections: ['stocktake'] },
+    shelfcheck: { label: 'شيلفات',                        icon: '🔖', method: 'pin', sections: ['shelf-check'] }
   };
 
   var SESSION_KEY = 'barq_unified_session';
@@ -42,7 +46,9 @@ var BARQ_AUTH = (function () {
     { username: 'finmgr',    passwordHash: '79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619', role: 'finmgr',    active: true, label: 'مدير المالية — عمر أبو الفضل' },
     { username: 'purchmgr',  passwordHash: 'c1f330d0aff31c1c87403f1e4347bcc21aff7c179908723535f2b31723702525', role: 'purchmgr',  active: true },
     { username: 'ceo',       passwordHash: '888df25ae35772424a560c7152a1de794440e0ea5cfee62828333a456a506e05', role: 'ceo',       active: true },
-    { username: 'deptprep',  passwordHash: 'b698d86c67a2cff80405bd47af322216c552fd3a52f9c58a70f7b3a3313895b1', role: 'deptprep',  active: true }
+    { username: 'deptprep',  passwordHash: 'b698d86c67a2cff80405bd47af322216c552fd3a52f9c58a70f7b3a3313895b1', role: 'deptprep',  active: true },
+    { username: 'stockcount', passwordHash: 'f4e99211184a248ac2b1bb736b2f241982bdbfb599a6a1b62d5c50a1cb7ddbe6', role: 'stockcount', active: true },
+    { username: 'shelfcheck', passwordHash: '00431bea7c112c6c03ed10860af49e6e791fd93819e027c15313a8e313bdaff9', role: 'shelfcheck', active: true }
   ];
 
   var usersDB = [];

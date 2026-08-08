@@ -966,9 +966,16 @@ function renderReceivingRoot() {
   return renderLocationBar() + body;
 }
 
+// كل وضع مربوط بقسم مستقل في القائمة الجانبية — لو المستخدم دخل بيوزر
+// مخصص لقسم واحد بس (زي شيلفات لوحدها)، الشاشة دي متوريهوش كروت لأقسام
+// تانية مالوش صلاحية عليها، حتى لو رجع لها من زرار "الرئيسية" جوه الموديول
+var MODE_TO_SHELL_SECTION = { receiving: 'receiving', count: 'stocktake', pricecheck: 'shelf-check' };
+
 // شاشة اختيار القسم — أول حاجة تبان بعد الدخول. أي وضع جديد بنضيفه في MODE_DEFS هيبان هنا تلقائياً
 function renderModeHome() {
-  var cards = MODE_DEFS.map(function(m){
+  var allowed = (window.BARQ_AUTH && BARQ_AUTH.allowedSections()) || [];
+  var visibleModes = MODE_DEFS.filter(function(m){ return allowed.indexOf(MODE_TO_SHELL_SECTION[m.key]) !== -1; });
+  var cards = visibleModes.map(function(m){
     return '<div class="mode-home-card" onclick="BARQ_IST.setRecvMode(\''+m.key+'\')">' +
       '<div class="mode-home-icon">'+m.icon+'</div>' +
       '<div class="mode-home-label">'+m.label+'</div>' +
@@ -4262,8 +4269,8 @@ window.addEventListener('load', async function(){
 function syncFromShellAuth() {
   var shellUser = window.BARQ_AUTH && BARQ_AUTH.getCurrentUser();
   var allowed = shellUser && (
-    (shellUser.method === 'pin' && (shellUser.role === 'receiving' || shellUser.role === 'ceo')) ||
-    shellUser.role === 'admin' // مدير عام (يوزر/باسورد) عنده صلاحية استلامات/جرد في القائمة الموحّدة برضه
+    (shellUser.method === 'pin' && ['receiving','ceo','stockcount','shelfcheck'].indexOf(shellUser.role) !== -1) ||
+    shellUser.role === 'admin' // مدير عام (يوزر/باسورد) عنده صلاحية استلامات/جرد/شيلفات في القائمة الموحّدة برضه
   );
   if (allowed) {
     if (role !== 'receiving') {
@@ -4282,10 +4289,14 @@ function syncFromShellAuth() {
 function mount(container, sectionKey) {
   container.innerHTML = '<div id="ist-toast"></div><div id="ist-root" class="ist-mod"></div>';
   syncFromShellAuth();
+  // كل قسم في القائمة الجانبية بيوديك على طول لوضعه من غير شاشة اختيار —
+  // لو المستخدم مالوش صلاحية إلا على وضع واحد بس، محتاجش يشوف شاشة الاختيار خالص
   if (sectionKey === 'receiving') {
     recvMode = 'receiving';
-  } else if (sectionKey === 'stocktake' && recvMode === 'receiving') {
-    recvMode = null;
+  } else if (sectionKey === 'stocktake') {
+    recvMode = 'count';
+  } else if (sectionKey === 'shelf-check') {
+    recvMode = 'pricecheck';
   }
   render();
 }
@@ -4487,3 +4498,4 @@ function mount(container, sectionKey) {
 window.BARQ_MODULES = window.BARQ_MODULES || {};
 window.BARQ_MODULES['receiving'] = { mount: BARQ_IST.mount };
 window.BARQ_MODULES['stocktake'] = { mount: BARQ_IST.mount };
+window.BARQ_MODULES['shelf-check'] = { mount: BARQ_IST.mount };
