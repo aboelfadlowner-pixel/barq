@@ -4,18 +4,20 @@
    عشان متأثرش على باقي الموديولات. */
 
 .msn-mod {
-      --primary: #1a5c2a;
-      --primary-dark: #0f3d1c;
-      --primary-light: #2d8a42;
+      /* موحّدة مع نفس ألوان shared.css — --accent هنا معناها "لون النص فوق
+         الخلفية الغامقة" (أبيض) مش لون العلامة الثانوي، فسايبينها زي ما هي */
+      --primary: #1a3a2a;
+      --primary-dark: #0f2419;
+      --primary-light: #2d8653;
       --accent: #fff;
-      --bg: #f4f9f5;
+      --bg: #f4f6f4;
       --card: #ffffff;
-      --border: #c8e0cd;
-      --text: #1a2e1e;
-      --muted: #5a7a60;
+      --border: #d4e4d8;
+      --text: #1a2e1a;
+      --muted: #6b8f71;
       --danger: #c0392b;
       --warning: #e67e22;
-      --success: #196f3d;
+      --success: #2d8653;
       --gold: #d4ac0d;
     }
 .msn-mod * { box-sizing: border-box; margin: 0; padding: 0; }

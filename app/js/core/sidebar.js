@@ -14,7 +14,10 @@ var BARQ_SECTIONS = [
   { key: 'receiving',   label: 'استلامات',               icon: '📥' },
   { key: 'finance',     label: 'مالية',                  icon: '🏦' },
   { key: 'barcode',     label: 'باركود وطباعة',          icon: '🏷️' },
-  { key: 'stocktake',   label: 'جرد',                    icon: '🔢' }
+  { key: 'stocktake',   label: 'جرد',                    icon: '🔢' },
+  // نفس موديول "تحضير الأقسام" (تبويب فرعي جوه الطلبيات) بس كقسم مستقل —
+  // ده اللي بيظهر لليوزر المخصص deptprep، اللي مالوش صلاحية على "الطلبيات" نفسها
+  { key: 'dept-prep',   label: 'تحضير الأقسام',          icon: '🏭' }
 ];
 
 // سجل الموديولات — كل مرحلة قادمة بتسجل نفسها هنا: BARQ_MODULES['orders'] = { mount(container){...} }

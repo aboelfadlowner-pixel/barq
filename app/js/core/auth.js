@@ -28,7 +28,11 @@ var BARQ_AUTH = (function () {
     finance:   { label: 'أمين الخزينة — أحمد صلاح',      icon: '🏦', method: 'pin', username: 'finance',   pass: '3333', sections: ['finance'] },
     finmgr:    { label: 'مدير المالية — عمر أبو الفضل',  icon: '📊', method: 'pin', username: 'finmgr',    pass: '4444', sections: ['finance'] },
     purchmgr:  { label: 'مدير قسم المشتريات',            icon: '📦', method: 'pin', username: 'purchmgr',  pass: '5555', sections: ['purchasing'] },
-    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', username: 'ceo',       pass: '9999', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] }
+    ceo:       { label: 'رئيس مجلس الإدارة',             icon: '👔', method: 'pin', username: 'ceo',       pass: '9999', sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake'] },
+
+    // يوزر مستقل لتحضير الأقسام بس — مش جزء من هيكل "الطلبيات"، يوزر
+    // بيفتح عليه القسم ده لوحده بس (مفيش أي قسم تاني ظاهر ليه في القائمة)
+    deptprep:  { label: 'تحضير الأقسام',                 icon: '🏭', method: 'pin', username: 'deptprep', pass: '7000', sections: ['dept-prep'] }
   };
 
   var SESSION_KEY = 'barq_unified_session';

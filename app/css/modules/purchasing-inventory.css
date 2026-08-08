@@ -3,19 +3,21 @@
    فاتحفظت مقيّدة بـ .mk-mod (مش :root عام) عشان متأثرش على باقي الموديولات. */
 
 .mk-mod {
-    --bg: #f0f7f2;
+    /* موحّدة مع نفس ألوان shared.css (--primary/--accent الأساسيين في باقي
+       الأقسام) بدل الأخضر المختلف اللي كان بالملف ده لوحده */
+    --bg: #f4f6f4;
     --surface: #ffffff;
-    --surface2: #e8f5ed;
-    --border: #b8dfc7;
-    --accent: #1a7a40;
+    --surface2: #eafaf1;
+    --border: #d4e4d8;
+    --accent: #2d8653;
     --accent2: #e74c3c;
-    --green: #1a7a40;
-    --red: #d63031;
-    --blue: #0984e3;
-    --text: #1a2e22;
-    --muted: #5a7a66;
-    --A: #1a7a40;
-    --B: #0984e3;
+    --green: #2d8653;
+    --red: #c0392b;
+    --blue: #1a3a5c;
+    --text: #1a2e1a;
+    --muted: #6b8f71;
+    --A: #2d8653;
+    --B: #1a3a5c;
     --C: #7a8c80;
     --D: #f5a623;
     --E: #e17055;

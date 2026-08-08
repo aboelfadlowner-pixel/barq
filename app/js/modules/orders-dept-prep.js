@@ -400,3 +400,4 @@ function mount(container) {
 
 window.BARQ_MODULES = window.BARQ_MODULES || {};
 window.BARQ_MODULES['orders-dept'] = { mount: BARQ_DEPT.mount };
+window.BARQ_MODULES['dept-prep'] = { mount: BARQ_DEPT.mount };
