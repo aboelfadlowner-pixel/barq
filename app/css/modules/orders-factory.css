@@ -78,6 +78,10 @@
       color: #fff; padding: 6px 14px; border-radius: 8px;
       font-family: 'Cairo', sans-serif; font-size: 13px; cursor: pointer;
     }
+/* شريط الـ shell أصلاً بيعرض اسم القسم وهوية المستخدم وزرار الخروج — هنا بس التاريخ وزرار الإنتاج */
+.msn-mod .topbar--slim { background: var(--card); color: var(--text); box-shadow: none; border-bottom: 1px solid var(--border); justify-content: flex-end; height: auto; padding: 10px 16px; }
+.msn-mod .topbar--slim .topbar-date { color: var(--muted); }
+.msn-mod .topbar--slim .btn-logout { background: var(--accent-soft); color: var(--primary); border: 1px solid var(--border); }
 .msn-mod .upload-section { padding: 18px 16px 0; max-width: 940px; margin: 0 auto; }
 .msn-mod .upload-card {
       background: var(--card); border-radius: 16px; padding: 28px;
