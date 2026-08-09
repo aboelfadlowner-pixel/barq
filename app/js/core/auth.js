@@ -181,12 +181,24 @@ var BARQ_AUTH = (function () {
   // ---------- دخول موحّد: اسم مستخدم + كلمة سر بس ----------
   // اليوزر والباسورد بيحددوا الحساب في usersDB، والدور المرتبط بيه (role)
   // هو اللي بيستدعي الصلاحيات وأقسام القائمة الجانبية تلقائيًا.
+  // سجل تدقيق بسيط (audit_log_v3 — نفس الجدول اللي التطبيق أصلاً بيسجل فيه
+  // بعض الأحداث) — بيسجل كل محاولة دخول (ناجحة أو فاشلة)، عشان لو حصل تسريب
+  // بيانات نقدر نرجع نعرف مين دخل وامتى بالظبط. تسجيل بس، من غير ما يوقف
+  // أي حاجة لو فشل (مفيش إنترنت مثلاً) — مش شرط لنجاح تسجيل الدخول نفسه.
+  function logAudit(action, who, detail) {
+    if (typeof sb !== 'function') return;
+    try {
+      sb('audit_log_v3', { method: 'POST', body: JSON.stringify({ action: action, who: who || '—', detail: detail || '' }) })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
   function login(username, password) {
     username = (username || '').trim();
     var user = findUser(username);
-    if (!user) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
-    if (!user.active) return { ok: false, error: 'الحساب موقوف — تواصل مع مدير النظام' };
-    if (hashPassword(password) !== user.passwordHash) return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+    if (!user) { logAudit('login_failed', username, 'اسم مستخدم غير موجود'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
+    if (!user.active) { logAudit('login_blocked', username, 'محاولة دخول لحساب موقوف'); return { ok: false, error: 'الحساب موقوف — تواصل مع مدير النظام' }; }
+    if (hashPassword(password) !== user.passwordHash) { logAudit('login_failed', username, 'كلمة سر خاطئة'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
     var roleDef = ROLES[user.role];
     if (!roleDef) return { ok: false, error: 'الدور المرتبط بالحساب غير معروف' };
     currentUser = {
@@ -198,6 +210,7 @@ var BARQ_AUTH = (function () {
       branch: user.branch
     };
     saveSession();
+    logAudit('login', user.username, roleDef.label + (user.branch ? ' — ' + user.branch : ''));
     return { ok: true, user: currentUser };
   }
 

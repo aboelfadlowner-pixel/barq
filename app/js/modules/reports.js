@@ -32,6 +32,20 @@ var BARQ_REPORTS = (function () {
     return d.toISOString().split('T')[0];
   }
 
+  // تسجيل كل عملية تصدير CSV في audit_log_v3 — التقارير دي فيها بيانات
+  // حساسة (تكاليف/موردين/أرقام مبيعات)، فتصدير جماعي بالـ CSV هو أسهل طريقة
+  // لتسريب بيانات، فلازم يبقى ليه أثر واضح مين عمله وامتى
+  function logExport(reportName, filename) {
+    if (!window.BARQ_AUTH || typeof sb !== 'function') return;
+    var user = BARQ_AUTH.getCurrentUser();
+    try {
+      sb('audit_log_v3', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'export_csv', who: user ? (user.username || user.label) : '—', detail: reportName + ' — ' + filename })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function downloadCSV(filename, headers, rows) {
     var csv = '﻿' + headers.join(',') + '\n';
     rows.forEach(function (row) {
@@ -175,6 +189,7 @@ var BARQ_REPORTS = (function () {
       '<button class="rp-btn" id="rp-b-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>الكمية الإجمالية</th><th>عدد الطلبيات</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-b-export').addEventListener('click', function () {
+      logExport('طلبيات الفروع', 'تقرير_طلبيات_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv');
       downloadCSV('تقرير_طلبيات_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv',
         ['الصنف', 'SKU', 'الكمية الإجمالية', 'الوحدة', 'عدد الطلبيات'],
         rows.map(function (r) { return [r.name, r.sku, fmtNum(r.qty), r.unit || '', Object.keys(r.orders).length]; }));
@@ -242,6 +257,7 @@ var BARQ_REPORTS = (function () {
       '<button class="rp-btn" id="rp-p-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>الكمية المشتراة</th><th>الإجمالي</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-p-export').addEventListener('click', function () {
+      logExport('المشتريات', 'تقرير_المشتريات_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv');
       downloadCSV('تقرير_المشتريات_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv',
         ['الصنف', 'SKU', 'الكمية المشتراة', 'الوحدة', 'الإجمالي'],
         rows.map(function (r) { return [r.name, r.sku, fmtNum(r.qty), r.unit || '', fmtNum(r.total)]; }));
@@ -309,6 +325,7 @@ var BARQ_REPORTS = (function () {
       '<button class="rp-btn" id="rp-s-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>الفرع</th><th>المطلوب</th><th>المستلم</th><th>النقص</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-s-export').addEventListener('click', function () {
+      logExport('النواقص', 'تقرير_النواقص_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv');
       downloadCSV('تقرير_النواقص_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv',
         ['الصنف', 'SKU', 'الفرع', 'المطلوب', 'المستلم', 'النقص', 'الوحدة'],
         rows.map(function (r) { return [r.name, r.sku, r.branch, fmtNum(r.ordered), fmtNum(r.received), fmtNum(r.diff), r.unit || '']; }));
@@ -366,6 +383,7 @@ var BARQ_REPORTS = (function () {
       '<button class="rp-btn" id="rp-t-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>#</th><th>الصنف</th><th>SKU</th><th>الكمية الإجمالية</th><th>عدد مرات الطلب</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-t-export').addEventListener('click', function () {
+      logExport('الأكثر طلبًا', 'تقرير_الأكثر_طلبًا_' + from + '_' + to + '.csv');
       downloadCSV('تقرير_الأكثر_طلبًا_' + from + '_' + to + '.csv',
         ['الترتيب', 'الصنف', 'SKU', 'الكمية الإجمالية', 'الوحدة', 'عدد مرات الطلب'],
         rows.map(function (r, i) { return [i + 1, r.name, r.sku, fmtNum(r.qty), r.unit || '', r.count]; }));
@@ -444,6 +462,7 @@ var BARQ_REPORTS = (function () {
       '<button class="rp-btn" id="rp-pr-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>المورد</th><th>من استلم/سعّر</th><th>التكلفة القديمة</th><th>التكلفة الجديدة</th><th>الفرق</th><th>%</th><th>التاريخ</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-pr-export').addEventListener('click', function () {
+      logExport('تغيّر التكلفة', 'تقرير_تغيّر_التكلفة_' + from + '_' + to + '.csv');
       downloadCSV('تقرير_تغيّر_التكلفة_' + from + '_' + to + '.csv',
         ['الصنف', 'SKU', 'المورد', 'من استلم/سعّر', 'التكلفة القديمة', 'التكلفة الجديدة', 'الفرق', 'النسبة %', 'التاريخ'],
         rows.map(function (r) { return [r.product_name, r.sku, r.supplier_name || '', r.received_by || '', fmtNum(r.old_cost), fmtNum(r.new_cost), fmtNum(r.delta), r.pct == null ? '' : fmtNum(r.pct), new Date(r.created_at).toLocaleDateString('ar-EG')]; }));
