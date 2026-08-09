@@ -24,6 +24,11 @@
 .ord-mod .top-btn { background: rgba(255,255,255,0.15); border: none; color: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 600; transition: background 0.2s; white-space: nowrap; }
 .ord-mod .top-btn:hover { background: rgba(255,255,255,0.25); }
 .ord-mod .badge { background: var(--accent2); color: var(--primary); border-radius: 20px; padding: 5px 12px; font-size: 13px; font-weight: 800; }
+/* شريط رفيع بديل — شريط الـ shell أصلاً بيعرض اسم القسم والمستخدم وزرار الخروج،
+   فمفيش داعي لتكرارهم هنا؛ بيفضل بس أزرار الأدوات الفعلية (المستخدمين/الإعدادات/رفع الجرد) */
+.ord-mod .top-bar--slim { background: transparent; box-shadow: none; padding: 10px 16px 2px; justify-content: flex-end; position: static; }
+.ord-mod .top-bar--slim .top-btn { background: #eafaf1; color: var(--primary); border: 1px solid #cfe8d9; }
+.ord-mod .top-bar--slim .top-btn:hover { background: #dcf3e6; }
 .ord-mod .tabs { background: #fff; border-bottom: 2px solid var(--border); display: flex; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; position: sticky; top: 53px; z-index: 99; flex-direction: row; flex-wrap: nowrap; direction: rtl; }
 .ord-mod .tabs::-webkit-scrollbar { display: none; }
 .ord-mod .tab { padding: 12px 16px; font-family: 'Cairo',sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent; transition: all 0.2s; border: none; background: none; flex-shrink: 0; direction: rtl; }
