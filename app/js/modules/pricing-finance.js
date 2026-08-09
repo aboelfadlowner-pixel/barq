@@ -959,15 +959,15 @@ function renderTopBar() {
   if (role==='pricing') btns += '<button class="tb'+(view==='decisionlog'?' on':'')+'" onclick="view=\'decisionlog\';detailId=null;render()">📋 سجل القرارات</button>';
   if (role==='pricing') btns += '<button class="tb" onclick="BARQ_TAS.exportCSV()">📤 تصدير Foodics</button>';
   btns += '<button class="tb'+(view==='synccenter'?' on':'')+'" onclick="view=\'synccenter\';detailId=null;render()">🔄 المزامنة</button>';
-  btns += '<button class="tb" onclick="BARQ_TAS.doLogout()">خروج</button>';
 
   var connBadge = '<span id="conn-badge" style="font-size:11px;font-weight:800;margin-right:6px"></span>';
   var pendingCount = OFFLINE_QUEUE.filter(function(o){return o.status!=='synced';}).length;
   var offlineBadge = '<span id="offline-indicator" onclick="view=\'synccenter\';detailId=null;render()" ' +
     'style="display:'+(pendingCount?'inline-flex':'none')+';align-items:center;gap:4px;background:#d68910;color:#fff;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:800;cursor:pointer;margin-left:6px">' +
     '📴 '+pendingCount+' عملية بالانتظار</span>';
-  return '<div class="topbar"><div><div class="tb-role">'+connBadge+r.icon+' '+r.label+offlineBadge+'</div>' +
-    '<div class="tb-sub">⚡ برق v3</div></div>' +
+  // شريط الـ shell أصلاً بيعرض اسم القسم وهوية المستخدم وزرار الخروج — هنا
+  // بس أزرار أدوات القسم + شارة الاتصال/المزامنة اللي مش موجودة هناك
+  return '<div class="topbar topbar--slim"><div><div class="tb-role">'+connBadge+r.icon+' '+r.label+offlineBadge+'</div></div>' +
     '<div class="tb-btns">'+btns+'</div></div>';
 }
 
