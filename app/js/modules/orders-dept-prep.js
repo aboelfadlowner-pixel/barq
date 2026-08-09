@@ -29,6 +29,7 @@ const DEPTS = {
 
 let currentDept = null;
 let pollTimer = null;
+let isForcedDept = false; // true لليوزرات المستقلة (dept-vip/dept-masnaat/...) اللي مالهاش شاشة اختيار قسم ترجعلها
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -111,11 +112,14 @@ function renderLogin(errMsg) {
 function renderMain() {
   if (pollTimer) clearInterval(pollTimer);
   const app = document.getElementById('app');
+  // لليوزرات المستقلة (dept-vip/dept-masnaat/...) شاشة الـ shell أصلاً بتعرض
+  // اسم القسم في عنوان الصفحة وفيها زرار "تسجيل الخروج" بالسايدبار — فمفيش
+  // داعي لتكرارهم هنا. اليوزر العام (deptprep) بس اللي محتاج طريقة يرجع بيها
+  // لشاشة اختيار القسم، فبناخدله شريط رفيع بزرار "تغيير القسم" بس.
   app.innerHTML = `
-    <div class="topbar">
-      <div class="dept-name">🏭 ${DEPTS[currentDept].label}</div>
-      <button class="logout" id="logoutBtn">خروج</button>
-    </div>
+    ${isForcedDept ? '' : `<div class="topbar topbar--slim">
+      <button class="change-dept" id="changeDeptBtn">🔄 تغيير القسم</button>
+    </div>`}
     <div class="status-line">
       <span id="lastUpdate">جاري التحميل...</span>
       <span id="pendingCount"></span>
@@ -126,12 +130,14 @@ function renderMain() {
     </div>
     <div class="branch-tabs" id="branchTabs"></div>
     <div id="list"></div>`;
-  document.getElementById('logoutBtn').onclick = () => {
-    sessionStorage.removeItem('barq_dept');
-    currentDept = null;
-    if (pollTimer) clearInterval(pollTimer);
-    renderLogin();
-  };
+  if (!isForcedDept) {
+    document.getElementById('changeDeptBtn').onclick = () => {
+      sessionStorage.removeItem('barq_dept');
+      currentDept = null;
+      if (pollTimer) clearInterval(pollTimer);
+      renderLogin();
+    };
+  }
   document.getElementById('subActive').onclick = () => switchSubTab('active');
   document.getElementById('subClosed').onclick = () => switchSubTab('closed');
   loadAndRender();
@@ -375,11 +381,13 @@ function mount(container, sectionKey) {
   container.innerHTML = BARQ_DEPT_MARKUP;
   var forcedDept = SECTION_TO_DEPT[sectionKey];
   if (forcedDept) {
+    isForcedDept = true;
     currentDept = forcedDept;
     sessionStorage.setItem('barq_dept', forcedDept);
     renderMain();
     return;
   }
+  isForcedDept = false;
   const saved = sessionStorage.getItem('barq_dept');
   if (saved && DEPTS[saved]) {
     currentDept = saved;

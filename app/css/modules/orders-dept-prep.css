@@ -18,6 +18,10 @@
 .dept-mod .topbar { background:#1a3a2a; color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
 .dept-mod .topbar .dept-name { font-size:18px; font-weight:800; }
 .dept-mod .topbar .logout { font-size:13px; opacity:.85; background:none; border:1px solid rgba(255,255,255,.5); color:#fff; padding:6px 12px; border-radius:20px; }
+/* شريط رفيع بديل — يظهر بس لليوزر العام (deptprep) عشان يقدر يرجع لاختيار قسم تاني.
+   اليوزرات المستقلة (dept-vip/...) شايفين عنوان القسم وزرار الخروج من شريط الـ shell نفسه، فمالهومش داعي للشريط ده أصلاً */
+.dept-mod .topbar--slim { background:transparent; color:#1a3a2a; padding:10px 16px 0; justify-content:flex-end; position:static; box-shadow:none; }
+.dept-mod .topbar--slim .change-dept { font-size:13px; font-weight:700; background:#eafcf1; border:1px solid #cfe8d9; color:#1a3a2a; padding:6px 14px; border-radius:20px; cursor:pointer; }
 .dept-mod .status-line { padding:8px 16px; font-size:12px; color:#789; background:#eef4f0; display:flex; justify-content:space-between; }
 .dept-mod .empty { text-align:center; padding:60px 20px; color:#9ab; font-size:16px; }
 .dept-mod .branch-block { margin:14px 12px; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.05); }
