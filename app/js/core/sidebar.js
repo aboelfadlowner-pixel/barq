@@ -24,7 +24,8 @@ var BARQ_SECTIONS = [
   { key: 'dept-masnaat',  label: 'تحضير — مصنعات',           icon: '🏭' },
   { key: 'dept-lahom',    label: 'تحضير — مصنعات لحوم ودواجن', icon: '🏭' },
   { key: 'dept-mo3mal',   label: 'تحضير — معمل',              icon: '🏭' },
-  { key: 'access-list', label: 'المستخدمين والصلاحيات', icon: '👥' }
+  { key: 'access-list', label: 'المستخدمين والصلاحيات', icon: '👥' },
+  { key: 'support-admin', label: 'بلاغات المستخدمين', icon: '🆘' }
 ];
 
 // سجل الموديولات — كل مرحلة قادمة بتسجل نفسها هنا: BARQ_MODULES['orders'] = { mount(container){...} }
@@ -128,6 +129,19 @@ var BarqApp = (function () {
       '    </div>' +
       '    <div class="content-area" id="content-area"></div>' +
       '  </div>' +
+      '  <button class="report-fab" id="btn-report-fab" title="بلاغ عن مشكلة">🆘</button>' +
+      '  <div class="report-modal-backdrop" id="report-modal-backdrop">' +
+      '    <div class="report-modal">' +
+      '      <h3>🆘 بلاغ عن مشكلة</h3>' +
+      '      <p class="report-modal-sub">اكتب المشكلة اللي واجهتك وهتوصلنا فورًا.</p>' +
+      '      <textarea id="report-msg" class="report-textarea" rows="5" placeholder="اكتب المشكلة هنا..."></textarea>' +
+      '      <div class="report-modal-err" id="report-modal-err"></div>' +
+      '      <div class="report-modal-actions">' +
+      '        <button class="report-btn report-btn-primary" id="btn-report-send">إرسال البلاغ</button>' +
+      '        <button class="report-btn" id="btn-report-cancel">إلغاء</button>' +
+      '      </div>' +
+      '    </div>' +
+      '  </div>' +
       '</div>';
 
     document.getElementById('btn-logout').addEventListener('click', function () {
@@ -163,7 +177,68 @@ var BarqApp = (function () {
       });
     });
 
+    bindReportFab();
     mountActiveContent();
+  }
+
+  // ---------------- زرار البلاغ العائم ----------------
+  function bindReportFab() {
+    var fab = document.getElementById('btn-report-fab');
+    var backdrop = document.getElementById('report-modal-backdrop');
+    var cancelBtn = document.getElementById('btn-report-cancel');
+    var sendBtn = document.getElementById('btn-report-send');
+    if (!fab || !backdrop) return;
+
+    function openModal() {
+      backdrop.classList.add('open');
+      document.getElementById('report-modal-err').textContent = '';
+      document.getElementById('report-msg').value = '';
+      document.getElementById('report-msg').focus();
+    }
+    function closeModal() { backdrop.classList.remove('open'); }
+
+    fab.addEventListener('click', openModal);
+    cancelBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeModal(); });
+
+    sendBtn.addEventListener('click', function () {
+      var msg = document.getElementById('report-msg').value.trim();
+      var errEl = document.getElementById('report-modal-err');
+      if (!msg) { errEl.textContent = 'اكتب المشكلة الأول'; return; }
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'جاري الإرسال...';
+      var user = BARQ_AUTH.getCurrentUser();
+      var sectionTitleEl = document.querySelector('.section-title');
+      sb('support_reports', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: user ? (user.username || user.label) : null,
+          role_label: user ? user.label : null,
+          branch: user ? user.branch : null,
+          section: sectionTitleEl ? sectionTitleEl.textContent.trim() : null,
+          message: msg
+        })
+      }).then(function () {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'إرسال البلاغ';
+        closeModal();
+        showReportToast('✅ تم إرسال البلاغ، هيتم التعامل معاه قريبًا');
+      }).catch(function (e) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'إرسال البلاغ';
+        errEl.textContent = 'تعذر الإرسال — تأكد من الاتصال بالإنترنت';
+        console.error(e);
+      });
+    });
+  }
+
+  function showReportToast(msg) {
+    var t = document.createElement('div');
+    t.className = 'report-toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { t.classList.add('show'); }, 10);
+    setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 3000);
   }
 
   function mountActiveContent() {

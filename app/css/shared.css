@@ -240,7 +240,51 @@ html, body {
   .content-area { padding: 0 !important; }
 }
 
+/* ===================== زرار البلاغ العائم ===================== */
+.report-fab {
+  position: fixed; bottom: 22px; left: 22px; z-index: 500;
+  width: 52px; height: 52px; border-radius: 50%; border: none;
+  background: var(--primary); color: #fff; font-size: 22px; cursor: pointer;
+  box-shadow: var(--shadow-lg); display: flex; align-items: center; justify-content: center;
+  transition: transform .15s;
+}
+.report-fab:hover { transform: scale(1.06); background: var(--accent); }
+
+.report-modal-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 30000;
+  background: rgba(15,36,25,.45); align-items: center; justify-content: center; padding: 20px;
+}
+.report-modal-backdrop.open { display: flex; }
+.report-modal {
+  background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 420px;
+  box-shadow: var(--shadow-lg);
+}
+.report-modal h3 { font-size: 17px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
+.report-modal-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.report-textarea {
+  width: 100%; padding: 12px; border: 1.5px solid var(--border); border-radius: 10px;
+  font-family: 'Cairo', sans-serif; font-size: 13.5px; resize: vertical; outline: none;
+}
+.report-textarea:focus { border-color: var(--accent); }
+.report-modal-err { color: var(--red); font-size: 12.5px; min-height: 16px; margin-top: 6px; }
+.report-modal-actions { display: flex; gap: 8px; margin-top: 10px; }
+.report-btn {
+  padding: 10px 18px; border-radius: 9px; border: 1.5px solid var(--border); background: #fff;
+  color: var(--text); font-family: 'Cairo', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; flex: 1;
+}
+.report-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.report-btn-primary:hover { background: var(--primary); border-color: var(--primary); }
+
+.report-toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--primary); color: #fff; padding: 12px 22px; border-radius: 30px;
+  font-size: 13.5px; font-weight: 700; box-shadow: var(--shadow-lg); z-index: 40000;
+  opacity: 0; transition: all .25s; pointer-events: none;
+}
+.report-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 @media (max-width: 860px) {
+  .report-fab { bottom: 16px; left: 16px; width: 48px; height: 48px; font-size: 19px; }
   /* الصفحة RTL — القائمة الجانبية أصلها على اليمين، فلازم تتثبّت على right:0
      وتتزحلق برّه الشاشة ناحية اليمين (translateX موجب) وهي مقفولة، مش على
      left:0 زي صفحة LTR (كانت هي سبب ظهورها نص الشاشة على الموبايل) */
