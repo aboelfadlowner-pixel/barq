@@ -38,6 +38,7 @@ var BARQ_ACCESS = (function () {
           '<tr class="al-row al-editing">' +
           '  <td>' + esc(u.username) + '</td>' +
           '  <td><select class="al-select" id="al-edit-role">' + roleOptionsHtml(u.role) + '</select></td>' +
+          '  <td><input class="al-input" type="text" id="al-edit-branch" placeholder="اسم الفرع (لو دوره مدير فرع)" value="' + esc(u.branch || '') + '"></td>' +
           '  <td><input class="al-input" type="password" id="al-edit-pass" placeholder="سيبها فاضية لو مش هتغيّرها"></td>' +
           '  <td><label class="al-switch"><input type="checkbox" id="al-edit-active" ' + (u.active ? 'checked' : '') + '> نشط</label></td>' +
           '  <td class="al-actions">' +
@@ -50,7 +51,7 @@ var BARQ_ACCESS = (function () {
         '<tr class="al-row">' +
         '  <td>' + esc(u.username) + '</td>' +
         '  <td><span class="al-role-chip">' + role.icon + ' ' + esc(u.label || role.label) + '</span></td>' +
-        '  <td>—</td>' +
+        '  <td>' + (u.branch ? esc(u.branch) : '—') + '</td>' +
         '  <td><span class="al-status ' + (u.active ? 'al-status-on' : 'al-status-off') + '">' + (u.active ? '● نشط' : '● موقوف') + '</span></td>' +
         '  <td class="al-actions">' +
         '    <button class="al-btn" onclick="BARQ_ACCESS.startEdit(\'' + esc(u.username) + '\')">تعديل</button>' +
@@ -67,6 +68,7 @@ var BARQ_ACCESS = (function () {
       '    <input class="al-input" type="password" id="al-new-password" placeholder="كلمة السر" autocomplete="new-password">' +
       '    <input class="al-input" type="text" id="al-new-label" placeholder="اسم ظاهر (اختياري)">' +
       '    <select class="al-select" id="al-new-role">' + roleOptionsHtml(null) + '</select>' +
+      '    <input class="al-input" type="text" id="al-new-branch" placeholder="اسم الفرع (لو دوره مدير فرع)">' +
       '  </div>' +
       '  <div class="al-add-actions">' +
       '    <button class="al-btn al-btn-primary" onclick="BARQ_ACCESS.submitAdd()">إضافة المستخدم</button>' +
@@ -104,7 +106,8 @@ var BARQ_ACCESS = (function () {
     var password = document.getElementById('al-new-password').value;
     var label = document.getElementById('al-new-label').value;
     var role = document.getElementById('al-new-role').value;
-    var res = BARQ_AUTH.addUser({ username: username, password: password, label: label, role: role });
+    var branch = document.getElementById('al-new-branch').value;
+    var res = BARQ_AUTH.addUser({ username: username, password: password, label: label, role: role, branch: branch });
     if (!res.ok) { formError = res.error; render(); return; }
     showAddForm = false;
     formError = '';
@@ -124,9 +127,10 @@ var BARQ_ACCESS = (function () {
 
   function saveEdit(username) {
     var role = document.getElementById('al-edit-role').value;
+    var branch = document.getElementById('al-edit-branch').value;
     var password = document.getElementById('al-edit-pass').value;
     var active = document.getElementById('al-edit-active').checked;
-    var changes = { role: role, active: active };
+    var changes = { role: role, active: active, branch: branch };
     if (password) changes.password = password;
     var res = BARQ_AUTH.updateUser(username, changes);
     if (!res.ok) { formError = res.error; render(); return; }

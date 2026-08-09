@@ -17,7 +17,7 @@
 }
 
 .al-add-card h3 { font-size: 15px; font-weight: 800; color: var(--primary); margin-bottom: 12px; }
-.al-add-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.al-add-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
 .al-add-actions { display: flex; gap: 8px; }
 
 .al-input, .al-select {

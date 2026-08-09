@@ -10,6 +10,10 @@
 var BARQ_REPORTS = (function () {
   var activeTab = 'branch';
   var branchNames = [];
+  var purchaseBranchNames = [];
+  // مدير الفرع (role === 'manager') بيشوف تقارير فرعه بس، بدون أي اختيار —
+  // مقفول على البراند بتاعه من user.branch. الأدمن/الـ CEO عندهم الاختيار الكامل.
+  var lockedBranch = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -53,14 +57,23 @@ var BARQ_REPORTS = (function () {
     { key: 'pricing', label: '💰 تغيّر التكلفة' }
   ];
 
+  function visibleTabs() {
+    // مدير الفرع بيشوف بس التقارير المرتبطة بفرعه (طلبيات + نواقص) — مفيش
+    // وصول لتقارير المشتريات/التكلفة (بيانات مالية/موردين مش خاصة بفرعه)
+    if (lockedBranch) return TABS.filter(function (t) { return t.key === 'branch' || t.key === 'shortage'; });
+    return TABS;
+  }
+
   function renderShell() {
     var root = document.getElementById('rp-root');
     if (!root) return;
-    var tabsHtml = TABS.map(function (t) {
+    var tabs = visibleTabs();
+    if (!tabs.some(function (t) { return t.key === activeTab; })) activeTab = tabs[0].key;
+    var tabsHtml = tabs.map(function (t) {
       return '<button class="rp-tab ' + (activeTab === t.key ? 'active' : '') + '" onclick="BARQ_REPORTS.setTab(\'' + t.key + '\')">' + t.label + '</button>';
     }).join('');
     root.innerHTML =
-      '<div class="rp-header"><h2>📊 تقارير</h2><p class="rp-sub">تقارير مبنية على نفس بيانات التطبيق الحية.</p></div>' +
+      '<div class="rp-header"><h2>📊 تقارير</h2><p class="rp-sub">' + (lockedBranch ? 'تقارير فرعك (' + esc(lockedBranch) + ')' : 'تقارير مبنية على نفس بيانات التطبيق الحية.') + '</p></div>' +
       '<div class="rp-tabs">' + tabsHtml + '</div>' +
       '<div id="rp-body"></div>';
     renderTabBody();
@@ -78,15 +91,28 @@ var BARQ_REPORTS = (function () {
 
   function setTab(key) { activeTab = key; renderTabBody(); }
 
+  function branchFieldHtml(branchId, names) {
+    if (lockedBranch) {
+      return '<select class="rp-select" id="' + branchId + '" disabled title="مقفول على فرعك"><option value="' + esc(lockedBranch) + '" selected>🔒 ' + esc(lockedBranch) + '</option></select>';
+    }
+    return '<select class="rp-select" id="' + branchId + '"><option value="">كل الفروع</option>' + names.map(function (b) { return '<option value="' + esc(b) + '">' + esc(b) + '</option>'; }).join('') + '</select>';
+  }
+
   function filtersBarHtml(opts) {
     // opts: { withBranch, fromId, toId, branchId, btnId, extra }
     return '' +
       '<div class="rp-filters">' +
-      (opts.withBranch ? '<select class="rp-select" id="' + opts.branchId + '"><option value="">كل الفروع</option>' + branchNames.map(function (b) { return '<option value="' + esc(b) + '">' + esc(b) + '</option>'; }).join('') + '</select>' : '') +
+      (opts.withBranch ? branchFieldHtml(opts.branchId, branchNames) : '') +
       '<label class="rp-flabel">من <input type="date" class="rp-input" id="' + opts.fromId + '" value="' + daysAgoStr(30) + '"></label>' +
       '<label class="rp-flabel">إلى <input type="date" class="rp-input" id="' + opts.toId + '" value="' + todayStr() + '"></label>' +
       '<button class="rp-btn rp-btn-primary" id="' + opts.btnId + '">📊 عرض التقرير</button>' +
       '</div>';
+  }
+
+  function readBranchFilter(selectId) {
+    if (lockedBranch) return lockedBranch;
+    var el = document.getElementById(selectId);
+    return el ? el.value : '';
   }
 
   // ============ تقرير 1: طلبيات الفروع ============
@@ -95,7 +121,7 @@ var BARQ_REPORTS = (function () {
       filtersBarHtml({ withBranch: true, fromId: 'rp-b-from', toId: 'rp-b-to', branchId: 'rp-b-branch', btnId: 'rp-b-go' }) +
       '<div id="rp-b-result" class="rp-result"></div>';
     document.getElementById('rp-b-go').addEventListener('click', loadBranchReport);
-    if (!branchNames.length) loadBranchNames();
+    if (!lockedBranch && !branchNames.length) loadBranchNames();
   }
 
   function loadBranchNames() {
@@ -112,7 +138,7 @@ var BARQ_REPORTS = (function () {
 
   function loadBranchReport() {
     var resultEl = document.getElementById('rp-b-result');
-    var branch = document.getElementById('rp-b-branch').value;
+    var branch = readBranchFilter('rp-b-branch');
     var from = document.getElementById('rp-b-from').value;
     var to = document.getElementById('rp-b-to').value;
     resultEl.innerHTML = '<div class="rp-loading">⏳ جاري التحميل...</div>';
@@ -158,18 +184,34 @@ var BARQ_REPORTS = (function () {
   // ============ تقرير 2: المشتريات ============
   function renderPurchasingTab(body) {
     body.innerHTML =
-      filtersBarHtml({ withBranch: false, fromId: 'rp-p-from', toId: 'rp-p-to', btnId: 'rp-p-go' }) +
+      '<div class="rp-filters">' +
+      branchFieldHtml('rp-p-branch', purchaseBranchNames) +
+      '<label class="rp-flabel">من <input type="date" class="rp-input" id="rp-p-from" value="' + daysAgoStr(30) + '"></label>' +
+      '<label class="rp-flabel">إلى <input type="date" class="rp-input" id="rp-p-to" value="' + todayStr() + '"></label>' +
+      '<button class="rp-btn rp-btn-primary" id="rp-p-go">📊 عرض التقرير</button>' +
+      '</div>' +
       '<div id="rp-p-result" class="rp-result"></div>';
     document.getElementById('rp-p-go').addEventListener('click', loadPurchasingReport);
+    if (!purchaseBranchNames.length) {
+      sb('purchase_orders?select=branch').then(function (rows) {
+        var set = {};
+        (rows || []).forEach(function (r) { if (r.branch) set[r.branch] = true; });
+        purchaseBranchNames = Object.keys(set).sort();
+        var sel = document.getElementById('rp-p-branch');
+        if (sel && !lockedBranch) sel.innerHTML = '<option value="">كل الفروع</option>' + purchaseBranchNames.map(function (b) { return '<option value="' + esc(b) + '">' + esc(b) + '</option>'; }).join('');
+      }).catch(function (e) { console.error(e); });
+    }
   }
 
   function loadPurchasingReport() {
     var resultEl = document.getElementById('rp-p-result');
+    var branch = readBranchFilter('rp-p-branch');
     var from = document.getElementById('rp-p-from').value;
     var to = document.getElementById('rp-p-to').value;
     resultEl.innerHTML = '<div class="rp-loading">⏳ جاري التحميل...</div>';
 
-    var path = 'purchase_orders?select=id,po_number,supplier_name,created_at,status&created_at=gte.' + from + '&created_at=lte.' + to + 'T23:59:59';
+    var path = 'purchase_orders?select=id,po_number,supplier_name,branch,created_at,status&created_at=gte.' + from + '&created_at=lte.' + to + 'T23:59:59';
+    if (branch) path += '&branch=eq.' + encodeURIComponent(branch);
     sb(path).then(function (pos) {
       if (!pos || !pos.length) { resultEl.innerHTML = '<div class="rp-empty">لا توجد أوامر شراء في هذه الفترة</div>'; return null; }
       var ids = pos.map(function (p) { return p.id; });
@@ -182,7 +224,7 @@ var BARQ_REPORTS = (function () {
           agg[key].total += parseFloat(it.total_price) || 0;
         });
         var rows = Object.values(agg).sort(function (a, b) { return b.total - a.total; });
-        renderPurchasingResult(resultEl, pos, rows, from, to);
+        renderPurchasingResult(resultEl, pos, rows, branch, from, to);
       });
     }).catch(function (e) {
       resultEl.innerHTML = '<div class="rp-empty rp-error">⚠️ تعذر تحميل التقرير</div>';
@@ -190,17 +232,17 @@ var BARQ_REPORTS = (function () {
     });
   }
 
-  function renderPurchasingResult(el, pos, rows, from, to) {
+  function renderPurchasingResult(el, pos, rows, branch, from, to) {
     var grandTotal = rows.reduce(function (s, r) { return s + r.total; }, 0);
     var tableRows = rows.map(function (r) {
       return '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.sku) + '</td><td>' + fmtNum(r.qty) + ' ' + esc(r.unit || '') + '</td><td>' + fmtNum(r.total) + ' ج.م</td></tr>';
     }).join('');
     el.innerHTML =
-      '<div class="rp-summary">🧾 ' + pos.length + ' أمر شراء — من ' + from + ' إلى ' + to + ' — الإجمالي: ' + fmtNum(grandTotal) + ' ج.م</div>' +
+      '<div class="rp-summary">🧾 ' + pos.length + ' أمر شراء' + (branch ? ' — ' + esc(branch) : ' — كل الفروع') + ' — من ' + from + ' إلى ' + to + ' — الإجمالي: ' + fmtNum(grandTotal) + ' ج.م</div>' +
       '<button class="rp-btn" id="rp-p-export">📥 تصدير CSV</button>' +
       '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>الكمية المشتراة</th><th>الإجمالي</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
     document.getElementById('rp-p-export').addEventListener('click', function () {
-      downloadCSV('تقرير_المشتريات_' + from + '_' + to + '.csv',
+      downloadCSV('تقرير_المشتريات_' + (branch || 'كل_الفروع') + '_' + from + '_' + to + '.csv',
         ['الصنف', 'SKU', 'الكمية المشتراة', 'الوحدة', 'الإجمالي'],
         rows.map(function (r) { return [r.name, r.sku, fmtNum(r.qty), r.unit || '', fmtNum(r.total)]; }));
     });
@@ -212,7 +254,7 @@ var BARQ_REPORTS = (function () {
       filtersBarHtml({ withBranch: true, fromId: 'rp-s-from', toId: 'rp-s-to', branchId: 'rp-s-branch', btnId: 'rp-s-go' }) +
       '<div id="rp-s-result" class="rp-result"></div>';
     document.getElementById('rp-s-go').addEventListener('click', loadShortageReport);
-    if (!branchNames.length) loadBranchNamesInto('rp-s-branch'); else fillBranchSelect('rp-s-branch');
+    if (!lockedBranch) { if (!branchNames.length) loadBranchNamesInto('rp-s-branch'); else fillBranchSelect('rp-s-branch'); }
   }
 
   function loadBranchNamesInto(selectId) {
@@ -230,7 +272,7 @@ var BARQ_REPORTS = (function () {
 
   function loadShortageReport() {
     var resultEl = document.getElementById('rp-s-result');
-    var branch = document.getElementById('rp-s-branch').value;
+    var branch = readBranchFilter('rp-s-branch');
     var from = document.getElementById('rp-s-from').value;
     var to = document.getElementById('rp-s-to').value;
     resultEl.innerHTML = '<div class="rp-loading">⏳ جاري التحميل...</div>';
@@ -411,6 +453,9 @@ var BARQ_REPORTS = (function () {
   function mount(container) {
     activeTab = 'branch';
     branchNames = [];
+    purchaseBranchNames = [];
+    var user = window.BARQ_AUTH && BARQ_AUTH.getCurrentUser();
+    lockedBranch = (user && user.role === 'manager' && user.branch) ? user.branch : null;
     container.innerHTML = '<div class="rp-mod"><div id="rp-root"></div></div>';
     renderShell();
   }

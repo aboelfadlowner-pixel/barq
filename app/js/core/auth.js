@@ -15,7 +15,7 @@ var BARQ_AUTH = (function () {
   // ---------- سجل الأدوار (الصلاحيات وأقسام القائمة الجانبية بس، من غير أي بيانات دخول) ----------
   var ROLES = {
     admin:    { label: 'مدير عام',   icon: '👑', method: 'password', can: ['order','history','dashboard','manage_users','admin_panel','admin_settings','data_entry','production','freezer','factory_receive'], sections: ['orders','purchasing','pricing','receiving','finance','barcode','stocktake','shelf-check','reports','access-list','support-admin'] },
-    manager:  { label: 'مدير فرع',   icon: '🏪', method: 'password', can: ['order','dashboard','production','freezer','factory_receive'], sections: ['orders'] },
+    manager:  { label: 'مدير فرع',   icon: '🏪', method: 'password', can: ['order','dashboard','production','freezer','factory_receive'], sections: ['orders','reports'] },
     staff:    { label: 'موظف',       icon: '👤', method: 'password', can: ['data_entry','admin_panel','freezer','factory_receive'], sections: ['orders'] },
     receiving: { label: 'الاستلام',                    icon: '📦', method: 'pin', sections: ['receiving','stocktake','shelf-check'] },
     pricing:   { label: 'مسؤول التسعير',                icon: '💰', method: 'pin', sections: ['pricing'] },
@@ -243,6 +243,7 @@ var BARQ_AUTH = (function () {
       passwordHash: hashPassword(data.password),
       role: data.role,
       label: data.label || null,
+      branch: data.branch || null,
       active: true
     });
     saveUsersDB();
@@ -259,6 +260,7 @@ var BARQ_AUTH = (function () {
     }
     if (typeof changes.active === 'boolean') user.active = changes.active;
     if (changes.label !== undefined) user.label = changes.label || null;
+    if (changes.branch !== undefined) user.branch = changes.branch || null;
     if (changes.password) user.passwordHash = hashPassword(changes.password);
     saveUsersDB();
     return { ok: true };
