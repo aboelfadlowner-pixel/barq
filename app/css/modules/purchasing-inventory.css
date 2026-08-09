@@ -49,6 +49,8 @@
     letter-spacing: -1px;
   }
 .mk-mod .logo span { color: var(--text); font-size: 14px; font-weight: 400; margin-right: 8px; }
+/* شريط الـ shell أصلاً بيعرض اسم القسم — هنا بس أدوات النسخ الاحتياطي/التواريخ، فمفيش داعي للوجو مكرر */
+.mk-mod .header--slim { justify-content: flex-end; border-bottom: 1px solid var(--border); padding: 10px 20px; }
 .mk-mod .header-stats {
     display: flex;
     gap: 20px;
