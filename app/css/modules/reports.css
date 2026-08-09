@@ -42,6 +42,8 @@
 .rp-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
 .rp-table tr:last-child td { border-bottom: none; }
 .rp-shortage { color: var(--red); font-weight: 800; }
+.rp-cost-up { color: var(--red); font-weight: 800; }
+.rp-cost-down { color: var(--accent); font-weight: 800; }
 
 @media (max-width: 700px) {
   .rp-filters { flex-direction: column; align-items: stretch; }

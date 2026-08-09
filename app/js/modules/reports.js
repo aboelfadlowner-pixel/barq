@@ -49,7 +49,8 @@ var BARQ_REPORTS = (function () {
     { key: 'branch', label: '🏪 طلبيات الفروع' },
     { key: 'purchasing', label: '📦 المشتريات' },
     { key: 'shortage', label: '⚠️ النواقص (المطلوب مقابل المستلم)' },
-    { key: 'topitems', label: '🔥 الأكثر طلبًا' }
+    { key: 'topitems', label: '🔥 الأكثر طلبًا' },
+    { key: 'pricing', label: '💰 تغيّر التكلفة' }
   ];
 
   function renderShell() {
@@ -72,6 +73,7 @@ var BARQ_REPORTS = (function () {
     if (activeTab === 'purchasing') return renderPurchasingTab(body);
     if (activeTab === 'shortage') return renderShortageTab(body);
     if (activeTab === 'topitems') return renderTopItemsTab(body);
+    if (activeTab === 'pricing') return renderPricingTab(body);
   }
 
   function setTab(key) { activeTab = key; renderTabBody(); }
@@ -325,6 +327,84 @@ var BARQ_REPORTS = (function () {
       downloadCSV('تقرير_الأكثر_طلبًا_' + from + '_' + to + '.csv',
         ['الترتيب', 'الصنف', 'SKU', 'الكمية الإجمالية', 'الوحدة', 'عدد مرات الطلب'],
         rows.map(function (r, i) { return [i + 1, r.name, r.sku, fmtNum(r.qty), r.unit || '', r.count]; }));
+    });
+  }
+
+  // ============ تقرير 5: تغيّر التكلفة (تسعير) ============
+  // بيقرا من pricing_requests_v3 — نفس الجدول اللي شاشة "تسعير" بتسجّل فيه
+  // كل مرة التكلفة الجديدة (وقت الاستلام) تختلف عن آخر تكلفة مسجلة (old_cost
+  // مقابل new_cost)، مع received_by (اللي استلم/أدخل التكلفة الجديدة).
+  function renderPricingTab(body) {
+    body.innerHTML =
+      '<div class="rp-filters">' +
+      '  <label class="rp-flabel">من <input type="date" class="rp-input" id="rp-pr-from" value="' + daysAgoStr(30) + '"></label>' +
+      '  <label class="rp-flabel">إلى <input type="date" class="rp-input" id="rp-pr-to" value="' + todayStr() + '"></label>' +
+      '  <select class="rp-select" id="rp-pr-dir">' +
+      '    <option value="all">الكل (زيادة ونقص)</option>' +
+      '    <option value="up">زيادة في التكلفة فقط</option>' +
+      '    <option value="down">نقص في التكلفة فقط</option>' +
+      '  </select>' +
+      '  <button class="rp-btn rp-btn-primary" id="rp-pr-go">📊 عرض التقرير</button>' +
+      '</div>' +
+      '<div id="rp-pr-result" class="rp-result"></div>';
+    document.getElementById('rp-pr-go').addEventListener('click', loadPricingReport);
+  }
+
+  function loadPricingReport() {
+    var resultEl = document.getElementById('rp-pr-result');
+    var from = document.getElementById('rp-pr-from').value;
+    var to = document.getElementById('rp-pr-to').value;
+    var dir = document.getElementById('rp-pr-dir').value;
+    resultEl.innerHTML = '<div class="rp-loading">⏳ جاري التحميل...</div>';
+
+    var path = 'pricing_requests_v3?select=sku,product_name,unit,old_cost,new_cost,supplier_name,po_number,received_by,created_at' +
+      '&cost_changed=eq.true&created_at=gte.' + from + '&created_at=lte.' + to + 'T23:59:59&order=created_at.desc';
+
+    sb(path).then(function (rows0) {
+      var rows = (rows0 || []).map(function (r) {
+        var oldC = parseFloat(r.old_cost) || 0;
+        var newC = parseFloat(r.new_cost) || 0;
+        r.delta = newC - oldC;
+        r.pct = oldC > 0 ? (r.delta / oldC * 100) : null;
+        return r;
+      }).filter(function (r) {
+        if (dir === 'up') return r.delta > 0;
+        if (dir === 'down') return r.delta < 0;
+        return r.delta !== 0;
+      }).sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });
+
+      if (!rows.length) { resultEl.innerHTML = '<div class="rp-empty">لا يوجد تغيّر في التكلفة مسجل في هذه الفترة</div>'; return; }
+      renderPricingResult(resultEl, rows, from, to);
+    }).catch(function (e) {
+      resultEl.innerHTML = '<div class="rp-empty rp-error">⚠️ تعذر تحميل التقرير</div>';
+      console.error(e);
+    });
+  }
+
+  function renderPricingResult(el, rows, from, to) {
+    var upCount = rows.filter(function (r) { return r.delta > 0; }).length;
+    var downCount = rows.filter(function (r) { return r.delta < 0; }).length;
+    var tableRows = rows.map(function (r) {
+      var cls = r.delta > 0 ? 'rp-cost-up' : 'rp-cost-down';
+      var arrow = r.delta > 0 ? '▲' : '▼';
+      var pctText = r.pct == null ? '—' : (r.pct > 0 ? '+' : '') + fmtNum(r.pct) + '%';
+      return '<tr>' +
+        '<td>' + esc(r.product_name) + '</td><td>' + esc(r.sku) + '</td>' +
+        '<td>' + esc(r.supplier_name || '—') + '</td><td>' + esc(r.received_by || '—') + '</td>' +
+        '<td>' + fmtNum(r.old_cost) + '</td><td>' + fmtNum(r.new_cost) + '</td>' +
+        '<td class="' + cls + '">' + arrow + ' ' + fmtNum(Math.abs(r.delta)) + '</td>' +
+        '<td class="' + cls + '">' + pctText + '</td>' +
+        '<td>' + new Date(r.created_at).toLocaleDateString('ar-EG') + '</td>' +
+        '</tr>';
+    }).join('');
+    el.innerHTML =
+      '<div class="rp-summary">💰 ' + rows.length + ' صنف تغيّرت تكلفته — ▲ ' + upCount + ' زيادة، ▼ ' + downCount + ' نقص — من ' + from + ' إلى ' + to + '</div>' +
+      '<button class="rp-btn" id="rp-pr-export">📥 تصدير CSV</button>' +
+      '<table class="rp-table"><thead><tr><th>الصنف</th><th>SKU</th><th>المورد</th><th>من استلم/سعّر</th><th>التكلفة القديمة</th><th>التكلفة الجديدة</th><th>الفرق</th><th>%</th><th>التاريخ</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
+    document.getElementById('rp-pr-export').addEventListener('click', function () {
+      downloadCSV('تقرير_تغيّر_التكلفة_' + from + '_' + to + '.csv',
+        ['الصنف', 'SKU', 'المورد', 'من استلم/سعّر', 'التكلفة القديمة', 'التكلفة الجديدة', 'الفرق', 'النسبة %', 'التاريخ'],
+        rows.map(function (r) { return [r.product_name, r.sku, r.supplier_name || '', r.received_by || '', fmtNum(r.old_cost), fmtNum(r.new_cost), fmtNum(r.delta), r.pct == null ? '' : fmtNum(r.pct), new Date(r.created_at).toLocaleDateString('ar-EG')]; }));
     });
   }
 
