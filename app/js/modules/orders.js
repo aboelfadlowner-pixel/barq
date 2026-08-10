@@ -364,6 +364,10 @@ let showSummary = false;
 let showHistory = false;
 let showDashboard = false;
 let currentView = 'order'; // order | history | dashboard
+// لما الموديول يتفتح من subsection مستقل (الإنتاج/الفريزر/استلام من المصنع
+// بقوا كل واحد قسم فرعي لوحده جوه "الطلبيات" بدل تابات جوه شاشة الطلبية)
+// forcedView بيقفل الشاشة على view واحد بس ويشيل شريط التابات خالص
+let forcedView = null;
 let orderHistory = []; // سجل الطلبيات
 let stockLevels = {}; // sku الأساسي -> الكمية الموجودة بالفرع (من تقرير الجرد اليومي من فوديكس)
 let stockUpdatedAt = null; // وقت آخر رفع لملف الجرد
@@ -538,20 +542,17 @@ function renderApp() {
         ${filledCount > 0 ? `<div class="badge" onclick="BARQ_ORD.toggleSummary()">🛒 ${filledCount}</div>` : ''}
         ${canDo('manage_users') ? `<button class="top-btn" onclick="BARQ_ORD.toggleUserMgmt()" style="background:rgba(255,255,255,0.2)" title="المستخدمون">👥</button>` : ''}
         ${canDo('admin_panel') && canDo('admin_settings') ? `<button class="top-btn" onclick="BARQ_ORD.toggleAdmin()" style="background:rgba(240,165,0,0.3)" title="إعدادات المنتجات">⚙️</button>` : ''}
-        ${canDo('data_entry') && !canDo('admin_settings') ? `<button class="top-btn" onclick="BARQ_ORD.setView('data');render()" style="background:rgba(255,255,255,0.2)" title="إدارة البيانات">📂</button>` : ''}
+        ${!forcedView && canDo('data_entry') && !canDo('admin_settings') ? `<button class="top-btn" onclick="BARQ_ORD.setView('data');render()" style="background:rgba(255,255,255,0.2)" title="إدارة البيانات">📂</button>` : ''}
         ${canDo('order') ? `<button class="top-btn" onclick="document.getElementById('stockFileInput').click()" style="background:rgba(255,255,255,0.2)" title="رفع تقرير الجرد">📥</button>` : ''}
       </div>
     </div>
     ${canDo('order') ? `<input type="file" id="stockFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="BARQ_ORD.handleStockFileUpload(event)">` : ''}
-    <div class="nav-tabs">
+    ${!forcedView ? `<div class="nav-tabs">
       ${canDo('order') ? `<button class="nav-tab ${currentView==='order'?'active':''}" onclick="BARQ_ORD.setView('order')">📋 الطلبية</button>` : ''}
-      ${canDo('production') ? `<button class="nav-tab ${currentView==='production'?'active':''}" onclick="BARQ_ORD.setView('production')">🏭 الإنتاج</button>` : ''}
-      ${canDo('freezer') ? `<button class="nav-tab ${currentView==='freezer'?'active':''}" onclick="BARQ_ORD.setView('freezer')">🍦 الفريزر</button>` : ''}
-      ${canDo('factory_receive') ? `<button class="nav-tab ${currentView==='receive'?'active':''}" onclick="BARQ_ORD.setView('receive')">📦 استلام من المصنع</button>` : ''}
       ${canDo('dashboard') ? `<button class="nav-tab ${currentView==='dashboard'?'active':''}" onclick="BARQ_ORD.setView('dashboard')">📊 تحليل</button>` : ''}
       ${canDo('history') ? `<button class="nav-tab ${currentView==='history'?'active':''}" onclick="BARQ_ORD.setView('history')">🕐 السجل</button>` : ''}
       ${canDo('data_entry') && !canDo('order') ? `<button class="nav-tab ${currentView==='data'?'active':''}" onclick="BARQ_ORD.setView('data')">📂 البيانات</button>` : ''}
-    </div>
+    </div>` : ''}
     ${currentView === 'order' ? `<div class="tabs">${tabsHTML}</div>` : ''}
     ${currentView === 'order' && tab === 'بيض' ? renderEggSummary() : ''}
     ${currentView === 'data' ? renderDataEntryView() : ''}
@@ -3897,9 +3898,14 @@ function syncFromShellAuth() {
   }
 }
 
-function mount(container) {
+var ORDERS_SECTION_TO_VIEW = { 'orders-production': 'production', 'orders-freezer': 'freezer', 'orders-receive': 'receive' };
+
+function mount(container, sectionKey) {
   container.innerHTML = '<div id="ord-root" class="ord-mod"></div>';
   syncFromShellAuth();
+  forcedView = ORDERS_SECTION_TO_VIEW[sectionKey] || null;
+  if (forcedView) currentView = forcedView;
+  else if (currentView === 'production' || currentView === 'freezer' || currentView === 'receive') currentView = 'order';
   render();
 }
 
@@ -4060,3 +4066,6 @@ function mount(container) {
 
 window.BARQ_MODULES = window.BARQ_MODULES || {};
 window.BARQ_MODULES['orders-main'] = { mount: BARQ_ORD.mount };
+window.BARQ_MODULES['orders-production'] = { mount: BARQ_ORD.mount };
+window.BARQ_MODULES['orders-freezer'] = { mount: BARQ_ORD.mount };
+window.BARQ_MODULES['orders-receive'] = { mount: BARQ_ORD.mount };

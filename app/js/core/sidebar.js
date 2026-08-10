@@ -5,9 +5,12 @@
 var BARQ_SECTIONS = [
   { key: 'orders',      label: 'الطلبيات',              icon: '🛒',
     subsections: [
-      { key: 'orders-main',    label: 'الأصناف والطلبيات' },
-      { key: 'orders-factory', label: 'المصنع' },
-      { key: 'orders-dept',    label: 'تحضير الأقسام' }
+      { key: 'orders-main',       label: 'الأصناف والطلبيات' },
+      { key: 'orders-production', label: 'الإنتاج',              cap: 'production' },
+      { key: 'orders-freezer',    label: 'الفريزر',               cap: 'freezer' },
+      { key: 'orders-receive',    label: 'استلام من المصنع',       cap: 'factory_receive' },
+      { key: 'orders-factory',    label: 'المصنع' },
+      { key: 'orders-dept',       label: 'تحضير الأقسام' }
     ] },
   { key: 'purchasing',  label: 'المشتريات والمخزون',   icon: '📦' },
   { key: 'pricing',     label: 'تسعير',                  icon: '💰' },
@@ -82,6 +85,28 @@ var BarqApp = (function () {
     });
   }
 
+  // أدوار forou3 (orders.js) بتستخدم نظام صلاحيات داخلي (ROLES[role].can[])
+  // منفصل عن نظام الأقسام هنا — نفس القيم بالظبط من orders.js، عشان تبويبات
+  // الإنتاج/الفريزر/استلام المصنع (اللي بقت subsections مستقلة بدل ما تكون
+  // تابات جوه شاشة الطلبية) تفضل متسقة مع صلاحيات forou3 الأصلية، ومحدش
+  // يشوف تبويب مالوش صلاحية عليه أصلاً (زي staff اللي معاهاش 'production').
+  // ceo بتتحول جوه orders.js نفسها لصلاحيات admin كاملة (syncFromShellAuth)،
+  // فبتاخد نفس قائمة admin هنا.
+  var ORDERS_ROLE_CAN = {
+    admin: ['production', 'freezer', 'factory_receive'],
+    ceo: ['production', 'freezer', 'factory_receive'],
+    manager: ['production', 'freezer', 'factory_receive'],
+    staff: ['freezer', 'factory_receive']
+  };
+  function visibleSubsections(section, user) {
+    if (!section.subsections) return null;
+    return section.subsections.filter(function (sub) {
+      if (!sub.cap) return true;
+      var allowedCaps = ORDERS_ROLE_CAN[user.role];
+      return allowedCaps ? allowedCaps.indexOf(sub.cap) !== -1 : true;
+    });
+  }
+
   // ---------------- هيكل التطبيق بعد الدخول ----------------
   function renderShell(user) {
     var allowed = BARQ_AUTH.allowedSections();
@@ -97,10 +122,11 @@ var BarqApp = (function () {
 
     var sectionsHtml = visibleSections.map(function (s, i) {
       var isActive = activeSection === s.key;
-      var hasSub = !!s.subsections;
+      var subs = visibleSubsections(s, user);
+      var hasSub = !!(subs && subs.length);
       var subHtml = '';
       if (hasSub) {
-        subHtml = '<div class="sidebar-subnav">' + s.subsections.map(function (sub) {
+        subHtml = '<div class="sidebar-subnav">' + subs.map(function (sub) {
           return '<div class="sidebar-subitem ' + (isActive && activeSub === sub.key ? 'active' : '') + '" data-section="' + s.key + '" data-sub="' + sub.key + '">' + sub.label + '</div>';
         }).join('') + '</div>';
       }
