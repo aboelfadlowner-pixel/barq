@@ -4414,8 +4414,12 @@ function syncFromShellAuth(sectionKey) {
     // مدير عام (يوزر/باسورد) عنده صلاحية "تسعير" و"مالية" في القائمة الموحّدة
     // بس مش من أدوار PIN المعروفة هنا — من غير المابّينج ده كان بيشوف شاشة
     // اختيار الدور الداخلية القديمة بدل المحتوى مباشرة. نربطه بالدور المناسب
-    // لنفس القسم اللي فتحه فعلاً من القائمة الجانبية.
-    newRole = (sectionKey === 'finance') ? 'finmgr' : 'pricing';
+    // لنفس القسم اللي فتحه فعلاً من القائمة الجانبية. "مالية" بقت تبويبين
+    // (خزينة أحمد صلاح / مدير المالية) — كل واحد بياخد دوره الصح بدل ما
+    // يتقفل دايمًا على مدير المالية بس.
+    if (sectionKey === 'finance-treasury') newRole = 'finance';
+    else if (sectionKey === 'finance-mgr' || sectionKey === 'finance') newRole = 'finmgr';
+    else newRole = 'pricing';
   }
   if (newRole && newRole !== role) {
     role = newRole; view = 'queue'; detailId = null; recvPO = null;
@@ -4592,3 +4596,5 @@ function mount(container, sectionKey) {
 window.BARQ_MODULES = window.BARQ_MODULES || {};
 window.BARQ_MODULES['pricing'] = { mount: BARQ_TAS.mount };
 window.BARQ_MODULES['finance'] = { mount: BARQ_TAS.mount };
+window.BARQ_MODULES['finance-treasury'] = { mount: BARQ_TAS.mount };
+window.BARQ_MODULES['finance-mgr'] = { mount: BARQ_TAS.mount };

@@ -15,7 +15,16 @@ var BARQ_SECTIONS = [
   { key: 'purchasing',  label: 'المشتريات والمخزون',   icon: '📦' },
   { key: 'pricing',     label: 'تسعير',                  icon: '💰' },
   { key: 'receiving',   label: 'استلامات',               icon: '📥' },
-  { key: 'finance',     label: 'مالية',                  icon: '🏦' },
+  // "مالية" كانت دايمًا بتوريك شاشة "مدير المالية" بس لما تدخل بحساب admin،
+  // مفيش طريقة توصل بيها لشاشة "أمين الخزينة — أحمد صلاح" (اللي الفاتورة
+  // بتوصلها بعد الاستلام) غير بحساب PIN مخصص ليها. دلوقتي بقت تبويبين
+  // واضحين — الأدمن/الـCEO يقدروا يفتحوا أي واحد فيهم، وكل يوزر PIN مخصص
+  // (finance/finmgr) بيشوف بس شاشته هو
+  { key: 'finance',     label: 'مالية',                  icon: '🏦',
+    subsections: [
+      { key: 'finance-treasury', label: 'خزينة (أحمد صلاح)', roleOnly: 'finance' },
+      { key: 'finance-mgr',      label: 'مدير المالية',       roleOnly: 'finmgr' }
+    ] },
   { key: 'barcode',     label: 'باركود وطباعة',          icon: '🏷️' },
   { key: 'stocktake',   label: 'جرد',                    icon: '🔢' },
   { key: 'shelf-check', label: 'شيلفات',                 icon: '🔖' },
@@ -101,9 +110,19 @@ var BarqApp = (function () {
   function visibleSubsections(section, user) {
     if (!section.subsections) return null;
     return section.subsections.filter(function (sub) {
-      if (!sub.cap) return true;
-      var allowedCaps = ORDERS_ROLE_CAN[user.role];
-      return allowedCaps ? allowedCaps.indexOf(sub.cap) !== -1 : true;
+      if (sub.cap) {
+        var allowedCaps = ORDERS_ROLE_CAN[user.role];
+        if (!(allowedCaps ? allowedCaps.indexOf(sub.cap) !== -1 : true)) return false;
+      }
+      // roleOnly: تبويب خاص بيوزر PIN مخصص واحد بس (زي finance/finmgr) —
+      // يظهر لصاحبه فقط، أو لأي حد تاني عنده وصول عام على القسم (admin/ceo)
+      // اللي مش من أصحاب اليوزرات المخصصة دي أصلًا
+      if (sub.roleOnly) {
+        var ownerRoles = section.subsections.filter(function (s) { return s.roleOnly; }).map(function (s) { return s.roleOnly; });
+        var isDedicatedOwner = ownerRoles.indexOf(user.role) !== -1;
+        if (isDedicatedOwner) return sub.roleOnly === user.role;
+      }
+      return true;
     });
   }
 
