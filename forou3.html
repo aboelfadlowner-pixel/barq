@@ -440,7 +440,12 @@ const EGG_CONFIG = {"sk-9901": {"name": "كرتونة بيض احمر جامبو
 const EGG_SKUS = new Set(["sk-9901", "sk-10758", "sk-10757", "sk-10756", "sk-10755", "sk-10754", "sk-10753", "sk-10752", "sk-10751"]);
 
 
-function getActiveSkuMap() { return customSKUMap || SKU_MAP; }
+let remoteSkuMap = {}; // منتجات جاية من سوبابيز مضافة من جهاز/مستخدم تاني ومش موجودة في القائمة المحلية لسه
+function getActiveSkuMap() {
+  const base = customSKUMap || SKU_MAP;
+  if (!remoteSkuMap || Object.keys(remoteSkuMap).length === 0) return base;
+  return Object.assign({}, remoteSkuMap, base); // النسخة المحلية (لو موجودة لنفس الـ sku) هي اللي تفضل
+}
 function getActiveTabs() { return customTabs || TABS; }
 
 const HIDDEN_BASE_SKUS_FOR_PKG = new Set(['sk-8588', 'sk-8590', 'sk-8587', 'sk-0179', 'sk-0181', 'sk-9052', 'sk-8178', 'sk-9055', 'sk-8175', 'sk-8177', 'sk-9583', 'sk-8191']);
@@ -695,7 +700,10 @@ if (currentUser) {
   loadStockFromStorage();
   loadTodayPromo();
   // مؤجل عشان السكريبت كامل يخلص تحميل الأول (SB_URL/SB_HEADERS متعرفين لاحقًا في الملف)
-  setTimeout(() => refreshLearnedAverages().then(render), 0);
+  setTimeout(() => {
+    refreshLearnedAverages().then(render);
+    refreshRemoteSkuMap().then(render);
+  }, 0);
 }
 let showAdmin = false;
 let showScanner = false;
@@ -1167,6 +1175,7 @@ function doLogin() {
     try { localStorage.setItem('barq_session', JSON.stringify({ username: user.username, role: user.role, branch: user.branch, branchKey: user.branchKey, icon: user.icon, view: currentView })); } catch(e) {}
     addSecurityLog('تسجيل دخول ناجح', 'success', u);
     refreshLearnedAverages().then(render);
+    refreshRemoteSkuMap().then(render);
     render();
   } else {
     // فشل تسجيل الدخول
@@ -2045,6 +2054,69 @@ function isAnomalousDeviation(value, baseline, sku) {
   const info = getActiveSkuMap()[sku];
   const threshold = (info && info.unit === 'كيلو') ? 2 : 6;
   return Math.abs(value - baseline) >= threshold;
+}
+
+// ===== مزامنة كتالوج المنتجات (بدل ما تفضل الإضافات محلية على جهاز الأدمن بس) =====
+// بيبعت للسيرفر بس، مش بيمسح — حذف صنف محليًا مش بيتزامن عشان مش عارفين لو صنف تاني (تسعير/مخزون) لسه محتاجه
+async function syncSkusToSupabase(skus) {
+  if (!currentUser || !skus || !skus.length) return;
+  const activeMap = getActiveSkuMap();
+  const productsRows = [], deptRows = [];
+  skus.forEach(sku => {
+    const info = activeMap[sku];
+    if (!info || !info.name) return;
+    productsRows.push({ sku, name: info.name });
+    deptRows.push({ sku, department: info.dept || info.sheet || '', unit: info.unit || '' });
+  });
+  if (!productsRows.length) return;
+  try {
+    await Promise.all([
+      fetch(`${SB_URL}/rest/v1/products_master?on_conflict=sku`, {
+        method: 'POST',
+        headers: Object.assign({}, SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(productsRows)
+      }),
+      fetch(`${SB_URL}/rest/v1/sku_departments?on_conflict=sku`, {
+        method: 'POST',
+        headers: Object.assign({}, SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(deptRows)
+      })
+    ]);
+  } catch(e) {
+    console.error('[syncSkusToSupabase]', e);
+  }
+}
+
+// بيجيب أي منتج اتضاف من جهاز/مستخدم تاني ومش موجود في نسخة الكتالوج المحلية، ويضيفه لآخر صف في نفس القسم
+async function refreshRemoteSkuMap() {
+  if (!currentUser) return;
+  try {
+    const [deptRes, prodRes] = await Promise.all([
+      fetch(`${SB_URL}/rest/v1/sku_departments?select=sku,department,unit`, { headers: SB_HEADERS }),
+      fetch(`${SB_URL}/rest/v1/products_master?select=sku,name`, { headers: SB_HEADERS })
+    ]);
+    if (!deptRes.ok || !prodRes.ok) return;
+    const depts = await deptRes.json();
+    const prods = await prodRes.json();
+    const namesBySku = {};
+    prods.forEach(p => { namesBySku[p.sku] = p.name; });
+    const localMap = customSKUMap || SKU_MAP;
+    const newRemote = {};
+    const maxRowBySheet = {};
+    depts.forEach(d => {
+      if (localMap[d.sku] || !d.department) return; // موجود محليًا أصلاً، متلمسوش
+      const name = namesBySku[d.sku];
+      if (!name) return;
+      if (maxRowBySheet[d.department] === undefined) {
+        maxRowBySheet[d.department] = Math.max(0, ...Object.values(localMap).filter(v => v.sheet === d.department).map(v => v.row || 0));
+      }
+      maxRowBySheet[d.department] += 1;
+      newRemote[d.sku] = { name, sku: d.sku, dept: d.department, sheet: d.department, unit: d.unit || 'كيلو', row: maxRowBySheet[d.department] };
+    });
+    remoteSkuMap = newRemote;
+  } catch(e) {
+    console.error('[refreshRemoteSkuMap]', e);
+  }
 }
 
 async function refreshLearnedAverages() {
@@ -3108,6 +3180,7 @@ function applyUploadedData() {
       activeTab = customTabs[0]?.id;
       adminUploadedData = null;
       safeSaveAdminToStorage();
+      syncSkusToSupabase(Object.keys(newMap));
       showToast('✅ تم استبدال القائمة بالكامل — ' + Object.keys(newMap).length + ' صنف', 3500);
       setTimeout(() => render(), 30);
     } catch(e) { showToast('❌ خطأ في الاستبدال: ' + e.message, 4000); }
@@ -3153,8 +3226,10 @@ function applyUploadedDataMerge() {
         if (!newTabs.some(t => t.sheet === sheet)) newTabs.push(tabsBySheet[sheet]);
       });
       customTabs = newTabs;
+      const touchedSkus = adminUploadedData.map(item => item.sku);
       adminUploadedData = null;
       safeSaveAdminToStorage();
+      syncSkusToSupabase(touchedSkus);
       showToast('✅ دمج: ' + added + ' جديد' + (updated ? ' + ' + updated + ' محدّث' : ''), 3500);
       setTimeout(() => render(), 30);
     } catch(e) { showToast('❌ خطأ في الدمج: ' + e.message, 4000); }
@@ -3234,7 +3309,8 @@ function addNewProduct() {
     };
     customSKUMap = newMap;
     safeSaveAdminToStorage();
-    
+    syncSkusToSupabase([sku]);
+
     statusDiv.innerHTML = '<div class="status-box status-success">✅ تم إضافة "' + name + '" بـ SKU: ' + sku + ' في قسم ' + sheet + '</div>';
     
     // امسح الفورم
@@ -3438,6 +3514,7 @@ function moveSelectedToTabId(targetId) {
     });
     customSKUMap = newMap;
     safeSaveAdminToStorage();
+    syncSkusToSupabase(Array.from(selectedSkus));
     showToast('✅ تم نقل ' + movedCount + ' صنف إلى ' + targetTab.label, 3000);
     selectedSkus = new Set();
     render();
@@ -3546,7 +3623,8 @@ function confirmAddProduct() {
     };
     customSKUMap = newMap;
     safeSaveAdminToStorage();
-    
+    syncSkusToSupabase([sku]);
+
     document.getElementById('addProdDialog').remove();
     showToast('✅ تم إضافة "' + name + '" (SKU: ' + sku + ')', 3000);
     render();
@@ -3574,6 +3652,7 @@ function moveSelectedToTab() {
   });
   customSKUMap = newMap;
   safeSaveAdminToStorage();
+  syncSkusToSupabase(Array.from(selectedSkus));
   showToast('✅ تم نقل ' + selectedSkus.size + ' صنف إلى ' + targetTab.label, 3000);
   selectedSkus = new Set();
   render();
