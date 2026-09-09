@@ -63,7 +63,7 @@ var BarqApp = (function () {
     root().innerHTML =
       '<div class="auth-screen">' +
       '  <div class="auth-card">' +
-      '    <div class="auth-logo">⚡</div>' +
+      '    <div class="auth-logo"></div>' +
       '    <h1>برق</h1>' +
       '    <p class="sub">نظام إدارة الفروع — سجّل دخولك للمتابعة</p>' +
       '    <form id="auth-form">' +
@@ -164,7 +164,7 @@ var BarqApp = (function () {
     root().innerHTML =
       '<div class="app-shell" id="app-shell">' +
       '  <aside class="sidebar" id="sidebar">' +
-      '    <div class="sidebar-header"><span class="logo">⚡</span><span class="title">برق</span></div>' +
+      '    <div class="sidebar-header"><span class="logo"></span><span class="title">برق</span></div>' +
       '    <div class="sidebar-user"><span class="avatar">' + user.icon + '</span><div class="info"><span class="name">' + (user.username || user.label) + '</span><span class="role">' + user.label + '</span></div></div>' +
       '    <button class="sidebar-logout-top" id="btn-logout">تسجيل الخروج</button>' +
       '    <div class="sidebar-eyebrow">الأقسام</div>' +
