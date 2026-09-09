@@ -9,6 +9,8 @@ var BARQ_ACCESS = (function () {
   var editingUsername = null; // لو مفتوح فورم تعديل مستخدم معيّن
   var showAddForm = false;
   var formError = '';
+  var users = []; // آخر نسخة محمّلة من app_users — بتتحدّث بعد أي إضافة/تعديل/حذف
+  var loading = true;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -22,11 +24,27 @@ var BARQ_ACCESS = (function () {
     }).join('');
   }
 
+  function loadUsers() {
+    loading = true;
+    render();
+    return BARQ_AUTH.listUsers().then(function (rows) {
+      users = rows || [];
+      loading = false;
+      render();
+    }).catch(function (e) {
+      loading = false;
+      formError = 'تعذر تحميل المستخدمين — تأكد من الاتصال بالإنترنت';
+      render();
+      console.error(e);
+    });
+  }
+
   function render() {
     var root = document.getElementById('access-root');
     if (!root) return;
 
-    var users = BARQ_AUTH.listUsers();
+    if (loading) { root.innerHTML = '<div class="al-empty">⏳ جاري التحميل...</div>'; return; }
+
     var rolesByKey = {};
     BARQ_AUTH.rolesList().forEach(function (r) { rolesByKey[r.key] = r; });
 
@@ -107,11 +125,12 @@ var BARQ_ACCESS = (function () {
     var label = document.getElementById('al-new-label').value;
     var role = document.getElementById('al-new-role').value;
     var branch = document.getElementById('al-new-branch').value;
-    var res = BARQ_AUTH.addUser({ username: username, password: password, label: label, role: role, branch: branch });
-    if (!res.ok) { formError = res.error; render(); return; }
-    showAddForm = false;
-    formError = '';
-    render();
+    BARQ_AUTH.addUser({ username: username, password: password, label: label, role: role, branch: branch }).then(function (res) {
+      if (!res.ok) { formError = res.error; render(); return; }
+      showAddForm = false;
+      formError = '';
+      loadUsers();
+    });
   }
 
   function startEdit(username) {
@@ -132,25 +151,28 @@ var BARQ_ACCESS = (function () {
     var active = document.getElementById('al-edit-active').checked;
     var changes = { role: role, active: active, branch: branch };
     if (password) changes.password = password;
-    var res = BARQ_AUTH.updateUser(username, changes);
-    if (!res.ok) { formError = res.error; render(); return; }
-    editingUsername = null;
-    render();
+    BARQ_AUTH.updateUser(username, changes).then(function (res) {
+      if (!res.ok) { formError = res.error; render(); return; }
+      editingUsername = null;
+      loadUsers();
+    });
   }
 
   function remove(username) {
     if (!confirm('تأكيد حذف المستخدم "' + username + '"؟')) return;
-    var res = BARQ_AUTH.deleteUser(username);
-    if (!res.ok) { alert(res.error); return; }
-    render();
+    BARQ_AUTH.deleteUser(username).then(function (res) {
+      if (!res.ok) { alert(res.error); return; }
+      loadUsers();
+    });
   }
 
   function mount(container) {
     editingUsername = null;
     showAddForm = false;
     formError = '';
+    users = [];
     container.innerHTML = '<div class="al-mod"><div id="access-root"></div></div>';
-    render();
+    loadUsers();
   }
 
   return {

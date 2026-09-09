@@ -1,13 +1,14 @@
 // ============================================================
 // برق — نظام الدخول والصلاحيات الموحد
 //
-// كل المستخدمين (فروع + إدارة) بقوا في قائمة وصول واحدة قابلة للتعديل
-// (usersDB، محفوظة في localStorage['barq_unified_users_db']) — كل مستخدم عنده
-// اسم مستخدم + كلمة سر مشفّرة + دور. الدور نفسه (ROLES) هو اللي بيحدد
-// الصلاحيات وأقسام القائمة الجانبية (sections) ومنطق can[] الداخلي.
-// دخول واحد بس: اسم مستخدم + كلمة سر، والدور المرتبط بالحساب هو اللي
-// بيستدعي الصلاحيات تلقائيًا. الإدارة (admin/ceo) تقدر تضيف/تعدّل/تمسح
-// مستخدمين من شاشة "المستخدمين والصلاحيات".
+// كل المستخدمين (فروع + إدارة) في جدول واحد على نفس مشروع Supabase
+// (app_users) — مش مخزنين محليًا في كل جهاز لوحده زي ما كانوا الأول.
+// ده مهم لسبب بسيط: أي تغيير (باسورد جديد، توقيف حساب، مستخدم جديد) من
+// شاشة "المستخدمين والصلاحيات" لازم يبان فورًا على أي جهاز، مش بس على
+// الجهاز اللي عمل التغيير. كل مستخدم عنده اسم مستخدم + كلمة سر مشفّرة
+// (SHA-256) + دور. الدور نفسه (ROLES) هو اللي بيحدد الصلاحيات وأقسام
+// القائمة الجانبية (sections) ومنطق can[] الداخلي — وده لسه محلي وثابت
+// في الكود، مش من الجدول.
 // ============================================================
 
 var BARQ_AUTH = (function () {
@@ -38,51 +39,9 @@ var BARQ_AUTH = (function () {
 
   var SESSION_KEY = 'barq_unified_session';
 
-  // ---------- قائمة المستخدمين (اسم مستخدم + كلمة سر مشفّرة + دور) ----------
-  // كلمات السر الافتراضية هنا هي نفسها القديمة (كانت أرقام PIN لأدوار
-  // الإدارة، وكلمة سر الفروع الأصلية) — مشفّرة بنفس دالة hashPassword
-  // عشان تفضل شغالة زي ما هي أول تشغيل، وبعد كده تتغيّر من شاشة الصلاحيات.
-  var DEFAULT_USERS = [
-    { username: 'admin',     passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'admin',    branch: 'الإدارة',    branchKey: 'admin', icon: '👑', active: true },
-    { username: 'ainshams',  passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'manager',  branch: 'عين شمس',    branchKey: 'فرع1',  icon: '🏬', active: true },
-    { username: 'smalhy',    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: 'manager',  branch: 'السمليهي',  branchKey: 'فرع2',  icon: '🏪', active: true },
-    { username: 'receiving', passwordHash: '0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c', role: 'receiving', active: true },
-    { username: 'pricing',   passwordHash: 'edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9', role: 'pricing',   active: true },
-    { username: 'finance',   passwordHash: '318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69', role: 'finance',   active: true, label: 'أمين الخزينة — أحمد صلاح' },
-    { username: 'finmgr',    passwordHash: '79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619', role: 'finmgr',    active: true, label: 'مدير المالية — عمر أبو الفضل' },
-    { username: 'purchmgr',  passwordHash: 'c1f330d0aff31c1c87403f1e4347bcc21aff7c179908723535f2b31723702525', role: 'purchmgr',  active: true },
-    { username: 'ceo',       passwordHash: '888df25ae35772424a560c7152a1de794440e0ea5cfee62828333a456a506e05', role: 'ceo',       active: true },
-    { username: 'deptprep',  passwordHash: 'b698d86c67a2cff80405bd47af322216c552fd3a52f9c58a70f7b3a3313895b1', role: 'deptprep',  active: true },
-    { username: 'stockcount', passwordHash: 'f4e99211184a248ac2b1bb736b2f241982bdbfb599a6a1b62d5c50a1cb7ddbe6', role: 'stockcount', active: true },
-    { username: 'shelfcheck', passwordHash: '00431bea7c112c6c03ed10860af49e6e791fd93819e027c15313a8e313bdaff9', role: 'shelfcheck', active: true },
-    { username: 'dept-vip',     passwordHash: '931a4ddcbb47a6b7f558cd19c1405582f56dc9c2cd3590f47b5d8a0bde61c646', role: 'deptprep_vip',     active: true },
-    { username: 'dept-masnaat', passwordHash: '2378926a9bcc79f385034655e9f4e1027eb6ca96cfbfb872dcbb5d09dbbc196e', role: 'deptprep_masnaat', active: true },
-    { username: 'dept-lahom',   passwordHash: '46ece05546fb2626da88a216af6aa066b5172e824ad9eae6742d8e12ef6fbcc8', role: 'deptprep_lahom',   active: true },
-    { username: 'dept-mo3mal',  passwordHash: '6586fa95bc8f7da4564098ce83dd9c4198669a5815704816a9a98da51284abbe', role: 'deptprep_mo3mal',  active: true }
-  ];
-
-  var usersDB = [];
-  var usersLoaded = false;
-
-  function loadUsersDB() {
-    if (usersLoaded) return;
-    var saved = localStorage.getItem('barq_unified_users_db');
-    if (saved) {
-      try { usersDB = JSON.parse(saved); } catch (e) { usersDB = DEFAULT_USERS.slice(); }
-    } else {
-      usersDB = DEFAULT_USERS.slice();
-      localStorage.setItem('barq_unified_users_db', JSON.stringify(usersDB));
-    }
-    usersLoaded = true;
-  }
-
-  function saveUsersDB() {
-    localStorage.setItem('barq_unified_users_db', JSON.stringify(usersDB));
-  }
-
   function findUser(username) {
-    loadUsersDB();
-    return usersDB.find(function (u) { return u.username === username; });
+    return sb('app_users?username=eq.' + encodeURIComponent(username) + '&select=*')
+      .then(function (rows) { return (rows && rows[0]) || null; });
   }
 
   // SHA-256 محلي — نسخة طبق الأصل من forou3.html (hashPassword/_sha256)
@@ -179,7 +138,7 @@ var BARQ_AUTH = (function () {
   }
 
   // ---------- دخول موحّد: اسم مستخدم + كلمة سر بس ----------
-  // اليوزر والباسورد بيحددوا الحساب في usersDB، والدور المرتبط بيه (role)
+  // اليوزر والباسورد بيحددوا الحساب في app_users، والدور المرتبط بيه (role)
   // هو اللي بيستدعي الصلاحيات وأقسام القائمة الجانبية تلقائيًا.
   // سجل تدقيق بسيط (audit_log_v3 — نفس الجدول اللي التطبيق أصلاً بيسجل فيه
   // بعض الأحداث) — بيسجل كل محاولة دخول (ناجحة أو فاشلة)، عشان لو حصل تسريب
@@ -193,25 +152,31 @@ var BARQ_AUTH = (function () {
     } catch (e) {}
   }
 
+  // login بقت async (بترجع Promise) لأنها بقت بتقرا من Supabase مش من
+  // localStorage محلي — أي حد بيستدعيها لازم يستنى النتيجة بـ .then()
   function login(username, password) {
     username = (username || '').trim();
-    var user = findUser(username);
-    if (!user) { logAudit('login_failed', username, 'اسم مستخدم غير موجود'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
-    if (!user.active) { logAudit('login_blocked', username, 'محاولة دخول لحساب موقوف'); return { ok: false, error: 'الحساب موقوف — تواصل مع مدير النظام' }; }
-    if (hashPassword(password) !== user.passwordHash) { logAudit('login_failed', username, 'كلمة سر خاطئة'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
-    var roleDef = ROLES[user.role];
-    if (!roleDef) return { ok: false, error: 'الدور المرتبط بالحساب غير معروف' };
-    currentUser = {
-      method: roleDef.method,
-      role: user.role,
-      label: user.label || roleDef.label,
-      icon: user.icon || roleDef.icon,
-      username: user.username,
-      branch: user.branch
-    };
-    saveSession();
-    logAudit('login', user.username, roleDef.label + (user.branch ? ' — ' + user.branch : ''));
-    return { ok: true, user: currentUser };
+    return findUser(username).then(function (user) {
+      if (!user) { logAudit('login_failed', username, 'اسم مستخدم غير موجود'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
+      if (!user.active) { logAudit('login_blocked', username, 'محاولة دخول لحساب موقوف'); return { ok: false, error: 'الحساب موقوف — تواصل مع مدير النظام' }; }
+      if (hashPassword(password) !== user.password_hash) { logAudit('login_failed', username, 'كلمة سر خاطئة'); return { ok: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }; }
+      var roleDef = ROLES[user.role];
+      if (!roleDef) return { ok: false, error: 'الدور المرتبط بالحساب غير معروف' };
+      currentUser = {
+        method: roleDef.method,
+        role: user.role,
+        label: user.label || roleDef.label,
+        icon: roleDef.icon,
+        username: user.username,
+        branch: user.branch
+      };
+      saveSession();
+      logAudit('login', user.username, roleDef.label + (user.branch ? ' — ' + user.branch : ''));
+      return { ok: true, user: currentUser };
+    }).catch(function (e) {
+      console.error(e);
+      return { ok: false, error: 'تعذر الاتصال بالسيرفر — تأكد من الإنترنت وحاول تاني' };
+    });
   }
 
   // للتوافق مع أي كود قديم بيستدعيها بالاسم ده
@@ -235,60 +200,63 @@ var BARQ_AUTH = (function () {
   }
 
   // ---------- إدارة المستخدمين (شاشة "المستخدمين والصلاحيات") ----------
+  // الأربعة دول كلهم async دلوقتي (بيرجعوا Promise) — بيقروا/يكتبوا في
+  // app_users مباشرة، فأي تعديل بيبان فورًا لأي جهاز تاني.
   function listUsers() {
-    loadUsersDB();
-    return usersDB.map(function (u) {
-      var copy = Object.assign({}, u);
-      delete copy.passwordHash;
-      return copy;
-    });
+    return sb('app_users?select=username,role,label,branch,active,created_at&order=created_at.asc');
   }
 
   function addUser(data) {
-    loadUsersDB();
     var username = (data.username || '').trim();
-    if (!username) return { ok: false, error: 'اسم المستخدم مطلوب' };
-    if (!ROLES[data.role]) return { ok: false, error: 'دور غير معروف' };
-    if (findUser(username)) return { ok: false, error: 'اسم المستخدم ده موجود بالفعل' };
-    if (!data.password) return { ok: false, error: 'كلمة السر مطلوبة' };
-    usersDB.push({
-      username: username,
-      passwordHash: hashPassword(data.password),
-      role: data.role,
-      label: data.label || null,
-      branch: data.branch || null,
-      active: true
+    if (!username) return Promise.resolve({ ok: false, error: 'اسم المستخدم مطلوب' });
+    if (!ROLES[data.role]) return Promise.resolve({ ok: false, error: 'دور غير معروف' });
+    if (!data.password) return Promise.resolve({ ok: false, error: 'كلمة السر مطلوبة' });
+    return findUser(username).then(function (existing) {
+      if (existing) return { ok: false, error: 'اسم المستخدم ده موجود بالفعل' };
+      return sb('app_users', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: username,
+          password_hash: hashPassword(data.password),
+          role: data.role,
+          label: data.label || null,
+          branch: data.branch || null,
+          active: true
+        })
+      }).then(function () { return { ok: true }; });
+    }).catch(function (e) {
+      console.error(e);
+      return { ok: false, error: 'تعذر الحفظ — تأكد من الاتصال بالإنترنت' };
     });
-    saveUsersDB();
-    return { ok: true };
   }
 
   function updateUser(username, changes) {
-    loadUsersDB();
-    var user = findUser(username);
-    if (!user) return { ok: false, error: 'المستخدم مش موجود' };
-    if (changes.role) {
-      if (!ROLES[changes.role]) return { ok: false, error: 'دور غير معروف' };
-      user.role = changes.role;
-    }
-    if (typeof changes.active === 'boolean') user.active = changes.active;
-    if (changes.label !== undefined) user.label = changes.label || null;
-    if (changes.branch !== undefined) user.branch = changes.branch || null;
-    if (changes.password) user.passwordHash = hashPassword(changes.password);
-    saveUsersDB();
-    return { ok: true };
+    if (!ROLES[changes.role] && changes.role) return Promise.resolve({ ok: false, error: 'دور غير معروف' });
+    var patch = {};
+    if (changes.role) patch.role = changes.role;
+    if (typeof changes.active === 'boolean') patch.active = changes.active;
+    if (changes.label !== undefined) patch.label = changes.label || null;
+    if (changes.branch !== undefined) patch.branch = changes.branch || null;
+    if (changes.password) patch.password_hash = hashPassword(changes.password);
+    patch.updated_at = new Date().toISOString();
+    return sb('app_users?username=eq.' + encodeURIComponent(username), { method: 'PATCH', body: JSON.stringify(patch) })
+      .then(function () { return { ok: true }; })
+      .catch(function (e) {
+        console.error(e);
+        return { ok: false, error: 'تعذر الحفظ — تأكد من الاتصال بالإنترنت' };
+      });
   }
 
   function deleteUser(username) {
-    loadUsersDB();
     if (currentUser && currentUser.username === username) {
-      return { ok: false, error: 'مينفعش تمسح الحساب اللي داخل بيه دلوقتي' };
+      return Promise.resolve({ ok: false, error: 'مينفعش تمسح الحساب اللي داخل بيه دلوقتي' });
     }
-    var idx = usersDB.findIndex(function (u) { return u.username === username; });
-    if (idx === -1) return { ok: false, error: 'المستخدم مش موجود' };
-    usersDB.splice(idx, 1);
-    saveUsersDB();
-    return { ok: true };
+    return sb('app_users?username=eq.' + encodeURIComponent(username), { method: 'DELETE' })
+      .then(function () { return { ok: true }; })
+      .catch(function (e) {
+        console.error(e);
+        return { ok: false, error: 'تعذر الحذف — تأكد من الاتصال بالإنترنت' };
+      });
   }
 
   function rolesList() {

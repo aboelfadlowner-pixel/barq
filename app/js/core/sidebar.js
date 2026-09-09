@@ -87,10 +87,13 @@ var BarqApp = (function () {
       e.preventDefault();
       var u = document.getElementById('f-username').value.trim();
       var p = document.getElementById('f-password').value;
-      var res = BARQ_AUTH.login(u, p);
-      if (!res.ok) { authError = res.error; render(); return; }
-      authError = '';
-      render();
+      var btn = form.querySelector('button[type=submit]');
+      btn.disabled = true; btn.textContent = 'جاري الدخول...';
+      BARQ_AUTH.login(u, p).then(function (res) {
+        if (!res.ok) { authError = res.error; render(); return; }
+        authError = '';
+        render();
+      });
     });
   }
 
