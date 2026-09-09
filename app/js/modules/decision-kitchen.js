@@ -2,15 +2,19 @@
 // برق — موديول "مطبخ القرار" (جديد، مبني من "foodicsanalytics.html" اللي
 // المستخدم رفعه، بس معاد ربطه ببيانات Supabase الحقيقية بدل مولّد البيانات
 // التجريبي بتاعه الأصلي)
-// المصدر: جدول menu_analysis — جدول جاهز في القاعدة بنفس أعمدة تحليل
-// فوديكس (sales/quantity/total_cost/item_profit/profit_pct/popularity_pct/
-// profit_category/popularity_category/class) وبيتحدّث من مزامنة خارجية.
-// الموديول ده قراءة بس — مفيش أي تعديل على الجدول.
+// المصدر: جدول menu_analysis — بيتغذّى برفع يومي لكل فرع لوحده (صف واحد
+// لكل صنف/فرع/يوم — PK: sku+branch+report_date). الموديول ده قراءة بس —
+// بيفلتر بفرع (أو "كل الفروع" مجمّعة) وفترة تاريخ، وبيجمّع/يعيد حساب
+// النسب والتصنيف على الأرقام المجمّعة نفسها (مش بس بيعرض القيم الخام
+// المخزّنة لكل صف لأنها ممكن تختلف يوم عن يوم أو فرع عن فرع).
+// مفيش أي تعديل على الجدول — قراءة بس.
 // ============================================================
 
 var BARQ_KITCHEN = (function () {
-  var ROWS = [];
-  var lastUpdated = null;
+  var RAW_ROWS = [];      // كل الصفوف الخام اللي رجعت من الفترة/الفرع المختار
+  var ROWS = [];          // بعد التجميع لكل صنف + إعادة حساب النسب والتصنيف
+  var branchNames = [];
+  var selectedBranch = '';
   var search = '';
   var classFilter = 'all';
 
@@ -23,41 +27,86 @@ var BARQ_KITCHEN = (function () {
   function fmt(n) { return (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('ar-EG'); }
   function pct(n) { return (n == null || isNaN(n)) ? '—' : (Math.round(parseFloat(n) * 10) / 10).toLocaleString('ar-EG') + '%'; }
   function mean(arr) { return arr.length ? arr.reduce(function (a, b) { return a + b; }, 0) / arr.length : 0; }
+  function median(arr) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  }
+  function todayStr() { return new Date().toISOString().split('T')[0]; }
+  function daysAgoStr(n) { var d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; }
 
-  // تصنيفات محتملة (عربي/إنجليزي) — أي قيمة تانية بتتعرض زي ما هي بشكل محايد
   var CLASS_MAP = {
-    star: ['⭐ نجم', 'good'], plowhorse: ['🐎 حصان شغل', 'info'], puzzle: ['💡 فرصة', 'accent'], dog: ['⚠ ضعيف', 'bad'],
-    horse: ['🐎 حصان شغل', 'info'], opp: ['💡 فرصة', 'accent'], weak: ['⚠ ضعيف', 'bad'],
-    'نجم': ['⭐ نجم', 'good'], 'حصان عمل': ['🐎 حصان شغل', 'info'], 'حصان شغل': ['🐎 حصان شغل', 'info'],
-    'لغز': ['💡 فرصة', 'accent'], 'فرصة': ['💡 فرصة', 'accent'], 'كلب': ['⚠ ضعيف', 'bad'], 'ضعيف': ['⚠ ضعيف', 'bad']
+    star: ['⭐ نجم', 'good'], horse: ['🐎 حصان شغل', 'info'], opp: ['💡 فرصة', 'accent'], weak: ['⚠ ضعيف', 'bad']
   };
   function classChip(cls) {
-    if (!cls) return '<span class="chip chip-info">—</span>';
-    var m = CLASS_MAP[String(cls).toLowerCase()] || CLASS_MAP[cls] || [esc(cls), 'info'];
+    var m = CLASS_MAP[cls] || ['—', 'info'];
     return '<span class="chip chip-' + m[1] + '">' + m[0] + '</span>';
   }
-  var CAT_MAP = {
-    high: ['مرتفع', 'good'], medium: ['متوسط', 'warn'], low: ['منخفض', 'bad'],
-    'مرتفع': ['مرتفع', 'good'], 'متوسط': ['متوسط', 'warn'], 'منخفض': ['منخفض', 'bad'],
-    'عالي': ['مرتفع', 'good']
-  };
-  function catChip(v) {
-    if (!v) return '<span class="chip chip-info">—</span>';
-    var m = CAT_MAP[String(v).toLowerCase()] || CAT_MAP[v] || [esc(v), 'info'];
+  function catChip(level) {
+    var m = { high: ['مرتفع', 'good'], medium: ['متوسط', 'warn'], low: ['منخفض', 'bad'] }[level] || ['—', 'info'];
     return '<span class="chip chip-' + m[1] + '">' + m[0] + '</span>';
   }
 
+  // ============ تحميل أسماء الفروع (للفلتر) ============
+  function loadBranchNames() {
+    return sb('menu_analysis?select=branch').then(function (rows) {
+      var set = {};
+      (rows || []).forEach(function (r) { if (r.branch) set[r.branch] = true; });
+      branchNames = Object.keys(set).sort();
+    }).catch(function (e) { console.error(e); });
+  }
+
+  // ============ تحميل الصفوف الخام حسب الفلاتر، وتجميعها لكل صنف ============
   function loadData() {
     var root = document.getElementById('mk-root');
     if (root) root.innerHTML = '<div class="mk-loading">⏳ جاري تحميل بيانات مطبخ القرار...</div>';
-    return sb('menu_analysis?select=*').then(function (rows) {
-      ROWS = rows || [];
-      lastUpdated = ROWS.reduce(function (max, r) { return (r.updated_at && (!max || r.updated_at > max)) ? r.updated_at : max; }, null);
-      renderShell();
+    var from = document.getElementById('mk-from') ? document.getElementById('mk-from').value : daysAgoStr(6);
+    var to = document.getElementById('mk-to') ? document.getElementById('mk-to').value : todayStr();
+    var path = 'menu_analysis?select=*&report_date=gte.' + from + '&report_date=lte.' + to;
+    if (selectedBranch) path += '&branch=eq.' + encodeURIComponent(selectedBranch);
+    return sb(path).then(function (rows) {
+      RAW_ROWS = rows || [];
+      ROWS = aggregate(RAW_ROWS);
+      renderShell(from, to);
     }).catch(function (e) {
       if (root) root.innerHTML = '<div class="mk-empty mk-error">⚠️ تعذر تحميل بيانات مطبخ القرار</div>';
       console.error(e);
     });
+  }
+
+  // بيجمّع كل الصفوف الخام (ممكن تكون لأيام و/أو فروع متعددة) لكل صنف،
+  // وبعدين بيعيد حساب الهامش/الشعبية والتصنيف الرباعي على الأرقام المجمّعة
+  // (مش بيعتمد على class/category المخزّنة في كل صف لوحده لأنها بتختلف
+  // حسب اليوم/الفرع ومش هينفع تتوسّط أو تتجمّع بشكل مباشر)
+  function aggregate(rows) {
+    var bySku = {};
+    rows.forEach(function (r) {
+      var key = r.sku;
+      if (!bySku[key]) bySku[key] = { sku: r.sku, product_name: r.product_name, quantity: 0, sales: 0, total_cost: 0 };
+      bySku[key].quantity += parseFloat(r.quantity) || 0;
+      bySku[key].sales += parseFloat(r.sales) || 0;
+      bySku[key].total_cost += parseFloat(r.total_cost) || 0;
+      if (r.product_name) bySku[key].product_name = r.product_name;
+    });
+    var list = Object.values(bySku).map(function (r) {
+      r.total_profit = r.sales - r.total_cost;
+      r.profit_pct = r.sales > 0 ? (r.total_profit / r.sales * 100) : 0;
+      r.item_profit = r.quantity > 0 ? (r.total_profit / r.quantity) : 0;
+      return r;
+    });
+    var totalSalesAll = list.reduce(function (a, r) { return a + r.sales; }, 0);
+    list.forEach(function (r) { r.popularity_pct = totalSalesAll > 0 ? (r.sales / totalSalesAll * 100) : 0; });
+
+    var salesMedian = median(list.map(function (r) { return r.sales; }));
+    var marginMedian = median(list.map(function (r) { return r.profit_pct; }));
+    list.forEach(function (r) {
+      var highSales = r.sales >= salesMedian, highMargin = r.profit_pct >= marginMedian;
+      r.class = highSales && highMargin ? 'star' : highSales && !highMargin ? 'horse' : !highSales && highMargin ? 'opp' : 'weak';
+      r.profit_category = r.profit_pct >= marginMedian * 1.15 ? 'high' : r.profit_pct >= marginMedian * 0.7 ? 'medium' : 'low';
+      r.popularity_category = r.sales >= salesMedian * 1.15 ? 'high' : r.sales >= salesMedian * 0.7 ? 'medium' : 'low';
+    });
+    return list;
   }
 
   function distinctClasses() {
@@ -73,22 +122,37 @@ var BARQ_KITCHEN = (function () {
     return rows;
   }
 
-  function renderShell() {
+  function branchFieldHtml() {
+    return '<select class="mk-select" id="mk-branch"><option value="">كل الفروع (مجمّعة)</option>' +
+      branchNames.map(function (b) { return '<option value="' + esc(b) + '"' + (b === selectedBranch ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
+      '</select>';
+  }
+
+  function renderShell(from, to) {
     var root = document.getElementById('mk-root');
     if (!root) return;
+
+    var filtersHtml =
+      '<div class="mk-filters">' +
+      branchFieldHtml() +
+      '<label class="mk-flabel">من <input type="date" class="mk-input" id="mk-from" value="' + (from || daysAgoStr(6)) + '"></label>' +
+      '<label class="mk-flabel">إلى <input type="date" class="mk-input" id="mk-to" value="' + (to || todayStr()) + '"></label>' +
+      '<button class="mk-btn mk-btn-primary" id="mk-go">📊 عرض</button>' +
+      '</div>';
+
     if (!ROWS.length) {
       root.innerHTML =
         '<div class="mk-header"><h2>🍳 مطبخ القرار</h2><p class="mk-sub">تحليل أداء الأصناف (مبيعات / ربحية / شعبية)</p></div>' +
-        '<div class="mk-empty">لا توجد بيانات تحليل قوائم بعد — هتظهر هنا تلقائيًا فور رفع/مزامنة بيانات فوديكس في جدول menu_analysis.</div>';
+        filtersHtml +
+        '<div class="mk-empty">لا توجد بيانات لهذه الفترة/الفرع — تأكد إن البيانات اتربطت من الداتا سنتر ليوم/فرع من ضمن الفترة المختارة.</div>';
+      bindFilterEvents();
       return;
     }
-    var totalSales = ROWS.reduce(function (a, r) { return a + (parseFloat(r.sales) || 0); }, 0);
-    var totalProfit = ROWS.reduce(function (a, r) { return a + (parseFloat(r.total_profit) || 0); }, 0);
-    var avgMargin = mean(ROWS.map(function (r) { return parseFloat(r.profit_pct) || 0; }));
-    var needsReview = ROWS.filter(function (r) {
-      var pc = (r.profit_category || '').toLowerCase(), poc = (r.popularity_category || '').toLowerCase();
-      return pc === 'low' || pc === 'منخفض' || poc === 'low' || poc === 'منخفض' || r.class === 'dog' || r.class === 'كلب';
-    }).length;
+
+    var totalSales = ROWS.reduce(function (a, r) { return a + r.sales; }, 0);
+    var totalProfit = ROWS.reduce(function (a, r) { return a + r.total_profit; }, 0);
+    var avgMargin = mean(ROWS.map(function (r) { return r.profit_pct; }));
+    var needsReview = ROWS.filter(function (r) { return r.class === 'weak'; }).length;
     var kpis = [
       { l: 'إجمالي المبيعات', v: money(totalSales) },
       { l: 'إجمالي الأرباح', v: money(totalProfit) },
@@ -100,22 +164,31 @@ var BARQ_KITCHEN = (function () {
 
     root.innerHTML =
       '<div class="mk-header"><h2>🍳 مطبخ القرار</h2>' +
-      '<p class="mk-sub">تحليل أداء الأصناف (مبيعات / ربحية / شعبية)' + (lastUpdated ? ' — آخر تحديث: ' + new Date(lastUpdated).toLocaleString('ar-EG') : '') + '</p></div>' +
+      '<p class="mk-sub">' + (selectedBranch ? 'فرع: ' + esc(selectedBranch) : 'كل الفروع مجمّعة') + ' — من ' + from + ' إلى ' + to + '</p></div>' +
+      filtersHtml +
       '<div class="mk-kpis">' + kpis.map(function (k) { return '<div class="mk-kpi"><div class="lbl">' + k.l + '</div><div class="val">' + k.v + '</div></div>'; }).join('') + '</div>' +
       '<div class="mk-chart-wrap"><canvas id="mk-chart-top"></canvas></div>' +
       '<div class="mk-filters">' +
       '<input class="mk-input" id="mk-search" placeholder="🔍 بحث بالاسم أو SKU" value="' + esc(search) + '">' +
-      '<select class="mk-select" id="mk-class-filter"><option value="all">كل التصنيفات</option>' + classes.map(function (c) { return '<option value="' + esc(c) + '"' + (c === classFilter ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
+      '<select class="mk-select" id="mk-class-filter"><option value="all">كل التصنيفات</option>' + classes.map(function (c) { return '<option value="' + esc(c) + '"' + (c === classFilter ? ' selected' : '') + '>' + CLASS_MAP[c][0] + '</option>'; }).join('') + '</select>' +
       '</div>' +
       '<div id="mk-table-wrap"></div>' +
       '<div class="mk-modal-overlay" id="mk-overlay"><div class="mk-modal" id="mk-modal-content"></div></div>';
 
+    bindFilterEvents();
     document.getElementById('mk-search').addEventListener('input', function (e) { search = e.target.value.trim(); renderTable(); });
     document.getElementById('mk-class-filter').addEventListener('change', function (e) { classFilter = e.target.value; renderTable(); });
     document.getElementById('mk-overlay').addEventListener('click', function (e) { if (e.target.id === 'mk-overlay') e.currentTarget.classList.remove('open'); });
 
     renderTable();
     renderChart();
+  }
+
+  function bindFilterEvents() {
+    var branchSel = document.getElementById('mk-branch');
+    if (branchSel) branchSel.addEventListener('change', function (e) { selectedBranch = e.target.value; loadData(); });
+    var goBtn = document.getElementById('mk-go');
+    if (goBtn) goBtn.addEventListener('click', function () { loadData(); });
   }
 
   var sortKey = 'sales', sortDir = -1;
@@ -174,13 +247,13 @@ var BARQ_KITCHEN = (function () {
 
   function renderChart() {
     if (typeof Chart === 'undefined') return;
-    var top = ROWS.slice().sort(function (a, b) { return (parseFloat(b.sales) || 0) - (parseFloat(a.sales) || 0); }).slice(0, 10);
+    var top = ROWS.slice().sort(function (a, b) { return b.sales - a.sales; }).slice(0, 10);
     var canvas = document.getElementById('mk-chart-top');
     if (!canvas) return;
     if (canvas._chart) canvas._chart.destroy();
     canvas._chart = new Chart(canvas, {
       type: 'bar',
-      data: { labels: top.map(function (r) { return r.product_name; }), datasets: [{ label: 'المبيعات', data: top.map(function (r) { return parseFloat(r.sales) || 0; }), backgroundColor: '#12c77a', borderRadius: 5 }] },
+      data: { labels: top.map(function (r) { return r.product_name; }), datasets: [{ label: 'المبيعات', data: top.map(function (r) { return r.sales; }), backgroundColor: '#12c77a', borderRadius: 5 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function (v) { return fmt(v); } } } } }
     });
   }
@@ -189,21 +262,18 @@ var BARQ_KITCHEN = (function () {
     var r = ROWS.find(function (x) { return x.sku === sku; });
     if (!r) return;
     var verdict;
-    var pc = (r.profit_category || '').toLowerCase(), poc = (r.popularity_category || '').toLowerCase();
-    if ((pc === 'low' || pc === 'منخفض') && (poc === 'high' || poc === 'مرتفع' || poc === 'عالي')) {
-      verdict = 'الصنف شعبي (مبيعات عالية) لكن هامش ربحه منخفض — يُنصح بمراجعة سعر البيع أو تكلفة المكونات.';
-    } else if ((pc === 'high' || pc === 'مرتفع') && (poc === 'low' || poc === 'منخفض')) {
-      verdict = 'الصنف يحقق هامش ربح جيد لكن مبيعاته منخفضة — فرصة جيدة للترويج له وإبرازه في القائمة.';
-    } else if (r.class === 'dog' || r.class === 'كلب' || ((pc === 'low' || pc === 'منخفض') && (poc === 'low' || poc === 'منخفض'))) {
-      verdict = 'الصنف ضعيف في المبيعات والربحية معًا — يُنصح بمراجعة استمراره ضمن القائمة.';
-    } else if (r.class === 'star' || r.class === 'نجم' || ((pc === 'high' || pc === 'مرتفع') && (poc === 'high' || poc === 'مرتفع' || poc === 'عالي'))) {
-      verdict = 'صنف "نجم" — مبيعات مرتفعة وهامش ربح جيد. يُنصح بضمان توافره الدائم والتركيز عليه في الترويج.';
+    if (r.class === 'horse') {
+      verdict = 'الصنف من "أحصنة الشغل" — مبيعات مرتفعة لكن هامش ربحه أقل من متوسط القائمة. يُنصح بمراجعة سعر البيع أو تكلفة المكونات.';
+    } else if (r.class === 'opp') {
+      verdict = 'الصنف يحقق هامش ربح جيد لكن مبيعاته منخفضة نسبيًا — فرصة جيدة للترويج له وإبرازه في القائمة.';
+    } else if (r.class === 'weak') {
+      verdict = 'الصنف ضعيف في المبيعات والربحية معًا خلال الفترة دي — يُنصح بمراجعة استمراره ضمن القائمة أو أسباب الضعف.';
     } else {
-      verdict = 'أداء الصنف ضمن المتوسط العام حاليًا — يُنصح بالمتابعة الدورية.';
+      verdict = 'صنف "نجم" — مبيعات مرتفعة وهامش ربح جيد بالمقارنة بباقي القائمة. يُنصح بضمان توافره الدائم والتركيز عليه في الترويج.';
     }
     document.getElementById('mk-modal-content').innerHTML =
       '<div class="mk-im-head"><button class="mk-close" id="mk-modal-close">✕</button>' +
-      '<h3>' + esc(r.product_name) + '</h3><div class="mk-im-meta">SKU: ' + esc(r.sku) + '</div></div>' +
+      '<h3>' + esc(r.product_name) + '</h3><div class="mk-im-meta">SKU: ' + esc(r.sku) + (selectedBranch ? ' — فرع: ' + esc(selectedBranch) : ' — كل الفروع مجمّعة') + '</div></div>' +
       '<div class="mk-im-grid">' +
       '<div class="mk-im-row"><span>الكمية المباعة</span><b>' + fmt(r.quantity) + '</b></div>' +
       '<div class="mk-im-row"><span>المبيعات</span><b>' + money(r.sales) + '</b></div>' +
@@ -222,9 +292,9 @@ var BARQ_KITCHEN = (function () {
   }
 
   function mount(container) {
-    search = ''; classFilter = 'all'; sortKey = 'sales'; sortDir = -1;
-    container.innerHTML = '<div class="mk-mod"><div id="mk-root"></div></div>';
-    loadData();
+    search = ''; classFilter = 'all'; sortKey = 'sales'; sortDir = -1; selectedBranch = ''; RAW_ROWS = []; ROWS = [];
+    container.innerHTML = '<div class="mk-mod"><div id="mk-root"><div class="mk-loading">⏳ جاري التحميل...</div></div></div>';
+    loadBranchNames().then(loadData);
   }
 
   return { mount: mount };
