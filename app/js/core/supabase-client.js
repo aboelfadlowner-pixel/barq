@@ -1,14 +1,14 @@
 // ============================================================
 // برق — عميل Supabase المشترك
-// نفس SB_URL / SB_KEY الموجودين حرفيًا في الملفات الحالية
-// (forou3.html, makhzoun_v2.html, tas3eer_v3_proto.html,
-//  istilam-w-gerd.html, masna3.html, masna3-dept.html)
-// ما بيتغيرش اسم جدول ولا عمود ولا قيمة status هنا أبدًا —
-// الموديولات المنقولة تستخدم sb() بنفس شكل الاستعلامات القديمة.
+// نفس SB_URL المستخدم دايمًا. SB_KEY كان الـ anon key القديم (JWT) — ده
+// كان مكشوف فترة طويلة في الريبو العام على GitHub، فاتغيّر لمفتاح جديد
+// (publishable key) لسه ما اتشافش في أي مكان، بديل مباشر لنفس الغرض.
+// المفتاح القديم لازم يتقفل (Disable) من Supabase Dashboard → Settings →
+// API Keys بعد ما نتأكد إن التطبيق شغال بالجديد كويس.
 // ============================================================
 
 var SB_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co';
-var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qdmJ5ZG52eXdic2d5aHFmdGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODQyMDcsImV4cCI6MjA5Njk2MDIwN30.3UyyKGcmehGVxadPotOgwYF6CmDbkdb8gw7BFxlYFcU';
+var SB_KEY = 'sb_publishable_5xjA7HDzuEU7hq16mYSonQ_k8cIKr-K';
 var SB_HEADERS = {
   'apikey': SB_KEY,
   'Authorization': 'Bearer ' + SB_KEY,
