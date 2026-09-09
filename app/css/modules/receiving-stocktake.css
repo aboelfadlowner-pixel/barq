@@ -13,7 +13,7 @@
 .ist-mod .role-grid {display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
 .ist-mod .role-btn {padding:12px 6px;border:2px solid var(--border);border-radius:12px;background:#fafafa;cursor:pointer;transition:all .2s;text-align:center}
 .ist-mod .role-btn:hover {border-color:var(--accent);background:#f0f9f4}
-.ist-mod .role-btn.sel {border-color:var(--accent);background:#eafaf1}
+.ist-mod .role-btn.sel {border-color:var(--accent);background:#e8fbf3}
 .ist-mod .role-btn .ri {font-size:22px;margin-bottom:2px}
 .ist-mod .role-btn .rn {font-size:11px;font-weight:700;color:var(--primary)}
 .ist-mod .role-btn .rp {font-size:10px;color:var(--muted);margin-top:1px}
@@ -41,14 +41,14 @@
 .ist-mod .bg-qty {background:#cce5ff;color:#004085}
 .ist-mod .bg-prc {background:#e8f4fd;color:#1a5276}
 .ist-mod .bg-fin {background:#f3e5f5;color:#6c3483}
-.ist-mod .bg-ok {background:#eafaf1;color:#1a7a40}
+.ist-mod .bg-ok {background:#e8fbf3;color:#12c77a}
 .ist-mod .bg-rej {background:#fce4ec;color:#c0392b}
 .ist-mod .bg-exp {background:#e0f2f1;color:#00695c}
 .ist-mod .st-recv {border-right-color:#d68910!important}
 .ist-mod .st-qty {border-right-color:#0984e3!important}
 .ist-mod .st-prc {border-right-color:#1a5276!important}
 .ist-mod .st-fin {border-right-color:#6c3483!important}
-.ist-mod .st-ok {border-right-color:#1a7a40!important}
+.ist-mod .st-ok {border-right-color:#12c77a!important}
 .ist-mod .st-rej {border-right-color:#c0392b!important}
 .ist-mod .po-card {background:var(--card);border:1px solid var(--border);border-right:4px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:box-shadow .15s}
 .ist-mod .po-card:hover {box-shadow:0 4px 14px rgba(0,0,0,.1)}
@@ -61,7 +61,7 @@
 .ist-mod .fi-green {border-color:var(--accent)!important;background:#f0faf5}
 .ist-mod .scan-bar-mobile {position:sticky;top:52px;z-index:15;background:var(--card);padding:10px;border-radius:12px;border:2px solid var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.1);margin-bottom:12px}
 .ist-mod .scan-input-mobile {width:100%;padding:16px 14px;font-size:17px;font-weight:800;text-align:center;border:none;outline:none;background:transparent;color:var(--primary)}
-.ist-mod .last-scanned-card {background:linear-gradient(135deg,#eafaf1,#f0faf5);border:2px solid var(--accent);border-radius:12px;padding:14px;margin-bottom:12px;animation:flashIn .3s}
+.ist-mod .last-scanned-card {background:linear-gradient(135deg,#e8fbf3,#f0faf5);border:2px solid var(--accent);border-radius:12px;padding:14px;margin-bottom:12px;animation:flashIn .3s}
 @keyframes flashIn {0%{transform:scale(.96);opacity:0}100%{transform:scale(1);opacity:1}}
 .ist-mod .item-card-mobile {background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
 .ist-mod .item-card-mobile.warn {border-color:#c0392b;background:#fdf2f4}
@@ -88,7 +88,7 @@
 .ist-mod .count-sysqty-box label {display:block;font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px}
 .ist-mod .count-sysqty-box span {font-size:18px;font-weight:900;color:var(--primary)}
 .ist-mod .diff-badge {display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800}
-.ist-mod .diff-ok {background:#eafaf1;color:#1a7a40}
+.ist-mod .diff-ok {background:#e8fbf3;color:#12c77a}
 .ist-mod .diff-short {background:#fce4ec;color:#c0392b}
 .ist-mod .diff-over {background:#e8f2fd;color:#1a73c7}
 .ist-mod .diff-value {font-size:12px;font-weight:800;margin-top:6px}
@@ -100,7 +100,7 @@
 .ist-mod .px span {font-size:18px;font-weight:900}
 .ist-mod .px-old {background:#f5f5f5;border-color:#ddd;color:#555}
 .ist-mod .px-new {background:#e8f4fd;border-color:var(--blue);color:var(--blue)}
-.ist-mod .px-sell {background:#eafaf1;border-color:var(--accent);color:var(--accent)}
+.ist-mod .px-sell {background:#e8fbf3;border-color:var(--accent);color:var(--accent)}
 .ist-mod .px-alert {background:#fce4ec;border-color:var(--red);color:var(--red)}
 .ist-mod .ig {display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .ist-mod .ib {padding:8px 10px;background:var(--bg);border-radius:8px}
@@ -127,7 +127,7 @@
 .ist-mod .log-info {flex:1}
 .ist-mod .up-zone {border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s}
 .ist-mod .up-zone:hover {border-color:var(--accent);background:#f0faf5}
-.ist-mod .match-ok {background:#eafaf1!important}
+.ist-mod .match-ok {background:#e8fbf3!important}
 .ist-mod .match-diff {background:#fef9e7!important}
 .ist-mod .match-err {background:#fce4ec!important}
 #ist-toast {position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e2235;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}

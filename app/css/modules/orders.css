@@ -5,14 +5,14 @@
 .ord-mod input[type=number] { -moz-appearance: textfield; }
 .ord-mod .auth-screen { min-height: 100vh; min-height: -webkit-fill-available; }
 .ord-mod .app { min-height: 100vh; min-height: -webkit-fill-available; }
-.ord-mod .auth-screen { min-height: 100vh; background: linear-gradient(160deg, #1a3a2a 0%, #2d5a3d 60%, #1a3a2a 100%); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.ord-mod .auth-screen { min-height: 100vh; background: linear-gradient(160deg, #071310 0%, #2d5a3d 60%, #071310 100%); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .ord-mod .auth-card { background: #fff; border-radius: 24px; padding: 40px 32px 32px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; }
-.ord-mod .auth-logo { width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: 22px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 40px; box-shadow: 0 8px 24px rgba(45,134,83,0.35); }
+.ord-mod .auth-logo { width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: 22px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 40px; box-shadow: 0 8px 24px rgba(18, 199, 122,0.35); }
 .ord-mod .auth-card h1 { font-size: 22px; font-weight: 900; color: var(--primary); margin-bottom: 4px; }
 .ord-mod .auth-card p { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
 .ord-mod .auth-field { width: 100%; background: var(--bg); border: 2px solid var(--border); border-radius: 12px; padding: 13px 16px; font-family: 'Cairo',sans-serif; font-size: 15px; outline: none; color: var(--text); margin-bottom: 12px; transition: border-color 0.2s; text-align: center; }
 .ord-mod .auth-field:focus { border-color: var(--accent); }
-.ord-mod .auth-btn { width: 100%; background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; border: none; border-radius: 12px; padding: 15px; font-family: 'Cairo',sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: all 0.2s; box-shadow: 0 4px 16px rgba(45,134,83,0.3); }
+.ord-mod .auth-btn { width: 100%; background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; border: none; border-radius: 12px; padding: 15px; font-family: 'Cairo',sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: all 0.2s; box-shadow: 0 4px 16px rgba(18, 199, 122,0.3); }
 .ord-mod .auth-btn:hover { transform: translateY(-1px); }
 .ord-mod .auth-error { background: #fef0ef; border: 1.5px solid #f8cdc9; border-radius: 10px; padding: 10px; color: var(--red); font-size: 13px; margin-top: 10px; }
 .ord-mod .users-hint { margin-top: 16px; font-size: 11px; color: var(--muted); background: var(--bg); border-radius: 10px; padding: 10px 14px; text-align: right; }
@@ -27,7 +27,7 @@
 /* شريط رفيع بديل — شريط الـ shell أصلاً بيعرض اسم القسم والمستخدم وزرار الخروج،
    فمفيش داعي لتكرارهم هنا؛ بيفضل بس أزرار الأدوات الفعلية (المستخدمين/الإعدادات/رفع الجرد) */
 .ord-mod .top-bar--slim { background: transparent; box-shadow: none; padding: 10px 16px 2px; justify-content: flex-end; position: static; }
-.ord-mod .top-bar--slim .top-btn { background: #eafaf1; color: var(--primary); border: 1px solid #cfe8d9; }
+.ord-mod .top-bar--slim .top-btn { background: #e8fbf3; color: var(--primary); border: 1px solid #cfe8d9; }
 .ord-mod .top-bar--slim .top-btn:hover { background: #dcf3e6; }
 .ord-mod .tabs { background: #fff; border-bottom: 2px solid var(--border); display: flex; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; position: sticky; top: 53px; z-index: 99; flex-direction: row; flex-wrap: nowrap; direction: rtl; }
 .ord-mod .tabs::-webkit-scrollbar { display: none; }
@@ -57,7 +57,7 @@
 .ord-mod .qty-input::-webkit-outer-spin-button, .ord-mod .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .ord-mod .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1.5px solid var(--border); padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; box-shadow: 0 -4px 20px rgba(0,0,0,0.08); z-index: 200; }
 .ord-mod .action-btn { flex: 1; border: none; border-radius: 12px; padding: 13px; font-family: 'Cairo',sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-.ord-mod .btn-primary { background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; box-shadow: 0 4px 14px rgba(45,134,83,0.3); }
+.ord-mod .btn-primary { background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; box-shadow: 0 4px 14px rgba(18, 199, 122,0.3); }
 .ord-mod .btn-excel { background: linear-gradient(135deg, #217346, #1a5c38); color: #fff; box-shadow: 0 4px 14px rgba(33,115,70,0.3); }
 .ord-mod .btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
 .ord-mod .btn-danger { background: #fef0ef; color: var(--red); border: 1.5px solid #f8cdc9; flex: 0 0 auto; padding: 13px 16px; }
@@ -191,9 +191,9 @@
 .ord-mod .scanner-close { background: rgba(255,255,255,0.15); border: none; color: #fff; border-radius: 10px; padding: 8px 14px; font-family: 'Cairo',sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
 .ord-mod .scanner-video-wrap { flex: 1; position: relative; overflow: hidden; }
 .ord-mod #scanner-video { width: 100%; height: 100%; object-fit: cover; }
-.ord-mod .scan-line { position: absolute; left: 10%; right: 10%; top: 50%; height: 3px; background: linear-gradient(90deg, transparent, #2d8653, #f0a500, #2d8653, transparent); border-radius: 2px; animation: scanMove 2s ease-in-out infinite; }
+.ord-mod .scan-line { position: absolute; left: 10%; right: 10%; top: 50%; height: 3px; background: linear-gradient(90deg, transparent, #12c77a, #f0a500, #12c77a, transparent); border-radius: 2px; animation: scanMove 2s ease-in-out infinite; }
 @keyframes scanMove { 0%,100% { top: 35%; } 50% { top: 65%; } }
-.ord-mod .scan-frame { position: absolute; left: 10%; right: 10%; top: 30%; bottom: 30%; border: 3px solid rgba(45,134,83,0.8); border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); }
+.ord-mod .scan-frame { position: absolute; left: 10%; right: 10%; top: 30%; bottom: 30%; border: 3px solid rgba(18, 199, 122,0.8); border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); }
 .ord-mod .scanner-hint { color: rgba(255,255,255,0.8); text-align: center; font-size: 13px; padding: 14px; background: rgba(0,0,0,0.7); }
 .ord-mod .scan-result { background: #fff; padding: 16px 20px; margin: 0; }
 .ord-mod .scan-result h4 { font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
@@ -239,15 +239,15 @@
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    border: 2px solid #1a3a2a;
+    border: 2px solid #071310;
     border-radius: 4px;
     background: #fff;
     position: relative;
     transition: all 0.15s;
   }
 .ord-mod .prod-checkbox:checked {
-    background: #1a3a2a;
-    border-color: #1a3a2a;
+    background: #071310;
+    border-color: #071310;
   }
 .ord-mod .prod-checkbox:checked::after {
     content: "✓";
@@ -260,12 +260,12 @@
     line-height: 1;
   }
 .ord-mod .prod-checkbox:hover {
-    border-color: #0a8d4b;
+    border-color: #12c77a;
   }
 .ord-mod .select-all-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0faf3; border-bottom: 2px solid var(--accent); font-size: 14px; }
 .ord-mod .select-all-bar label { display: flex; align-items: center; gap: 5px; cursor: pointer; font-weight: 700; color: var(--accent); }
 .ord-mod .move-sel-btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 12px; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: auto; }
-.ord-mod .add-prod-inline-btn { background: #0a8d4b; color: #fff; border: none; border-radius: 8px; padding: 7px 12px; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
+.ord-mod .add-prod-inline-btn { background: #12c77a; color: #fff; border: none; border-radius: 8px; padding: 7px 12px; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
 .ord-mod .add-prod-inline-btn:hover { background: #0d7a47; }
 .ord-mod .move-target-select { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 10px; font-family: 'Cairo',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
 .ord-mod .move-target-select option { background: #fff; color: #333; }

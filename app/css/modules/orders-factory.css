@@ -1,23 +1,23 @@
 /* منقول من masna3.html — أنماط موديول "المصنع" فقط.
-   ملاحظة: ألوان هذا الملف (--primary:#1a5c2a وغيرها) مختلفة عن دايالكت
+   ملاحظة: ألوان هذا الملف (--primary:#071310 وغيرها) مختلفة عن دايالكت
    shared.css، فاتحفظت هنا كمتغيرات مقيّدة بـ .msn-mod (مش :root عام)
    عشان متأثرش على باقي الموديولات. */
 
 .msn-mod {
       /* موحّدة مع نفس ألوان shared.css — --accent هنا معناها "لون النص فوق
          الخلفية الغامقة" (أبيض) مش لون العلامة الثانوي، فسايبينها زي ما هي */
-      --primary: #1a3a2a;
-      --primary-dark: #0f2419;
-      --primary-light: #2d8653;
+      --primary: #071310;
+      --primary-dark: #040a08;
+      --primary-light: #12c77a;
       --accent: #fff;
-      --bg: #f4f6f4;
+      --bg: #ffffff;
       --card: #ffffff;
       --border: #d4e4d8;
-      --text: #1a2e1a;
+      --text: #071310;
       --muted: #6b8f71;
       --danger: #c0392b;
       --warning: #e67e22;
-      --success: #2d8653;
+      --success: #12c77a;
       --gold: #d4ac0d;
     }
 .msn-mod * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,7 +32,7 @@
 .msn-mod #login-screen {
       min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(160deg, #0f3d1c 0%, #1a5c2a 50%, #2d8a42 100%);
+      background: linear-gradient(160deg, #040a08 0%, #071310 50%, #2d8a42 100%);
     }
 .msn-mod .login-box {
       background: #fff; border-radius: 24px; padding: 44px 40px;
@@ -51,17 +51,17 @@
 .msn-mod .login-input:focus { outline: none; border-color: var(--primary); }
 .msn-mod .login-btn {
       width: 100%; padding: 13px;
-      background: linear-gradient(135deg, #1a5c2a, #2d8a42); color: #fff;
+      background: linear-gradient(135deg, #071310, #2d8a42); color: #fff;
       border: none; border-radius: 10px;
       font-family: 'Cairo', sans-serif; font-size: 16px; font-weight: 700;
       cursor: pointer; margin-top: 6px;
       box-shadow: 0 4px 12px rgba(26,92,42,0.3);
     }
-.msn-mod .login-btn:hover { background: linear-gradient(135deg, #0f3d1c, #1a5c2a); }
+.msn-mod .login-btn:hover { background: linear-gradient(135deg, #040a08, #071310); }
 .msn-mod .login-err { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 20px; }
 .msn-mod #app-screen { display: none; min-height: 100vh; }
 .msn-mod .topbar {
-      background: linear-gradient(135deg, #0f3d1c, #1a5c2a);
+      background: linear-gradient(135deg, #040a08, #071310);
       color: #fff; padding: 0 16px; height: 60px;
       display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 100;
@@ -135,7 +135,7 @@
       border: 1px solid var(--border); overflow: hidden;
     }
 .msn-mod .dept-header {
-      background: linear-gradient(135deg, #0f3d1c, #1a5c2a);
+      background: linear-gradient(135deg, #040a08, #071310);
       color: #fff; padding: 13px 18px;
       display: flex; align-items: center; justify-content: space-between;
     }
@@ -154,7 +154,7 @@
       font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
     }
 .msn-mod .btn-move-dept {
-      background: #1a3a2a; color: #fff; border: none;
+      background: #071310; color: #fff; border: none;
       padding: 6px 14px; border-radius: 8px;
       font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
     }
@@ -235,9 +235,9 @@
 .msn-mod .dept-card { display: none !important; page-break-after: always; }
 .msn-mod .dept-card.printing { display: block !important; page-break-after: always; }
 .msn-mod .dept-card + .dept-card.printing { page-break-before: avoid; }
-.msn-mod .dept-header { background: #1a5c2a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.msn-mod .dept-header { background: #071310 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .msn-mod .dept-header, .msn-mod .order-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.msn-mod .print-header { display: block !important; text-align: center; padding: 6px 0 10px; border-bottom: 2px solid #1a5c2a; margin-bottom: 10px; }
+.msn-mod .print-header { display: block !important; text-align: center; padding: 6px 0 10px; border-bottom: 2px solid #071310; margin-bottom: 10px; }
 .msn-mod .print-actual { display: table-cell !important; font-weight: 700; text-align: center; }
 .msn-mod .print-note-cell { display: table-cell !important; }
 .msn-mod .p-actual { display: inline !important; font-weight: 700; }

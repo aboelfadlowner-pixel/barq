@@ -1,22 +1,22 @@
 /* منقول من makhzoun_v2.html — أنماط موديول "المشتريات والمخزون" فقط.
-   ألوان هذا الملف (--accent:#1a7a40 وغيرها) مختلفة عن دايالكت shared.css،
+   ألوان هذا الملف (--accent:#12c77a وغيرها) مختلفة عن دايالكت shared.css،
    فاتحفظت مقيّدة بـ .mk-mod (مش :root عام) عشان متأثرش على باقي الموديولات. */
 
 .mk-mod {
     /* موحّدة مع نفس ألوان shared.css (--primary/--accent الأساسيين في باقي
        الأقسام) بدل الأخضر المختلف اللي كان بالملف ده لوحده */
-    --bg: #f4f6f4;
+    --bg: #ffffff;
     --surface: #ffffff;
-    --surface2: #eafaf1;
+    --surface2: #e8fbf3;
     --border: #d4e4d8;
-    --accent: #2d8653;
+    --accent: #12c77a;
     --accent2: #e74c3c;
-    --green: #2d8653;
+    --green: #12c77a;
     --red: #c0392b;
     --blue: #1a3a5c;
-    --text: #1a2e1a;
+    --text: #071310;
     --muted: #6b8f71;
-    --A: #2d8653;
+    --A: #12c77a;
     --B: #1a3a5c;
     --C: #7a8c80;
     --D: #f5a623;
@@ -492,10 +492,10 @@
 .mk-mod .po-check-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .15s; }
 .mk-mod .po-check-row:hover { background:var(--surface2,#f5f5f5); }
 .mk-mod .po-check-row:last-child { border-bottom:none; }
-.mk-mod .po-checkbox { width:18px; height:18px; accent-color:var(--accent,#1a7a40); cursor:pointer; flex-shrink:0; }
+.mk-mod .po-checkbox { width:18px; height:18px; accent-color:var(--accent,#12c77a); cursor:pointer; flex-shrink:0; }
 .mk-mod .po-chip { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
 .mk-mod .po-field { width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:Cairo,sans-serif; font-size:13px; box-sizing:border-box; }
-.mk-mod .po-field:focus { outline:2px solid var(--accent,#1a7a40); border-color:transparent; }
+.mk-mod .po-field:focus { outline:2px solid var(--accent,#12c77a); border-color:transparent; }
 .mk-mod .po-label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:700; }
 .mk-mod .po-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:14px; }
 .mk-mod .po-qty-inp { width:80px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-family:Cairo,sans-serif; font-size:13px; background:var(--surface); color:var(--text); text-align:center; }
