@@ -166,13 +166,13 @@ var BarqApp = (function () {
       '  <aside class="sidebar" id="sidebar">' +
       '    <div class="sidebar-header"><span class="logo">⚡</span><span class="title">برق</span></div>' +
       '    <div class="sidebar-user"><span class="avatar">' + user.icon + '</span><div class="info"><span class="name">' + (user.username || user.label) + '</span><span class="role">' + user.label + '</span></div></div>' +
+      '    <button class="sidebar-logout-top" id="btn-logout">تسجيل الخروج</button>' +
       '    <div class="sidebar-eyebrow">الأقسام</div>' +
       '    <nav class="sidebar-nav">' + sectionsHtml + '</nav>' +
-      '    <div class="sidebar-footer"><button class="sidebar-logout" id="btn-logout">تسجيل الخروج</button></div>' +
       '  </aside>' +
       '  <div class="main-area">' +
       '    <div class="topbar">' +
-      '      <button class="menu-toggle" id="btn-menu">☰</button>' +
+      '      <button class="menu-toggle" id="btn-menu">☰ رجوع</button>' +
       '      <div class="section-title">' + (currentSectionDef ? currentSectionDef.icon + ' ' + currentSectionDef.label : '') + '</div>' +
       '      <div></div>' +
       '    </div>' +
