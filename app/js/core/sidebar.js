@@ -37,6 +37,7 @@ var BARQ_SECTIONS = [
   { key: 'dept-lahom',    label: 'تحضير — مصنعات لحوم ودواجن', icon: '🏭' },
   { key: 'dept-mo3mal',   label: 'تحضير — معمل',              icon: '🏭' },
   { key: 'reports', label: 'تقارير', icon: '📊' },
+  { key: 'decision-kitchen', label: 'مطبخ القرار', icon: '🍳' },
   { key: 'access-list', label: 'المستخدمين والصلاحيات', icon: '👥' },
   { key: 'support-admin', label: 'بلاغات المستخدمين', icon: '🆘' }
 ];

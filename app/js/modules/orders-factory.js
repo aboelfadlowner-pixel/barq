@@ -517,23 +517,7 @@ setInterval(function() {
   status.textContent = '🟢 آخر مزامنة: ' + timeStr;
 }, 10000);
 
-// زر عائم لفتح سجل الأخطاء
 window.addEventListener('DOMContentLoaded', function() {
-  const btn = document.createElement('button');
-  btn.id = 'barqErrorBtn';
-  btn.innerHTML = '🐛';
-  btn.onclick = window.showBarqErrors;
-  btn.style.cssText = 'position:fixed;bottom:80px;left:10px;width:50px;height:50px;border-radius:50%;background:#e94560;color:#fff;border:none;font-size:24px;cursor:pointer;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3)';
-  document.body.appendChild(btn);
-  
-  setInterval(function() {
-    const b = document.getElementById('barqErrorBtn');
-    if (b && window._barqErrors.length > 0) {
-      b.innerHTML = '🐛 <span style="position:absolute;top:-5px;right:-5px;background:#fff;color:#e94560;border-radius:50%;width:22px;height:22px;font-size:12px;line-height:22px">' + window._barqErrors.length + '</span>';
-      b.style.background = '#c0392b';
-    }
-  }, 1000);
-  
   // ابدأ الـ auto-sync بعد ثانيتين
   setTimeout(startAutoSync, 2000);
   
