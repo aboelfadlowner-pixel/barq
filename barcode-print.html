@@ -96,8 +96,8 @@ button,input,select,textarea{font-family:'Cairo',sans-serif}
 /* preview label */
 .preview-wrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
 .label-preview{background:#fff;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;overflow:hidden}
-.label-preview .lp-logo{height:22px;width:auto;margin-bottom:2px}
-.label-preview .lp-name{font-size:20px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.label-preview .lp-logo{height:32px;width:auto;margin-bottom:2px}
+.label-preview .lp-name{font-size:17px;line-height:1.15;font-weight:800;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;max-width:100%}
 .label-preview .lp-date{font-size:9px;color:#555}
 .label-preview .lp-price{font-size:34px;font-weight:900;color:var(--primary)}
 .label-preview svg{max-width:65%}
@@ -121,7 +121,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v18</div>
+  <div style="font-size:11px;opacity:.7">إصدار v19</div>
 </div>
 
 <div class="wrap">
@@ -623,7 +623,7 @@ function renderPreview(){
       '<img class="lp-logo" src="' + LOGO_DATA_URI + '" alt="">' +
       '<div class="lp-name">' + escapeHtml(it.name) + '</div>' +
       (it.date ? '<div class="lp-date">' + it.date + '</div>' : '') +
-      '<svg id="prevSvg" style="height:' + Math.max(24, pxH * 0.35) + 'px;width:auto;max-width:90%"></svg>' +
+      '<svg id="prevSvg" style="height:' + Math.max(20, pxH * 0.26) + 'px;width:auto;max-width:90%"></svg>' +
       '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
     '</div>';
   var chosenType = document.getElementById('bcType').value;
@@ -673,11 +673,11 @@ function doPrint(){
     '@page{size:' + dims.w + 'mm ' + dims.h + 'mm;margin:0}' +
     '*{box-sizing:border-box;margin:0;padding:0;font-family:Tahoma,Arial,sans-serif}' +
     '.label{width:' + dims.w + 'mm;height:' + dims.h + 'mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;text-align:center;padding:1mm}' +
-    '.llogo{height:4mm;width:auto;margin-bottom:0.5mm}' +
-    '.lname{font-size:4.2mm;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:98%}' +
+    '.llogo{height:6mm;width:auto;margin-bottom:0.5mm}' +
+    '.lname{font-size:3.6mm;line-height:1.15;font-weight:700;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;max-width:98%}' +
     '.ldate{font-size:2mm;color:#444}' +
     '.lprice{font-size:7.2mm;font-weight:900}' +
-    'svg.barcode{height:' + Math.max(6, dims.h * 0.35) + 'mm;width:auto;max-width:90%}' +
+    'svg.barcode{height:' + Math.max(5, dims.h * 0.26) + 'mm;width:auto;max-width:90%}' +
     '</style></head><body>' +
     labelsHTML +
     '<scr' + 'ipt>' +
