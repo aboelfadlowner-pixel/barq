@@ -79,7 +79,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v1</div>
+  <div style="font-size:11px;opacity:.7">إصدار v2</div>
 </div>
 
 <div class="toolbar">
@@ -88,6 +88,7 @@ button,input{font-family:'Cairo',sans-serif}
     <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleImport(event)">
   </label>
   <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." oninput="renderGrid()">
+  <button class="btn btn-ghost" onclick="toggleOrientation()" id="orientBtn">🔄 اتجاه الطباعة</button>
   <span class="status" id="statusText">لسه مفيش شيت متحمل</span>
 </div>
 
@@ -105,8 +106,21 @@ var LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAAEsCAIAA
 
 var PRODUCTS = []; // {name, barcode, sku, price}
 var LS_KEY = 'barq_touch_products_v1';
+var LS_ORIENT = 'barq_touch_orientation_v1';
 var ICON_COLORS = ['#2d8653','#1a3a5c','#8e5b2d','#7a4fa3','#c0392b','#0e7c86','#a8763e','#2f6b4f'];
 var ICON_EMOJIS = ['🥐','🍞','🥖','🧁','🥯','🍰','🧇','🥨'];
+
+// بعض إعدادات الطباعة بتفتح المعاينة أفقي دايمًا مهما اخترت من نافذة الطباعة —
+// بدل ما تحتاج تظبطها يدوي كل مرة، بنحفظ الاتجاه اللي شغال معاك مرة واحدة وهو ده اللي بيتستخدم دايمًا بعد كده
+function getOrientation(){
+  return localStorage.getItem(LS_ORIENT) || 'normal'; // 'normal' = 55×40 (عرض أكبر) | 'swapped' = 40×55 (طول أكبر)
+}
+function toggleOrientation(){
+  var cur = getOrientation();
+  var next = cur === 'normal' ? 'swapped' : 'normal';
+  localStorage.setItem(LS_ORIENT, next);
+  toast(next === 'normal' ? '📐 الاتجاه: 55×40 (الوضع الأصلي)' : '📐 الاتجاه: 40×55 (معكوس)');
+}
 
 function toast(msg){
   var t = document.getElementById('toast');
@@ -332,7 +346,7 @@ function confirmQtyPrint(){
 }
 
 function printLabels(p, qty){
-  var dims = { w: 55, h: 40 };
+  var dims = getOrientation() === 'swapped' ? { w: 40, h: 55 } : { w: 55, h: 40 };
   var date = todayStr();
   var labelsHTML = '';
   for (var i = 0; i < qty; i++) {
