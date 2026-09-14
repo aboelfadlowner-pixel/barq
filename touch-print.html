@@ -73,13 +73,20 @@ button,input{font-family:'Cairo',sans-serif}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:999;opacity:0;transition:.25s;pointer-events:none}
 .toast.show{opacity:1}
+.cattabs{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;background:var(--card);border-bottom:1px solid var(--border)}
+.tab{flex:none;padding:9px 14px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:800;white-space:nowrap;cursor:pointer;color:var(--text)}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab-add{background:var(--bg);color:var(--accent);border-style:dashed}
+.catlist{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;max-height:50vh;overflow-y:auto}
+.catopt{padding:13px;border-radius:12px;border:2px solid var(--border);background:#fff;font-size:14px;font-weight:800;cursor:pointer;text-align:center;color:var(--text)}
+.catopt:active{background:var(--bg)}
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v2</div>
+  <div style="font-size:11px;opacity:.7">إصدار v3</div>
 </div>
 
 <div class="toolbar">
@@ -87,10 +94,11 @@ button,input{font-family:'Cairo',sans-serif}
     📂 رفع شيت المنتجات
     <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleImport(event)">
   </label>
-  <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." oninput="renderGrid()">
-  <button class="btn btn-ghost" onclick="toggleOrientation()" id="orientBtn">🔄 اتجاه الطباعة</button>
+  <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." inputmode="search" oninput="renderGrid()">
   <span class="status" id="statusText">لسه مفيش شيت متحمل</span>
 </div>
+
+<div class="cattabs" id="catTabs"></div>
 
 <div id="gridWrap">
   <div class="empty-hint">ارفع شيت المنتجات الأول من الزرار اللي فوق 📂</div>
@@ -106,20 +114,128 @@ var LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAAEsCAIAA
 
 var PRODUCTS = []; // {name, barcode, sku, price}
 var LS_KEY = 'barq_touch_products_v1';
-var LS_ORIENT = 'barq_touch_orientation_v1';
 var ICON_COLORS = ['#2d8653','#1a3a5c','#8e5b2d','#7a4fa3','#c0392b','#0e7c86','#a8763e','#2f6b4f'];
 var ICON_EMOJIS = ['🥐','🍞','🥖','🧁','🥯','🍰','🧇','🥨'];
 
-// بعض إعدادات الطباعة بتفتح المعاينة أفقي دايمًا مهما اخترت من نافذة الطباعة —
-// بدل ما تحتاج تظبطها يدوي كل مرة، بنحفظ الاتجاه اللي شغال معاك مرة واحدة وهو ده اللي بيتستخدم دايمًا بعد كده
-function getOrientation(){
-  return localStorage.getItem(LS_ORIENT) || 'normal'; // 'normal' = 55×40 (عرض أكبر) | 'swapped' = 40×55 (طول أكبر)
+// نظام التصنيفات: كل صنف جديد بييجي من الشيت بيقع في "القائمة الأساسية" (غير مصنف)
+// وبعدين بتنقله يدوي لتصنيف عن طريق الدوسة المطولة على الأيقونة
+var CATEGORIES = []; // {id, name}
+var PRODCATS = {}; // key(barcode||sku) -> categoryId
+var LS_CATS = 'barq_touch_categories_v1';
+var LS_PRODCATS = 'barq_touch_prodcats_v1';
+var LS_SEEDED = 'barq_touch_seeded_freshat_v1';
+var ACTIVE_CAT = null; // null = القائمة الأساسية (غير مصنف)
+
+function saveCategories(){ localStorage.setItem(LS_CATS, JSON.stringify(CATEGORIES)); }
+function savePRODCATS(){ localStorage.setItem(LS_PRODCATS, JSON.stringify(PRODCATS)); }
+function loadCategories(){
+  try { CATEGORIES = JSON.parse(localStorage.getItem(LS_CATS) || '[]'); } catch(e){ CATEGORIES = []; }
+  try { PRODCATS = JSON.parse(localStorage.getItem(LS_PRODCATS) || '{}'); } catch(e){ PRODCATS = {}; }
 }
-function toggleOrientation(){
-  var cur = getOrientation();
-  var next = cur === 'normal' ? 'swapped' : 'normal';
-  localStorage.setItem(LS_ORIENT, next);
-  toast(next === 'normal' ? '📐 الاتجاه: 55×40 (الوضع الأصلي)' : '📐 الاتجاه: 40×55 (معكوس)');
+
+// تصنيف "فريشات" الافتراضي بيتعمل مرة واحدة بس (أول مرة الصفحة تشتغل فيها)،
+// وبعد كده أي تعديل بإيدك (نقل/تصنيف جديد) بيفضل زي ما هو حتى لو حدّثت شيت المنتجات
+function seedDefaultCategories(){
+  if (!PRODUCTS.length) return; // لسه معملناش أول رفع شيت، أجّل التصنيف التلقائي لحد ما يبقى فيه أصناف نطابقها
+  if (localStorage.getItem(LS_SEEDED)) return;
+  localStorage.setItem(LS_SEEDED, '1');
+  var freshId = 'cat_freshat';
+  CATEGORIES.push({ id: freshId, name: 'فريشات' });
+  var rules = [
+    function(n){ return n.indexOf('باتيه') !== -1 && n.indexOf('فريش') !== -1; },
+    function(n){ return n.indexOf('كرواسون') !== -1 && n.indexOf('ساده') !== -1; },
+    function(n){ return n.indexOf('بان سويس') !== -1 || (n.indexOf('بان') !== -1 && n.indexOf('سويس') !== -1); },
+    function(n){ return n.indexOf('مناقيش') !== -1; },
+    function(n){ return n.indexOf('سندوتش') !== -1 && n.indexOf('جبن') !== -1; },
+    function(n){ return n.indexOf('سينابون') !== -1; }
+  ];
+  PRODUCTS.forEach(function(p){
+    var n = String(p.name || '').toLowerCase();
+    var matched = rules.some(function(r){ return r(n); });
+    if (matched) {
+      var key = p.barcode || p.sku;
+      if (key) PRODCATS[key] = freshId;
+    }
+  });
+  saveCategories();
+  savePRODCATS();
+}
+
+function renderTabs(){
+  var wrap = document.getElementById('catTabs');
+  var html = '<button class="tab' + (ACTIVE_CAT === null ? ' active' : '') + '" onclick="setActiveCat(null)">🏠 الأساسية</button>';
+  CATEGORIES.forEach(function(c){
+    html += '<button class="tab' + (ACTIVE_CAT === c.id ? ' active' : '') + '" onclick="setActiveCat(\'' + c.id + '\')">' + escapeHtml(c.name) + '</button>';
+  });
+  html += '<button class="tab tab-add" onclick="createCategoryOnly()">➕ تصنيف جديد</button>';
+  wrap.innerHTML = html;
+}
+function setActiveCat(id){
+  ACTIVE_CAT = id;
+  renderTabs();
+  renderGrid();
+}
+function createCategoryOnly(){
+  var name = prompt('اسم التصنيف الجديد:');
+  if (!name) return;
+  name = name.trim();
+  if (!name) return;
+  CATEGORIES.push({ id: 'c' + Date.now(), name: name });
+  saveCategories();
+  renderTabs();
+  toast('✅ اتعمل تصنيف "' + name + '"');
+}
+
+function openCatMenu(idx){
+  var p = PRODUCTS[idx];
+  if (!p) return;
+  var key = p.barcode || p.sku;
+  var curCat = PRODCATS[key] || null;
+  var itemsHtml = '';
+  if (curCat) {
+    itemsHtml += '<button class="catopt" onclick="moveProduct(\'' + key + '\', null)">🏠 رجّع للقائمة الأساسية</button>';
+  }
+  CATEGORIES.forEach(function(c){
+    if (c.id === curCat) return;
+    itemsHtml += '<button class="catopt" onclick="moveProduct(\'' + key + '\', \'' + c.id + '\')">📁 نقل إلى: ' + escapeHtml(c.name) + '</button>';
+  });
+  itemsHtml += '<button class="catopt" onclick="createCatAndMove(\'' + key + '\')">➕ تصنيف جديد وانقله له</button>';
+  var backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'catModal';
+  backdrop.innerHTML =
+    '<div class="modal">' +
+      '<div class="mname">' + escapeHtml(p.name) + '</div>' +
+      '<div class="catlist">' + itemsHtml + '</div>' +
+      '<div class="modal-actions"><button class="modal-cancel" onclick="closeCatModal()">إلغاء</button></div>' +
+    '</div>';
+  document.body.appendChild(backdrop);
+}
+function closeCatModal(){
+  var m = document.getElementById('catModal');
+  if (m) m.remove();
+}
+function moveProduct(key, catId){
+  if (catId) PRODCATS[key] = catId; else delete PRODCATS[key];
+  savePRODCATS();
+  closeCatModal();
+  renderGrid();
+  toast('✅ اتنقل الصنف');
+}
+function createCatAndMove(key){
+  var name = prompt('اسم التصنيف الجديد:');
+  if (!name) return;
+  name = name.trim();
+  if (!name) return;
+  var id = 'c' + Date.now();
+  CATEGORIES.push({ id: id, name: name });
+  saveCategories();
+  PRODCATS[key] = id;
+  savePRODCATS();
+  closeCatModal();
+  renderTabs();
+  renderGrid();
+  toast('✅ اتعمل تصنيف "' + name + '" واتنقل له الصنف');
 }
 
 function toast(msg){
@@ -208,6 +324,8 @@ function ingestRows(rows){
   });
   PRODUCTS = list;
   localStorage.setItem(LS_KEY, JSON.stringify(PRODUCTS));
+  seedDefaultCategories();
+  renderTabs();
   renderGrid();
   var extra = [];
   if (skippedWeight) extra.push('استبعدنا ' + skippedWeight + ' صنف بالوزن');
@@ -248,12 +366,15 @@ function renderGrid(){
   }
   var q = document.getElementById('searchBox').value.trim().toLowerCase();
   var list = PRODUCTS.filter(function(p){
+    var key = p.barcode || p.sku;
+    var cat = PRODCATS[key] || null;
+    if (cat !== ACTIVE_CAT) return false;
     if (!q) return true;
     return p.name.toLowerCase().indexOf(q) !== -1 ||
            (p.barcode||'').indexOf(q) !== -1 || (p.sku||'').toLowerCase().indexOf(q) !== -1;
   });
   if (!list.length) {
-    wrap.innerHTML = '<div class="empty-hint">مفيش نتائج مطابقة</div>';
+    wrap.innerHTML = '<div class="empty-hint">مفيش أصناف هنا. دوس دوسة مطولة على أي صنف في تصنيف تاني علشان تنقله هنا</div>';
     return;
   }
 
@@ -264,15 +385,34 @@ function renderGrid(){
     var emoji = ICON_EMOJIS[h % ICON_EMOJIS.length];
     var idx = PRODUCTS.indexOf(p);
     html +=
-      '<div class="tile" onclick="printOne(' + idx + ')">' +
+      '<div class="tile" onpointerdown="tileDown(' + idx + ')" onpointerup="tileUp(' + idx + ')" onpointercancel="tileCancel()" onpointerleave="tileCancel()">' +
         '<div class="icon" style="background:' + color + '">' + emoji + '</div>' +
         '<div class="tname">' + escapeHtml(p.name) + '</div>' +
         '<div class="tprice">' + p.price.toFixed(2) + ' ج.م</div>' +
-        '<div class="plus" onclick="event.stopPropagation();openQtyModal(' + idx + ')">+</div>' +
+        '<div class="plus" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()" onclick="event.stopPropagation();openQtyModal(' + idx + ')">+</div>' +
       '</div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
+}
+
+// دوسة عادية = طباعة فورية | دوسة مطولة (نص ثانية) = قائمة نقل/تصنيف
+var LP_TIMER = null, LP_FIRED = false;
+function tileDown(idx){
+  LP_FIRED = false;
+  clearTimeout(LP_TIMER);
+  LP_TIMER = setTimeout(function(){
+    LP_FIRED = true;
+    if (navigator.vibrate) navigator.vibrate(30);
+    openCatMenu(idx);
+  }, 550);
+}
+function tileUp(idx){
+  clearTimeout(LP_TIMER);
+  if (!LP_FIRED) printOne(idx);
+}
+function tileCancel(){
+  clearTimeout(LP_TIMER);
 }
 
 function escapeHtml(s){
@@ -346,7 +486,7 @@ function confirmQtyPrint(){
 }
 
 function printLabels(p, qty){
-  var dims = getOrientation() === 'swapped' ? { w: 40, h: 55 } : { w: 55, h: 40 };
+  var dims = { w: 55, h: 40 };
   var date = todayStr();
   var labelsHTML = '';
   for (var i = 0; i < qty; i++) {
@@ -361,7 +501,14 @@ function printLabels(p, qty){
       '</div>';
   }
 
-  var win = window.open('', '_blank');
+  var old = document.getElementById('printFrame');
+  if (old) old.remove();
+  var iframe = document.createElement('iframe');
+  iframe.id = 'printFrame';
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:0';
+  document.body.appendChild(iframe);
+  var win = iframe.contentWindow;
+  win.document.open();
   win.document.write(
     '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>طباعة الباركود</title>' +
     '<script>' + document.getElementById("lib-jsbarcode").textContent + '<\/script>' +
@@ -394,6 +541,9 @@ function printLabels(p, qty){
         '}' +
       '});' +
       'setTimeout(function(){window.print();}, 200);' +
+      'window.onafterprint=function(){' +
+        'setTimeout(function(){ var f=parent.document.getElementById("printFrame"); if(f) f.remove(); }, 300);' +
+      '};' +
     '};' +
     '</scr' + 'ipt>' +
     '</body></html>'
@@ -403,6 +553,9 @@ function printLabels(p, qty){
 }
 
 loadFromStorage();
+loadCategories();
+seedDefaultCategories();
+renderTabs();
 renderGrid();
 </script>
 </body>
