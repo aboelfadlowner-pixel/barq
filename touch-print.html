@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v6</div>
+  <div style="font-size:11px;opacity:.7">إصدار v7</div>
 </div>
 
 <div class="toolbar">
@@ -465,21 +465,22 @@ function openQtyModal(idx){
   document.body.appendChild(backdrop);
 }
 
-var LS_PLU = 'barq_touch_plu_v1';
-function loadPLUMap(){
-  try { return JSON.parse(localStorage.getItem(LS_PLU) || '{}'); } catch(e){ return {}; }
+var LS_SCANCODE = 'barq_touch_scancode_v1';
+function loadScanCodeMap(){
+  try { return JSON.parse(localStorage.getItem(LS_SCANCODE) || '{}'); } catch(e){ return {}; }
 }
-function savePLU(key, plu){
-  var m = loadPLUMap();
-  m[key] = plu;
-  localStorage.setItem(LS_PLU, JSON.stringify(m));
+function saveScanCode(key, code){
+  var m = loadScanCodeMap();
+  m[key] = code;
+  localStorage.setItem(LS_SCANCODE, JSON.stringify(m));
 }
-function guessPLU(p){
-  var m = loadPLUMap();
+// الباركود المستخدم في التشفير = باركود المنتج زي ما هو بالظبط في فوديكس (بدون أي تعديل أو قص) —
+// اتأكدت عمليًا إن فوديكس بيدور على المنتج بمطابقة الكود ده كامل من أول رقم في السكان
+function guessScanCode(p){
+  var m = loadScanCodeMap();
   var key = p.barcode || p.sku;
   if (m[key]) return m[key];
-  var digits = String(p.barcode || p.sku || '').replace(/\D/g, '');
-  return digits ? digits.slice(-5) : '';
+  return String(p.barcode || p.sku || '').replace(/\D/g, '');
 }
 
 function openBagQtyModal(idx){
@@ -507,7 +508,7 @@ function openBagQtyModal(idx){
           '🔁 اطبع باركود يترمز فيه العدد تلقائي (سكان مباشر يحسب الإجمالي — يحتاج تظبط الصنف "بالوزن" في فوديكس وسعر الكيلو = سعر القطعة)' +
         '</label>' +
         '<div id="bagPluWrap" style="display:none;margin-top:8px">' +
-          '<input type="text" id="bagPluInput" placeholder="كود PLU الصنف في فوديكس" inputmode="numeric" value="' + escapeHtml(guessPLU(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
+          '<input type="text" id="bagPluInput" placeholder="باركود الصنف في فوديكس (زي ما هو)" inputmode="numeric" value="' + escapeHtml(guessScanCode(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
         '</div>' +
       '</div>' +
       '<div class="modal-actions">' +
@@ -556,9 +557,9 @@ function confirmQtyPrint(){
     if (cb && cb.checked) {
       var pluInput = document.getElementById('bagPluInput');
       var plu = (pluInput && pluInput.value || '').trim();
-      if (!plu) { toast('⚠️ اكتب كود PLU الصنف في فوديكس'); return; }
+      if (!plu) { toast('⚠️ اكتب باركود الصنف في فوديكس'); return; }
       autoScanPlu = plu;
-      if (p) savePLU(p.barcode || p.sku, plu);
+      if (p) saveScanCode(p.barcode || p.sku, plu);
     }
   }
   closeQtyModal();
@@ -647,21 +648,22 @@ function printLabels(p, qty){
 // EAN-13 مبني بنفس تقنية "الباركود اللي بيرمز الوزن" المستخدمة أصلاً للمنتجات المباعة بالوزن،
 // بس هنا بنحط عدد القطع بدل الوزن (كإنه "كيلوجرامات" وهمية) عشان فوديكس يحسب الإجمالي تلقائي عند السكان.
 // الشرط: الصنف لازم يكون معمول "يُباع بالوزن" في فوديكس، وسعر الكيلو = سعر القطعة الواحدة بالظبط.
-function ean13CheckDigit(digits12){
+// رقم التحقق: مجموع مرجّح للأرقام (وزن 1 للخانة الأولى/الثالثة/...، ووزن 3 للخانة التانية/الرابعة/...)
+// بيشتغل على أي طول كود — اتأكد عمليًا على فوديكس إن الصيغة دي هي الصح: كود الصنف زي ما هو + 5 أرقام وزن بالجرام + رقم التحقق ده
+function genericCheckDigit(body){
   var sum = 0;
-  for (var i = 0; i < 12; i++) {
-    var d = parseInt(digits12[i], 10) || 0;
+  for (var i = 0; i < body.length; i++) {
+    var d = parseInt(body[i], 10) || 0;
     sum += (i % 2 === 0) ? d : d * 3;
   }
   return String((10 - (sum % 10)) % 10);
 }
-function buildWeightEncodedBarcode(plu, qty){
-  var pluDigits = String(plu || '0').replace(/\D/g, '') || '0';
-  var pluPadded = pluDigits.slice(-5).padStart(5, '0');
+function buildWeightEncodedBarcode(productBarcode, qty){
+  var codeDigits = String(productBarcode || '0').replace(/\D/g, '') || '0';
   var grams = Math.round(qty * 1000);
-  var qtyPadded = String(grams).slice(-5).padStart(5, '0');
-  var body = '20' + pluPadded + qtyPadded;
-  return body + ean13CheckDigit(body);
+  var qtyPadded = String(grams).padStart(5, '0');
+  var body = codeDigits + qtyPadded;
+  return body + genericCheckDigit(body);
 }
 
 function printBagLabel(p, qty, autoScanPlu){
