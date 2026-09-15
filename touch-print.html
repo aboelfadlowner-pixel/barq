@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v7</div>
+  <div style="font-size:11px;opacity:.7">إصدار v8</div>
 </div>
 
 <div class="toolbar">
@@ -503,13 +503,8 @@ function openBagQtyModal(idx){
         '<button onclick="qtyBackspace()">⌫</button>' +
       '</div>' +
       '<div style="text-align:right;margin-bottom:14px">' +
-        '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text)">' +
-          '<input type="checkbox" id="bagAutoScan" onchange="toggleBagAutoScan()">' +
-          '🔁 اطبع باركود يترمز فيه العدد تلقائي (سكان مباشر يحسب الإجمالي — يحتاج تظبط الصنف "بالوزن" في فوديكس وسعر الكيلو = سعر القطعة)' +
-        '</label>' +
-        '<div id="bagPluWrap" style="display:none;margin-top:8px">' +
-          '<input type="text" id="bagPluInput" placeholder="باركود الصنف في فوديكس (زي ما هو)" inputmode="numeric" value="' + escapeHtml(guessScanCode(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
-        '</div>' +
+        '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">🔁 باركود الصنف في فوديكس (زي ما هو بالظبط — هيترمز فيه العدد تلقائي عشان السكان يحسب الإجمالي)</div>' +
+        '<input type="text" id="bagPluInput" placeholder="باركود الصنف في فوديكس" inputmode="numeric" value="' + escapeHtml(guessScanCode(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
       '</div>' +
       '<div class="modal-actions">' +
         '<button class="modal-cancel" onclick="closeQtyModal()">إلغاء</button>' +
@@ -517,11 +512,6 @@ function openBagQtyModal(idx){
       '</div>' +
     '</div>';
   document.body.appendChild(backdrop);
-}
-function toggleBagAutoScan(){
-  var cb = document.getElementById('bagAutoScan');
-  var wrap = document.getElementById('bagPluWrap');
-  if (wrap) wrap.style.display = (cb && cb.checked) ? 'block' : 'none';
 }
 
 function qtyPress(d){
@@ -553,14 +543,11 @@ function confirmQtyPrint(){
   var mode = QTY_MODE;
   var autoScanPlu = null;
   if (mode === 'bag') {
-    var cb = document.getElementById('bagAutoScan');
-    if (cb && cb.checked) {
-      var pluInput = document.getElementById('bagPluInput');
-      var plu = (pluInput && pluInput.value || '').trim();
-      if (!plu) { toast('⚠️ اكتب باركود الصنف في فوديكس'); return; }
-      autoScanPlu = plu;
-      if (p) saveScanCode(p.barcode || p.sku, plu);
-    }
+    var pluInput = document.getElementById('bagPluInput');
+    var plu = (pluInput && pluInput.value || '').trim();
+    if (!plu) { toast('⚠️ اكتب باركود الصنف في فوديكس'); return; }
+    autoScanPlu = plu;
+    if (p) saveScanCode(p.barcode || p.sku, plu);
   }
   closeQtyModal();
   if (!p) return;
@@ -602,8 +589,8 @@ function openPrintWindow(dims, labelsHTML, toastMsg){
     '.ldate{font-size:2mm;color:#444}' +
     '.lprice{font-size:7.2mm;font-weight:900}' +
     'svg.barcode{height:' + Math.max(6, dims.h * 0.26) + 'mm;width:auto;max-width:90%}' +
-    '.qtybadge{position:absolute;top:0.6mm;right:0.6mm;background:#1a1a1a;color:#fff;font-weight:900;font-size:8mm;line-height:1;padding:1mm 2mm;border-radius:1.5mm;min-width:11mm;text-align:center}' +
-    '.qtybadge .x{font-size:4mm;opacity:.85;margin-left:0.5mm}' +
+    '.qtybadge{position:absolute;top:0.6mm;right:0.6mm;background:#1a1a1a;color:#fff;font-weight:900;font-size:5.5mm;line-height:1;padding:0.8mm 1.6mm;border-radius:1.2mm;min-width:8mm;text-align:center}' +
+    '.qtybadge .x{font-size:3mm;opacity:.85;margin-left:0.5mm}' +
     '</style></head><body>' +
     labelsHTML +
     '<scr' + 'ipt>' +
