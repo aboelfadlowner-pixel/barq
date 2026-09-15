@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v5</div>
+  <div style="font-size:11px;opacity:.7">إصدار v6</div>
 </div>
 
 <div class="toolbar">
@@ -478,7 +478,7 @@ function guessPLU(p){
   var m = loadPLUMap();
   var key = p.barcode || p.sku;
   if (m[key]) return m[key];
-  var digits = String(p.sku || p.barcode || '').replace(/\D/g, '');
+  var digits = String(p.barcode || p.sku || '').replace(/\D/g, '');
   return digits ? digits.slice(-5) : '';
 }
 
