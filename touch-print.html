@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v4</div>
+  <div style="font-size:11px;opacity:.7">إصدار v5</div>
 </div>
 
 <div class="toolbar">
@@ -465,6 +465,23 @@ function openQtyModal(idx){
   document.body.appendChild(backdrop);
 }
 
+var LS_PLU = 'barq_touch_plu_v1';
+function loadPLUMap(){
+  try { return JSON.parse(localStorage.getItem(LS_PLU) || '{}'); } catch(e){ return {}; }
+}
+function savePLU(key, plu){
+  var m = loadPLUMap();
+  m[key] = plu;
+  localStorage.setItem(LS_PLU, JSON.stringify(m));
+}
+function guessPLU(p){
+  var m = loadPLUMap();
+  var key = p.barcode || p.sku;
+  if (m[key]) return m[key];
+  var digits = String(p.sku || p.barcode || '').replace(/\D/g, '');
+  return digits ? digits.slice(-5) : '';
+}
+
 function openBagQtyModal(idx){
   QTY_TARGET = idx;
   QTY_VALUE = '1';
@@ -484,12 +501,26 @@ function openBagQtyModal(idx){
         '<button onclick="qtyPress(\'0\')">0</button>' +
         '<button onclick="qtyBackspace()">⌫</button>' +
       '</div>' +
+      '<div style="text-align:right;margin-bottom:14px">' +
+        '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text)">' +
+          '<input type="checkbox" id="bagAutoScan" onchange="toggleBagAutoScan()">' +
+          '🔁 اطبع باركود يترمز فيه العدد تلقائي (سكان مباشر يحسب الإجمالي — يحتاج تظبط الصنف "بالوزن" في فوديكس وسعر الكيلو = سعر القطعة)' +
+        '</label>' +
+        '<div id="bagPluWrap" style="display:none;margin-top:8px">' +
+          '<input type="text" id="bagPluInput" placeholder="كود PLU الصنف في فوديكس" inputmode="numeric" value="' + escapeHtml(guessPLU(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
+        '</div>' +
+      '</div>' +
       '<div class="modal-actions">' +
         '<button class="modal-cancel" onclick="closeQtyModal()">إلغاء</button>' +
         '<button class="modal-print" onclick="confirmQtyPrint()">🖨️ طباعة</button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(backdrop);
+}
+function toggleBagAutoScan(){
+  var cb = document.getElementById('bagAutoScan');
+  var wrap = document.getElementById('bagPluWrap');
+  if (wrap) wrap.style.display = (cb && cb.checked) ? 'block' : 'none';
 }
 
 function qtyPress(d){
@@ -519,9 +550,20 @@ function confirmQtyPrint(){
   if (qty < 1) { toast('⚠️ اكتب عدد صحيح'); return; }
   var p = PRODUCTS[QTY_TARGET];
   var mode = QTY_MODE;
+  var autoScanPlu = null;
+  if (mode === 'bag') {
+    var cb = document.getElementById('bagAutoScan');
+    if (cb && cb.checked) {
+      var pluInput = document.getElementById('bagPluInput');
+      var plu = (pluInput && pluInput.value || '').trim();
+      if (!plu) { toast('⚠️ اكتب كود PLU الصنف في فوديكس'); return; }
+      autoScanPlu = plu;
+      if (p) savePLU(p.barcode || p.sku, plu);
+    }
+  }
   closeQtyModal();
   if (!p) return;
-  if (mode === 'bag') printBagLabel(p, qty);
+  if (mode === 'bag') printBagLabel(p, qty, autoScanPlu);
   else printLabels(p, qty);
 }
 
@@ -602,12 +644,39 @@ function printLabels(p, qty){
   openPrintWindow(dims, labelsHTML, '🖨️ بيطبع ' + qty + ' ليبل: ' + p.name);
 }
 
-function printBagLabel(p, qty){
+// EAN-13 مبني بنفس تقنية "الباركود اللي بيرمز الوزن" المستخدمة أصلاً للمنتجات المباعة بالوزن،
+// بس هنا بنحط عدد القطع بدل الوزن (كإنه "كيلوجرامات" وهمية) عشان فوديكس يحسب الإجمالي تلقائي عند السكان.
+// الشرط: الصنف لازم يكون معمول "يُباع بالوزن" في فوديكس، وسعر الكيلو = سعر القطعة الواحدة بالظبط.
+function ean13CheckDigit(digits12){
+  var sum = 0;
+  for (var i = 0; i < 12; i++) {
+    var d = parseInt(digits12[i], 10) || 0;
+    sum += (i % 2 === 0) ? d : d * 3;
+  }
+  return String((10 - (sum % 10)) % 10);
+}
+function buildWeightEncodedBarcode(plu, qty){
+  var pluDigits = String(plu || '0').replace(/\D/g, '') || '0';
+  var pluPadded = pluDigits.slice(-5).padStart(5, '0');
+  var grams = Math.round(qty * 1000);
+  var qtyPadded = String(grams).slice(-5).padStart(5, '0');
+  var body = '20' + pluPadded + qtyPadded;
+  return body + ean13CheckDigit(body);
+}
+
+function printBagLabel(p, qty, autoScanPlu){
   var dims = { w: 55, h: 40 };
   var date = todayStr();
   var badgeHtml = '<div class="qtybadge">' + qty + '<span class="x">×</span></div>';
-  var labelsHTML = buildLabelHTML(p, date, badgeHtml);
-  openPrintWindow(dims, labelsHTML, '🖨️ بيطبع ليبل كيس (×' + qty + '): ' + p.name);
+  var labelProduct = p;
+  var toastMsg = '🖨️ بيطبع ليبل كيس (×' + qty + '): ' + p.name;
+  if (autoScanPlu) {
+    var encoded = buildWeightEncodedBarcode(autoScanPlu, qty);
+    labelProduct = Object.assign({}, p, { barcode: encoded, sku: '' });
+    toastMsg = '🖨️ بيطبع ليبل بكود مُرمّز تلقائي (×' + qty + '): ' + p.name;
+  }
+  var labelsHTML = buildLabelHTML(labelProduct, date, badgeHtml);
+  openPrintWindow(dims, labelsHTML, toastMsg);
 }
 
 loadFromStorage();
