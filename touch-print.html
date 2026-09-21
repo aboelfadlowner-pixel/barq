@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v8</div>
+  <div style="font-size:11px;opacity:.7">إصدار v9</div>
 </div>
 
 <div class="toolbar">
@@ -172,10 +172,64 @@ function renderTabs(){
   var wrap = document.getElementById('catTabs');
   var html = '<button class="tab' + (ACTIVE_CAT === null ? ' active' : '') + '" onclick="setActiveCat(null)">🏠 الأساسية</button>';
   CATEGORIES.forEach(function(c){
-    html += '<button class="tab' + (ACTIVE_CAT === c.id ? ' active' : '') + '" onclick="setActiveCat(\'' + c.id + '\')">' + escapeHtml(c.name) + '</button>';
+    html += '<button class="tab' + (ACTIVE_CAT === c.id ? ' active' : '') +
+      '" onpointerdown="catTabDown(\'' + c.id + '\')" onpointerup="catTabUp(\'' + c.id + '\')" onpointercancel="catTabCancel()" onpointerleave="catTabCancel()">' +
+      escapeHtml(c.name) + '</button>';
   });
   html += '<button class="tab tab-add" onclick="createCategoryOnly()">➕ تصنيف جديد</button>';
   wrap.innerHTML = html;
+}
+// دوسة عادية على التصنيف = تنقل له | دوسة مطولة = قائمة حذف التصنيف
+var CATLP_TIMER = null, CATLP_FIRED = false;
+function catTabDown(id){
+  CATLP_FIRED = false;
+  clearTimeout(CATLP_TIMER);
+  CATLP_TIMER = setTimeout(function(){
+    CATLP_FIRED = true;
+    if (navigator.vibrate) navigator.vibrate(30);
+    openCatTabMenu(id);
+  }, 550);
+}
+function catTabUp(id){
+  clearTimeout(CATLP_TIMER);
+  if (!CATLP_FIRED) setActiveCat(id);
+}
+function catTabCancel(){
+  clearTimeout(CATLP_TIMER);
+}
+function openCatTabMenu(id){
+  var cat = CATEGORIES.find(function(c){ return c.id === id; });
+  if (!cat) return;
+  var backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'catTabModal';
+  backdrop.innerHTML =
+    '<div class="modal">' +
+      '<div class="mname">' + escapeHtml(cat.name) + '</div>' +
+      '<div class="catlist">' +
+        '<button class="catopt" style="color:#c0392b;border-color:#c0392b" onclick="deleteCategory(\'' + id + '\')">🗑 حذف التصنيف (الأصناف هترجع للأساسية)</button>' +
+      '</div>' +
+      '<div class="modal-actions"><button class="modal-cancel" onclick="closeCatTabModal()">إلغاء</button></div>' +
+    '</div>';
+  document.body.appendChild(backdrop);
+}
+function closeCatTabModal(){
+  var m = document.getElementById('catTabModal');
+  if (m) m.remove();
+}
+function deleteCategory(id){
+  var cat = CATEGORIES.find(function(c){ return c.id === id; });
+  if (!cat) return;
+  if (!confirm('متأكد عايز تحذف تصنيف "' + cat.name + '"؟\nالأصناف اللي فيه هترجع للقائمة الأساسية.')) return;
+  CATEGORIES = CATEGORIES.filter(function(c){ return c.id !== id; });
+  Object.keys(PRODCATS).forEach(function(k){ if (PRODCATS[k] === id) delete PRODCATS[k]; });
+  saveCategories();
+  savePRODCATS();
+  if (ACTIVE_CAT === id) ACTIVE_CAT = null;
+  closeCatTabModal();
+  renderTabs();
+  renderGrid();
+  toast('🗑 اتحذف تصنيف "' + cat.name + '"');
 }
 function setActiveCat(id){
   ACTIVE_CAT = id;
@@ -207,6 +261,7 @@ function openCatMenu(idx){
     itemsHtml += '<button class="catopt" onclick="moveProduct(\'' + key + '\', \'' + c.id + '\')">📁 نقل إلى: ' + escapeHtml(c.name) + '</button>';
   });
   itemsHtml += '<button class="catopt" onclick="createCatAndMove(\'' + key + '\')">➕ تصنيف جديد وانقله له</button>';
+  itemsHtml += '<button class="catopt" style="color:#c0392b;border-color:#c0392b" onclick="deleteProductConfirm(' + idx + ')">🗑 حذف المنتج نهائيًا</button>';
   var backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'catModal';
@@ -228,6 +283,19 @@ function moveProduct(key, catId){
   closeCatModal();
   renderGrid();
   toast('✅ اتنقل الصنف');
+}
+function deleteProductConfirm(idx){
+  var p = PRODUCTS[idx];
+  if (!p) return;
+  if (!confirm('متأكد عايز تحذف "' + p.name + '" نهائيًا؟\n(لو الصنف لسه موجود في شيت المنتجات وحدّثت الشيت تاني، هيرجع تلقائي)')) return;
+  var key = p.barcode || p.sku;
+  PRODUCTS.splice(idx, 1);
+  delete PRODCATS[key];
+  localStorage.setItem(LS_KEY, JSON.stringify(PRODUCTS));
+  savePRODCATS();
+  closeCatModal();
+  renderGrid();
+  toast('🗑 اتحذف "' + p.name + '"');
 }
 function createCatAndMove(key){
   var name = prompt('اسم التصنيف الجديد:');
