@@ -411,6 +411,20 @@
 // ---- State ----
 let selectedGender = '';
 
+function showToast(msg, ms) {
+  let t = document.getElementById('barq-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'barq-toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e2235;color:white;padding:11px 22px;border-radius:22px;font-size:14px;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none;font-family:Cairo,sans-serif;white-space:nowrap;max-width:90vw;text-align:center;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, ms || 3000);
+}
+
 
 // ---- Birthdate max = today ----
 document.getElementById('birthdate').max = new Date().toISOString().split('T')[0];
@@ -494,7 +508,7 @@ document.getElementById('loyaltyForm').addEventListener('submit', function(e) {
     btn.textContent = '🎉 سجّل وابدأ تجميع النقاط';
   })
   .catch(() => {
-    alert('حدث خطأ، حاول مرة أخرى');
+    showToast('❌ حدث خطأ، حاول مرة أخرى', 4000);
     btn.disabled = false;
     btn.textContent = '🎉 سجّل وابدأ تجميع النقاط';
   });
