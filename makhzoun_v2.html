@@ -1027,6 +1027,23 @@ function unitLabel(u) {
   return UNIT_LABELS[key] || String(u).trim();
 }
 
+// اضغط على الرصيد الإجمالي لأي صنف يطلعلك رصيد كل فرع لوحده (المخزن الرئيسي/البيطاش/عين شمس) في 3 سطور تحت
+const BRANCH_ORDER = ['المخزن الرئيسي', 'البيطاش', 'عين شمس'];
+let expandedBranchSkus = new Set();
+function toggleBranchBreakdown(sku, renderFn) {
+  if (expandedBranchSkus.has(sku)) expandedBranchSkus.delete(sku);
+  else expandedBranchSkus.add(sku);
+  renderFn();
+}
+function branchBreakdownRow(sku, colspan) {
+  const byBranch = STOCK_BY_BRANCH[sku] || {};
+  const lines = BRANCH_ORDER.map(b => {
+    const q = byBranch[b];
+    return `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${b}</span><span style="font-weight:700">${q != null ? q.toFixed(2) : '—'}</span></div>`;
+  }).join('');
+  return `<tr><td colspan="${colspan}" style="background:var(--bg);padding:8px 20px;font-size:12px">${lines}</td></tr>`;
+}
+
 // أسماء الأصناف بتيجي من ملف CSV مرفوع، والملاحظات/الموردين بيتكتبوا يدوي — لازم تتنضف قبل ما تدخل innerHTML
 function escapeHtml(s) {
   if (s == null) return '';
@@ -1169,6 +1186,22 @@ function setSyncStatus(msg, isError) {
   if (el) { el.textContent = msg; el.style.color = isError ? 'var(--red)' : ''; }
 }
 
+// رصيد كل فرع لوحده (المخزن الرئيسي / البيطاش / عين شمس) — sku -> { 'فرع': qty, ... }
+// بيتحمل مع رصيد المخزون الإجمالي، لعرضه لما حد يفتح تفصيل صنف معيّن (اضغط على الكمية)
+let STOCK_BY_BRANCH = {};
+
+async function loadStockByBranch() {
+  try {
+    const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_stock_levels_by_branch?select=sku,branch,qty');
+    const map = {};
+    rows.forEach(r => {
+      if (!r.sku || !r.branch) return;
+      (map[r.sku] || (map[r.sku] = {}))[r.branch] = r.qty ?? 0;
+    });
+    STOCK_BY_BRANCH = map;
+  } catch (e) { console.error('[loadStockByBranch]', e); }
+}
+
 async function loadStockFromDataCenter() {
   const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_stock_levels?select=sku,name,unit,barcode,qty,cost_per_unit,total_cost');
   if (!rows.length) return false;
@@ -1177,6 +1210,7 @@ async function loadStockFromDataCenter() {
     'Quantity': row.qty ?? 0, 'Cost Per Unit': row.cost_per_unit ?? 0, 'Total Cost': row.total_cost ?? 0
   }));
   processData();
+  loadStockByBranch(); // مش بنستنى النتيجة عشان متأخرش عرض الشاشة الأساسية — التفصيل بيتحمل في الخلفية
   saveToHistory('مزامنة الداتا سنتر');
   document.getElementById('lastUpload').textContent = new Date().toLocaleTimeString('ar-EG');
   document.getElementById('uploadDateBadge').textContent = new Date().toLocaleDateString('ar-EG');
@@ -1406,7 +1440,7 @@ function renderOrders() {
       <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
       <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
-      <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
+      <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}" style="cursor:pointer" title="اضغط لعرض رصيد كل فرع" onclick="toggleBranchBreakdown('${r.sku}',renderOrders)">${r.qty.toFixed(2)} ${expandedBranchSkus.has(r.sku) ? '▲' : '▼'}</td>
       <td style="color:var(--muted)">${r.minQty}</td>
       <td>${r.lastPrice != null ? r.lastPrice.toFixed(2) + ' ج' : '<span style="color:var(--muted);font-size:12px">—</span>'}${r.lastPriceFromDC ? ' <span style="font-size:9px;color:#1a7a40">DC</span>' : ''}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
@@ -1418,6 +1452,7 @@ function renderOrders() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
+    ${expandedBranchSkus.has(r.sku) ? branchBreakdownRow(r.sku, 10) : ''}
   `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('ordersPager', pages, ordersPage, p => { ordersPage = p; renderOrders(); });
@@ -1465,7 +1500,7 @@ function renderAll() {
       <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
       <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
-      <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
+      <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}" style="cursor:pointer" title="اضغط لعرض رصيد كل فرع" onclick="toggleBranchBreakdown('${r.sku}',renderAll)">${r.qty.toFixed(2)} ${expandedBranchSkus.has(r.sku) ? '▲' : '▼'}</td>
       <td>${r.totalCost.toLocaleString('ar-EG', {minimumFractionDigits:0})} ج</td>
       <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
@@ -1479,6 +1514,7 @@ function renderAll() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
+    ${expandedBranchSkus.has(r.sku) ? branchBreakdownRow(r.sku, 10) : ''}
   `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('allPager', pages, allPage, p => { allPage = p; renderAll(); });
