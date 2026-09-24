@@ -121,6 +121,9 @@ var LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAAEsCAIAA
 
 var PRODUCTS = []; // {name, barcode, sku, price}
 var LS_KEY = 'barq_touch_products_v1';
+var SB_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qdmJ5ZG52eXdic2d5aHFmdGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODQyMDcsImV4cCI6MjA5Njk2MDIwN30.3UyyKGcmehGVxadPotOgwYF6CmDbkdb8gw7BFxlYFcU';
+var SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
 var ICON_COLORS = ['#2d8653','#1a3a5c','#8e5b2d','#7a4fa3','#c0392b','#0e7c86','#a8763e','#2f6b4f'];
 var ICON_EMOJIS = ['🥐','🍞','🥖','🧁','🥯','🍰','🧇','🥨'];
 
@@ -422,6 +425,39 @@ function loadFromStorage(){
     var saved = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
     PRODUCTS = saved || [];
   } catch(e){ PRODUCTS = []; }
+}
+
+async function loadFromSupabaseAuto(){
+  try {
+    var all = [], offset = 0, batchSize = 1000;
+    while (true) {
+      var r = await fetch(SB_URL + '/rest/v1/products_master?select=sku,name,barcode,price&order=name&limit=' + batchSize + '&offset=' + offset, { headers: SB_HEADERS });
+      if (!r.ok) throw new Error(r.statusText);
+      var batch = await r.json();
+      if (!batch || !batch.length) break;
+      all = all.concat(batch);
+      if (batch.length < batchSize) break;
+      offset += batchSize;
+    }
+    if (!all.length) return;
+    var seen = {}, list = [];
+    all.forEach(function(row){
+      var barcode = cleanBarcodeValue(row.barcode || '');
+      var sku = cleanBarcodeValue(row.sku || '');
+      if (!isValidBarcodeText(barcode)) barcode = '';
+      if (!isValidBarcodeText(sku)) sku = '';
+      var key = barcode || sku;
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      list.push({ name: row.name || key, barcode: barcode, sku: sku, price: parseFloat(row.price) || 0 });
+    });
+    if (!list.length) return;
+    PRODUCTS = list;
+    localStorage.setItem(LS_KEY, JSON.stringify(PRODUCTS));
+    seedDefaultCategories();
+    renderTabs();
+    renderGrid();
+  } catch(e) { /* offline or blocked — keep cached PRODUCTS from localStorage */ }
 }
 
 function hashStr(s){
@@ -741,6 +777,7 @@ loadCategories();
 seedDefaultCategories();
 renderTabs();
 renderGrid();
+loadFromSupabaseAuto();
 </script>
 </body>
 </html>

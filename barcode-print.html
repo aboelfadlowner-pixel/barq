@@ -245,6 +245,9 @@ var CURRENT_SEL = null; // currently selected master product, pending add
 
 var LS_MASTER = 'barq_bc_master_v1';
 var LS_DATES  = 'barq_bc_dates_v1';
+var SB_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qdmJ5ZG52eXdic2d5aHFmdGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODQyMDcsImV4cCI6MjA5Njk2MDIwN30.3UyyKGcmehGVxadPotOgwYF6CmDbkdb8gw7BFxlYFcU';
+var SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
 
 function todayStr(){
   var d = new Date();
@@ -442,6 +445,39 @@ function loadMasterFromStorage(){
     MASTER = saved || {};
   } catch(e){ MASTER = {}; }
   renderMasterStatus();
+}
+
+async function loadMasterFromSupabaseAuto(){
+  try {
+    var all = [], offset = 0, batchSize = 1000;
+    while (true) {
+      var r = await fetch(SB_URL + '/rest/v1/products_master?select=sku,name,barcode,price&order=name&limit=' + batchSize + '&offset=' + offset, { headers: SB_HEADERS });
+      if (!r.ok) throw new Error(r.statusText);
+      var batch = await r.json();
+      if (!batch || !batch.length) break;
+      all = all.concat(batch);
+      if (batch.length < batchSize) break;
+      offset += batchSize;
+    }
+    if (!all.length) return;
+    var newMaster = {};
+    all.forEach(function(row){
+      var barcode = cleanBarcodeValue(row.barcode || '');
+      var sku = cleanBarcodeValue(row.sku || '');
+      if (!isValidBarcodeText(barcode)) barcode = '';
+      if (!isValidBarcodeText(sku)) sku = '';
+      var key = barcode || sku;
+      if (!key) return;
+      var prod = { name: row.name || key, sku: sku, barcode: barcode, price: parseFloat(row.price) || 0 };
+      newMaster[key] = prod;
+      if (prod.sku) newMaster[prod.sku] = prod;
+      if (prod.barcode) newMaster[prod.barcode] = prod;
+    });
+    if (!Object.keys(newMaster).length) return;
+    MASTER = newMaster;
+    localStorage.setItem(LS_MASTER, JSON.stringify(MASTER));
+    renderMasterStatus();
+  } catch(e) { /* offline or blocked — keep cached MASTER from localStorage */ }
 }
 
 // ── بحث / سكان ──────────────────────────────────────
@@ -714,6 +750,7 @@ function escapeHtml(s){
 
 loadMasterFromStorage();
 renderTable();
+loadMasterFromSupabaseAuto();
 </script>
 </body>
 </html>
