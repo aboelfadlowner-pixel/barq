@@ -752,12 +752,12 @@ function doLogin() {
   Object.keys(ROLES).forEach(function(k){if(ROLES[k].pass===pass)found=k;});
   if(!found){var e=document.getElementById('ae');if(e)e.textContent='كلمة المرور غلط';return;}
   role=found; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.setItem('barq_session_role', role); } catch(e){}
+  try { sessionStorage.setItem('barq_session_role', role); } catch(e){}
   loadFromSupabase();
 }
 function doLogout() {
   role=null; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.removeItem('barq_session_role'); } catch(e){}
+  try { sessionStorage.removeItem('barq_session_role'); } catch(e){}
   render();
 }
 
@@ -4534,7 +4534,7 @@ window.addEventListener('load', async function(){
   }
 
   var savedRole = null;
-  try { savedRole = localStorage.getItem('barq_session_role'); } catch(e){}
+  try { savedRole = sessionStorage.getItem('barq_session_role'); } catch(e){}
   if (savedRole && ROLES[savedRole]) {
     role = savedRole;
     view = 'queue';
