@@ -966,6 +966,33 @@ async function fetchAllPaged(pathBase) {
   } catch(e) { return []; }
 }
 
+var DC_SYNC_STATUS = null; // { ok:bool, msg:string, at:Date } — آخر نتيجة مزامنة الداتا سنتر (كتالوج المنتجات ومواد المخزون)، لعرضها في مركز المزامنة
+
+function syncDataCenterCatalog() {
+  DC_SYNC_STATUS = { ok:null, msg:'⏳ جاري المزامنة...', at:new Date() };
+  if (view === 'synccenter') render();
+  return fetch(SB_URL + '/functions/v1/dc-sync', { method:'POST', headers: SB_HEADERS, body: JSON.stringify({}) })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){
+      var failed = (data.results || []).filter(function(x){ return x.status === 'failed'; });
+      if (failed.length) {
+        var msg = '⚠️ فشلت مزامنة: ' + failed.map(function(f){ return f.table + (f.error ? ' (' + f.error + ')' : ''); }).join('، ');
+        DC_SYNC_STATUS = { ok:false, msg:msg, at:new Date() };
+        toast(msg, 6000);
+      }
+      return sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) }).then(function(){
+        if (!failed.length) { DC_SYNC_STATUS = { ok:true, msg:'✅ تمت المزامنة بنجاح', at:new Date() }; }
+        if (view === 'synccenter') render();
+      });
+    })
+    .catch(function(e){
+      var msg = '⚠️ تعذّرت مزامنة الداتا سنتر (' + (e && e.message || e) + ')';
+      DC_SYNC_STATUS = { ok:false, msg:msg, at:new Date() };
+      toast(msg, 6000);
+      if (view === 'synccenter') render();
+    });
+}
+
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
   var root = document.getElementById('root');
@@ -975,14 +1002,7 @@ async function loadFromSupabase() {
   // بتتطلق في الخلفية كل مرة حد يفتح التطبيق (بدل معاد يومي ثابت)، من غير ما نستنى نتيجتها عشان متبطأش تحميل الشاشة.
   // بنسحب أولاً من درايف لجداول dc_* (dc-sync) وبعدين ننشرها على products_master/materials_master (sync_catalog_from_dc) —
   // من غير الاعتماد على فتح برنامج تاني (زي المخزون) الأول. فيها حماية داخلية في السيرفر تمنع التكرار المتقارب.
-  fetch(SB_URL + '/functions/v1/dc-sync', { method:'POST', headers: SB_HEADERS, body: JSON.stringify({}) })
-    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function(data){
-      var failed = (data.results || []).filter(function(x){ return x.status === 'failed'; });
-      if (failed.length) toast('⚠️ فشلت مزامنة: ' + failed.map(function(f){ return f.table; }).join('، '), 6000);
-      return sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) });
-    })
-    .catch(function(e){ toast('⚠️ تعذّرت مزامنة الداتا سنتر (' + (e && e.message || e) + ')', 6000); });
+  syncDataCenterCatalog();
 
   try {
     // كل الجداول دي مستقلة عن بعض — بنجيبها كلها مع بعض (parallel) بدل واحد ورا التاني، عشان التحميل يبقى
@@ -4350,9 +4370,26 @@ function renderSyncCenter() {
       '<th style="text-align:center">الحالة</th><th>السبب (لو فشلت)</th><th style="text-align:center">إجراءات</th>' +
     '</tr></thead><tbody>'+rows+'</tbody></table></div>' +
   '</div>' +
+  renderDcSyncCard() +
   '<div class="cd" style="background:var(--bg);font-size:11px;color:var(--muted)">' +
     '🔒 البيانات المحفوظة محلياً على هذا الجهاز مشفّرة (AES-256) — لا يمكن قراءتها كملف عادي خارج التطبيق. ' +
     'لكن كما هو الحال في أي تطبيق يعمل من المتصفح فقط، هذا الإجراء يحمي من القراءة العرضية وليس بديلاً كاملاً عن تشفير من جهة خادم مستقل.' +
+  '</div>';
+}
+
+// كتالوج المنتجات ومواد المخزون (اللي جاي من الداتا سنتر) منفصل تمامًا عن طابور العمليات فوق —
+// ده زرار مباشر وواضح النتيجة، عشان مبقاش فيه اعتماد على إن التحديث التلقائي وقت فتح التطبيق نجح ولا لأ
+function renderDcSyncCard() {
+  var s = DC_SYNC_STATUS;
+  var statusLine = s
+    ? '<div style="font-size:12px;margin-top:8px;color:'+(s.ok===false?'#c0392b':(s.ok===true?'#1a7a40':'var(--muted)'))+'">'+s.msg+' — '+s.at.toLocaleTimeString('ar-EG-u-nu-latn')+'</div>'
+    : '<div style="font-size:12px;margin-top:8px;color:var(--muted)">لسه معملتش مزامنة يدوية في الجلسة دي</div>';
+  return '<div class="cd">' +
+    '<div class="ct">📦 كتالوج المنتجات ومواد المخزون (الداتا سنتر)' +
+      '<button class="bn bn-p" onclick="syncDataCenterCatalog()">🔄 مزامنة الآن</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted)">بتسحب أحدث نسخة من شيتات فودكس (المنتجات، مواد المخزون، الموردين...) وتحدّث بيها التطبيق — مش مرتبطة بطابور العمليات فوق.</div>' +
+    statusLine +
   '</div>';
 }
 
