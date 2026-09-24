@@ -904,11 +904,19 @@ var _realtimeChannel = null;
 
 function loadRealtimeLib(cb) {
   if (_realtimeLibLoaded || window.supabase) { _realtimeLibLoaded = true; cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
-  s.onload = function(){ _realtimeLibLoaded = true; cb(); };
-  s.onerror = function(){ console.error('تعذر تحميل مكتبة التحديث الفوري'); };
-  document.body.appendChild(s);
+  var CDNS = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
+  ];
+  function tryLoad(i) {
+    if (i >= CDNS.length) { console.error('تعذر تحميل مكتبة التحديث الفوري — التطبيق هيشتغل عادي بس بدون تحديث فوري بين النوافذ'); return; }
+    var s = document.createElement('script');
+    s.src = CDNS[i];
+    s.onload = function(){ _realtimeLibLoaded = true; cb(); };
+    s.onerror = function(){ tryLoad(i + 1); };
+    document.body.appendChild(s);
+  }
+  tryLoad(0);
 }
 
 function startRealtime() {
