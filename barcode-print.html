@@ -177,6 +177,18 @@ td input[type="date"]{width:120px}
       </label>
       <button class="btn btn-ghost" onclick="clearMaster()" id="clearMasterBtn" style="display:none">🗑️ مسح القاعدة</button>
     </div>
+
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+    <h2 style="font-size:15px">🥐 فلتر المخبوزات (من الداتا سنتر)</h2>
+    <div class="sub">ارفع قائمة أكواد (SKU) أصناف المخبوزات مرة واحدة — الأداة هتاخد بس دول من قاعدة الداتا سنتر (اللي فيها كل منتجات الفرع) تلقائي كل ما تفتح الصفحة.</div>
+    <div class="btn-row" style="margin-top:8px">
+      <label class="btn btn-ghost" style="display:inline-block">
+        📂 رفع/تحديث قائمة أكواد المخبوزات
+        <input type="file" id="bakeryFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleBakeryUpload(event)">
+      </label>
+      <button class="btn btn-ghost" onclick="loadMasterFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
+    </div>
+    <div class="sub" id="bakeryStatus" style="margin-top:8px"></div>
   </div>
 
   <div class="card">
@@ -447,6 +459,51 @@ function loadMasterFromStorage(){
   renderMasterStatus();
 }
 
+// قائمة أكواد (SKU) المخبوزات — بتتفلتر بيها بيانات الداتا سنتر (اللي فيها كل منتجات الفرع)
+// عشان الأداة دي تاخد بس أصناف المخبوزات، مش كل حاجة
+var LS_BAKERY_SKUS = 'barq_bc_bakery_skus_v1';
+function loadBakerySkuSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function saveBakerySkusFromRows(rows){
+  var skus = rows.map(function(r){ return String(pick(r, ['sku']) || '').trim().toLowerCase(); }).filter(Boolean);
+  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(skus));
+  return skus.length;
+}
+function renderBakeryStatus(){
+  var el = document.getElementById('bakeryStatus');
+  if (!el) return;
+  var n = loadBakerySkuSet().size;
+  el.textContent = n ? ('🥐 فلتر المخبوزات فعّال: ' + n + ' كود') : '🥐 مفيش قائمة أكواد مخبوزات متحمّلة — هيتحمّل كل منتجات الفرع';
+}
+function handleBakeryUpload(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: function(res){
+      var count = saveBakerySkusFromRows(res.data);
+      renderBakeryStatus();
+      toast('✅ اتحفظت قائمة المخبوزات (' + count + ' كود)');
+      loadMasterFromSupabaseAuto();
+    }});
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      var count = saveBakerySkusFromRows(json);
+      renderBakeryStatus();
+      toast('✅ اتحفظت قائمة المخبوزات (' + count + ' كود)');
+      loadMasterFromSupabaseAuto();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  evt.target.value = '';
+}
+
 async function loadMasterFromSupabaseAuto(){
   try {
     var all = [], offset = 0, batchSize = 1000;
@@ -460,8 +517,10 @@ async function loadMasterFromSupabaseAuto(){
       offset += batchSize;
     }
     if (!all.length) return;
+    var bakerySkus = loadBakerySkuSet();
     var newMaster = {};
     all.forEach(function(row){
+      if (bakerySkus.size && !bakerySkus.has(String(row.sku || '').trim().toLowerCase())) return;
       var barcode = cleanBarcodeValue(row.barcode || '');
       var sku = cleanBarcodeValue(row.sku || '');
       if (!isValidBarcodeText(barcode)) barcode = '';
@@ -750,6 +809,7 @@ function escapeHtml(s){
 
 loadMasterFromStorage();
 renderTable();
+renderBakeryStatus();
 loadMasterFromSupabaseAuto();
 </script>
 </body>

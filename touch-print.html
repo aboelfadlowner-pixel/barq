@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v9</div>
+  <div style="font-size:11px;opacity:.7">إصدار v10</div>
 </div>
 
 <div class="toolbar">
@@ -101,9 +101,15 @@ button,input{font-family:'Cairo',sans-serif}
     📂 رفع شيت المنتجات
     <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleImport(event)">
   </label>
+  <label class="btn btn-ghost" style="display:inline-block">
+    🥐 قائمة أكواد المخبوزات
+    <input type="file" id="bakeryFileInput" accept=".csv" style="display:none" onchange="handleBakeryUpload(event)">
+  </label>
+  <button class="btn btn-ghost" onclick="loadFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
   <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." inputmode="search" oninput="renderGrid()">
   <span class="status" id="statusText">لسه مفيش شيت متحمل</span>
 </div>
+<div id="bakeryStatus" style="padding:4px 16px;font-size:11px;color:var(--muted)"></div>
 
 <div class="cattabs" id="catTabs"></div>
 
@@ -427,6 +433,38 @@ function loadFromStorage(){
   } catch(e){ PRODUCTS = []; }
 }
 
+// قائمة أكواد (SKU) المخبوزات — بتتفلتر بيها بيانات الداتا سنتر (اللي فيها كل منتجات الفرع)
+// عشان الشاشة دي تاخد بس أصناف المخبوزات، مش كل حاجة
+var LS_BAKERY_SKUS = 'barq_touch_bakery_skus_v1';
+function loadBakerySkuSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function saveBakerySkusFromRows(rows){
+  var skus = rows.map(function(r){ return String(pick(r, ['sku']) || '').trim().toLowerCase(); }).filter(Boolean);
+  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(skus));
+  return skus.length;
+}
+function renderBakeryStatus(){
+  var el = document.getElementById('bakeryStatus');
+  if (!el) return;
+  var n = loadBakerySkuSet().size;
+  el.textContent = n ? ('🥐 فلتر المخبوزات فعّال: ' + n + ' كود') : '🥐 مفيش قائمة أكواد مخبوزات متحمّلة — هيتحمّل كل منتجات الفرع';
+}
+function handleBakeryUpload(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var count = saveBakerySkusFromRows(parseCSV(e.target.result));
+    renderBakeryStatus();
+    toast('✅ اتحفظت قائمة المخبوزات (' + count + ' كود)');
+    loadFromSupabaseAuto();
+  };
+  reader.readAsText(file, 'UTF-8');
+  evt.target.value = '';
+}
+
 async function loadFromSupabaseAuto(){
   try {
     var all = [], offset = 0, batchSize = 1000;
@@ -440,8 +478,10 @@ async function loadFromSupabaseAuto(){
       offset += batchSize;
     }
     if (!all.length) return;
+    var bakerySkus = loadBakerySkuSet();
     var seen = {}, list = [];
     all.forEach(function(row){
+      if (bakerySkus.size && !bakerySkus.has(String(row.sku || '').trim().toLowerCase())) return;
       var barcode = cleanBarcodeValue(row.barcode || '');
       var sku = cleanBarcodeValue(row.sku || '');
       if (!isValidBarcodeText(barcode)) barcode = '';
@@ -457,6 +497,7 @@ async function loadFromSupabaseAuto(){
     seedDefaultCategories();
     renderTabs();
     renderGrid();
+    toast('✅ اتحدّث من الداتا سنتر (' + list.length + ' صنف)');
   } catch(e) { /* offline or blocked — keep cached PRODUCTS from localStorage */ }
 }
 
@@ -777,6 +818,7 @@ loadCategories();
 seedDefaultCategories();
 renderTabs();
 renderGrid();
+renderBakeryStatus();
 loadFromSupabaseAuto();
 </script>
 </body>
