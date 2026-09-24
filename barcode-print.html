@@ -179,13 +179,17 @@ td input[type="date"]{width:120px}
     </div>
 
     <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
-    <h2 style="font-size:15px">🥐 فلتر المخبوزات (من الداتا سنتر)</h2>
-    <div class="sub">ارفع قائمة أكواد (SKU) أصناف المخبوزات مرة واحدة — الأداة هتاخد بس دول من قاعدة الداتا سنتر (اللي فيها كل منتجات الفرع) تلقائي كل ما تفتح الصفحة.</div>
+    <h2 style="font-size:15px">🥐 فلتر القسم (من الداتا سنتر)</h2>
+    <div class="sub">اختار قسم المخبوزات من القايمة (بتتجاب مباشرة من نفس جدول الأقسام اللي شغالة بيه باقي الأدوات) — مفيش أي رفع ملف مطلوب.</div>
+    <div class="row" style="margin-top:8px">
+      <div class="field" style="flex:1">
+        <label>القسم</label>
+        <select id="deptSelect" onchange="onDeptSelectChange()">
+          <option value="">🥐 كل الأقسام (اختار قسم المخبوزات)</option>
+        </select>
+      </div>
+    </div>
     <div class="btn-row" style="margin-top:8px">
-      <label class="btn btn-ghost" style="display:inline-block">
-        📂 رفع/تحديث قائمة أكواد المخبوزات
-        <input type="file" id="bakeryFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleBakeryUpload(event)">
-      </label>
       <button class="btn btn-ghost" onclick="loadMasterFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
     </div>
     <div class="sub" id="bakeryStatus" style="margin-top:8px"></div>
@@ -459,83 +463,85 @@ function loadMasterFromStorage(){
   renderMasterStatus();
 }
 
-// قائمة أكواد (SKU) المخبوزات — بتتفلتر بيها بيانات الداتا سنتر (اللي فيها كل منتجات الفرع)
-// عشان الأداة دي تاخد بس أصناف المخبوزات، مش كل حاجة
-var LS_BAKERY_SKUS = 'barq_bc_bakery_skus_v1';
-function loadBakerySkuSet(){
-  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
-  catch(e){ return new Set(); }
+// فلتر القسم: بيتجاب مباشرة من جدول sku_departments في الداتا سنتر (نفس الجدول اللي باقي الأدوات
+// عندك بتستخدمه)، فمفيش أي رفع ملف مطلوب — تختار القسم مرة واحدة من قائمة حية وخلاص
+var LS_DEPT = 'barq_bc_department_v1';
+var DEPARTMENTS = {}; // sku -> department
+var RAW_MASTER_CACHE = []; // آخر نتيجة خام من products_master قبل فلترة القسم
+
+async function fetchAllPaged(query){
+  var all = [], offset = 0, batchSize = 1000;
+  while (true) {
+    var r = await fetch(SB_URL + '/rest/v1/' + query + (query.indexOf('?') === -1 ? '?' : '&') + 'limit=' + batchSize + '&offset=' + offset, { headers: SB_HEADERS });
+    if (!r.ok) throw new Error(r.statusText);
+    var batch = await r.json();
+    if (!batch || !batch.length) break;
+    all = all.concat(batch);
+    if (batch.length < batchSize) break;
+    offset += batchSize;
+  }
+  return all;
 }
-function saveBakerySkusFromRows(rows){
-  var skus = rows.map(function(r){ return String(pick(r, ['sku']) || '').trim().toLowerCase(); }).filter(Boolean);
-  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(skus));
-  return skus.length;
-}
+
 function renderBakeryStatus(){
   var el = document.getElementById('bakeryStatus');
   if (!el) return;
-  var n = loadBakerySkuSet().size;
-  el.textContent = n ? ('🥐 فلتر المخبوزات فعّال: ' + n + ' كود') : '🥐 مفيش قائمة أكواد مخبوزات متحمّلة — هيتحمّل كل منتجات الفرع';
+  var dept = localStorage.getItem(LS_DEPT);
+  el.textContent = dept ? ('🥐 فلتر القسم فعّال: ' + dept) : '🥐 اختار قسم المخبوزات من القايمة فوق عشان الفلتر يشتغل';
 }
-function handleBakeryUpload(evt){
-  var file = evt.target.files[0];
-  if (!file) return;
-  var ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'csv') {
-    Papa.parse(file, { header: true, skipEmptyLines: true, complete: function(res){
-      var count = saveBakerySkusFromRows(res.data);
-      renderBakeryStatus();
-      toast('✅ اتحفظت قائمة المخبوزات (' + count + ' كود)');
-      loadMasterFromSupabaseAuto();
-    }});
-  } else {
-    var reader = new FileReader();
-    reader.onload = function(e){
-      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-      var sheet = wb.Sheets[wb.SheetNames[0]];
-      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      var count = saveBakerySkusFromRows(json);
-      renderBakeryStatus();
-      toast('✅ اتحفظت قائمة المخبوزات (' + count + ' كود)');
-      loadMasterFromSupabaseAuto();
-    };
-    reader.readAsArrayBuffer(file);
-  }
-  evt.target.value = '';
+function populateDeptSelect(){
+  var sel = document.getElementById('deptSelect');
+  if (!sel) return;
+  var current = localStorage.getItem(LS_DEPT) || '';
+  var set = {};
+  Object.keys(DEPARTMENTS).forEach(function(sku){ set[DEPARTMENTS[sku]] = true; });
+  var names = Object.keys(set).sort();
+  var html = '<option value="">🥐 كل الأقسام (اختار قسم المخبوزات)</option>';
+  names.forEach(function(n){
+    html += '<option value="' + escapeHtml(n) + '"' + (n === current ? ' selected' : '') + '>' + escapeHtml(n) + '</option>';
+  });
+  sel.innerHTML = html;
+}
+function onDeptSelectChange(){
+  var sel = document.getElementById('deptSelect');
+  var val = sel ? sel.value : '';
+  if (val) localStorage.setItem(LS_DEPT, val); else localStorage.removeItem(LS_DEPT);
+  renderBakeryStatus();
+  applyDeptFilterAndRender();
+}
+function applyDeptFilterAndRender(){
+  var dept = localStorage.getItem(LS_DEPT);
+  var newMaster = {};
+  RAW_MASTER_CACHE.forEach(function(row){
+    if (dept && DEPARTMENTS[row.sku] !== dept) return;
+    var barcode = cleanBarcodeValue(row.barcode || '');
+    var sku = cleanBarcodeValue(row.sku || '');
+    if (!isValidBarcodeText(barcode)) barcode = '';
+    if (!isValidBarcodeText(sku)) sku = '';
+    var key = barcode || sku;
+    if (!key) return;
+    var prod = { name: row.name || key, sku: sku, barcode: barcode, price: parseFloat(row.price) || 0 };
+    newMaster[key] = prod;
+    if (prod.sku) newMaster[prod.sku] = prod;
+    if (prod.barcode) newMaster[prod.barcode] = prod;
+  });
+  if (!Object.keys(newMaster).length) return;
+  MASTER = newMaster;
+  localStorage.setItem(LS_MASTER, JSON.stringify(MASTER));
+  renderMasterStatus();
 }
 
 async function loadMasterFromSupabaseAuto(){
   try {
-    var all = [], offset = 0, batchSize = 1000;
-    while (true) {
-      var r = await fetch(SB_URL + '/rest/v1/products_master?select=sku,name,barcode,price&order=name&limit=' + batchSize + '&offset=' + offset, { headers: SB_HEADERS });
-      if (!r.ok) throw new Error(r.statusText);
-      var batch = await r.json();
-      if (!batch || !batch.length) break;
-      all = all.concat(batch);
-      if (batch.length < batchSize) break;
-      offset += batchSize;
-    }
+    var depts = await fetchAllPaged('sku_departments?select=sku,department&order=sku');
+    DEPARTMENTS = {};
+    depts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
+    populateDeptSelect();
+
+    var all = await fetchAllPaged('products_master?select=sku,name,barcode,price&order=name');
     if (!all.length) return;
-    var bakerySkus = loadBakerySkuSet();
-    var newMaster = {};
-    all.forEach(function(row){
-      if (bakerySkus.size && !bakerySkus.has(String(row.sku || '').trim().toLowerCase())) return;
-      var barcode = cleanBarcodeValue(row.barcode || '');
-      var sku = cleanBarcodeValue(row.sku || '');
-      if (!isValidBarcodeText(barcode)) barcode = '';
-      if (!isValidBarcodeText(sku)) sku = '';
-      var key = barcode || sku;
-      if (!key) return;
-      var prod = { name: row.name || key, sku: sku, barcode: barcode, price: parseFloat(row.price) || 0 };
-      newMaster[key] = prod;
-      if (prod.sku) newMaster[prod.sku] = prod;
-      if (prod.barcode) newMaster[prod.barcode] = prod;
-    });
-    if (!Object.keys(newMaster).length) return;
-    MASTER = newMaster;
-    localStorage.setItem(LS_MASTER, JSON.stringify(MASTER));
-    renderMasterStatus();
+    RAW_MASTER_CACHE = all;
+    applyDeptFilterAndRender();
   } catch(e) { /* offline or blocked — keep cached MASTER from localStorage */ }
 }
 
