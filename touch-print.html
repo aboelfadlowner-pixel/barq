@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v11</div>
+  <div style="font-size:11px;opacity:.7">إصدار v12</div>
 </div>
 
 <div class="toolbar">
@@ -104,6 +104,10 @@ button,input{font-family:'Cairo',sans-serif}
   <select id="deptSelect" onchange="onDeptSelectChange()" style="padding:11px 10px;border:2px solid var(--border);border-radius:10px;font-size:13px;font-weight:800;background:#fff">
     <option value="">🥐 كل الأقسام (اختار قسم المخبوزات)</option>
   </select>
+  <label class="btn btn-ghost" style="display:inline-block">
+    🥐 إضافة أصناف لقائمة المخبوزات
+    <input type="file" id="bakeryFileInput" accept=".csv" style="display:none" onchange="handleBakeryUpload(event)">
+  </label>
   <button class="btn btn-ghost" onclick="loadFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
   <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." inputmode="search" oninput="renderGrid()">
   <span class="status" id="statusText">لسه مفيش شيت متحمل</span>
@@ -432,10 +436,39 @@ function loadFromStorage(){
   } catch(e){ PRODUCTS = []; }
 }
 
-// فلتر القسم: بيتجاب مباشرة من جدول sku_departments في الداتا سنتر (نفس الجدول اللي باقي الأدوات
-// عندك بتستخدمه)، فمفيش أي رفع ملف مطلوب — تختار القسم مرة واحدة من قائمة حية وخلاص
+// فلتر المخبوزات: تقدر تفلتر بقسم حي من جدول sku_departments، و/أو بقائمة أكواد (SKU) بترفعها بنفسك
+// وبتتجمّع مع بعضها مع كل رفعة (مش بتتمسح) — أي صنف يتطابق مع أي حاجة من الاتنين بيظهر
 var LS_DEPT = 'barq_touch_department_v1';
+var LS_BAKERY_SKUS = 'barq_touch_bakery_skus_v1';
 var DEPARTMENTS = {}; // sku -> department
+
+function loadBakerySkuSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function mergeBakerySkusFromRows(rows){
+  var set = loadBakerySkuSet();
+  var added = 0;
+  rows.forEach(function(r){
+    var sku = String(pick(r, ['sku']) || '').trim().toLowerCase();
+    if (sku && !set.has(sku)) { set.add(sku); added++; }
+  });
+  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(Array.from(set)));
+  return { added: added, total: set.size };
+}
+function handleBakeryUpload(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var res = mergeBakerySkusFromRows(parseCSV(e.target.result));
+    renderBakeryStatus();
+    toast('✅ اتضاف ' + res.added + ' كود جديد لقائمة المخبوزات (الإجمالي: ' + res.total + ')');
+    if (RAW_PRODUCTS_CACHE.length) applyDeptFilterAndRender(); else loadFromSupabaseAuto();
+  };
+  reader.readAsText(file, 'UTF-8');
+  evt.target.value = '';
+}
 
 async function fetchAllPaged(query){
   var all = [], offset = 0, batchSize = 1000;
@@ -455,7 +488,11 @@ function renderBakeryStatus(){
   var el = document.getElementById('bakeryStatus');
   if (!el) return;
   var dept = localStorage.getItem(LS_DEPT);
-  el.textContent = dept ? ('🥐 فلتر القسم فعّال: ' + dept) : '🥐 اختار قسم المخبوزات من القايمة فوق عشان الفلتر يشتغل';
+  var skuCount = loadBakerySkuSet().size;
+  var parts = [];
+  if (dept) parts.push('قسم: ' + dept);
+  if (skuCount) parts.push(skuCount + ' كود مُضاف يدوي');
+  el.textContent = parts.length ? ('🥐 الفلتر فعّال — ' + parts.join(' + ')) : '🥐 مفيش فلتر متظبط — هيتحمّل كل منتجات الفرع (اختار قسم أو ارفع قائمة أكواد)';
 }
 function populateDeptSelect(){
   var sel = document.getElementById('deptSelect');
@@ -482,9 +519,15 @@ var RAW_PRODUCTS_CACHE = []; // آخر نتيجة خام من products_master ق
 
 function applyDeptFilterAndRender(){
   var dept = localStorage.getItem(LS_DEPT);
+  var bakerySkus = loadBakerySkuSet();
+  var filterActive = !!dept || bakerySkus.size > 0;
   var seen = {}, list = [];
   RAW_PRODUCTS_CACHE.forEach(function(row){
-    if (dept && DEPARTMENTS[row.sku] !== dept) return;
+    if (filterActive) {
+      var inDept = dept && DEPARTMENTS[row.sku] === dept;
+      var inList = bakerySkus.has(String(row.sku || '').trim().toLowerCase());
+      if (!inDept && !inList) return;
+    }
     var barcode = cleanBarcodeValue(row.barcode || '');
     var sku = cleanBarcodeValue(row.sku || '');
     if (!isValidBarcodeText(barcode)) barcode = '';

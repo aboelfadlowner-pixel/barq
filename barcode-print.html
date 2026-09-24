@@ -179,8 +179,8 @@ td input[type="date"]{width:120px}
     </div>
 
     <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
-    <h2 style="font-size:15px">🥐 فلتر القسم (من الداتا سنتر)</h2>
-    <div class="sub">اختار قسم المخبوزات من القايمة (بتتجاب مباشرة من نفس جدول الأقسام اللي شغالة بيه باقي الأدوات) — مفيش أي رفع ملف مطلوب.</div>
+    <h2 style="font-size:15px">🥐 فلتر المخبوزات (من الداتا سنتر)</h2>
+    <div class="sub">اختار قسم المخبوزات من القايمة الحية، و/أو ارفع شيت أكواد (SKU) المخبوزات بتاعك — أي صنف يتطابق مع أي حاجة من الاتنين هيظهر. رفع شيت جديد بيضيف الأكواد اللي فيه للقائمة الموجودة، مش بيمسحها.</div>
     <div class="row" style="margin-top:8px">
       <div class="field" style="flex:1">
         <label>القسم</label>
@@ -190,6 +190,10 @@ td input[type="date"]{width:120px}
       </div>
     </div>
     <div class="btn-row" style="margin-top:8px">
+      <label class="btn btn-ghost" style="display:inline-block">
+        📂 إضافة أصناف لقائمة المخبوزات
+        <input type="file" id="bakeryFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleBakeryUpload(event)">
+      </label>
       <button class="btn btn-ghost" onclick="loadMasterFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
     </div>
     <div class="sub" id="bakeryStatus" style="margin-top:8px"></div>
@@ -463,11 +467,50 @@ function loadMasterFromStorage(){
   renderMasterStatus();
 }
 
-// فلتر القسم: بيتجاب مباشرة من جدول sku_departments في الداتا سنتر (نفس الجدول اللي باقي الأدوات
-// عندك بتستخدمه)، فمفيش أي رفع ملف مطلوب — تختار القسم مرة واحدة من قائمة حية وخلاص
+// فلتر المخبوزات: تقدر تفلتر بقسم حي من جدول sku_departments، و/أو بقائمة أكواد (SKU) بترفعها بنفسك
+// وبتتجمّع مع بعضها مع كل رفعة (مش بتتمسح) — أي صنف يتطابق مع أي حاجة من الاتنين بيظهر
 var LS_DEPT = 'barq_bc_department_v1';
+var LS_BAKERY_SKUS = 'barq_bc_bakery_skus_v1';
 var DEPARTMENTS = {}; // sku -> department
 var RAW_MASTER_CACHE = []; // آخر نتيجة خام من products_master قبل فلترة القسم
+
+function loadBakerySkuSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function mergeBakerySkusFromRows(rows){
+  var set = loadBakerySkuSet();
+  var added = 0;
+  rows.forEach(function(r){
+    var sku = String(pick(r, ['sku']) || '').trim().toLowerCase();
+    if (sku && !set.has(sku)) { set.add(sku); added++; }
+  });
+  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(Array.from(set)));
+  return { added: added, total: set.size };
+}
+function handleBakeryUpload(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  var afterMerge = function(res){
+    renderBakeryStatus();
+    toast('✅ اتضاف ' + res.added + ' كود جديد لقائمة المخبوزات (الإجمالي: ' + res.total + ')');
+    if (RAW_MASTER_CACHE.length) applyDeptFilterAndRender(); else loadMasterFromSupabaseAuto();
+  };
+  if (ext === 'csv') {
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: function(res){ afterMerge(mergeBakerySkusFromRows(res.data)); }});
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      afterMerge(mergeBakerySkusFromRows(json));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  evt.target.value = '';
+}
 
 async function fetchAllPaged(query){
   var all = [], offset = 0, batchSize = 1000;
@@ -487,7 +530,11 @@ function renderBakeryStatus(){
   var el = document.getElementById('bakeryStatus');
   if (!el) return;
   var dept = localStorage.getItem(LS_DEPT);
-  el.textContent = dept ? ('🥐 فلتر القسم فعّال: ' + dept) : '🥐 اختار قسم المخبوزات من القايمة فوق عشان الفلتر يشتغل';
+  var skuCount = loadBakerySkuSet().size;
+  var parts = [];
+  if (dept) parts.push('قسم: ' + dept);
+  if (skuCount) parts.push(skuCount + ' كود مُضاف يدوي');
+  el.textContent = parts.length ? ('🥐 الفلتر فعّال — ' + parts.join(' + ')) : '🥐 مفيش فلتر متظبط — هيتحمّل كل منتجات الفرع (اختار قسم أو ارفع قائمة أكواد)';
 }
 function populateDeptSelect(){
   var sel = document.getElementById('deptSelect');
@@ -511,9 +558,15 @@ function onDeptSelectChange(){
 }
 function applyDeptFilterAndRender(){
   var dept = localStorage.getItem(LS_DEPT);
+  var bakerySkus = loadBakerySkuSet();
+  var filterActive = !!dept || bakerySkus.size > 0;
   var newMaster = {};
   RAW_MASTER_CACHE.forEach(function(row){
-    if (dept && DEPARTMENTS[row.sku] !== dept) return;
+    if (filterActive) {
+      var inDept = dept && DEPARTMENTS[row.sku] === dept;
+      var inList = bakerySkus.has(String(row.sku || '').trim().toLowerCase());
+      if (!inDept && !inList) return;
+    }
     var barcode = cleanBarcodeValue(row.barcode || '');
     var sku = cleanBarcodeValue(row.sku || '');
     if (!isValidBarcodeText(barcode)) barcode = '';
