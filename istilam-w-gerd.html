@@ -1922,7 +1922,10 @@ function pickField(row, candidates) {
   return '';
 }
 
-function processProductRows(rows, filename) {
+// ملحوظة: الفانكشن دي كانت بتحدّث PRODUCTS في الذاكرة بس من غير ما تحفظ في قاعدة البيانات (products_master) —
+// فأي صنف جديد كان بيتضاف في التاب المفتوح وقتها بس، وكان بيختفي تاني بعد أي Reload أو من جهاز/تاب تاني.
+// دلوقتي بقت async وبتحفظ في القاعدة بنفس طريقة processFoodicsFullFile بالظبط.
+async function processProductRows(rows, filename) {
   var resBox = document.getElementById('prod-up-result');
   if (!rows || !rows.length) {
     if (resBox) resBox.innerHTML = '⚠️ الملف فارغ أو غير صالح';
@@ -1930,6 +1933,7 @@ function processProductRows(rows, filename) {
   }
 
   var added = 0, updated = 0;
+  var masterRows = [];
   rows.forEach(function(row){
     var sku   = String(pickField(row, ['sku','code','كود'])).trim();
     var name  = String(pickField(row, ['name','الاسم','product_name'])).trim();
@@ -1948,11 +1952,37 @@ function processProductRows(rows, filename) {
       PRODUCTS[sku] = { n:name, c:cost, p:price, bc:bc, margin: cost&&price ? ((price-cost)/price*100) : 22 };
       added++;
     }
+    masterRows.push({
+      sku: sku, name: PRODUCTS[sku].n, barcode: PRODUCTS[sku].bc,
+      cost: PRODUCTS[sku].c, price: PRODUCTS[sku].p, margin: PRODUCTS[sku].margin
+    });
   });
 
-  addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated);
-  if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+')';
-  toast('✅ تم تحديث بيانات المنتجات');
+  if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
+  toast('⏳ جاري حفظ '+masterRows.length+' صنف بشكل دائم...');
+
+  var batchSize = 500;
+  var queuedBatches = 0;
+  for (var b=0; b<masterRows.length; b+=batchSize) {
+    var chunk = masterRows.slice(b, b+batchSize);
+    var res = await sbWrite('products_master?on_conflict=sku', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(chunk)
+    }, { opType:'تحديث_منتج', label:'دفعة منتجات (ملف مبسط) ('+chunk.length+' صنف)' });
+    if (res.queued) queuedBatches++;
+  }
+
+  addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated+' — محفوظ في القاعدة');
+  if (queuedBatches > 0) {
+    if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">' +
+      '📴 تم تحميل البيانات محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً عند عودة الاتصال<br>' +
+      '<span style="font-size:11px;color:var(--muted)">'+added+' صنف جديد، '+updated+' صنف محدّث</span></div>';
+    toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
+  } else {
+    if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+') — محفوظ بشكل دائم';
+    toast('✅ تم حفظ '+(added+updated)+' صنف بشكل دائم في قاعدة البيانات');
+  }
 }
 
 // ═══════════════════════════════════════════════
