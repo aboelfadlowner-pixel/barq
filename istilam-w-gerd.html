@@ -368,7 +368,9 @@ async function syncOfflineQueue() {
     op.status = 'syncing';
     op.lastAttempt = new Date().toISOString();
     SYNC_PROGRESS.done = i;
-    render(); // تحديث شريط التقدم لو ظاهر
+    // شريط التقدم ده بس جوه شاشة "مركز المزامنة" — render() هنا كان بيتنفذ لكل عملية في الطابور
+    // بغض النظر عن الشاشة المفتوحة، فكان بيمسح أي حاجة الشخص شغال عليها دلوقتي (بحث مكتوب، نتايج، إلخ)
+    if (view === 'synccenter') render();
 
     try {
       await sbFetch(op.path, { method:op.method, body:op.body, headers:op.headers });
@@ -397,13 +399,16 @@ async function syncOfflineQueue() {
     toast('✅ تمت مزامنة '+succeeded+' عملية'+(failed?' — ⚠️ '+failed+' فشلت وستُعاد المحاولة':''));
     SYNC_BACKOFF_MS = 20000; // reset بعد نجاح
     try { localStorage.setItem('barq_last_sync_time', new Date().toISOString()); } catch(e){}
-    if (role) loadFromSupabase();
+    // كان بينادي على loadFromSupabase() بالكامل هنا — بتاخد شاشة "⏳ جاري تحميل البيانات..." وتحمّل من الأول،
+    // يعني لو الشخص شغال (زي بحث عن صنف) كانت الشاشة كلها بتتمسح وتترجع لهم من غير أي تحذير، كل ما أي عملية
+    // متزامنة تنجح في الخلفية (كل 20 ثانية). دلوقتي بنحدّث كتالوج المنتجات/الأسعار بهدوء من غير ما نلمس الشاشة.
+    refreshCatalogFromMaster();
   }
   if (failed > 0 && succeeded === 0) {
     SYNC_BACKOFF_MS = Math.min(SYNC_BACKOFF_MS * 2, SYNC_BACKOFF_MAX); // Exponential Backoff
     scheduleSyncRetry();
   }
-  render();
+  if (view === 'synccenter') render();
 }
 
 function scheduleSyncRetry() {
@@ -984,6 +989,36 @@ function callSyncCatalogRpcWithRetry(attempt) {
   });
 }
 
+// بعد ما dc-sync + sync_catalog_from_dc يخلّصوا كتابة البيانات الطازة في products_master/materials_master/sku_departments،
+// لازم نجيبها تاني في الذاكرة (PRODUCTS/MATERIALS/DEPARTMENTS) — لأن أول تحميل للصفحة كان بيجيبهم قبل ما المزامنة
+// الخلفية دي تخلّص أصلاً (بننده عليها من غير await عشان الشاشة متتأخرش)، فكان بيفضل شغال بسعر قديم لحد ما تعمل
+// Reload كامل للصفحة. من غير أي render() هنا عشان منلمسش أي شاشة بحث الشخص شغال عليها دلوقتي.
+async function refreshCatalogFromMaster() {
+  try {
+    var results = await Promise.all([
+      fetchAllPaged('products_master?select=*&order=sku'),
+      fetchAllPaged('materials_master?select=*&order=sku'),
+      fetchAllPaged('sku_departments?select=*&order=sku')
+    ]);
+    var allProducts = results[0], allMaterials = results[1], allDepts = results[2];
+    if (allProducts.length) {
+      allProducts.forEach(function(p){
+        PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
+                             bc:p.barcode||'', margin: parseFloat(p.margin)||22,
+                             et: !!p.expiry_tracked, cat: p.category||'' };
+      });
+    }
+    if (allMaterials.length) {
+      allMaterials.forEach(function(m){
+        MATERIALS[m.sku] = { n:m.name||'', c:parseFloat(m.cost)||0, p:parseFloat(m.price)||0,
+                              bc:m.barcode||'', margin: parseFloat(m.margin)||22,
+                              et: !!m.expiry_tracked, cat: m.category||'' };
+      });
+    }
+    allDepts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
+  } catch(e) { /* هنجرب تاني في المزامنة الجاية — البيانات القديمة تفضل شغالة */ }
+}
+
 function syncDataCenterCatalog() {
   if (DC_SYNC_IN_FLIGHT) return DC_SYNC_IN_FLIGHT; // مزامنة شغالة بالفعل — منبعتش طلب تاني فوقها
   DC_SYNC_STATUS = { ok:null, msg:'⏳ جاري المزامنة...', at:new Date() };
@@ -998,6 +1033,8 @@ function syncDataCenterCatalog() {
         toast(msg, 6000);
       }
       return callSyncCatalogRpcWithRetry(false).then(function(){
+        return refreshCatalogFromMaster();
+      }).then(function(){
         if (!failed.length) { DC_SYNC_STATUS = { ok:true, msg:'✅ تمت المزامنة بنجاح', at:new Date() }; }
         if (view === 'synccenter') render();
       });
