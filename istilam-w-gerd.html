@@ -330,7 +330,7 @@ async function sbWrite(path, opts, queueMeta) {
     OFFLINE_QUEUE.push(op);
     await saveOfflineQueue();
     updateOfflineIndicator();
-    scheduleSyncRetry();
+    // مفيش مزامنة تلقائية بعد كده — العملية دي هتفضل في الطابور لحد ما تدوس "🔁 Sync Now" بنفسك من مركز المزامنة
     return { ok:false, data:null, queued:true, uuid:op.uuid };
   }
 }
@@ -400,15 +400,9 @@ async function syncOfflineQueue() {
     if (role) loadFromSupabase();
   }
   if (failed > 0 && succeeded === 0) {
-    SYNC_BACKOFF_MS = Math.min(SYNC_BACKOFF_MS * 2, SYNC_BACKOFF_MAX); // Exponential Backoff
-    scheduleSyncRetry();
+    toast('⚠️ '+failed+' عملية فشلت — دوس "🔁 Sync Now" في مركز المزامنة لإعادة المحاولة يدوي');
   }
   render();
-}
-
-function scheduleSyncRetry() {
-  if (SYNC_TIMER) clearTimeout(SYNC_TIMER);
-  SYNC_TIMER = setTimeout(function(){ syncOfflineQueue(); }, SYNC_BACKOFF_MS);
 }
 
 async function retryFailedOperation(uuid) {
@@ -472,9 +466,8 @@ async function checkConnectionQuality() {
 }
 
 window.addEventListener('online', function(){
-  toast('🟢 عاد الاتصال بالإنترنت — جاري المزامنة');
+  toast('🟢 عاد الاتصال بالإنترنت — روح "مركز المزامنة" وزامن يدوي لو عندك عمليات معلّقة');
   SYNC_BACKOFF_MS = 20000;
-  syncOfflineQueue();
   checkConnectionQuality();
 });
 window.addEventListener('offline', function(){
@@ -484,7 +477,9 @@ window.addEventListener('offline', function(){
 });
 
 setInterval(checkConnectionQuality, 15000);
-setInterval(function(){ if (OFFLINE_QUEUE.length && navigator.onLine && !IS_SYNCING) syncOfflineQueue(); }, 20000);
+// المزامنة التلقائية (كل 20 ثانية + إعادة المحاولة بعد الفشل) كانت بتشتغل في الخلفية وهي الصفحة مفتوحة
+// وبتقاطع أي حاجة الشخص شغال عليها (زي البحث) — دلوقتي المزامنة بتحصل مرة واحدة بس عند فتح الصفحة،
+// وبعد كده لازم تدوس "🔁 Sync Now" في مركز المزامنة بنفسك وقت ما تحب
 
 
 // مهلة زمنية لكل طلب — عشان اتصال ضعيف/عالق مايفضلش شاشة التحميل معلّقة للأبد،
@@ -1096,6 +1091,7 @@ async function loadFromSupabase() {
 
     // 7. products_master (تكلفة/سعر/باركود دائم — بديل رفع الملف اليومي)
     if (allProducts.length) {
+      recordPriceChanges(allProducts);
       allProducts.forEach(function(p){
         // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
         PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
@@ -1159,10 +1155,13 @@ function renderTopBar() {
   var r=ROLES[role]; var btns='';
   // شاشة المزامنة كانت من غير أي زرار رجوع — المستخدم كان مضطر يعمل "خروج" (تسجيل خروج كامل)
   // بس عشان يقفلها. دلوقتي زرار المزامنة نفسه بيرجع لو انت فاتحها بالفعل، وفيه زرار "🏠 الرئيسية" واضح.
-  if (view === 'synccenter') {
+  if (view === 'synccenter' || view === 'pricechanges') {
     btns += '<button class="tb on" onclick="view=\'queue\';render()">🏠 الرئيسية</button>';
   } else {
     btns += '<button class="tb" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
+  }
+  if (view !== 'pricechanges') {
+    btns += '<button class="tb" onclick="view=\'pricechanges\';render()">💰 أسعار معدّلة</button>';
   }
   btns += '<button class="tb" onclick="doLogout()">خروج</button>';
 
@@ -1181,6 +1180,7 @@ function renderTopBar() {
 // ═══════════════════════════════════════════════
 function renderMain() {
   if (view === 'synccenter') return '<div class="pg">'+renderSyncCenter()+'</div>';
+  if (view === 'pricechanges') return '<div class="pg">'+renderPriceChangesView()+'</div>';
   return renderReceivingRoot();
 }
 // ═══════════════════════════════════════════════
@@ -4508,6 +4508,71 @@ function exportSyncLog() {
 // FOODICS PRODUCTS CACHE — رفع مرة واحدة
 // ═══════════════════════════════════════════════
 var PRODUCTS_MASTER_LOADED = false; // true لو التكلفة اتحملت من قاعدة البيانات (مش محتاج رفع يومي)
+
+// ═══════════════════════════════════════════════
+// سجل "المنتجات التي تم تعديل أسعارها" — مرجع محلي بيتحدّث تلقائي كل ما يتحمّل شيت المنتجات
+// ويلاقي سعر مختلف عن آخر نسخة شافها الجهاز ده. محفوظ في localStorage بس (مش بين الأجهزة).
+// ═══════════════════════════════════════════════
+var LS_PRICE_SNAPSHOT = 'barq_price_snapshot_v1'; // sku -> آخر سعر شفناه
+var LS_PRICE_CHANGES = 'barq_price_changes_v1';   // [{sku,name,old_price,new_price,at}] الأحدث أولاً
+
+function loadPriceSnapshot(){
+  try { return JSON.parse(localStorage.getItem(LS_PRICE_SNAPSHOT) || '{}'); } catch(e){ return {}; }
+}
+function loadPriceChanges(){
+  try { return JSON.parse(localStorage.getItem(LS_PRICE_CHANGES) || '[]'); } catch(e){ return []; }
+}
+function recordPriceChanges(allProducts){
+  var snapshot = loadPriceSnapshot();
+  var isFirstRun = Object.keys(snapshot).length === 0; // أول مرة بنبني القاعدة، مفيش "تغيير" نقارنه بحاجة
+  var changes = loadPriceChanges();
+  var newSnapshot = {};
+  var added = 0;
+  allProducts.forEach(function(p){
+    var newPrice = parseFloat(p.price) || 0;
+    newSnapshot[p.sku] = newPrice;
+    if (isFirstRun) return;
+    var oldPrice = snapshot[p.sku];
+    if (oldPrice !== undefined && Math.abs(oldPrice - newPrice) > 0.001) {
+      changes.unshift({ sku: p.sku, name: p.name || p.sku, old_price: oldPrice, new_price: newPrice, at: new Date().toISOString() });
+      added++;
+    }
+  });
+  if (changes.length > 500) changes = changes.slice(0, 500);
+  localStorage.setItem(LS_PRICE_SNAPSHOT, JSON.stringify(newSnapshot));
+  localStorage.setItem(LS_PRICE_CHANGES, JSON.stringify(changes));
+  if (added) toast('💰 اتغيّر سعر ' + added + ' صنف — شوفهم في "أسعار معدّلة"');
+}
+function clearPriceChangesLog(){
+  if (!confirm('مسح سجل الأسعار المعدّلة؟')) return;
+  localStorage.removeItem(LS_PRICE_CHANGES);
+  render();
+}
+function renderPriceChangesView(){
+  var changes = loadPriceChanges();
+  var rows = changes.map(function(c){
+    var up = c.new_price > c.old_price;
+    var color = up ? '#c0392b' : '#1a7a40';
+    return '<tr>' +
+      '<td style="padding:8px;border:1px solid #ddd">' + c.name + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-family:monospace">' + c.sku + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;text-align:center">' + fmt(c.old_price) + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;text-align:center;color:' + color + ';font-weight:800">' + (up ? '🔺' : '🔻') + ' ' + fmt(c.new_price) + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (c.at || '').slice(0, 16).replace('T', ' ') + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="cd">' +
+    '<div class="ct">💰 المنتجات التي تم تعديل أسعارها</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتحدّث تلقائي كل ما شيت المنتجات يتزامن ويلاقي سعر مختلف عن آخر مرة. السجل ده محفوظ على الجهاز ده بس.</div>' +
+    (changes.length ? '<button class="bn" onclick="clearPriceChangesLog()" style="margin-bottom:10px">🗑 مسح السجل</button>' : '') +
+    (changes.length ?
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<tr style="background:var(--bg)"><th style="padding:8px;border:1px solid #ddd">الصنف</th><th style="padding:8px;border:1px solid #ddd">الكود</th>' +
+      '<th style="padding:8px;border:1px solid #ddd">السعر القديم</th><th style="padding:8px;border:1px solid #ddd">السعر الجديد</th><th style="padding:8px;border:1px solid #ddd">التاريخ</th></tr>' +
+      rows + '</table></div>'
+      : '<div style="padding:20px;text-align:center;color:var(--muted)">مفيش أي تغيير في الأسعار متسجل لحد دلوقتي</div>') +
+  '</div>';
+}
 var FOODICS_CACHE = {}; // sku -> صف كامل من ملف فودكس (يُستخدم مؤقتاً أثناء معالجة رفع الملف)
 var FOODICS_CSV_LOADED = false;
 // ═══════════════════════════════════════════════
