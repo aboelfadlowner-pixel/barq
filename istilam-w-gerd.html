@@ -2530,17 +2530,20 @@ function handleScan(code) {
   if (!code) return;
   var msg = document.getElementById('scan-msg');
 
-  // Search by barcode first, then by SKU, then by name match
-  var idx = recvItems.findIndex(function(it){ return it.bc && it.bc === code; });
-  if (idx === -1) idx = recvItems.findIndex(function(it){ return it.sku === code; });
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — لو صنف تاني اتسجل غلط وباركوده
+  // بقى نفس نص كود صنف تاني (زي "sk-14319")، مينفعش الباركود الغلط يغلب المطابقة الصح بالكود
+  var idx = recvItems.findIndex(function(it){ return it.sku === code; });
+  if (idx === -1) idx = recvItems.findIndex(function(it){ return it.bc && it.bc === code; });
 
   if (idx === -1) {
     // In manual-invoice or return mode, allow adding any product found in the master DB
     if (isManualInvoice || isReturnMode) {
-      var foundSku = null;
-      Object.keys(PRODUCTS).forEach(function(sku){
-        if (PRODUCTS[sku].bc === code || sku === code) foundSku = sku;
-      });
+      var foundSku = PRODUCTS[code] ? code : null;
+      if (!foundSku) {
+        Object.keys(PRODUCTS).forEach(function(sku){
+          if (PRODUCTS[sku].bc === code) foundSku = sku;
+        });
+      }
       if (foundSku) {
         manualAddProduct(foundSku);
         if (msg) { msg.innerHTML = '✅ تمت إضافة <strong>'+PRODUCTS[foundSku].n+'</strong>'; msg.style.color = '#1a7a40'; }
@@ -3379,16 +3382,19 @@ function handleCountScan(code) {
   if (!countSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
   var msg = document.getElementById('scan-msg');
 
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — نفس السبب اللي في handleScan
   var idx = findCountIndexBySku(code);
   var sku = idx>=0 ? countItems[idx].sku : null;
+  if (!sku && PRODUCTS[code]) sku = code;
+  if (!sku && MATERIALS[code]) sku = code;
   if (!sku) {
     Object.keys(PRODUCTS).forEach(function(s){
-      if (PRODUCTS[s].bc === code || s === code) sku = s;
+      if (PRODUCTS[s].bc === code) sku = s;
     });
   }
   if (!sku) {
     Object.keys(MATERIALS).forEach(function(s){
-      if (MATERIALS[s].bc === code || s === code) sku = s;
+      if (MATERIALS[s].bc === code) sku = s;
     });
   }
 
@@ -3805,8 +3811,11 @@ function handlePriceCheckScan(code) {
   if (!priceCheckSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
   var msg = document.getElementById('scan-msg');
 
-  var sku = null;
-  Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) sku = s; });
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — نفس السبب اللي في handleScan
+  var sku = PRODUCTS[code] ? code : null;
+  if (!sku) {
+    Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code) sku = s; });
+  }
 
   if (!sku) {
     playBeep('unknown');
