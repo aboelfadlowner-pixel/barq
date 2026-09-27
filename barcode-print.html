@@ -273,6 +273,15 @@ function todayStr(){
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
+// بيحوّل تاريخ ISO (YYYY-MM-DD، جاي من حقل input type=date) لصيغة يوم+شهر بدون سنة وبدون فواصل
+// (زي 2709) وقت الطباعة بس — عشان يبقى كود مش تاريخ واضح للعميل، من غير ما نغيّر شكل التاريخ
+// المخزّن أو المعروض في حقل الاختيار نفسه (لازم يفضل YYYY-MM-DD عشان النوع "date" يفهمه)
+function formatLabelDate(iso){
+  if (!iso) return '';
+  var parts = String(iso).split('-');
+  if (parts.length !== 3) return iso;
+  return parts[2] + parts[1];
+}
 
 function loadDates(){
   try { return JSON.parse(localStorage.getItem(LS_DATES) || '{}'); } catch(e){ return {}; }
@@ -776,7 +785,7 @@ function renderPreview(){
     '<div class="label-preview" style="width:' + pxW + 'px;height:' + pxH + 'px">' +
       '<img class="lp-logo" src="' + LOGO_DATA_URI + '" alt="">' +
       '<div class="lp-name">' + escapeHtml(it.name) + '</div>' +
-      (it.date ? '<div class="lp-date">' + it.date + '</div>' : '') +
+      (it.date ? '<div class="lp-date">' + escapeHtml(formatLabelDate(it.date)) + '</div>' : '') +
       '<svg id="prevSvg" style="height:' + Math.max(22, pxH * 0.26) + 'px;width:auto;max-width:90%"></svg>' +
       '<div class="lp-price">' + it.price.toFixed(2) + ' ج.م</div>' +
     '</div>';
@@ -812,7 +821,7 @@ function doPrint(){
         '<div class="label">' +
           '<img class="llogo" src="' + LOGO_DATA_URI + '" alt="">' +
           '<div class="lname">' + escapeHtml(it.name) + '</div>' +
-          (it.date ? '<div class="ldate">' + escapeHtml(it.date) + '</div>' : '') +
+          (it.date ? '<div class="ldate">' + escapeHtml(formatLabelDate(it.date)) + '</div>' : '') +
           '<svg id="' + svgId + '" class="barcode" jsbarcode-value="' + escapeHtml(it.barcode) + '" jsbarcode-format="' + bcType + '" jsbarcode-width="2" jsbarcode-height="40" jsbarcode-displayvalue="true" jsbarcode-fontsize="9" jsbarcode-margin="0"></svg>' +
           '<div class="lprice">' + it.price.toFixed(2) + ' ج.م</div>' +
         '</div>';

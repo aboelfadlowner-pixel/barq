@@ -334,7 +334,8 @@ function toast(msg){
 
 function todayStr(){
   var d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  // يوم+شهر بدون سنة وبدون فواصل (زي 2709) عشان يبقى كود مش تاريخ واضح للعميل
+  return String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0');
 }
 
 function cleanBarcodeValue(v){
