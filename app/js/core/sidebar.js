@@ -162,6 +162,13 @@ var BarqApp = (function () {
 
   // ---------------- هيكل التطبيق بعد الدخول ----------------
   function renderShell(user) {
+    // كل دوسة على قسم/تبويب بتعمل renderShell من جديد كامل (innerHTML
+    // بيتبدّل بالكامل)، وده كان بيصفّر سكرول القائمة الجانبية لفوق كل
+    // مرة — حسّاس ومزعج بصريًا خصوصًا دلوقتي بعد ما القائمة بقت أطول.
+    // بنحفظ مكان السكرول قبل الاستبدال ونرجّعه بعده على طول
+    var prevSidebarNav = document.querySelector('.sidebar-nav');
+    var savedScrollTop = prevSidebarNav ? prevSidebarNav.scrollTop : 0;
+
     var allowed = BARQ_AUTH.allowedSections();
     if (!activeSection || allowed.indexOf(activeSection) === -1) {
       activeSection = (deepLinkParams && allowed.indexOf(deepLinkParams.section) !== -1) ? deepLinkParams.section : (allowed[0] || null);
@@ -193,8 +200,9 @@ var BarqApp = (function () {
       }
       // فاصل بسيط قبل "المستخدمين والصلاحيات" — قسم إداري منفصل عن الأقسام التشغيلية
       var divider = (s.key === 'access-list') ? '<div class="sidebar-divider"></div>' : '';
+      var chevron = hasSub ? '<span class="chevron">' + (isActive ? '▲' : '▼') + '</span>' : '';
       return divider + '<div class="sidebar-section ' + (hasSub ? 'has-sub' : '') + ' ' + (isActive ? 'open active' : '') + '" data-section="' + s.key + '">' +
-        '<span class="ic">' + s.icon + '</span><span>' + s.label + '</span>' +
+        '<span class="ic">' + s.icon + '</span><span class="label">' + s.label + '</span>' + chevron +
         '</div>' + subHtml;
     }).join('');
 
@@ -249,6 +257,11 @@ var BarqApp = (function () {
       '  </div>' +
       '</div>';
 
+    if (savedScrollTop) {
+      var newSidebarNav = document.querySelector('.sidebar-nav');
+      if (newSidebarNav) newSidebarNav.scrollTop = savedScrollTop;
+    }
+
     document.getElementById('btn-logout').addEventListener('click', function () {
       BARQ_AUTH.logout();
       activeSection = null; activeSub = null;
@@ -270,8 +283,10 @@ var BarqApp = (function () {
         var secSubs = secDef ? visibleSubsections(secDef, user) : null;
         var firstVisibleSecSub = secSubs && secSubs.filter(function (s) { return !s.url; })[0];
         activeSub = firstVisibleSecSub ? firstVisibleSecSub.key : null;
+        // render() -> renderShell() بيستدعي mountActiveContent() في آخره
+        // على طول — نداء تاني هنا كان بيخلي كل شاشة تتبني مرتين ورا بعض
+        // في نفس الدوسة، وده سبب رئيسي في "الهزة" اللي بتحصل وقت الدوس
         render();
-        mountActiveContent();
       });
     });
     root().querySelectorAll('.sidebar-subitem:not(.sidebar-subitem-link)').forEach(function (el) {
@@ -280,7 +295,6 @@ var BarqApp = (function () {
         activeSection = el.getAttribute('data-section');
         activeSub = el.getAttribute('data-sub');
         render();
-        mountActiveContent();
       });
     });
     // روابط الملحقات (POS/PDA) بتاعت <a target="_blank"> — بتفتح لوحدها

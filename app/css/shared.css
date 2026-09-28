@@ -172,6 +172,9 @@ html, body {
   transition: background .15s, color .15s; position: relative;
 }
 .sidebar-section:hover { background: var(--accent-soft); color: var(--primary); }
+.sidebar-section .label { flex: 1; }
+.sidebar-section .chevron { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.sidebar-section.active .chevron { color: var(--primary); }
 .sidebar-section.active {
   background: var(--accent-soft); color: var(--primary); font-weight: 700;
 }
@@ -187,8 +190,11 @@ html, body {
 
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 12px; }
 
-.sidebar-subnav { margin: 1px 8px 6px 26px; display: none; flex-direction: column; gap: 1px; }
-.sidebar-section.has-sub.open + .sidebar-subnav { display: flex; }
+.sidebar-subnav {
+  margin: 0 8px 0 26px; display: flex; flex-direction: column; gap: 1px;
+  max-height: 0; overflow: hidden; transition: max-height .22s ease, margin .22s ease;
+}
+.sidebar-section.has-sub.open + .sidebar-subnav { max-height: 400px; margin: 1px 8px 6px 26px; }
 .sidebar-subitem {
   padding: 8px 10px; border-radius: 8px; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
   transition: background .15s, color .15s;
