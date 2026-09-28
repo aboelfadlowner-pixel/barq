@@ -63,6 +63,11 @@ var BARQ_MODULES = window.BARQ_MODULES || (window.BARQ_MODULES = {});
 var BarqApp = (function () {
   var activeSection = null;
   var activeSub = null;
+  // مستقل عن activeSection: القسم اللي شكله مفتوح (سهمه لفوق وتبويباته
+  // ظاهرة) في القائمة. عادةً بيتساوى مع القسم النشط، لكن لازم يفترق عنه
+  // عشان تقدر تقفل قسم مفتوح (تشوف سهمه يرجع لتحت) من غير ما تغيّر
+  // المحتوى المعروض فعلاً
+  var expandedSection = null;
 
   // دخول مباشر من رابط خارجي (زي سكانر شاشة الكاشير touch-print-market.html
   // لما يلاقي باركود مش موجود) — بيفتح القسم المطلوب وبيشغّل الإضافة
@@ -179,6 +184,7 @@ var BarqApp = (function () {
       var initSubs = initDef ? visibleSubsections(initDef, user) : null;
       var firstVisibleSub = initSubs && initSubs.filter(function (s) { return !s.url; })[0];
       activeSub = firstVisibleSub ? firstVisibleSub.key : null;
+      expandedSection = activeSection;
     }
 
     var visibleSections = BARQ_SECTIONS.filter(function (s) {
@@ -187,6 +193,7 @@ var BarqApp = (function () {
 
     var sectionsHtml = visibleSections.map(function (s, i) {
       var isActive = activeSection === s.key;
+      var isExpanded = expandedSection === s.key;
       var subs = visibleSubsections(s, user);
       var hasSub = !!(subs && subs.length);
       var subHtml = '';
@@ -200,8 +207,8 @@ var BarqApp = (function () {
       }
       // فاصل بسيط قبل "المستخدمين والصلاحيات" — قسم إداري منفصل عن الأقسام التشغيلية
       var divider = (s.key === 'access-list') ? '<div class="sidebar-divider"></div>' : '';
-      var chevron = hasSub ? '<span class="chevron">' + (isActive ? '▲' : '▼') + '</span>' : '';
-      return divider + '<div class="sidebar-section ' + (hasSub ? 'has-sub' : '') + ' ' + (isActive ? 'open active' : '') + '" data-section="' + s.key + '">' +
+      var chevron = hasSub ? '<span class="chevron">' + (isExpanded ? '▲' : '▼') + '</span>' : '';
+      return divider + '<div class="sidebar-section ' + (hasSub ? 'has-sub' : '') + ' ' + (isExpanded ? 'open ' : '') + (isActive ? 'active' : '') + '" data-section="' + s.key + '">' +
         '<span class="ic">' + s.icon + '</span><span class="label">' + s.label + '</span>' + chevron +
         '</div>' + subHtml;
     }).join('');
@@ -264,7 +271,7 @@ var BarqApp = (function () {
 
     document.getElementById('btn-logout').addEventListener('click', function () {
       BARQ_AUTH.logout();
-      activeSection = null; activeSub = null;
+      activeSection = null; activeSub = null; expandedSection = null;
       render();
     });
     var menuBtn = document.getElementById('btn-menu');
@@ -278,8 +285,18 @@ var BarqApp = (function () {
     root().querySelectorAll('.sidebar-section').forEach(function (el) {
       el.addEventListener('click', function (e) {
         if (e.target.closest('.sidebar-subitem')) return;
-        activeSection = el.getAttribute('data-section');
-        var secDef = BARQ_SECTIONS.find(function (s) { return s.key === activeSection; });
+        var clickedKey = el.getAttribute('data-section');
+        var secDef = BARQ_SECTIONS.find(function (s) { return s.key === clickedKey; });
+        var hasSubClicked = !!(secDef && secDef.subsections && secDef.subsections.length);
+        // لو القسم ده أصلاً مفتوح (سهمه لفوق) ومعاه تبويبات — الدوسة تانية
+        // عليه تقفله بس (السهم يرجع لتحت)، من غير ما تغيّر المحتوى المعروض
+        if (hasSubClicked && expandedSection === clickedKey) {
+          expandedSection = null;
+          render();
+          return;
+        }
+        activeSection = clickedKey;
+        expandedSection = clickedKey;
         var secSubs = secDef ? visibleSubsections(secDef, user) : null;
         var firstVisibleSecSub = secSubs && secSubs.filter(function (s) { return !s.url; })[0];
         activeSub = firstVisibleSecSub ? firstVisibleSecSub.key : null;
