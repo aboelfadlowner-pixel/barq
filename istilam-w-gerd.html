@@ -1090,8 +1090,9 @@ async function loadFromSupabase() {
     });
 
     // 7. products_master (تكلفة/سعر/باركود دائم — بديل رفع الملف اليومي)
+    // ملحوظة: تسجيل "الأسعار المعدّلة" و"المنتجات الجديدة" بقى Trigger في قاعدة البيانات نفسها
+    // (يمسك أي كتابة على products_master من أي مصدر)، مش محتاج نعمله هنا في الواجهة تاني.
     if (allProducts.length) {
-      recordPriceChanges(allProducts);
       allProducts.forEach(function(p){
         // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
         PRODUCTS[p.sku] = { n:p.name||'', c:parseFloat(p.cost)||0, p:parseFloat(p.price)||0,
@@ -1161,10 +1162,10 @@ function renderTopBar() {
     btns += '<button class="tb" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
   }
   if (view !== 'pricechanges') {
-    btns += '<button class="tb" onclick="view=\'pricechanges\';render()">💰 أسعار معدّلة</button>';
+    btns += '<button class="tb" onclick="openPriceChangesView()">💰 أسعار معدّلة</button>';
   }
   if (view !== 'newproducts') {
-    btns += '<button class="tb" onclick="view=\'newproducts\';render()">🆕 منتجات جديدة</button>';
+    btns += '<button class="tb" onclick="openNewProductsView()">🆕 منتجات جديدة</button>';
   }
   btns += '<button class="tb" onclick="doLogout()">خروج</button>';
 
@@ -4514,75 +4515,56 @@ function exportSyncLog() {
 var PRODUCTS_MASTER_LOADED = false; // true لو التكلفة اتحملت من قاعدة البيانات (مش محتاج رفع يومي)
 
 // ═══════════════════════════════════════════════
-// سجل "المنتجات التي تم تعديل أسعارها" — مرجع محلي بيتحدّث تلقائي كل ما يتحمّل شيت المنتجات
-// ويلاقي سعر مختلف عن آخر نسخة شافها الجهاز ده. محفوظ في localStorage بس (مش بين الأجهزة).
+// سجل "المنتجات التي تم تعديل أسعارها" و"المنتجات الجديدة" — مرجع مشترك بين كل الأجهزة.
+// بيتسجّل تلقائي من قاعدة البيانات نفسها (Trigger على products_master بيمسك أي إضافة/تعديل سعر
+// من أي مصدر — سواء المزامنة التلقائية من درايف أو الرفع اليدوي)، فكل الأجهزة بتشوف نفس القائمة بالظبط.
 // ═══════════════════════════════════════════════
-var LS_PRICE_SNAPSHOT = 'barq_price_snapshot_v1'; // sku -> آخر سعر شفناه
-var LS_PRICE_CHANGES = 'barq_price_changes_v1';   // [{sku,name,old_price,new_price,at}] الأحدث أولاً
-var LS_NEW_PRODUCTS = 'barq_new_products_v1';     // [{sku,name,price,added_at}] الأحدث أولاً
+var PRICE_CHANGE_LOG = null; // null = لسه مجابش من القاعدة
+var NEW_PRODUCTS_LOG = null;
 
-function loadPriceSnapshot(){
-  try { return JSON.parse(localStorage.getItem(LS_PRICE_SNAPSHOT) || '{}'); } catch(e){ return {}; }
+async function openPriceChangesView(){
+  view = 'pricechanges';
+  render();
+  PRICE_CHANGE_LOG = await sbFetch('price_change_log?select=*&order=changed_at.desc&limit=300').catch(function(){ return []; });
+  if (view === 'pricechanges') render();
 }
-function loadPriceChanges(){
-  try { return JSON.parse(localStorage.getItem(LS_PRICE_CHANGES) || '[]'); } catch(e){ return []; }
+async function openNewProductsView(){
+  view = 'newproducts';
+  render();
+  NEW_PRODUCTS_LOG = await sbFetch('new_products_log?select=*&order=created_at.desc&limit=300').catch(function(){ return []; });
+  if (view === 'newproducts') render();
 }
-function loadNewProducts(){
-  try { return JSON.parse(localStorage.getItem(LS_NEW_PRODUCTS) || '[]'); } catch(e){ return []; }
+async function clearPriceChangesLog(){
+  if (!confirm('مسح سجل الأسعار المعدّلة بالكامل؟ (هيتمسح لكل الأجهزة)')) return;
+  await sbWrite('price_change_log?id=not.is.null', { method:'DELETE', headers:{'Prefer':'return=minimal'} }, { opType:'مسح_سجل', label:'مسح سجل الأسعار المعدّلة' });
+  PRICE_CHANGE_LOG = [];
+  render();
 }
-function recordPriceChanges(allProducts){
-  var snapshot = loadPriceSnapshot();
-  var isFirstRun = Object.keys(snapshot).length === 0; // أول مرة بنبني القاعدة، مفيش "تغيير" نقارنه بحاجة
-  var changes = loadPriceChanges();
-  var newProducts = loadNewProducts();
-  var newSnapshot = {};
-  var changedCount = 0, newCount = 0;
-  var today = new Date().toISOString().slice(0, 10);
-  allProducts.forEach(function(p){
-    var newPrice = parseFloat(p.price) || 0;
-    newSnapshot[p.sku] = newPrice;
-    if (isFirstRun) return;
-    var oldPrice = snapshot[p.sku];
-    if (oldPrice === undefined) {
-      // كود ما كانش موجود في آخر نسخة شفناها — صنف جديد فعلاً
-      newProducts.unshift({ sku: p.sku, name: p.name || p.sku, price: newPrice, added_at: today });
-      newCount++;
-    } else if (Math.abs(oldPrice - newPrice) > 0.001) {
-      changes.unshift({ sku: p.sku, name: p.name || p.sku, old_price: oldPrice, new_price: newPrice, at: new Date().toISOString() });
-      changedCount++;
-    }
-  });
-  if (changes.length > 500) changes = changes.slice(0, 500);
-  if (newProducts.length > 500) newProducts = newProducts.slice(0, 500);
-  localStorage.setItem(LS_PRICE_SNAPSHOT, JSON.stringify(newSnapshot));
-  localStorage.setItem(LS_PRICE_CHANGES, JSON.stringify(changes));
-  localStorage.setItem(LS_NEW_PRODUCTS, JSON.stringify(newProducts));
-  var msgs = [];
-  if (newCount) msgs.push('🆕 اتضاف ' + newCount + ' صنف جديد');
-  if (changedCount) msgs.push('💰 اتغيّر سعر ' + changedCount + ' صنف');
-  if (msgs.length) toast(msgs.join(' — '));
-}
-function clearPriceChangesLog(){
-  if (!confirm('مسح سجل الأسعار المعدّلة؟')) return;
-  localStorage.removeItem(LS_PRICE_CHANGES);
+async function clearNewProductsLog(){
+  if (!confirm('مسح سجل المنتجات الجديدة بالكامل؟ (هيتمسح لكل الأجهزة)')) return;
+  await sbWrite('new_products_log?id=not.is.null', { method:'DELETE', headers:{'Prefer':'return=minimal'} }, { opType:'مسح_سجل', label:'مسح سجل المنتجات الجديدة' });
+  NEW_PRODUCTS_LOG = [];
   render();
 }
 function renderPriceChangesView(){
-  var changes = loadPriceChanges();
+  if (PRICE_CHANGE_LOG === null) {
+    return '<div class="cd"><div class="ct">💰 المنتجات التي تم تعديل أسعارها</div><div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div></div>';
+  }
+  var changes = PRICE_CHANGE_LOG;
   var rows = changes.map(function(c){
     var up = c.new_price > c.old_price;
     var color = up ? '#c0392b' : '#1a7a40';
     return '<tr>' +
-      '<td style="padding:8px;border:1px solid #ddd">' + c.name + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd">' + (c.name||'') + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;font-family:monospace">' + c.sku + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;text-align:center">' + fmt(c.old_price) + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;text-align:center;color:' + color + ';font-weight:800">' + (up ? '🔺' : '🔻') + ' ' + fmt(c.new_price) + '</td>' +
-      '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (c.at || '').slice(0, 16).replace('T', ' ') + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (c.changed_at || '').slice(0, 16).replace('T', ' ') + '</td>' +
     '</tr>';
   }).join('');
   return '<div class="cd">' +
     '<div class="ct">💰 المنتجات التي تم تعديل أسعارها</div>' +
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتحدّث تلقائي كل ما شيت المنتجات يتزامن ويلاقي سعر مختلف عن آخر مرة. السجل ده محفوظ على الجهاز ده بس.</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتسجّل تلقائي من قاعدة البيانات كل ما سعر صنف يتغيّر — مشتركة بين كل الأجهزة.</div>' +
     (changes.length ? '<button class="bn" onclick="clearPriceChangesLog()" style="margin-bottom:10px">🗑 مسح السجل</button>' : '') +
     (changes.length ?
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
@@ -4592,16 +4574,14 @@ function renderPriceChangesView(){
       : '<div style="padding:20px;text-align:center;color:var(--muted)">مفيش أي تغيير في الأسعار متسجل لحد دلوقتي</div>') +
   '</div>';
 }
-function clearNewProductsLog(){
-  if (!confirm('مسح سجل المنتجات الجديدة؟')) return;
-  localStorage.removeItem(LS_NEW_PRODUCTS);
-  render();
-}
 function renderNewProductsView(){
-  var items = loadNewProducts();
+  if (NEW_PRODUCTS_LOG === null) {
+    return '<div class="cd"><div class="ct">🆕 المنتجات التي تم إضافتها حديثًا</div><div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div></div>';
+  }
+  var items = NEW_PRODUCTS_LOG;
   var rows = items.map(function(it){
     return '<tr>' +
-      '<td style="padding:8px;border:1px solid #ddd">' + it.name + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd">' + (it.name||'') + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;font-family:monospace">' + it.sku + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;text-align:center">' + fmt(it.price) + '</td>' +
       '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (it.added_at || '') + '</td>' +
@@ -4609,7 +4589,7 @@ function renderNewProductsView(){
   }).join('');
   return '<div class="cd">' +
     '<div class="ct">🆕 المنتجات التي تم إضافتها حديثًا</div>' +
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتحدّث تلقائي كل ما شيت المنتجات يتزامن ويلاقي كود صنف جديد مش موجود قبل كده. السجل ده محفوظ على الجهاز ده بس.</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتسجّل تلقائي من قاعدة البيانات كل ما كود صنف جديد يتضاف — مشتركة بين كل الأجهزة.</div>' +
     (items.length ? '<button class="bn" onclick="clearNewProductsLog()" style="margin-bottom:10px">🗑 مسح السجل</button>' : '') +
     (items.length ?
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
