@@ -93,7 +93,7 @@ button,input{font-family:'Cairo',sans-serif}
 
 <div class="header">
   <div class="logo">⚡ برق <span>شاشة اللمس</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v9</div>
+  <div style="font-size:11px;opacity:.7">إصدار v12</div>
 </div>
 
 <div class="toolbar">
@@ -101,9 +101,18 @@ button,input{font-family:'Cairo',sans-serif}
     📂 رفع شيت المنتجات
     <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleImport(event)">
   </label>
+  <select id="deptSelect" onchange="onDeptSelectChange()" style="padding:11px 10px;border:2px solid var(--border);border-radius:10px;font-size:13px;font-weight:800;background:#fff">
+    <option value="">🥐 كل الأقسام (اختار قسم المخبوزات)</option>
+  </select>
+  <label class="btn btn-ghost" style="display:inline-block">
+    🥐 إضافة أصناف لقائمة المخبوزات
+    <input type="file" id="bakeryFileInput" accept=".csv" style="display:none" onchange="handleBakeryUpload(event)">
+  </label>
+  <button class="btn btn-ghost" onclick="loadFromSupabaseAuto()">🔄 تحديث من الداتا سنتر</button>
   <input type="text" id="searchBox" placeholder="🔍 دور على صنف..." inputmode="search" oninput="renderGrid()">
   <span class="status" id="statusText">لسه مفيش شيت متحمل</span>
 </div>
+<div id="bakeryStatus" style="padding:4px 16px;font-size:11px;color:var(--muted)"></div>
 
 <div class="cattabs" id="catTabs"></div>
 
@@ -121,6 +130,9 @@ var LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAAEsCAIAA
 
 var PRODUCTS = []; // {name, barcode, sku, price}
 var LS_KEY = 'barq_touch_products_v1';
+var SB_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qdmJ5ZG52eXdic2d5aHFmdGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODQyMDcsImV4cCI6MjA5Njk2MDIwN30.3UyyKGcmehGVxadPotOgwYF6CmDbkdb8gw7BFxlYFcU';
+var SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
 var ICON_COLORS = ['#2d8653','#1a3a5c','#8e5b2d','#7a4fa3','#c0392b','#0e7c86','#a8763e','#2f6b4f'];
 var ICON_EMOJIS = ['🥐','🍞','🥖','🧁','🥯','🍰','🧇','🥨'];
 
@@ -322,7 +334,8 @@ function toast(msg){
 
 function todayStr(){
   var d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  // يوم+شهر بدون سنة وبدون فواصل (زي 2709) عشان يبقى كود مش تاريخ واضح للعميل
+  return String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0');
 }
 
 function cleanBarcodeValue(v){
@@ -422,6 +435,130 @@ function loadFromStorage(){
     var saved = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
     PRODUCTS = saved || [];
   } catch(e){ PRODUCTS = []; }
+}
+
+// فلتر المخبوزات: تقدر تفلتر بقسم حي من جدول sku_departments، و/أو بقائمة أكواد (SKU) بترفعها بنفسك
+// وبتتجمّع مع بعضها مع كل رفعة (مش بتتمسح) — أي صنف يتطابق مع أي حاجة من الاتنين بيظهر
+var LS_DEPT = 'barq_touch_department_v1';
+var LS_BAKERY_SKUS = 'barq_touch_bakery_skus_v1';
+var DEPARTMENTS = {}; // sku -> department
+
+function loadBakerySkuSet(){
+  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function mergeBakerySkusFromRows(rows){
+  var set = loadBakerySkuSet();
+  var added = 0;
+  rows.forEach(function(r){
+    var sku = String(pick(r, ['sku']) || '').trim().toLowerCase();
+    if (sku && !set.has(sku)) { set.add(sku); added++; }
+  });
+  localStorage.setItem(LS_BAKERY_SKUS, JSON.stringify(Array.from(set)));
+  return { added: added, total: set.size };
+}
+function handleBakeryUpload(evt){
+  var file = evt.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var res = mergeBakerySkusFromRows(parseCSV(e.target.result));
+    renderBakeryStatus();
+    toast('✅ اتضاف ' + res.added + ' كود جديد لقائمة المخبوزات (الإجمالي: ' + res.total + ')');
+    if (RAW_PRODUCTS_CACHE.length) applyDeptFilterAndRender(); else loadFromSupabaseAuto();
+  };
+  reader.readAsText(file, 'UTF-8');
+  evt.target.value = '';
+}
+
+async function fetchAllPaged(query){
+  var all = [], offset = 0, batchSize = 1000;
+  while (true) {
+    var r = await fetch(SB_URL + '/rest/v1/' + query + (query.indexOf('?') === -1 ? '?' : '&') + 'limit=' + batchSize + '&offset=' + offset, { headers: SB_HEADERS });
+    if (!r.ok) throw new Error(r.statusText);
+    var batch = await r.json();
+    if (!batch || !batch.length) break;
+    all = all.concat(batch);
+    if (batch.length < batchSize) break;
+    offset += batchSize;
+  }
+  return all;
+}
+
+function renderBakeryStatus(){
+  var el = document.getElementById('bakeryStatus');
+  if (!el) return;
+  var dept = localStorage.getItem(LS_DEPT);
+  var skuCount = loadBakerySkuSet().size;
+  var parts = [];
+  if (dept) parts.push('قسم: ' + dept);
+  if (skuCount) parts.push(skuCount + ' كود مُضاف يدوي');
+  el.textContent = parts.length ? ('🥐 الفلتر فعّال — ' + parts.join(' + ')) : '🥐 مفيش فلتر متظبط — هيتحمّل كل منتجات الفرع (اختار قسم أو ارفع قائمة أكواد)';
+}
+function populateDeptSelect(){
+  var sel = document.getElementById('deptSelect');
+  if (!sel) return;
+  var current = localStorage.getItem(LS_DEPT) || '';
+  var set = {};
+  Object.keys(DEPARTMENTS).forEach(function(sku){ set[DEPARTMENTS[sku]] = true; });
+  var names = Object.keys(set).sort();
+  var html = '<option value="">🥐 كل الأقسام (اختار قسم المخبوزات)</option>';
+  names.forEach(function(n){
+    html += '<option value="' + escapeHtml(n) + '"' + (n === current ? ' selected' : '') + '>' + escapeHtml(n) + '</option>';
+  });
+  sel.innerHTML = html;
+}
+function onDeptSelectChange(){
+  var sel = document.getElementById('deptSelect');
+  var val = sel ? sel.value : '';
+  if (val) localStorage.setItem(LS_DEPT, val); else localStorage.removeItem(LS_DEPT);
+  renderBakeryStatus();
+  applyDeptFilterAndRender();
+}
+
+var RAW_PRODUCTS_CACHE = []; // آخر نتيجة خام من products_master قبل فلترة القسم
+
+function applyDeptFilterAndRender(){
+  var dept = localStorage.getItem(LS_DEPT);
+  var bakerySkus = loadBakerySkuSet();
+  var filterActive = !!dept || bakerySkus.size > 0;
+  var seen = {}, list = [];
+  RAW_PRODUCTS_CACHE.forEach(function(row){
+    if (filterActive) {
+      var inDept = dept && DEPARTMENTS[row.sku] === dept;
+      var inList = bakerySkus.has(String(row.sku || '').trim().toLowerCase());
+      if (!inDept && !inList) return;
+    }
+    var barcode = cleanBarcodeValue(row.barcode || '');
+    var sku = cleanBarcodeValue(row.sku || '');
+    if (!isValidBarcodeText(barcode)) barcode = '';
+    if (!isValidBarcodeText(sku)) sku = '';
+    var key = barcode || sku;
+    if (!key || seen[key]) return;
+    seen[key] = true;
+    list.push({ name: row.name || key, barcode: barcode, sku: sku, price: parseFloat(row.price) || 0 });
+  });
+  if (!list.length) return;
+  PRODUCTS = list;
+  localStorage.setItem(LS_KEY, JSON.stringify(PRODUCTS));
+  seedDefaultCategories();
+  renderTabs();
+  renderGrid();
+  toast('✅ اتحدّث (' + list.length + ' صنف)');
+}
+
+async function loadFromSupabaseAuto(){
+  try {
+    var depts = await fetchAllPaged('sku_departments?select=sku,department&order=sku');
+    DEPARTMENTS = {};
+    depts.forEach(function(d){ DEPARTMENTS[d.sku] = d.department; });
+    populateDeptSelect();
+
+    var all = await fetchAllPaged('products_master?select=sku,name,barcode,price&order=name');
+    if (!all.length) return;
+    RAW_PRODUCTS_CACHE = all;
+    applyDeptFilterAndRender();
+  } catch(e) { /* offline or blocked — keep cached PRODUCTS from localStorage */ }
 }
 
 function hashStr(s){
@@ -741,6 +878,8 @@ loadCategories();
 seedDefaultCategories();
 renderTabs();
 renderGrid();
+renderBakeryStatus();
+loadFromSupabaseAuto();
 </script>
 </body>
 </html>

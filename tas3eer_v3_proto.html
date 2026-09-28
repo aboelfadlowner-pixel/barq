@@ -752,12 +752,12 @@ function doLogin() {
   Object.keys(ROLES).forEach(function(k){if(ROLES[k].pass===pass)found=k;});
   if(!found){var e=document.getElementById('ae');if(e)e.textContent='كلمة المرور غلط';return;}
   role=found; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.setItem('barq_session_role', role); } catch(e){}
+  try { sessionStorage.setItem('barq_session_role', role); } catch(e){}
   loadFromSupabase();
 }
 function doLogout() {
   role=null; view='queue'; detailId=null; recvPO=null;
-  try { localStorage.removeItem('barq_session_role'); } catch(e){}
+  try { sessionStorage.removeItem('barq_session_role'); } catch(e){}
   render();
 }
 
@@ -800,11 +800,19 @@ var _realtimeChannel = null;
 
 function loadRealtimeLib(cb) {
   if (_realtimeLibLoaded || window.supabase) { _realtimeLibLoaded = true; cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
-  s.onload = function(){ _realtimeLibLoaded = true; cb(); };
-  s.onerror = function(){ console.error('تعذر تحميل مكتبة التحديث الفوري'); };
-  document.body.appendChild(s);
+  var CDNS = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
+  ];
+  function tryLoad(i) {
+    if (i >= CDNS.length) { console.error('تعذر تحميل مكتبة التحديث الفوري — التطبيق هيشتغل عادي بس بدون تحديث فوري بين النوافذ'); return; }
+    var s = document.createElement('script');
+    s.src = CDNS[i];
+    s.onload = function(){ _realtimeLibLoaded = true; cb(); };
+    s.onerror = function(){ tryLoad(i + 1); };
+    document.body.appendChild(s);
+  }
+  tryLoad(0);
 }
 
 function startRealtime() {
@@ -899,10 +907,47 @@ setInterval(function(){
   if (role === 'receiving' && !recvPO) refreshPO();
 }, 45000);
 
+var DC_SYNC_IN_FLIGHT = null; // بنحتفظ بالـ promise الجاري عشان مين طلب المزامنة أكتر من مرة (فتح تاني تاب مثلاً) منضغطش على نفس السيرفر بطلبات فوق بعض
+
+// خطوة نشر الكتالوج (sync_catalog_from_dc) أحياناً بترجع خطأ "انتهت المهلة" من السيرفر لو مزحوم
+// مؤقتاً بطلبات متزامنة — مش خطأ في البيانات، فبنجرب تاني مرة واحدة بعد ثانيتين قبل ما نعتبرها فشلت فعلاً
+function callSyncCatalogRpcWithRetry(attempt) {
+  return sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) }).catch(function(e){
+    var isTimeout = /timeout|Thread killed/i.test(String(e && e.message || e));
+    if (isTimeout && !attempt) {
+      return new Promise(function(resolve){ setTimeout(resolve, 2000); }).then(function(){
+        return callSyncCatalogRpcWithRetry(true);
+      });
+    }
+    throw e;
+  });
+}
+
+// مزامنة كتالوج المنتجات/المواد من الداتا سنتر (جوجل درايف → dc_* → products_master/materials_master) —
+// بتتطلق في الخلفية كل مرة حد يفتح التطبيق، من غير ما نستنى نتيجتها عشان متبطأش تحميل الشاشة. بنسحب أولاً
+// من درايف لجداول dc_* (dc-sync) وبعدين ننشرها على products_master/materials_master (sync_catalog_from_dc) —
+// من غير الاعتماد على فتح برنامج تاني (زي المخزون أو الاستلام) الأول.
+function syncDataCenterCatalog() {
+  if (DC_SYNC_IN_FLIGHT) return DC_SYNC_IN_FLIGHT;
+  var p = fetch(SB_URL + '/functions/v1/dc-sync', { method:'POST', headers: SB_HEADERS, body: JSON.stringify({}) })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){
+      var failed = (data.results || []).filter(function(x){ return x.status === 'failed'; });
+      if (failed.length) toast('⚠️ فشلت مزامنة: ' + failed.map(function(f){ return f.table; }).join('، '), 6000);
+      return callSyncCatalogRpcWithRetry(false);
+    })
+    .catch(function(e){ toast('⚠️ تعذّرت مزامنة الداتا سنتر (' + (e && e.message || e) + ')', 6000); })
+    .finally(function(){ DC_SYNC_IN_FLIGHT = null; });
+  DC_SYNC_IN_FLIGHT = p;
+  return p;
+}
+
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
   var root = document.getElementById('root');
   if (root) root.innerHTML = '<div class="auth-wrap"><div style="color:#fff;font-size:16px">⏳ جاري تحميل البيانات...</div></div>';
+
+  syncDataCenterCatalog();
 
   try {
     // 1. Load pricing requests (استلام + تسعير)
@@ -4534,7 +4579,7 @@ window.addEventListener('load', async function(){
   }
 
   var savedRole = null;
-  try { savedRole = localStorage.getItem('barq_session_role'); } catch(e){}
+  try { savedRole = sessionStorage.getItem('barq_session_role'); } catch(e){}
   if (savedRole && ROLES[savedRole]) {
     role = savedRole;
     view = 'queue';

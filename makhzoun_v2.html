@@ -607,6 +607,7 @@
   <button class="nav-btn" onclick="showTab('ai')">🤖 تحليل ذكي</button>
   <button class="nav-btn" onclick="showTab('suppliers')">🏪 الموردين</button>
     <button class="nav-btn" id="btn-po" onclick="showTab('po')">🧾 أوامر الشراء</button>
+    <button class="nav-btn" id="btn-shortages" onclick="showTab('shortages')">🚨 نواقص فروع ومصنع</button>
 </div>
 
 <div class="main">
@@ -839,6 +840,21 @@
     </div>
   </div>
 
+  <!-- SHORTAGES TAB — نواقص فروع ومصنع: بتيجي من زرار "⚠️ نواقص الطلبية" في المصنع، وأي مصدر تاني لاحقًا -->
+  <div id="tab-shortages" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:10px;">
+      <div class="section-title" style="margin-bottom:0">🚨 نواقص فروع ومصنع</div>
+      <button class="export-btn" onclick="loadShortages()">🔄 تحديث</button>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px;">أصناف اتسجّلت ناقصة (من المصنع أو أي مصدر تاني) — دوس "🧾 حوّل لطلب شراء" عشان تضيفها لسلة أمر الشراء مباشرة</p>
+    <div id="shortagesList"></div>
+    <div id="shortagesEmpty" class="empty" style="display:none">
+      <div class="icon">✅</div>
+      <h3>مفيش نواقص معلّقة دلوقتي</h3>
+      <p>أي نواقص جديدة من المصنع أو الفروع هتظهر هنا أوتوماتيك</p>
+    </div>
+  </div>
+
   <!-- AI TAB -->
   <div id="tab-ai" style="display:none">
     <div class="section-title">🤖 تحليل ذكي بالذكاء الاصطناعي</div>
@@ -1027,6 +1043,23 @@ function unitLabel(u) {
   return UNIT_LABELS[key] || String(u).trim();
 }
 
+// اضغط على الرصيد الإجمالي لأي صنف يطلعلك رصيد كل فرع لوحده (المخزن الرئيسي/البيطاش/عين شمس) في 3 سطور تحت
+const BRANCH_ORDER = ['المخزن الرئيسي', 'البيطاش', 'عين شمس'];
+let expandedBranchSkus = new Set();
+function toggleBranchBreakdown(sku, renderFn) {
+  if (expandedBranchSkus.has(sku)) expandedBranchSkus.delete(sku);
+  else expandedBranchSkus.add(sku);
+  renderFn();
+}
+function branchBreakdownRow(sku, colspan) {
+  const byBranch = STOCK_BY_BRANCH[sku] || {};
+  const lines = BRANCH_ORDER.map(b => {
+    const q = byBranch[b];
+    return `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${b}</span><span style="font-weight:700">${q != null ? q.toFixed(2) : '—'}</span></div>`;
+  }).join('');
+  return `<tr><td colspan="${colspan}" style="background:var(--bg);padding:8px 20px;font-size:12px">${lines}</td></tr>`;
+}
+
 // أسماء الأصناف بتيجي من ملف CSV مرفوع، والملاحظات/الموردين بيتكتبوا يدوي — لازم تتنضف قبل ما تدخل innerHTML
 function escapeHtml(s) {
   if (s == null) return '';
@@ -1158,6 +1191,7 @@ openDB().then(loadAllData).then(() => {
   renderHistory();
   renderSuppliers();
   updateCartBadge();
+  loadShortages(); // يجيب عدد النواقص المعلّقة (بادج) أول ما الصفحة تفتح
   syncDataCenter(); // مزامنة تلقائية أول ما تفتح الصفحة — بدل الرفع اليدوي
 });
 
@@ -1169,6 +1203,22 @@ function setSyncStatus(msg, isError) {
   if (el) { el.textContent = msg; el.style.color = isError ? 'var(--red)' : ''; }
 }
 
+// رصيد كل فرع لوحده (المخزن الرئيسي / البيطاش / عين شمس) — sku -> { 'فرع': qty, ... }
+// بيتحمل مع رصيد المخزون الإجمالي، لعرضه لما حد يفتح تفصيل صنف معيّن (اضغط على الكمية)
+let STOCK_BY_BRANCH = {};
+
+async function loadStockByBranch() {
+  try {
+    const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_stock_levels_by_branch?select=sku,branch,qty');
+    const map = {};
+    rows.forEach(r => {
+      if (!r.sku || !r.branch) return;
+      (map[r.sku] || (map[r.sku] = {}))[r.branch] = r.qty ?? 0;
+    });
+    STOCK_BY_BRANCH = map;
+  } catch (e) { console.error('[loadStockByBranch]', e); }
+}
+
 async function loadStockFromDataCenter() {
   const rows = await fetchAllPaginated(PO_SB_URL + '/rest/v1/dc_stock_levels?select=sku,name,unit,barcode,qty,cost_per_unit,total_cost');
   if (!rows.length) return false;
@@ -1177,6 +1227,7 @@ async function loadStockFromDataCenter() {
     'Quantity': row.qty ?? 0, 'Cost Per Unit': row.cost_per_unit ?? 0, 'Total Cost': row.total_cost ?? 0
   }));
   processData();
+  loadStockByBranch(); // مش بنستنى النتيجة عشان متأخرش عرض الشاشة الأساسية — التفصيل بيتحمل في الخلفية
   saveToHistory('مزامنة الداتا سنتر');
   document.getElementById('lastUpload').textContent = new Date().toLocaleTimeString('ar-EG');
   document.getElementById('uploadDateBadge').textContent = new Date().toLocaleDateString('ar-EG');
@@ -1406,7 +1457,7 @@ function renderOrders() {
       <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
       <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
-      <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
+      <td class="${r.qty < 0 ? 'qty-neg' : r.needOrder ? 'qty-low' : 'qty-ok'}" style="cursor:pointer" title="اضغط لعرض رصيد كل فرع" onclick="toggleBranchBreakdown('${r.sku}',renderOrders)">${r.qty.toFixed(2)} ${expandedBranchSkus.has(r.sku) ? '▲' : '▼'}</td>
       <td style="color:var(--muted)">${r.minQty}</td>
       <td>${r.lastPrice != null ? r.lastPrice.toFixed(2) + ' ج' : '<span style="color:var(--muted);font-size:12px">—</span>'}${r.lastPriceFromDC ? ' <span style="font-size:9px;color:#1a7a40">DC</span>' : ''}</td>
       <td>${r.needOrder ? '<span class="order-yes">🔴 اطلب</span>' : '<span class="order-no">✅ لا تطلب</span>'}</td>
@@ -1418,6 +1469,7 @@ function renderOrders() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
+    ${expandedBranchSkus.has(r.sku) ? branchBreakdownRow(r.sku, 10) : ''}
   `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('ordersPager', pages, ordersPage, p => { ordersPage = p; renderOrders(); });
@@ -1465,7 +1517,7 @@ function renderAll() {
       <td>${escapeHtml(r.name)}</td>
       <td style="color:var(--muted);font-size:12px">${r.sku}</td>
       <td style="color:var(--muted)">${unitLabel(r.unit)}</td>
-      <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}">${r.qty.toFixed(2)}</td>
+      <td class="${r.qty < 0 ? 'qty-neg' : r.qty === 0 ? 'qty-low' : 'qty-ok'}" style="cursor:pointer" title="اضغط لعرض رصيد كل فرع" onclick="toggleBranchBreakdown('${r.sku}',renderAll)">${r.qty.toFixed(2)} ${expandedBranchSkus.has(r.sku) ? '▲' : '▼'}</td>
       <td>${r.totalCost.toLocaleString('ar-EG', {minimumFractionDigits:0})} ج</td>
       <td><span class="badge badge-${r.class}">${TIER_LABELS[r.class]}</span></td>
       <td>${r.importance ? `<span class="badge badge-imp-${r.importance}">${r.importance}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
@@ -1479,6 +1531,7 @@ function renderAll() {
         ${r.notes ? `<span class="note-chip" title="${escapeHtml(r.notes)}" onclick="openEdit('${r.sku}')">📝 ${escapeHtml(r.notes)}</span>` : ''}
       </td>
     </tr>
+    ${expandedBranchSkus.has(r.sku) ? branchBreakdownRow(r.sku, 10) : ''}
   `).join('') || '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">لا توجد نتائج</td></tr>';
 
   renderPager('allPager', pages, allPage, p => { allPage = p; renderAll(); });
@@ -1649,7 +1702,7 @@ function exportCSV(data, name) {
 
 // =================== TABS ===================
 function showTab(name) {
-  const allTabs = ['dashboard','orders','all','settings','history','ai','suppliers','po'];
+  const allTabs = ['dashboard','orders','all','settings','history','ai','suppliers','po','shortages'];
   allTabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
     if (el) el.style.display = t === name ? 'block' : 'none';
@@ -1664,6 +1717,7 @@ function showTab(name) {
   if (name === 'ai') refreshAITab();
   if (name === 'suppliers') renderSuppliers();
   if (name === 'po') { poPopulateSuppliers(); poLoad(); }
+  if (name === 'shortages') loadShortages();
 }
 
 // Close modal on overlay click
@@ -2382,6 +2436,87 @@ function addToCart(sku) {
   updateCartBadge();
   poRenderItemsList();
   showToast('✅ اتضاف لسلة أمر الشراء (' + poItems.length + ' صنف) — اضغط "🧾 أوامر الشراء" للمتابعة');
+}
+
+// ── نواقص فروع ومصنع ── بتيجي من زرار "نواقص الطلبية" في المصنع (وأي مصدر تاني لاحقًا)
+var SHORTAGES = [];
+function updateShortagesBadge() {
+  var btn = document.getElementById('btn-shortages');
+  if (!btn) return;
+  var badge = document.getElementById('shortagesBadge');
+  var pending = SHORTAGES.filter(function(s){ return s.status === 'pending'; }).length;
+  if (!pending) { if (badge) badge.remove(); return; }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'shortagesBadge';
+    badge.style.cssText = 'background:#d63031;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-right:6px;';
+    btn.appendChild(badge);
+  }
+  badge.textContent = pending;
+}
+
+async function loadShortages() {
+  try {
+    SHORTAGES = await poSbFetch('purchase_shortage_requests?select=*&status=eq.pending&order=created_at.desc') || [];
+  } catch (e) { SHORTAGES = []; console.error('[loadShortages]', e); }
+  updateShortagesBadge();
+  renderShortages();
+}
+
+function renderShortages() {
+  var list = document.getElementById('shortagesList');
+  var empty = document.getElementById('shortagesEmpty');
+  if (!list) return;
+  if (!SHORTAGES.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  var sourceLabel = { factory: '🏭 المصنع' };
+  list.innerHTML = '<div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">' +
+    '<table><thead><tr>' +
+      '<th>الصنف</th><th>SKU</th><th>الوحدة</th><th>الكمية الناقصة</th><th>الفرع</th><th>المصدر</th><th>تاريخ الطلبية</th><th style="text-align:center">إجراء</th>' +
+    '</tr></thead><tbody>' +
+    SHORTAGES.map(function(s){
+      return '<tr>' +
+        '<td>' + escapeHtml(s.name || s.sku) + '</td>' +
+        '<td style="color:var(--muted);font-size:12px">' + escapeHtml(s.sku) + '</td>' +
+        '<td style="color:var(--muted)">' + unitLabel(s.unit) + '</td>' +
+        '<td style="font-weight:700">' + (parseFloat(s.qty) || 0).toFixed(2) + '</td>' +
+        '<td>' + escapeHtml(s.branch || '—') + '</td>' +
+        '<td>' + (sourceLabel[s.source] || escapeHtml(s.source || '—')) + '</td>' +
+        '<td style="color:var(--muted);font-size:12px">' + escapeHtml(s.order_date || '—') + '</td>' +
+        '<td style="text-align:center"><button class="filter-btn" style="padding:6px 12px;font-size:12px" onclick="convertShortageToPO(\'' + s.id + '\')">🧾 حوّل لطلب شراء</button></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+async function convertShortageToPO(id) {
+  var s = SHORTAGES.find(function(x){ return x.id === id; });
+  if (!s) return;
+  if (poItems.find(function(x){ return x.sku === s.sku; })) {
+    showToast('⚠️ الصنف موجود بالفعل في سلة أمر الشراء');
+  } else {
+    var known = (typeof processedData !== 'undefined') ? processedData.find(function(p){ return p.sku === s.sku; }) : null;
+    poItems.push({
+      sku: s.sku, name: s.name || (known && known.name) || s.sku, unit: s.unit || (known && known.unit) || '',
+      qty: parseFloat(s.qty) || 1, stock: known ? (known.qty || 0) : 0,
+      lastPrice: known ? (known.lastPrice ?? null) : null, lastPriceFromDC: known ? !!known.lastPriceFromDC : false
+    });
+    updateCartBadge();
+  }
+  try {
+    await poSbFetch('purchase_shortage_requests?id=eq.' + id, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'converted', converted_at: new Date().toISOString() })
+    });
+  } catch (e) { console.error('[convertShortageToPO]', e); }
+  SHORTAGES = SHORTAGES.filter(function(x){ return x.id !== id; });
+  updateShortagesBadge();
+  renderShortages();
+  showToast('✅ اتضاف لسلة أمر الشراء — اضغط "🧾 أوامر الشراء" للمتابعة');
 }
 
 function clearCart() {

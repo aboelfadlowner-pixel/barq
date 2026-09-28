@@ -330,7 +330,7 @@ async function sbWrite(path, opts, queueMeta) {
     OFFLINE_QUEUE.push(op);
     await saveOfflineQueue();
     updateOfflineIndicator();
-    scheduleSyncRetry();
+    // مفيش مزامنة تلقائية بعد كده — العملية دي هتفضل في الطابور لحد ما تدوس "🔁 Sync Now" بنفسك من مركز المزامنة
     return { ok:false, data:null, queued:true, uuid:op.uuid };
   }
 }
@@ -400,15 +400,9 @@ async function syncOfflineQueue() {
     if (role) loadFromSupabase();
   }
   if (failed > 0 && succeeded === 0) {
-    SYNC_BACKOFF_MS = Math.min(SYNC_BACKOFF_MS * 2, SYNC_BACKOFF_MAX); // Exponential Backoff
-    scheduleSyncRetry();
+    toast('⚠️ '+failed+' عملية فشلت — دوس "🔁 Sync Now" في مركز المزامنة لإعادة المحاولة يدوي');
   }
   render();
-}
-
-function scheduleSyncRetry() {
-  if (SYNC_TIMER) clearTimeout(SYNC_TIMER);
-  SYNC_TIMER = setTimeout(function(){ syncOfflineQueue(); }, SYNC_BACKOFF_MS);
 }
 
 async function retryFailedOperation(uuid) {
@@ -472,9 +466,8 @@ async function checkConnectionQuality() {
 }
 
 window.addEventListener('online', function(){
-  toast('🟢 عاد الاتصال بالإنترنت — جاري المزامنة');
+  toast('🟢 عاد الاتصال بالإنترنت — روح "مركز المزامنة" وزامن يدوي لو عندك عمليات معلّقة');
   SYNC_BACKOFF_MS = 20000;
-  syncOfflineQueue();
   checkConnectionQuality();
 });
 window.addEventListener('offline', function(){
@@ -484,7 +477,9 @@ window.addEventListener('offline', function(){
 });
 
 setInterval(checkConnectionQuality, 15000);
-setInterval(function(){ if (OFFLINE_QUEUE.length && navigator.onLine && !IS_SYNCING) syncOfflineQueue(); }, 20000);
+// المزامنة التلقائية (كل 20 ثانية + إعادة المحاولة بعد الفشل) كانت بتشتغل في الخلفية وهي الصفحة مفتوحة
+// وبتقاطع أي حاجة الشخص شغال عليها (زي البحث) — دلوقتي المزامنة بتحصل مرة واحدة بس عند فتح الصفحة،
+// وبعد كده لازم تدوس "🔁 Sync Now" في مركز المزامنة بنفسك وقت ما تحب
 
 
 // مهلة زمنية لكل طلب — عشان اتصال ضعيف/عالق مايفضلش شاشة التحميل معلّقة للأبد،
@@ -904,11 +899,19 @@ var _realtimeChannel = null;
 
 function loadRealtimeLib(cb) {
   if (_realtimeLibLoaded || window.supabase) { _realtimeLibLoaded = true; cb(); return; }
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
-  s.onload = function(){ _realtimeLibLoaded = true; cb(); };
-  s.onerror = function(){ console.error('تعذر تحميل مكتبة التحديث الفوري'); };
-  document.body.appendChild(s);
+  var CDNS = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
+  ];
+  function tryLoad(i) {
+    if (i >= CDNS.length) { console.error('تعذر تحميل مكتبة التحديث الفوري — التطبيق هيشتغل عادي بس بدون تحديث فوري بين النوافذ'); return; }
+    var s = document.createElement('script');
+    s.src = CDNS[i];
+    s.onload = function(){ _realtimeLibLoaded = true; cb(); };
+    s.onerror = function(){ tryLoad(i + 1); };
+    document.body.appendChild(s);
+  }
+  tryLoad(0);
 }
 
 function startRealtime() {
@@ -958,6 +961,53 @@ async function fetchAllPaged(pathBase) {
   } catch(e) { return []; }
 }
 
+var DC_SYNC_STATUS = null; // { ok:bool, msg:string, at:Date } — آخر نتيجة مزامنة الداتا سنتر (كتالوج المنتجات ومواد المخزون)، لعرضها في مركز المزامنة
+var DC_SYNC_IN_FLIGHT = null; // بنحتفظ بالـ promise الجاري عشان لو المزامنة اتطلبت أكتر من مرة (فتح تاب + دوس الزرار) منبعتش أكتر من طلب في نفس اللحظة ونضغط على نفس السيرفر
+
+// خطوة نشر الكتالوج (sync_catalog_from_dc) أحياناً بترجع 400 "Thread killed by timeout manager" من
+// PostgREST لو السيرفر مزحوم مؤقتاً بطلبات متزامنة (زي فتح كذا تاب أو دوس الزرار كذا مرة بسرعة) —
+// مش خطأ في البيانات، فبنجرب تاني مرة واحدة بعد ثانيتين قبل ما نعتبرها فشلت فعلاً
+function callSyncCatalogRpcWithRetry(attempt) {
+  return sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) }).catch(function(e){
+    var isTimeout = /timeout|Thread killed/i.test(String(e && e.message || e));
+    if (isTimeout && !attempt) {
+      return new Promise(function(resolve){ setTimeout(resolve, 2000); }).then(function(){
+        return callSyncCatalogRpcWithRetry(true);
+      });
+    }
+    throw e;
+  });
+}
+
+function syncDataCenterCatalog() {
+  if (DC_SYNC_IN_FLIGHT) return DC_SYNC_IN_FLIGHT; // مزامنة شغالة بالفعل — منبعتش طلب تاني فوقها
+  DC_SYNC_STATUS = { ok:null, msg:'⏳ جاري المزامنة...', at:new Date() };
+  if (view === 'synccenter') render();
+  var p = fetch(SB_URL + '/functions/v1/dc-sync', { method:'POST', headers: SB_HEADERS, body: JSON.stringify({}) })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){
+      var failed = (data.results || []).filter(function(x){ return x.status === 'failed'; });
+      if (failed.length) {
+        var msg = '⚠️ فشلت مزامنة: ' + failed.map(function(f){ return f.table + (f.error ? ' (' + f.error + ')' : ''); }).join('، ');
+        DC_SYNC_STATUS = { ok:false, msg:msg, at:new Date() };
+        toast(msg, 6000);
+      }
+      return callSyncCatalogRpcWithRetry(false).then(function(){
+        if (!failed.length) { DC_SYNC_STATUS = { ok:true, msg:'✅ تمت المزامنة بنجاح', at:new Date() }; }
+        if (view === 'synccenter') render();
+      });
+    })
+    .catch(function(e){
+      var msg = '⚠️ تعذّرت مزامنة الداتا سنتر (' + (e && e.message || e) + ')';
+      DC_SYNC_STATUS = { ok:false, msg:msg, at:new Date() };
+      toast(msg, 6000);
+      if (view === 'synccenter') render();
+    })
+    .finally(function(){ DC_SYNC_IN_FLIGHT = null; });
+  DC_SYNC_IN_FLIGHT = p;
+  return p;
+}
+
 async function loadFromSupabase() {
   render(); // show auth-less shell while loading
   var root = document.getElementById('root');
@@ -965,8 +1015,9 @@ async function loadFromSupabase() {
 
   // مزامنة كتالوج المنتجات/المواد من الداتا سنتر (جوجل درايف → dc_* → products_master/materials_master) —
   // بتتطلق في الخلفية كل مرة حد يفتح التطبيق (بدل معاد يومي ثابت)، من غير ما نستنى نتيجتها عشان متبطأش تحميل الشاشة.
-  // فيها حماية داخلية في السيرفر (10 دقايق) تمنع تكرارها لو أكتر من موظف فتحوا التطبيق قريب من بعض
-  sbFetch('rpc/sync_catalog_from_dc', { method:'POST', body: JSON.stringify({}) }).catch(function(){});
+  // بنسحب أولاً من درايف لجداول dc_* (dc-sync) وبعدين ننشرها على products_master/materials_master (sync_catalog_from_dc) —
+  // من غير الاعتماد على فتح برنامج تاني (زي المخزون) الأول. فيها حماية داخلية في السيرفر تمنع التكرار المتقارب.
+  syncDataCenterCatalog();
 
   try {
     // كل الجداول دي مستقلة عن بعض — بنجيبها كلها مع بعض (parallel) بدل واحد ورا التاني، عشان التحميل يبقى
@@ -1039,6 +1090,8 @@ async function loadFromSupabase() {
     });
 
     // 7. products_master (تكلفة/سعر/باركود دائم — بديل رفع الملف اليومي)
+    // ملحوظة: تسجيل "الأسعار المعدّلة" و"المنتجات الجديدة" بقى Trigger في قاعدة البيانات نفسها
+    // (يمسك أي كتابة على products_master من أي مصدر)، مش محتاج نعمله هنا في الواجهة تاني.
     if (allProducts.length) {
       allProducts.forEach(function(p){
         // ملحوظة: مفيش q/qAt هنا — الرصيد بقى فرع بفرع في BRANCH_STOCK (جدول branch_stock)، مش عمود مشترك هنا
@@ -1103,10 +1156,16 @@ function renderTopBar() {
   var r=ROLES[role]; var btns='';
   // شاشة المزامنة كانت من غير أي زرار رجوع — المستخدم كان مضطر يعمل "خروج" (تسجيل خروج كامل)
   // بس عشان يقفلها. دلوقتي زرار المزامنة نفسه بيرجع لو انت فاتحها بالفعل، وفيه زرار "🏠 الرئيسية" واضح.
-  if (view === 'synccenter') {
+  if (view === 'synccenter' || view === 'pricechanges' || view === 'newproducts') {
     btns += '<button class="tb on" onclick="view=\'queue\';render()">🏠 الرئيسية</button>';
   } else {
     btns += '<button class="tb" onclick="view=\'synccenter\';render()">🔄 المزامنة</button>';
+  }
+  if (view !== 'pricechanges') {
+    btns += '<button class="tb" onclick="openPriceChangesView()">💰 أسعار معدّلة</button>';
+  }
+  if (view !== 'newproducts') {
+    btns += '<button class="tb" onclick="openNewProductsView()">🆕 منتجات جديدة</button>';
   }
   btns += '<button class="tb" onclick="doLogout()">خروج</button>';
 
@@ -1125,6 +1184,8 @@ function renderTopBar() {
 // ═══════════════════════════════════════════════
 function renderMain() {
   if (view === 'synccenter') return '<div class="pg">'+renderSyncCenter()+'</div>';
+  if (view === 'pricechanges') return '<div class="pg">'+renderPriceChangesView()+'</div>';
+  if (view === 'newproducts') return '<div class="pg">'+renderNewProductsView()+'</div>';
   return renderReceivingRoot();
 }
 // ═══════════════════════════════════════════════
@@ -1866,7 +1927,10 @@ function pickField(row, candidates) {
   return '';
 }
 
-function processProductRows(rows, filename) {
+// ملحوظة: الفانكشن دي كانت بتحدّث PRODUCTS في الذاكرة بس من غير ما تحفظ في قاعدة البيانات (products_master) —
+// فأي صنف جديد كان بيتضاف في التاب المفتوح وقتها بس، وكان بيختفي تاني بعد أي Reload أو من جهاز/تاب تاني.
+// دلوقتي بقت async وبتحفظ في القاعدة بنفس طريقة processFoodicsFullFile بالظبط.
+async function processProductRows(rows, filename) {
   var resBox = document.getElementById('prod-up-result');
   if (!rows || !rows.length) {
     if (resBox) resBox.innerHTML = '⚠️ الملف فارغ أو غير صالح';
@@ -1874,6 +1938,7 @@ function processProductRows(rows, filename) {
   }
 
   var added = 0, updated = 0;
+  var masterRows = [];
   rows.forEach(function(row){
     var sku   = String(pickField(row, ['sku','code','كود'])).trim();
     var name  = String(pickField(row, ['name','الاسم','product_name'])).trim();
@@ -1892,11 +1957,37 @@ function processProductRows(rows, filename) {
       PRODUCTS[sku] = { n:name, c:cost, p:price, bc:bc, margin: cost&&price ? ((price-cost)/price*100) : 22 };
       added++;
     }
+    masterRows.push({
+      sku: sku, name: PRODUCTS[sku].n, barcode: PRODUCTS[sku].bc,
+      cost: PRODUCTS[sku].c, price: PRODUCTS[sku].p, margin: PRODUCTS[sku].margin
+    });
   });
 
-  addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated);
-  if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+')';
-  toast('✅ تم تحديث بيانات المنتجات');
+  if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">⏳ جاري الحفظ الدائم في قاعدة البيانات...</div>';
+  toast('⏳ جاري حفظ '+masterRows.length+' صنف بشكل دائم...');
+
+  var batchSize = 500;
+  var queuedBatches = 0;
+  for (var b=0; b<masterRows.length; b+=batchSize) {
+    var chunk = masterRows.slice(b, b+batchSize);
+    var res = await sbWrite('products_master?on_conflict=sku', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(chunk)
+    }, { opType:'تحديث_منتج', label:'دفعة منتجات (ملف مبسط) ('+chunk.length+' صنف)' });
+    if (res.queued) queuedBatches++;
+  }
+
+  addAudit('رفع بيانات منتجات (ملف مبسط)', ROLES[role] ? ROLES[role].label : '—', filename+' — جديد: '+added+' | محدّث: '+updated+' — محفوظ في القاعدة');
+  if (queuedBatches > 0) {
+    if (resBox) resBox.innerHTML = '<div style="padding:10px;background:#fef9e7;border-radius:8px;font-size:13px">' +
+      '📴 تم تحميل البيانات محلياً — '+queuedBatches+' دفعة ستُرفع تلقائياً عند عودة الاتصال<br>' +
+      '<span style="font-size:11px;color:var(--muted)">'+added+' صنف جديد، '+updated+' صنف محدّث</span></div>';
+    toast('📴 تم التحميل محلياً — سيُرفع تلقائياً');
+  } else {
+    if (resBox) resBox.innerHTML = '✅ تم: <strong>'+added+'</strong> صنف جديد، <strong>'+updated+'</strong> صنف محدّث (إجمالي القاعدة: '+Object.keys(PRODUCTS).length+') — محفوظ بشكل دائم';
+    toast('✅ تم حفظ '+(added+updated)+' صنف بشكل دائم في قاعدة البيانات');
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -2474,17 +2565,20 @@ function handleScan(code) {
   if (!code) return;
   var msg = document.getElementById('scan-msg');
 
-  // Search by barcode first, then by SKU, then by name match
-  var idx = recvItems.findIndex(function(it){ return it.bc && it.bc === code; });
-  if (idx === -1) idx = recvItems.findIndex(function(it){ return it.sku === code; });
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — لو صنف تاني اتسجل غلط وباركوده
+  // بقى نفس نص كود صنف تاني (زي "sk-14319")، مينفعش الباركود الغلط يغلب المطابقة الصح بالكود
+  var idx = recvItems.findIndex(function(it){ return it.sku === code; });
+  if (idx === -1) idx = recvItems.findIndex(function(it){ return it.bc && it.bc === code; });
 
   if (idx === -1) {
     // In manual-invoice or return mode, allow adding any product found in the master DB
     if (isManualInvoice || isReturnMode) {
-      var foundSku = null;
-      Object.keys(PRODUCTS).forEach(function(sku){
-        if (PRODUCTS[sku].bc === code || sku === code) foundSku = sku;
-      });
+      var foundSku = PRODUCTS[code] ? code : null;
+      if (!foundSku) {
+        Object.keys(PRODUCTS).forEach(function(sku){
+          if (PRODUCTS[sku].bc === code) foundSku = sku;
+        });
+      }
       if (foundSku) {
         manualAddProduct(foundSku);
         if (msg) { msg.innerHTML = '✅ تمت إضافة <strong>'+PRODUCTS[foundSku].n+'</strong>'; msg.style.color = '#1a7a40'; }
@@ -3323,16 +3417,19 @@ function handleCountScan(code) {
   if (!countSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
   var msg = document.getElementById('scan-msg');
 
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — نفس السبب اللي في handleScan
   var idx = findCountIndexBySku(code);
   var sku = idx>=0 ? countItems[idx].sku : null;
+  if (!sku && PRODUCTS[code]) sku = code;
+  if (!sku && MATERIALS[code]) sku = code;
   if (!sku) {
     Object.keys(PRODUCTS).forEach(function(s){
-      if (PRODUCTS[s].bc === code || s === code) sku = s;
+      if (PRODUCTS[s].bc === code) sku = s;
     });
   }
   if (!sku) {
     Object.keys(MATERIALS).forEach(function(s){
-      if (MATERIALS[s].bc === code || s === code) sku = s;
+      if (MATERIALS[s].bc === code) sku = s;
     });
   }
 
@@ -3749,8 +3846,11 @@ function handlePriceCheckScan(code) {
   if (!priceCheckSession) { toast('⚠️ لسه الجلسة بتتفتح...'); return; }
   var msg = document.getElementById('scan-msg');
 
-  var sku = null;
-  Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code || s === code) sku = s; });
+  // مطابقة الـ SKU بالظبط ليها أولوية دايمًا على الباركود — نفس السبب اللي في handleScan
+  var sku = PRODUCTS[code] ? code : null;
+  if (!sku) {
+    Object.keys(PRODUCTS).forEach(function(s){ if (PRODUCTS[s].bc === code) sku = s; });
+  }
 
   if (!sku) {
     playBeep('unknown');
@@ -4334,9 +4434,26 @@ function renderSyncCenter() {
       '<th style="text-align:center">الحالة</th><th>السبب (لو فشلت)</th><th style="text-align:center">إجراءات</th>' +
     '</tr></thead><tbody>'+rows+'</tbody></table></div>' +
   '</div>' +
+  renderDcSyncCard() +
   '<div class="cd" style="background:var(--bg);font-size:11px;color:var(--muted)">' +
     '🔒 البيانات المحفوظة محلياً على هذا الجهاز مشفّرة (AES-256) — لا يمكن قراءتها كملف عادي خارج التطبيق. ' +
     'لكن كما هو الحال في أي تطبيق يعمل من المتصفح فقط، هذا الإجراء يحمي من القراءة العرضية وليس بديلاً كاملاً عن تشفير من جهة خادم مستقل.' +
+  '</div>';
+}
+
+// كتالوج المنتجات ومواد المخزون (اللي جاي من الداتا سنتر) منفصل تمامًا عن طابور العمليات فوق —
+// ده زرار مباشر وواضح النتيجة، عشان مبقاش فيه اعتماد على إن التحديث التلقائي وقت فتح التطبيق نجح ولا لأ
+function renderDcSyncCard() {
+  var s = DC_SYNC_STATUS;
+  var statusLine = s
+    ? '<div style="font-size:12px;margin-top:8px;color:'+(s.ok===false?'#c0392b':(s.ok===true?'#1a7a40':'var(--muted)'))+'">'+s.msg+' — '+s.at.toLocaleTimeString('ar-EG-u-nu-latn')+'</div>'
+    : '<div style="font-size:12px;margin-top:8px;color:var(--muted)">لسه معملتش مزامنة يدوية في الجلسة دي</div>';
+  return '<div class="cd">' +
+    '<div class="ct">📦 كتالوج المنتجات ومواد المخزون (الداتا سنتر)' +
+      '<button class="bn bn-p" onclick="syncDataCenterCatalog()">🔄 مزامنة الآن</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted)">بتسحب أحدث نسخة من شيتات فودكس (المنتجات، مواد المخزون، الموردين...) وتحدّث بيها التطبيق — مش مرتبطة بطابور العمليات فوق.</div>' +
+    statusLine +
   '</div>';
 }
 
@@ -4396,6 +4513,92 @@ function exportSyncLog() {
 // FOODICS PRODUCTS CACHE — رفع مرة واحدة
 // ═══════════════════════════════════════════════
 var PRODUCTS_MASTER_LOADED = false; // true لو التكلفة اتحملت من قاعدة البيانات (مش محتاج رفع يومي)
+
+// ═══════════════════════════════════════════════
+// سجل "المنتجات التي تم تعديل أسعارها" و"المنتجات الجديدة" — مرجع مشترك بين كل الأجهزة.
+// بيتسجّل تلقائي من قاعدة البيانات نفسها (Trigger على products_master بيمسك أي إضافة/تعديل سعر
+// من أي مصدر — سواء المزامنة التلقائية من درايف أو الرفع اليدوي)، فكل الأجهزة بتشوف نفس القائمة بالظبط.
+// ═══════════════════════════════════════════════
+var PRICE_CHANGE_LOG = null; // null = لسه مجابش من القاعدة
+var NEW_PRODUCTS_LOG = null;
+
+async function openPriceChangesView(){
+  view = 'pricechanges';
+  render();
+  PRICE_CHANGE_LOG = await sbFetch('price_change_log?select=*&order=changed_at.desc&limit=300').catch(function(){ return []; });
+  if (view === 'pricechanges') render();
+}
+async function openNewProductsView(){
+  view = 'newproducts';
+  render();
+  NEW_PRODUCTS_LOG = await sbFetch('new_products_log?select=*&order=created_at.desc&limit=300').catch(function(){ return []; });
+  if (view === 'newproducts') render();
+}
+async function clearPriceChangesLog(){
+  if (!confirm('مسح سجل الأسعار المعدّلة بالكامل؟ (هيتمسح لكل الأجهزة)')) return;
+  await sbWrite('price_change_log?id=not.is.null', { method:'DELETE', headers:{'Prefer':'return=minimal'} }, { opType:'مسح_سجل', label:'مسح سجل الأسعار المعدّلة' });
+  PRICE_CHANGE_LOG = [];
+  render();
+}
+async function clearNewProductsLog(){
+  if (!confirm('مسح سجل المنتجات الجديدة بالكامل؟ (هيتمسح لكل الأجهزة)')) return;
+  await sbWrite('new_products_log?id=not.is.null', { method:'DELETE', headers:{'Prefer':'return=minimal'} }, { opType:'مسح_سجل', label:'مسح سجل المنتجات الجديدة' });
+  NEW_PRODUCTS_LOG = [];
+  render();
+}
+function renderPriceChangesView(){
+  if (PRICE_CHANGE_LOG === null) {
+    return '<div class="cd"><div class="ct">💰 المنتجات التي تم تعديل أسعارها</div><div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div></div>';
+  }
+  var changes = PRICE_CHANGE_LOG;
+  var rows = changes.map(function(c){
+    var up = c.new_price > c.old_price;
+    var color = up ? '#c0392b' : '#1a7a40';
+    return '<tr>' +
+      '<td style="padding:8px;border:1px solid #ddd">' + (c.name||'') + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-family:monospace">' + c.sku + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;text-align:center">' + fmt(c.old_price) + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;text-align:center;color:' + color + ';font-weight:800">' + (up ? '🔺' : '🔻') + ' ' + fmt(c.new_price) + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (c.changed_at || '').slice(0, 16).replace('T', ' ') + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="cd">' +
+    '<div class="ct">💰 المنتجات التي تم تعديل أسعارها</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتسجّل تلقائي من قاعدة البيانات كل ما سعر صنف يتغيّر — مشتركة بين كل الأجهزة.</div>' +
+    (changes.length ? '<button class="bn" onclick="clearPriceChangesLog()" style="margin-bottom:10px">🗑 مسح السجل</button>' : '') +
+    (changes.length ?
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<tr style="background:var(--bg)"><th style="padding:8px;border:1px solid #ddd">الصنف</th><th style="padding:8px;border:1px solid #ddd">الكود</th>' +
+      '<th style="padding:8px;border:1px solid #ddd">السعر القديم</th><th style="padding:8px;border:1px solid #ddd">السعر الجديد</th><th style="padding:8px;border:1px solid #ddd">التاريخ</th></tr>' +
+      rows + '</table></div>'
+      : '<div style="padding:20px;text-align:center;color:var(--muted)">مفيش أي تغيير في الأسعار متسجل لحد دلوقتي</div>') +
+  '</div>';
+}
+function renderNewProductsView(){
+  if (NEW_PRODUCTS_LOG === null) {
+    return '<div class="cd"><div class="ct">🆕 المنتجات التي تم إضافتها حديثًا</div><div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div></div>';
+  }
+  var items = NEW_PRODUCTS_LOG;
+  var rows = items.map(function(it){
+    return '<tr>' +
+      '<td style="padding:8px;border:1px solid #ddd">' + (it.name||'') + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-family:monospace">' + it.sku + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;text-align:center">' + fmt(it.price) + '</td>' +
+      '<td style="padding:8px;border:1px solid #ddd;font-size:11px;color:var(--muted)">' + (it.added_at || '') + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="cd">' +
+    '<div class="ct">🆕 المنتجات التي تم إضافتها حديثًا</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">بتتسجّل تلقائي من قاعدة البيانات كل ما كود صنف جديد يتضاف — مشتركة بين كل الأجهزة.</div>' +
+    (items.length ? '<button class="bn" onclick="clearNewProductsLog()" style="margin-bottom:10px">🗑 مسح السجل</button>' : '') +
+    (items.length ?
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<tr style="background:var(--bg)"><th style="padding:8px;border:1px solid #ddd">الصنف</th><th style="padding:8px;border:1px solid #ddd">الكود</th>' +
+      '<th style="padding:8px;border:1px solid #ddd">السعر</th><th style="padding:8px;border:1px solid #ddd">تاريخ الإضافة</th></tr>' +
+      rows + '</table></div>'
+      : '<div style="padding:20px;text-align:center;color:var(--muted)">مفيش أي منتج جديد متسجل لحد دلوقتي</div>') +
+  '</div>';
+}
 var FOODICS_CACHE = {}; // sku -> صف كامل من ملف فودكس (يُستخدم مؤقتاً أثناء معالجة رفع الملف)
 var FOODICS_CSV_LOADED = false;
 // ═══════════════════════════════════════════════
