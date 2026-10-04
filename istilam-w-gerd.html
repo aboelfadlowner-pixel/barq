@@ -4049,6 +4049,7 @@ function renderPriceCheckEntry() {
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="printPriceLabels()">🏷️ طباعة ملصقات الأسعار</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportPriceCheckReport()">📊 تصدير تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
+      '<button class="big-action-btn" style="background:#b8860b;color:#fff" onclick="printTodayPriceChanges()">💰 طباعة تغييرات الأسعار اليوم</button>' +
     '</div>' +
     '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">وضع قراءة فقط — من هنا مش بيتغيّر أي سعر على النظام</div>' +
     renderProductUploadWidget() +
@@ -4175,6 +4176,54 @@ function printPriceCheckReport() {
     '<div style="font-size:12px;color:#666;margin-bottom:14px">تاريخ الطباعة: '+today+' | عدد المشاكل: '+rows.length+'</div>' +
     '<table><thead><tr>' +
       '<th>اسم الصنف</th><th>SKU</th><th>السعر على النظام</th><th>السعر على الرف</th><th>نوع المشكلة</th><th>مين لاحظه</th>' +
+    '</tr></thead><tbody>'+rowsHTML+'</tbody></table>' +
+    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
+}
+
+// بيطبع المنتجات الي اتغير سعرها "النهاردة بس" (مش كل الأيام) من سجل price_change_log المشترك —
+// مع السعر القديم والجديد، ونسبة التغيير، وتنبيه لو الفرق أكتر من 10% (ممكن يبقى السعر غلط)
+async function printTodayPriceChanges() {
+  toast('⏳ جاري تحميل تغييرات اليوم...');
+  var startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+  var changes = await sbFetch('price_change_log?select=*&changed_at=gte.'+encodeURIComponent(startOfDay.toISOString())+'&order=changed_at.desc&limit=1000').catch(function(){ return null; });
+  if (changes === null) { toast('⚠️ تعذر تحميل تغييرات الأسعار'); return; }
+  if (!changes.length) { toast('✅ مفيش أي تغيير سعر مسجل النهاردة'); return; }
+
+  var today = new Date().toLocaleDateString('ar-EG-u-nu-latn',{year:'numeric',month:'long',day:'numeric'});
+  var warnCount = 0;
+  var rowsHTML = changes.map(function(c,i){
+    var oldP = parseFloat(c.old_price)||0, newP = parseFloat(c.new_price)||0;
+    var diff = newP - oldP;
+    var pct = oldP ? (diff/oldP*100) : 0;
+    var up = diff > 0;
+    var color = up ? '#c0392b' : '#1a7a40';
+    var warn = Math.abs(pct) > 10;
+    if (warn) warnCount++;
+    return '<tr style="background:'+(warn?'#fff3cd':(i%2?'#f8fffe':'#fff'))+'">' +
+      '<td style="padding:7px 8px;border:1px solid #ddd">'+(c.name||'')+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center;font-family:monospace">'+c.sku+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+fmt(oldP)+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center;color:'+color+';font-weight:800">'+(up?'🔺':'🔻')+' '+fmt(newP)+'</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</td>' +
+      '<td style="padding:7px 8px;border:1px solid #ddd;text-align:center;font-weight:800;color:#b8860b">'+(warn?'⚠️ السعر غريب':'')+'</td>' +
+    '</tr>';
+  }).join('');
+
+  var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تغييرات الأسعار اليوم</title>' +
+    '<style>body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#1a1a1a}' +
+    'h2{color:#1a3a2a}table{width:100%;border-collapse:collapse;font-size:12px}' +
+    'th{background:#1a3a2a;color:#fff;padding:8px;border:1px solid #ddd}' +
+    '@media print{body{padding:8px}}</style></head><body>' +
+    '<h2>💰 المنتجات التي تم تعديل أسعارها اليوم</h2>' +
+    '<div style="font-size:12px;color:#666;margin-bottom:14px">تاريخ الطباعة: '+today+' | عدد التغييرات: '+changes.length+(warnCount?' | ⚠️ '+warnCount+' سعر يحتاج مراجعة (فرق أكتر من 10%)':'')+'</div>' +
+    '<table><thead><tr>' +
+      '<th>اسم الصنف</th><th>الكود</th><th>السعر القديم</th><th>السعر الجديد</th><th>نسبة التغيير</th><th>تنبيه</th>' +
     '</tr></thead><tbody>'+rowsHTML+'</tbody></table>' +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
     '</body></html>'
