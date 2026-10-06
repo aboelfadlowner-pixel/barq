@@ -766,7 +766,7 @@ async function deleteSelectedOrders() {
   if (chks.length === 0) { showToast('⚠️ لم تحدد طلبيات', 2000); return; }
 
   const orderIds = [];
-  chks.forEach(function(cb) { orderIds.push(cb.dataset.orderId); });
+  chks.forEach(function(cb) { if (orderIds.indexOf(cb.dataset.orderId) === -1) orderIds.push(cb.dataset.orderId); });
 
   if (!confirm('🗑 هل تريد مسح ' + orderIds.length + ' طلبية نهائيًا؟ لا يمكن التراجع.')) return;
 
@@ -814,14 +814,15 @@ async function loadMergedOrders() {
     const orderIds = [];
     chks.forEach(function(cb) {
       branches.add(cb.dataset.branch);
-      orderIds.push(cb.dataset.orderId);
+      // نفس الطلبية متتحسبش مرتين في التجميع حتى لو كارتها ظهر مكرر
+      if (orderIds.indexOf(cb.dataset.orderId) === -1) orderIds.push(cb.dataset.orderId);
     });
     
     if (branches.size > 1) {
       if (!confirm('⚠️ الطلبيات من ' + branches.size + ' فروع مختلفة. تأكيد التجميع؟')) return;
     }
     
-    if (chks.length === 1) {
+    if (orderIds.length === 1) {
       // طلبية واحدة - استدعي العادي
       await loadOrderFromSupabase(orderIds[0]);
       return;
@@ -1946,16 +1947,24 @@ function toggleIncoming() {
   if (incomingOpen) loadIncomingOrders();
 }
 
+// رقم كل تحميل — الدالة دي بتتنادى من أكتر من مكان (مزامنة كل 30 ث، تحديث، تأكيد، تحميل...) ولو تحميلين
+// اتداخلوا كانوا الاتنين بيضيفوا كروت في نفس القائمة فالطلبية تظهر مكررة. دلوقتي بنبني القائمة بعيد
+// ونعرضها مرة واحدة في الآخر، وأي تحميل قديم اتسبق بتحميل أحدث بيتلغي
+let _incomingLoadSeq = 0;
+
 async function loadIncomingOrders() {
+  const seq = ++_incomingLoadSeq;
   const list = document.getElementById('incomingList');
-  list.innerHTML = '<div class="incoming-empty">⏳ جاري التحميل...</div>';
+  if (!list.children.length) list.innerHTML = '<div class="incoming-empty">⏳ جاري التحميل...</div>';
 
   try {
     const res = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_orders?order=created_at.desc&limit=30`, {
       headers: SB_HDR
     });
     if (!res.ok) throw new Error(await res.text());
-    incomingOrders = await res.json();
+    const fetchedOrders = await res.json();
+    if (seq !== _incomingLoadSeq) return;
+    incomingOrders = fetchedOrders;
 
     // Update badge with pending count
     const pendingCount = incomingOrders.filter(o => o.status === 'pending').length;
@@ -1966,8 +1975,17 @@ async function loadIncomingOrders() {
       return;
     }
 
-    // Load items for each order
-    list.innerHTML = '<div id="mergeBar" style="position:sticky;top:0;background:#f0faf3;border:2px solid #0a8d4b;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;z-index:10">' +
+    // Load items for all orders in parallel
+    const itemsPerOrder = await Promise.all(incomingOrders.map(async order => {
+      const itemsRes = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${order.id}`, {
+        headers: SB_HDR
+      });
+      return itemsRes.ok ? await itemsRes.json() : [];
+    }));
+    if (seq !== _incomingLoadSeq) return;
+
+    const frag = document.createElement('div');
+    frag.innerHTML = '<div id="mergeBar" style="position:sticky;top:0;background:#f0faf3;border:2px solid #0a8d4b;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;z-index:10">' +
       '<span id="mergeCountSpan" style="font-weight:800;color:#1a3a2a;font-size:14px">0 محدد</span>' +
       '<span id="mergeBranchSpan" style="font-size:12px;color:#0a8d4b;font-weight:700"></span>' +
       '<button onclick="loadMergedOrders()" style="margin-right:auto;background:#0a8d4b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo;font-size:13px;font-weight:800;cursor:pointer">📥 تحميل مجمّع</button>' +
@@ -1975,11 +1993,8 @@ async function loadIncomingOrders() {
       '<span style="width:1px;align-self:stretch;background:#c9dfd0;margin:0 6px"></span>' +
       '<button onclick="clearOrderSelection()" title="إلغاء التحديد فقط" style="background:transparent;color:#888;border:1px solid #ccc;border-radius:8px;padding:8px 12px;font-family:Cairo;font-size:13px;font-weight:700;cursor:pointer">✕ إلغاء التحديد</button>' +
     '</div>';
-    for (const order of incomingOrders) {
-      const itemsRes = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${order.id}`, {
-        headers: SB_HDR
-      });
-      const items = itemsRes.ok ? await itemsRes.json() : [];
+    incomingOrders.forEach((order, idx) => {
+      const items = itemsPerOrder[idx];
 
       const statusMap = {
         pending: { text: 'جديدة — في الانتظار', cls: 'status-pending' },
@@ -2020,9 +2035,11 @@ async function loadIncomingOrders() {
           ${order.status === 'received' ? `<button class="btn-status-update" onclick="updateOrderStatus('${order.id}', 'done')">🏁 تم التجهيز</button>` : ''}
         </div>
       `;
-      list.appendChild(card);
-    }
+      frag.appendChild(card);
+    });
+    list.replaceChildren(...frag.childNodes);
   } catch(e) {
+    if (seq !== _incomingLoadSeq) return;
     list.innerHTML = `<div class="incoming-empty">❌ خطأ في الاتصال — ${e.message}</div>`;
     console.error(e);
   }
