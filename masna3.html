@@ -1958,7 +1958,7 @@ async function loadIncomingOrders() {
   if (!list.children.length) list.innerHTML = '<div class="incoming-empty">⏳ جاري التحميل...</div>';
 
   try {
-    const res = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_orders?order=created_at.desc&limit=30`, {
+    const res = await fetchWithTimeout(`${SB_URL}/rest/v1/branch_orders?status=neq.sending&order=created_at.desc&limit=30`, {
       headers: SB_HDR
     });
     if (!res.ok) throw new Error(await res.text());
