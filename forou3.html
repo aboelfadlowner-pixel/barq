@@ -2715,15 +2715,33 @@ function itemsFingerprint(list) {
   return list.map(i => i.sku + ':' + parseFloat(i.quantity)).sort().join(',');
 }
 
-function onOrderSent(count, note) {
+const LAST_SENT_KEY = 'barq_last_sent_order';
+
+// اللي اتبعت للمصنع خلال آخر 12 ساعة من الجهاز ده (sku -> الكمية المبعوتة)، عشان منبعتش نفس الأصناف مرتين
+function loadSentToday() {
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(LAST_SENT_KEY) || 'null'); } catch(e) {}
+  if (!last || last.branchKey !== (currentUser?.branchKey || '') || !last.items || (Date.now() - last.ts) > 12 * 60 * 60 * 1000) return null;
+  return last;
+}
+
+function recordSentItems(sentItems) {
+  const prev = loadSentToday();
+  const merged = prev ? { ...prev.items } : {};
+  sentItems.forEach(i => { merged[i.sku] = (merged[i.sku] || 0) + (parseFloat(i.quantity) || 0); });
+  try { localStorage.setItem(LAST_SENT_KEY, JSON.stringify({ branchKey: currentUser?.branchKey || '', items: merged, ts: Date.now() })); } catch(e) {}
+}
+
+function onOrderSent(count, note, sentItems) {
   try { localStorage.removeItem(PENDING_SUBMISSION_KEY); } catch(e) {}
+  if (sentItems) recordSentItems(sentItems);
   saveOrderToHistory();
   alert(`✅ تم إرسال الطلبية للمصنع بنجاح (${count} صنف)${note ? '\n\n' + note : ''}\n\nالطلبية وصلت المصنع فعلاً.`);
 }
 
-async function sendOrderToFactory(isRetry) {
+async function sendOrderToFactory(isRetry, onlyItems) {
   const skuMap = getActiveSkuMap();
-  const items = Object.entries(quantities)
+  let items = onlyItems || Object.entries(quantities)
     .filter(([sku, qty]) => qty > 0 && skuMap[sku])
     .map(([sku, qty]) => ({ sku, product_name: skuMap[sku].name, quantity: qty, unit: skuMap[sku].unit }));
 
@@ -2735,6 +2753,29 @@ async function sendOrderToFactory(isRetry) {
   const btn = document.getElementById('sendFactoryBtn');
   const btn2 = document.getElementById('sendFactoryBtn2');
   if (btn && btn.disabled) return;
+  // زرار Enter أو ضغطتين بالماوس على الكمبيوتر كانوا بيبعتوا نفس الطلبية كذا مرة ورا بعض.
+  // نفس الطلبية بالظبط اللي اتبعتت بنجاح مش هتتبعت تاني إلا لو اتغير فيها حاجة
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const sent = !isRetry && !onlyItems ? loadSentToday() : null;
+  if (sent) {
+    // الزيادة بس: أصناف جديدة، أو كمية أكبر من اللي اتبعت قبل كده
+    const extra = items
+      .map(i => ({ ...i, quantity: +(i.quantity - (sent.items[i.sku] || 0)).toFixed(3) }))
+      .filter(i => i.quantity > 0);
+    const at = new Date(sent.ts).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    if (!extra.length) {
+      alert(`✅ كل الأصناف دي اتبعتت للمصنع بنجاح قبل كده (آخر إرسال الساعة ${at}).\n\nمش هتتبعت تاني عشان متتكررش.`);
+      return;
+    }
+    const overlap = items.filter(i => sent.items[i.sku]).length;
+    if (overlap) {
+      if (confirm(`ℹ️ فيه ${overlap} صنف من الطلبية دي اتبعتوا للمصنع قبل كده (الساعة ${at}).\n\nOK = ابعت الزيادة بس (${extra.length} صنف: الأصناف الجديدة + فرق الكميات) ✅\nCancel = اختيارات تانية`)) {
+        return sendOrderToFactory(false, extra);
+      }
+      if (!confirm(`⚠️ تبعت الطلبية كاملة (${items.length} صنف)؟\nالأصناف اللي اتبعتت قبل كده هتتكرر في المصنع.`)) return;
+      return sendOrderToFactory(true, items);
+    }
+  }
   if (!isRetry && !confirm(`📤 هل أنت متأكد إنك عايز تبعت الطلبية للمصنع (${items.length} صنف)؟`)) return;
 
   const genId = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
@@ -2760,9 +2801,10 @@ async function sendOrderToFactory(isRetry) {
         try { localStorage.removeItem(PENDING_SUBMISSION_KEY); } catch(e) {}
         if (itemsFingerprint(serverItems) === itemsFingerprint(items)) {
           outcome = 'sent';
-          onOrderSent(items.length, 'المحاولة اللي فاتت كانت وصلت فعلاً، ومتبعتتش مرتين.');
+          onOrderSent(items.length, 'المحاولة اللي فاتت كانت وصلت فعلاً، ومتبعتتش مرتين.', items);
           return;
         }
+        recordSentItems(serverItems); // اللي وصل فعلاً يتحسب، فالإرسال الجاي يعرض يبعت الزيادة بس
         outcome = 'diverged';
         return;
       }
@@ -2801,7 +2843,7 @@ async function sendOrderToFactory(isRetry) {
       body: JSON.stringify({ status: 'pending' })
     });
     outcome = 'sent';
-    onOrderSent(items.length);
+    onOrderSent(items.length, '', items);
   } catch(e) {
     console.error('[sendOrderToFactory]', e);
     // لو الفشل حصل قبل الخطوة الأخيرة: الطلبية لسه مخفية، يعني المصنع مشافهاش أكيد.
@@ -2810,7 +2852,7 @@ async function sendOrderToFactory(isRetry) {
     else {
       try {
         const rows = await sbJson(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}&select=status`);
-        if (rows && rows[0] && rows[0].status !== 'sending') { outcome = 'sent'; onOrderSent(items.length); }
+        if (rows && rows[0] && rows[0].status !== 'sending') { outcome = 'sent'; onOrderSent(items.length, '', items); }
         else outcome = 'failed';
       } catch(e2) { outcome = 'unknown'; }
     }
@@ -2819,14 +2861,13 @@ async function sendOrderToFactory(isRetry) {
   }
 
   if (outcome === 'diverged') {
-    if (confirm('ℹ️ الطلبية اللي كانت ظهرت "فشل" قبل كده طلعت واصلة المصنع فعلاً (بالأصناف القديمة).\n\nالطلبية اللي على الشاشة دلوقتي مختلفة عنها.\nتبعتها كطلبية جديدة منفصلة؟')) {
-      sendOrderToFactory(true);
-    }
+    alert('ℹ️ الطلبية اللي كانت ظهرت "فشل" قبل كده طلعت واصلة المصنع فعلاً (بالأصناف القديمة).\n\nالطلبية اللي على الشاشة دلوقتي مختلفة عنها — هنعرض عليك تبعت الفرق بس.');
+    sendOrderToFactory();
   } else if (outcome === 'unknown') {
     alert('⚠️ النت فصل في آخر لحظة من الإرسال، فمش قادرين نتأكد الطلبية وصلت ولا لأ.\n\nمتعدلش في الطلبية — أول ما النت يرجع دوس "إرسال للمصنع" تاني:\nلو كانت وصلت هيقولك إنها وصلت، ولو موصلتش هيبعتها.\nفي الحالتين مستحيل تتكرر.');
   } else if (outcome === 'failed') {
     if (confirm('❌ الطلبية متبعتتش — المصنع مستلمش أي حاجة منها.\n\nالطلبية لسه محفوظة على الشاشة زي ما هي.\nتحاول تبعتها تاني دلوقتي؟')) {
-      sendOrderToFactory(true);
+      sendOrderToFactory(true, items);
     }
   }
 }

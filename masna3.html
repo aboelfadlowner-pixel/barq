@@ -1984,6 +1984,18 @@ async function loadIncomingOrders() {
     }));
     if (seq !== _incomingLoadSeq) return;
 
+    // علّم الطلبيات المكررة: نفس الفرع ونفس الأصناف والكميات بالظبط، اتبعتت خلال 10 دقايق من طلبية تانية
+    const contentKey = idx => itemsPerOrder[idx].map(i => i.sku + ':' + parseFloat(i.quantity)).sort().join(',');
+    const dupOf = {};
+    incomingOrders.forEach((o, i) => {
+      incomingOrders.forEach((o2, j) => {
+        // القائمة مترتبة من الأحدث للأقدم: النسخة الأقدم هي الأصلية، والأحدث هي اللي تتعلّم مكررة
+        if (j <= i || dupOf[i] !== undefined) return;
+        if (o.branch_name === o2.branch_name && contentKey(i) && contentKey(i) === contentKey(j) &&
+            Math.abs(new Date(o.created_at) - new Date(o2.created_at)) < 10 * 60 * 1000) dupOf[i] = j;
+      });
+    });
+
     const frag = document.createElement('div');
     frag.innerHTML = '<div id="mergeBar" style="position:sticky;top:0;background:#f0faf3;border:2px solid #0a8d4b;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;z-index:10">' +
       '<span id="mergeCountSpan" style="font-weight:800;color:#1a3a2a;font-size:14px">0 محدد</span>' +
@@ -1995,6 +2007,7 @@ async function loadIncomingOrders() {
     '</div>';
     incomingOrders.forEach((order, idx) => {
       const items = itemsPerOrder[idx];
+      const isDup = dupOf[idx] !== undefined;
 
       const statusMap = {
         pending: { text: 'جديدة — في الانتظار', cls: 'status-pending' },
@@ -2026,6 +2039,7 @@ async function loadIncomingOrders() {
           </div>
           <span class="order-status ${st.cls}">${st.text}</span>
         </div>
+        ${isDup ? `<div style="background:#fdecea;color:#c0392b;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;margin:6px 0">⚠️ مكررة — نفس طلبية ${order.branch_name} اللي اتبعتت جنبها بالظبط. غالبًا اتبعتت بالغلط، متجهزهاش مرتين</div>` : ''}
         <div class="order-time">🕐 ${dateStr} · ${items.length} صنف</div>
         <div class="order-items-list">${itemsText || '—'}</div>
         ${order.notes ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">📝 ${order.notes}</div>` : ''}
