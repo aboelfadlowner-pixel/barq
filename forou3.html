@@ -918,8 +918,8 @@ function renderApp() {
     <div class="bottom-bar">
       <button class="action-btn btn-secondary" onclick="clearAll()" style="flex:0.6">🗑 مسح</button>
       <button class="action-btn btn-primary" onclick="toggleSummary()">📋 الطلبية (${filledCount})</button>
-      <button class="action-btn btn-excel" onclick="exportToExcel()">📄 CSV</button>
-      <button class="action-btn btn-secondary" onclick="printOrder()" style="flex:0.7;background:#1a3a2a;color:#fff">🖨 طباعة</button>
+      <button class="action-btn btn-excel" onclick="if(confirm('📄 تصدير الطلبية كملف CSV؟'))exportToExcel()">📄 CSV</button>
+      <button class="action-btn btn-secondary" onclick="if(confirm('🖨 طباعة الطلبية؟'))printOrder()" style="flex:0.7;background:#1a3a2a;color:#fff">🖨 طباعة</button>
       <button id="sendFactoryBtn" class="action-btn" onclick="sendOrderToFactory()" style="background:#e94560;color:#fff;flex:1">📤 إرسال للمصنع</button>
     </div>
     ${summaryModal}
@@ -1170,6 +1170,7 @@ function doLogin() {
     activeTab = getActiveTabs()[0]?.id;
     quantities = {};
     orderDate = new Date().toISOString().split('T')[0];
+    loadFromStorage(); // الطلبية المحفوظة على الجهاز (مثلاً بعد إرسال فشل) متضيعش لو حد خرج ودخل تاني
     loadStockFromStorage();
     loadTodayPromo();
     // تحديد الشاشة الأولى حسب الدور
@@ -1374,6 +1375,9 @@ function updateTabCounts() {
 }
 
 function clearAll() {
+  const count = Object.keys(quantities).length;
+  if (count === 0) { showToast('ℹ️ الطلبية فاضية أصلاً', 2000); return; }
+  if (!confirm(`🗑 هل أنت متأكد إنك عايز تمسح الطلبية (${count} صنف)؟\nمش هينفع ترجعها تاني.`)) return;
   quantities = {};
   // مسح كل الـ inputs في الصفحة
   document.querySelectorAll('.qty-input').forEach(inp => inp.value = '');
@@ -2687,7 +2691,7 @@ async function refreshLearnedAverages() {
   }
 }
 
-async function sendOrderToFactory() {
+async function sendOrderToFactory(isRetry) {
   const skuMap = getActiveSkuMap();
   const items = Object.entries(quantities)
     .filter(([sku, qty]) => qty > 0 && skuMap[sku])
@@ -2700,7 +2704,7 @@ async function sendOrderToFactory() {
 
   const btn = document.getElementById('sendFactoryBtn');
   const btn2 = document.getElementById('sendFactoryBtn2');
-  [btn, btn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جاري الإرسال...'; } });
+  if (btn && btn.disabled) return;
 
   // منع تضاعف الطلبية: لو الإرسال فشل ظاهريًا بسبب نت بطيء (والطلبية كانت اتسجلت فعلاً على السيرفر)
   // والموظف حاول يبعت تاني، بنستخدم نفس الـ id بتاع الطلبية والأصناف لو المحتوى مطابق لمحاولة سابقة
@@ -2710,10 +2714,24 @@ async function sendOrderToFactory() {
   let pending = null;
   try { pending = JSON.parse(localStorage.getItem('barq_pending_order_submission') || 'null'); } catch(e) {}
   const canReuse = pending && pending.fingerprint === submissionFingerprint && pending.itemIds && pending.itemIds.length === items.length && (Date.now() - pending.ts) < 10 * 60 * 1000;
+
+  if (!isRetry) {
+    // لو فيه محاولة إرسال فشلت قبل كده والطلبية اتعدلت بعدها، ننبه إن الأولى ممكن تكون وصلت المصنع فعلاً
+    const recentFail = pending && !canReuse && (Date.now() - pending.ts) < 24 * 60 * 60 * 1000;
+    const sameContent = pending && pending.fingerprint === submissionFingerprint;
+    const msg = recentFail && !sameContent
+      ? `⚠️ فيه محاولة إرسال سابقة فشلت، وممكن تكون وصلت المصنع فعلاً.\nإنت عدّلت الطلبية بعدها، فهتتبعت كطلبية جديدة منفصلة.\n\nالأفضل: ترجّع الطلبية زي ما كانت وتبعتها الأول، وبعدين تبعت الإضافات لوحدها.\n\nمتأكد إنك عايز تبعت (${items.length} صنف) كطلبية جديدة؟`
+      : recentFail
+      ? `⚠️ فيه محاولة إرسال سابقة لنفس الطلبية فشلت من أكتر من 10 دقايق، وممكن تكون وصلت المصنع فعلاً.\nاتأكد من المصنع الأول إنها موصلتش، عشان متتكررش.\n\nمتأكد إنك عايز تبعتها (${items.length} صنف)؟`
+      : `📤 هل أنت متأكد إنك عايز تبعت الطلبية للمصنع (${items.length} صنف)؟`;
+    if (!confirm(msg)) return;
+  }
+  [btn, btn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جاري الإرسال...'; } });
   const orderId = canReuse ? pending.orderId : genId();
   const itemIds = canReuse ? pending.itemIds : items.map(genId);
   try { localStorage.setItem('barq_pending_order_submission', JSON.stringify({ fingerprint: submissionFingerprint, orderId, itemIds, ts: Date.now() })); } catch(e) {}
 
+  let sendFailed = false;
   try {
     // إنشاء الطلبية
     const orderRes = await fetch(`${SB_URL}/rest/v1/branch_orders?on_conflict=id`, {
@@ -2750,9 +2768,14 @@ async function sendOrderToFactory() {
 
   } catch(e) {
     console.error(e);
-    showToast('❌ فشل الإرسال — تحقق من الاتصال، ولو تحاول تاني مش هتتبعت مرتين', 3500);
+    sendFailed = true;
+    showToast('❌ فشل الإرسال — الطلبية لسه محفوظة زي ما هي', 3500);
   } finally {
     [btn, btn2].forEach(b => { if(b) { b.disabled = false; b.textContent = '📤 إرسال للمصنع'; } });
+  }
+  // الطلبية مش بتتمسح بعد الفشل — نعرض إعادة الإرسال فورًا بنفس الأصناف، عشان محدش يعيد كتابتها وينسى صنف
+  if (sendFailed && confirm('❌ فشل إرسال الطلبية (غالبًا النت).\n\nالطلبية لسه محفوظة زي ما هي — متعدلش فيها.\nتحاول تبعتها تاني دلوقتي بنفس الأصناف؟\n\n(مش هتتكرر في المصنع لو كانت وصلت)')) {
+    sendOrderToFactory(true);
   }
 }
 
