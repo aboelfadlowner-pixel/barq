@@ -510,9 +510,15 @@ var LS_DEPT = 'barq_touch_department_v1';
 var LS_BAKERY_SKUS = 'barq_touch_bakery_skus_v1';
 var DEPARTMENTS = {}; // sku -> department
 
+// قائمة أكواد المخبوزات الأساسية (من ملف "بكري" اللي اترفع على الداتا سنتر) — برق تاتش دي مخصصة
+// للمخبوزات بس، فبنعرض الأكواد دي دايمًا حتى من غير ما حد يرفع قايمة يدوي
+var DEFAULT_BAKERY_SKUS = ["sk-10771","sk-11118","sk-11121","sk-11935","sk-12002","sk-14856","sk-15500","sk-15502","sk-16209","sk-16210","sk-16215","sk-16216","sk-16217","sk-16221","sk-16223","sk-16227","sk-16228","sk-16229","sk-16234","sk-16236","sk-16246","sk-16247","sk-16254","sk-16255","sk-16263","sk-16266","sk-16268","sk-16273","sk-16274","sk-16276","sk-16285","sk-16291","sk-16292","sk-16293","sk-16298","sk-16299","sk-16300","sk-16302","sk-16304","sk-16305","sk-16306","sk-16308","sk-16310","sk-16311","sk-16332","sk-16336","sk-16482","sk-16483","sk-16486","sk-16490","sk-16491","sk-16493","sk-16499","sk-16501","sk-16503","sk-16504","sk-16522","sk-6713","sk-7592","sk-7738","sk-7851","sk-7863","sk-8739"];
+
 function loadBakerySkuSet(){
-  try { return new Set(JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]')); }
-  catch(e){ return new Set(); }
+  var set = new Set(DEFAULT_BAKERY_SKUS);
+  try { JSON.parse(localStorage.getItem(LS_BAKERY_SKUS) || '[]').forEach(function(s){ set.add(s); }); }
+  catch(e){}
+  return set;
 }
 function mergeBakerySkusFromRows(rows){
   var set = loadBakerySkuSet();
@@ -557,10 +563,10 @@ function renderBakeryStatus(){
   if (!el) return;
   var dept = localStorage.getItem(LS_DEPT);
   var skuCount = loadBakerySkuSet().size;
-  var parts = [];
+  var parts = ['🥐 ' + DEFAULT_BAKERY_SKUS.length + ' كود مخبوزات أساسي'];
   if (dept) parts.push('قسم: ' + dept);
-  if (skuCount) parts.push(skuCount + ' كود مُضاف يدوي');
-  el.textContent = parts.length ? ('🥐 الفلتر فعّال — ' + parts.join(' + ')) : '🥐 مفيش فلتر متظبط — هيتحمّل كل منتجات الفرع (اختار قسم أو ارفع قائمة أكواد)';
+  if (skuCount > DEFAULT_BAKERY_SKUS.length) parts.push((skuCount - DEFAULT_BAKERY_SKUS.length) + ' كود إضافي مُضاف يدوي');
+  el.textContent = '🥐 الفلتر فعّال — ' + parts.join(' + ');
 }
 function populateDeptSelect(){
   var sel = document.getElementById('deptSelect');
