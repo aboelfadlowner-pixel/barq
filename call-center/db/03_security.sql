@@ -61,12 +61,12 @@ revoke all on function public.cc_my_role()                                      
 -- cc_sold_by is internal (used by the functions below); nobody calls it directly.
 revoke all on function public.cc_sold_by(text)                                          from public, anon, authenticated;
 revoke all on function public.cc_list_products(text, int)                               from public, anon;
-revoke all on function public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, text)    from public, anon;
+revoke all on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text)          from public, anon;
 revoke all on function public.cc_cancel_order(uuid, text)                               from public, anon;
 revoke all on function public.cc_save_area(uuid, text, numeric, boolean)                from public, anon;
 
 grant execute on function public.cc_my_role()                                           to authenticated;
 grant execute on function public.cc_list_products(text, int)                            to authenticated;
-grant execute on function public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, text) to authenticated;
+grant execute on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text) to authenticated;
 grant execute on function public.cc_cancel_order(uuid, text)                            to authenticated;
 grant execute on function public.cc_save_area(uuid, text, numeric, boolean)             to authenticated;

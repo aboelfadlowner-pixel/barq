@@ -144,18 +144,18 @@ customers.forEach((c) => c.addresses.forEach((a, i) => {
  * for today, yesterday and a few days ago.
  * items: [productId, amount, note?]  amount = qty, or 'NNNg' for a line sold by weight. */
 const ORDER_TEMPLATES = [
-  { day: 3, time: '13:10', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 1], ['m-104', '500g']] },
-  { day: 3, time: '18:45', src: 'whatsapp', c: 'c-1', a: 'c-1-a2', st: 'new'      , items: [['m-103', '250g'], ['m-201', 3]] },
-  { day: 1, time: '10:20', src: 'facebook', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '1000g'], ['m-602', 1], ['m-107', '500g']] },
-  { day: 1, time: '12:05', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-401', '500g', 'شرائح'], ['m-111', 2]] },
-  { day: 1, time: '16:30', src: 'whatsapp', c: 'c-3', a: 'c-3-a1', st: 'cancelled', items: [['m-108', '250g']] },
-  { day: 1, time: '20:15', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-706', 1], ['m-203', 6], ['m-801', 6]] },
-  { day: 0, time: '09:35', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 2], ['m-705', 1], ['m-706', 1]] },
-  { day: 0, time: '10:50', src: 'whatsapp', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '500g'], ['m-107', '500g'], ['m-205', 2]] },
-  { day: 0, time: '11:40', src: 'phone',    c: 'c-2', a: 'c-2-a2', st: 'cancelled', items: [['m-110', '250g']] },
-  { day: 0, time: '12:25', src: 'facebook', c: 'c-3', a: 'c-3-a1', st: 'new',       items: [['m-403', '250g', 'شرائح رفيعة'], ['m-103', '500g'], ['m-704', 1]] },
-  { day: 0, time: '13:15', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-104', '1000g'], ['m-203', 6], ['m-602', 1]] },
-  { day: 0, time: '14:05', src: 'whatsapp', c: 'c-1', a: 'c-1-a1', st: 'new',       items: [['m-101', '500g'], ['m-201', 2], ['m-501', '250g', 'منزوع النوى']] },
+  { day: 3, time: '13:10', c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 1], ['m-104', '500g']] },
+  { day: 3, time: '18:45', c: 'c-1', a: 'c-1-a2', st: 'new'      , items: [['m-103', '250g'], ['m-201', 3]] },
+  { day: 1, time: '10:20', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '1000g'], ['m-602', 1], ['m-107', '500g']] },
+  { day: 1, time: '12:05', c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-401', '500g', 'شرائح'], ['m-111', 2]] },
+  { day: 1, time: '16:30', c: 'c-3', a: 'c-3-a1', st: 'cancelled', items: [['m-108', '250g']] },
+  { day: 1, time: '20:15', c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-706', 1], ['m-203', 6], ['m-801', 6]] },
+  { day: 0, time: '09:35', c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 2], ['m-705', 1], ['m-706', 1]] },
+  { day: 0, time: '10:50', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '500g'], ['m-107', '500g'], ['m-205', 2]] },
+  { day: 0, time: '11:40', c: 'c-2', a: 'c-2-a2', st: 'cancelled', items: [['m-110', '250g']] },
+  { day: 0, time: '12:25', c: 'c-3', a: 'c-3-a1', st: 'new',       items: [['m-403', '250g', 'شرائح رفيعة'], ['m-103', '500g'], ['m-704', 1]] },
+  { day: 0, time: '13:15', c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-104', '1000g'], ['m-203', 6], ['m-602', 1]] },
+  { day: 0, time: '14:05', c: 'c-1', a: 'c-1-a1', st: 'new',       items: [['m-101', '500g'], ['m-201', 2], ['m-501', '250g', 'منزوع النوى']] },
 ];
 
 export function buildSampleOrders(now = new Date()) {
@@ -197,7 +197,6 @@ export function buildSampleOrders(now = new Date()) {
       createdAt: created.toISOString(),
       type: 'delivery',
       paymentMethod: 'cash',
-      source: t.src,
       customer: { id: cust.id, name: cust.name, phone: cust.phones[0] },
       address: { ...address, areaName: area.name },
       deliveryFee: area.fee,

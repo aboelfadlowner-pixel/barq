@@ -30,7 +30,7 @@ P -v ON_ERROR_STOP=1 <<SQL 2>&1
 begin;
 select set_config('request.jwt.claims', '{"sub":"$AGENT","role":"authenticated"}', true) is not null as ok \gset
 set local role authenticated;
-select 'ORDER=' || id from public.cc_create_order('$1', 'phone', '$2', '$3', '[{"sku":"T-201","qty":1}]');
+select 'ORDER=' || id from public.cc_create_order('$1', '$2', '$3', '[{"sku":"T-201","qty":1}]');
 select pg_sleep($4);
 commit;
 SQL
@@ -52,7 +52,7 @@ KEY=$(P -c "select gen_random_uuid()")
 PHONE="0109$(printf '%07d' $(( (RANDOM * 32768 + RANDOM) % 10000000 )))"
 echo "A) same draft, new customer $PHONE, two sessions at once"
 if run_pair A "$KEY" "{\"name\":\"عميل تزامن\",\"phone\":\"$PHONE\"}" \
-     "{\"area_id\":\"$AREA\",\"street\":\"شارع التزامن\",\"building\":\"7\"}"; then
+     "{\"area_id\":\"$AREA\",\"street\":\"شارع التزامن\",\"label\":\"البيت\"}"; then
   read -r o c a <<<"$(P -F ' ' -c "select (select count(*) from public.cc_orders where client_request_id = '$KEY'),
       (select count(*) from public.cc_customers where phone = '$PHONE'),
       (select count(*) from public.cc_addresses x join public.cc_customers c on c.id = x.customer_id where c.phone = '$PHONE')")"
@@ -66,7 +66,7 @@ BEFORE=$(P -c "select count(*) from public.cc_addresses where customer_id = '$CU
 KEY2=$(P -c "select gen_random_uuid()")
 echo "B) same draft, existing customer, new address, two sessions at once"
 if [ -n "$CUST" ] && run_pair B "$KEY2" "{\"id\":\"$CUST\"}" \
-     "{\"area_id\":\"$AREA\",\"street\":\"عنوان تاني\",\"building\":\"9\"}"; then
+     "{\"area_id\":\"$AREA\",\"street\":\"عنوان تاني\",\"label\":\"البيت\"}"; then
   AFTER=$(P -c "select count(*) from public.cc_addresses where customer_id = '$CUST'")
   O2=$(P -c "select count(*) from public.cc_orders where client_request_id = '$KEY2'")
   if [ "$O2" = 1 ] && [ $((AFTER - BEFORE)) = 1 ]; then echo "PASS B: 1 order, exactly 1 new address";

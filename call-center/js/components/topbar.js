@@ -1,4 +1,4 @@
-/* Top bar: brand, navigation, order source selector (POS only), account + logout. */
+/* Top bar: brand, navigation, account + logout. */
 import { bind, getState, setUser, resetDraft } from '../store.js';
 import { can, ROLE_LABELS } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';

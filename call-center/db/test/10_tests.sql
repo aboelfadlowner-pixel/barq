@@ -14,7 +14,7 @@ do $$ begin
   begin perform 1 from public.cc_orders limit 1;    raise exception 'FAIL T01 anon read cc_orders';    exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_customers limit 1; raise exception 'FAIL T01 anon read cc_customers'; exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_staff limit 1;     raise exception 'FAIL T01 anon read cc_staff';     exception when insufficient_privilege then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{}', '{}', '[]');
+  begin perform public.cc_create_order(gen_random_uuid(), '{}', '{}', '[]');
         raise exception 'FAIL T01 anon create order'; exception when insufficient_privilege then null; end;
   raise notice 'PASS T01 anon has no access';
 end $$;
@@ -27,7 +27,7 @@ set local role authenticated;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if (select count(*) from public.cc_delivery_areas) <> 0 then raise exception 'FAIL T02 outsider sees areas'; end if;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{}', '{}', '[{"sku":"T-201","qty":1}]');
+  begin perform public.cc_create_order(gen_random_uuid(), '{}', '{}', '[{"sku":"T-201","qty":1}]');
         raise exception 'FAIL T02 outsider created order'; exception when insufficient_privilege then null; end;
   raise notice 'PASS T02 non-staff user is blocked';
 end $$;
@@ -93,9 +93,9 @@ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   o := public.cc_create_order(
-    'aaaaaaaa-0000-0000-0000-000000000001', 'whatsapp',
+    'aaaaaaaa-0000-0000-0000-000000000001',
     '{"name":"عميل اختبار","phone":"01011112222"}',
-    json_build_object('area_id', area, 'street', 'شارع اختبار', 'building', '5', 'landmark', 'بجوار الاختبار')::jsonb,
+    json_build_object('area_id', area, 'street', 'شارع اختبار', 'label', 'البيت', 'housing_type', 'apartment', 'notes', 'الدور 3 — بجوار الاختبار')::jsonb,
     '[{"sku":"T-104","weight_grams":500,"price":1,"note":"شرائح"},
       {"sku":"T-201","qty":2,"price":1,"unit_price":1}]',
     'اتصل قبل الوصول');
@@ -121,9 +121,9 @@ begin
   select count(*) into before from public.cc_orders;
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   o2 := public.cc_create_order(
-    'aaaaaaaa-0000-0000-0000-000000000001', 'phone',
+    'aaaaaaaa-0000-0000-0000-000000000001',
     '{"name":"اسم مختلف","phone":"01099998888"}',
-    json_build_object('area_id', area, 'street', 'x', 'building', '1')::jsonb,
+    json_build_object('area_id', area, 'street', 'x', 'label', 'البيت')::jsonb,
     '[{"sku":"T-203","qty":9}]');
   select * into o1 from public.cc_orders where client_request_id = 'aaaaaaaa-0000-0000-0000-000000000001';
   if o2.id <> o1.id then raise exception 'FAIL T05 duplicate order created'; end if;
@@ -163,27 +163,24 @@ begin
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
   select id into off_area from public.cc_delivery_areas where not active limit 1;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-104","qty":1,"weight_grams":500}]'); raise exception 'FAIL T07 qty+weight accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-104","weight_grams":5}]'); raise exception 'FAIL T07 5 g accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"NOPE","qty":1}]'); raise exception 'FAIL T07 unknown sku accepted';
   exception when no_data_found then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'sms', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
-          '[{"sku":"T-201","qty":1}]'); raise exception 'FAIL T07 bad source accepted';
-  exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb,
-          json_build_object('area_id', off_area, 'street', 's', 'building', '1')::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb,
+          json_build_object('area_id', off_area, 'street', 's', 'label', 'البيت')::jsonb,
           '[{"sku":"T-201","qty":1}]'); raise exception 'FAIL T07 inactive area accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{"name":"مكرر","phone":"01011112222"}',
+  begin perform public.cc_create_order(gen_random_uuid(), '{"name":"مكرر","phone":"01011112222"}',
           json_build_object('id', addr)::jsonb, '[{"sku":"T-201","qty":1}]'); raise exception 'FAIL T07 duplicate phone accepted';
   exception when unique_violation then null; end;
   if (select count(*) from public.cc_orders) <> before then raise exception 'FAIL T07 a rejected order was saved'; end if;
-  raise notice 'PASS T07 bad quantity/weight, unknown sku, bad source, inactive area, duplicate phone rejected';
+  raise notice 'PASS T07 bad quantity/weight, unknown sku, inactive area, duplicate phone rejected';
 end $$;
 rollback;
 
@@ -197,7 +194,7 @@ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
-  o := public.cc_create_order('aaaaaaaa-0000-0000-0000-000000000002', 'phone',
+  o := public.cc_create_order('aaaaaaaa-0000-0000-0000-000000000002',
          json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
          '[{"sku":"T-900","qty":1},{"sku":"T-203","qty":3}]');
   if o.subtotal <> 27.00 or o.is_estimated then raise exception 'FAIL T08 totals % / %', o.subtotal, o.is_estimated; end if;
@@ -280,7 +277,7 @@ begin
     raise exception 'FAIL T12 duplicated sku is listed'; end if;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb,
           json_build_object('id', addr)::jsonb, '[{"sku":"T-201","qty":1}]');
         raise exception 'FAIL T12 order with duplicated sku accepted';
   exception when sqlstate 'P0003' then null; end;
@@ -299,25 +296,26 @@ begin
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   for f in select * from (values
-      ('street', repeat('ش', 151)), ('building', repeat('1', 31)), ('floor', repeat('1', 21)),
-      ('apartment', repeat('1', 21)), ('landmark', repeat('ع', 151)), ('notes', repeat('م', 201)), ('street', '   ')
-    ) as t(field, val) loop
+      ('label', repeat('ب', 41), 'label'), ('label', '  ', 'label'), ('street', repeat('ش', 151), 'street'),
+      ('street', '   ', 'street'), ('housing_type', 'castle', 'housingType'), ('notes', repeat('م', 201), 'notes'),
+      ('area_id', '', 'areaId')
+    ) as t(field, val, hint) loop
     begin
-      perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb,
-        (json_build_object('area_id', area, 'street', 'شارع', 'building', '1')::jsonb) || jsonb_build_object(f.field, f.val),
+      perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb,
+        (json_build_object('label', 'البيت', 'area_id', area, 'street', 'شارع')::jsonb) || jsonb_build_object(f.field, f.val),
         '[{"sku":"T-203","qty":1}]');
-      raise exception 'FAIL T13 % with % chars accepted', f.field, char_length(f.val);
+      raise exception 'FAIL T13 % = "%" accepted', f.field, f.val;
     exception when invalid_parameter_value then
       get stacked diagnostics msg = message_text, hnt = pg_exception_hint;
-      if hnt <> f.field then raise exception 'FAIL T13 hint % for field %', hnt, f.field; end if;
+      if hnt <> f.hint then raise exception 'FAIL T13 hint % for field %', hnt, f.field; end if;
     end;
   end loop;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{"name":"عميل","phone":"0123"}',
-          json_build_object('area_id', area, 'street', 'ش', 'building', '1')::jsonb, '[{"sku":"T-203","qty":1}]');
+  begin perform public.cc_create_order(gen_random_uuid(), '{"name":"عميل","phone":"0123"}',
+          json_build_object('area_id', area, 'street', 'ش', 'label', 'البيت')::jsonb, '[{"sku":"T-203","qty":1}]');
         raise exception 'FAIL T13 bad phone accepted';
   exception when invalid_parameter_value then get stacked diagnostics hnt = pg_exception_hint;
         if hnt <> 'phone' then raise exception 'FAIL T13 phone hint %', hnt; end if; end;
-  raise notice 'PASS T13 too-long / empty address fields and bad phone rejected (last message: %)', msg;
+  raise notice 'PASS T13 address name/street/housing type/notes/area checked with field hints, bad phone rejected (last message: %)', msg;
 end $$;
 rollback;
 
@@ -376,30 +374,30 @@ begin
   select count(*) into before from public.cc_orders;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-203","qty":1.5}]'); raise exception 'FAIL T20 decimal qty accepted';
   exception when invalid_parameter_value then get stacked diagnostics msg = message_text; end;
   if msg not like 'لا يمكن أن تحتوي الكمية على أرقام عشرية%' then raise exception 'FAIL T20 decimal message: %', msg; end if;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-203","qty":"1.5"}]'); raise exception 'FAIL T20 decimal qty (text) accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-203","weight_grams":500}]'); raise exception 'FAIL T20 weight on unit product accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-201","weight_grams":1000}]'); raise exception 'FAIL T20 liter product sold by weight';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-900","weight_grams":500}]'); raise exception 'FAIL T20 no-unit product sold by weight';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-101","qty":1}]'); raise exception 'FAIL T20 piece qty on kilo product accepted';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
           '[{"sku":"T-101","weight_grams":250.5}]'); raise exception 'FAIL T20 fractional grams accepted';
   exception when invalid_parameter_value then null; end;
   if (select count(*) from public.cc_orders) <> before then raise exception 'FAIL T20 a rejected order was saved'; end if;
-  o := public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+  o := public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
          '[{"sku":"T-101","weight_grams":250},{"sku":"T-201","qty":2}]');
   if o.subtotal <> 189.00 or not o.is_estimated then raise exception 'FAIL T20 totals % / %', o.subtotal, o.is_estimated; end if;
   raise notice 'PASS T20 unit products whole numbers only (Arabic decimal message), كيلو by weight, لتر/no unit by unit';
@@ -415,5 +413,58 @@ do $$ begin
   begin perform public.cc_sold_by('T-101'); raise exception 'FAIL T21 agent called cc_sold_by directly';
   exception when insufficient_privilege then null; end;
   raise notice 'PASS T21 cc_sold_by is internal only';
+end $$;
+rollback;
+
+-- T22 — no order source; new address fields; second number; editing a saved address
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare o public.cc_orders; o2 public.cc_orders; cust uuid; addr uuid; area uuid; old_area uuid; n_addr int;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'cc_orders' and column_name = 'source') then
+    raise exception 'FAIL T22 cc_orders still has a source column'; end if;
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id, area_id into addr, old_area from public.cc_addresses where customer_id = cust limit 1;
+  select count(*) into n_addr from public.cc_addresses where customer_id = cust;
+  if (select label from public.cc_addresses where id = addr) <> 'البيت'
+     or (select housing_type from public.cc_addresses where id = addr) <> 'apartment' then
+    raise exception 'FAIL T22 new address fields not saved'; end if;
+
+  -- second number for a customer who has none → saved on the customer and on the order
+  o := public.cc_create_order(gen_random_uuid(), json_build_object('id', cust, 'phone2', '01233334444')::jsonb,
+         json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]');
+  if o.customer_phone2 is distinct from '01233334444' then raise exception 'FAIL T22 order phone2 %', o.customer_phone2; end if;
+  if (select phone2 from public.cc_customers where id = cust) is distinct from '01233334444' then raise exception 'FAIL T22 customer phone2 not saved'; end if;
+  if o.address_label <> 'البيت' or o.housing_type <> 'apartment' or o.address_notes not like 'الدور 3%' then
+    raise exception 'FAIL T22 order address snapshot % / % / %', o.address_label, o.housing_type, o.address_notes; end if;
+  -- an existing second number is not overwritten (copied onto the order only)
+  o := public.cc_create_order(gen_random_uuid(), json_build_object('id', cust, 'phone2', '01255556666')::jsonb,
+         json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]');
+  if (select phone2 from public.cc_customers where id = cust) <> '01233334444' then raise exception 'FAIL T22 phone2 overwritten'; end if;
+  if o.customer_phone2 <> '01255556666' then raise exception 'FAIL T22 order phone2 not the typed one'; end if;
+  begin perform public.cc_create_order(gen_random_uuid(), json_build_object('id', cust, 'phone2', '123')::jsonb,
+          json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]'); raise exception 'FAIL T22 bad phone2 accepted';
+  exception when invalid_parameter_value then null; end;
+
+  -- editing the saved address: same row updated (no new address), order uses the new data
+  o2 := public.cc_create_order(gen_random_uuid(), json_build_object('id', cust)::jsonb,
+          json_build_object('id', addr, 'label', 'الشغل', 'area_id', old_area, 'street', 'شارع جديد 12', 'housing_type', 'office', 'notes', '')::jsonb,
+          '[{"sku":"T-203","qty":1}]');
+  if (select count(*) from public.cc_addresses where customer_id = cust) <> n_addr then raise exception 'FAIL T22 edit created a new address'; end if;
+  if (select label || '|' || street || '|' || housing_type || '|' || coalesce(notes, '-') || '|' || (updated_by is not null)::text
+        from public.cc_addresses where id = addr) <> 'الشغل|شارع جديد 12|office|-|true' then
+    raise exception 'FAIL T22 address not updated'; end if;
+  if o2.address_label <> 'الشغل' or o2.street <> 'شارع جديد 12' or o2.housing_type <> 'office' then raise exception 'FAIL T22 edited snapshot'; end if;
+  if (select street from public.cc_orders where id = o.id) <> 'شارع اختبار' then raise exception 'FAIL T22 old order changed by address edit'; end if;
+  -- someone else's address cannot be edited through a customer
+  begin perform public.cc_create_order(gen_random_uuid(), '{"name":"عميل تاني","phone":"01577778888"}',
+          json_build_object('id', addr, 'label', 'x', 'area_id', old_area, 'street', 'سرقة')::jsonb, '[{"sku":"T-203","qty":1}]');
+        raise exception 'FAIL T22 edited another customer''s address';
+  exception when no_data_found then null; end;
+  if (select street from public.cc_addresses where id = addr) <> 'شارع جديد 12' then raise exception 'FAIL T22 foreign edit changed address'; end if;
+  raise notice 'PASS T22 no source; label/housing type/notes saved; phone2 saved once + copied to order; saved address edited in place';
 end $$;
 rollback;

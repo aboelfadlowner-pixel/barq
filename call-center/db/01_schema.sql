@@ -72,20 +72,18 @@ create table if not exists public.cc_addresses (
   id          uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.cc_customers(id),
   area_id     uuid not null references public.cc_delivery_areas(id),
-  street      text not null,
-  building    text not null,
-  floor       text,
-  apartment   text,
-  landmark    text,
-  notes       text,
-  created_at  timestamptz not null default now(),
-  created_by  uuid references auth.users(id),
-  constraint cc_addresses_street_len    check (char_length(btrim(street)) between 1 and 150),
-  constraint cc_addresses_building_len  check (char_length(btrim(building)) between 1 and 30),
-  constraint cc_addresses_floor_len     check (floor is null or char_length(floor) <= 20),
-  constraint cc_addresses_apartment_len check (apartment is null or char_length(apartment) <= 20),
-  constraint cc_addresses_landmark_len  check (landmark is null or char_length(landmark) <= 150),
-  constraint cc_addresses_notes_len     check (notes is null or char_length(notes) <= 200)
+  label        text not null,                    -- اسم العنوان: البيت، الشغل، …
+  street       text not null,                    -- الشارع (and building number, written by the agent)
+  housing_type text,                             -- نوع السكن (optional)
+  notes        text,                             -- معلومات إضافية: floor, flat, landmark, …
+  created_at   timestamptz not null default now(),
+  created_by   uuid references auth.users(id),
+  updated_at   timestamptz,
+  updated_by   uuid references auth.users(id),
+  constraint cc_addresses_label_len    check (char_length(btrim(label)) between 1 and 40),
+  constraint cc_addresses_street_len   check (char_length(btrim(street)) between 1 and 150),
+  constraint cc_addresses_housing_type check (housing_type is null or housing_type in ('apartment', 'villa', 'house', 'office', 'shop')),
+  constraint cc_addresses_notes_len    check (notes is null or char_length(notes) <= 200)
 );
 create index if not exists cc_addresses_customer_idx on public.cc_addresses (customer_id);
 
@@ -98,22 +96,20 @@ create table if not exists public.cc_orders (
   created_at        timestamptz not null default now(),
   created_by        uuid not null references auth.users(id),
   created_by_name   text not null,
-  source            text not null check (source in ('phone', 'whatsapp', 'facebook')),
   payment_method    text not null default 'cash' check (payment_method = 'cash'),
   status            text not null default 'new' check (status in ('new', 'cancelled')),
 
   customer_id       uuid not null references public.cc_customers(id),
   customer_name     text not null,
-  customer_phone    text not null,
+  customer_phone    text not null,                -- number used for this order
+  customer_phone2   text,                         -- second number, if any
 
   address_id        uuid references public.cc_addresses(id),
   area_id           uuid not null references public.cc_delivery_areas(id),
   area_name         text not null,
+  address_label     text not null,
   street            text not null,
-  building          text not null,
-  floor             text,
-  apartment         text,
-  landmark          text,
+  housing_type      text,
   address_notes     text,
 
   delivery_fee      numeric(10,2) not null check (delivery_fee >= 0),

@@ -1,4 +1,4 @@
-/* Small shared display pieces: status chip, source chip, money. */
+/* Small shared display pieces: status chip, money. */
 import { catalog } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney } from '../utils/format.js';

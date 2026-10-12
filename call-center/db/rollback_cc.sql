@@ -7,7 +7,8 @@
 begin;
 drop function if exists public.cc_save_area(uuid, text, numeric, boolean);
 drop function if exists public.cc_cancel_order(uuid, text);
-drop function if exists public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, text);
+drop function if exists public.cc_create_order(uuid, jsonb, jsonb, jsonb, text);
+drop function if exists public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, text);  -- earlier draft
 drop function if exists public.cc_list_products(text, int);
 drop function if exists public.cc_sold_by(text);
 drop view     if exists public.cc_products;

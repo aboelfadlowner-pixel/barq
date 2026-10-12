@@ -35,6 +35,11 @@ Rules the SQL enforces:
 - Weight lines: `price_per_kg × grams / 1000`, rounded to 2 decimals.
 - `client_request_id` (one per draft) + a transaction-level advisory lock: a repeated or simultaneous submit returns the same order.
 - Products are read only through `cc_list_products` (sku, name, barcode, price, sold_by; staff only, pages of ≤1,000); duplicated skus are excluded and rejected.
+- No order source (removed). Addresses follow the app form: name (`label`, ≤40), delivery area, street (≤150),
+  housing type (optional: apartment/villa/house/office/shop), extra information (`notes`, ≤200).
+  `cc_create_order` takes a saved address as is, a saved address with edits (updated in place, old orders keep
+  their copy), or a new one. A second number is saved on the customer only if they have none, and is always
+  copied onto the order.
 - "Sold by" comes from the DC Storage Unit (`dc_stock_levels.unit`, read only): `كيلو` → `weight`; anything else
   (including `لتر`) or no row → `unit`. `cc_create_order` rejects a decimal quantity on a unit product with
   "لا يمكن أن تحتوي الكمية على أرقام عشرية في المنتجات التي يتم بيعها بالوحدة.", a weight on a unit product, and a

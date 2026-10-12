@@ -87,7 +87,7 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
 export function createDemoOrder(draft) {
-  const { source, cart, customer, address, orderNote, employee } = draft;
+  const { cart, customer, address, orderNote, employee } = draft;
   const area = areas.find((a) => a.id === address.areaId);
   if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
 
@@ -118,7 +118,6 @@ export function createDemoOrder(draft) {
     createdAt: now,
     type: 'delivery',
     paymentMethod: 'cash',
-    source,
     customer: { id: cust.id, name: cust.name, phone: customer.phone, phone2: customer.phone2 || '' },
     address: { ...addrFields, id: addrId, areaName: area.name },
     deliveryFee: area.fee,

@@ -24,7 +24,7 @@ call-center/
   css/                    tokens · base · layout · components
   js/
     app.js                Bootstrap + hash router (#/pos, #/orders, #/orders/:id)
-    store.js              State (cart, customer, address, source) + actions
+    store.js              State (cart, customer, address, order note) + actions
     catalog.js            Reference data cached at startup
     constants.js          Limits, housing types, weight presets
     data/
@@ -69,7 +69,7 @@ approved real source. UI components do not import `mock-data.js` directly.
   ⚠️ The draft database (`db/`) still uses building/floor/apartment and has no address name / housing type or
   address editing — it must be updated before connecting.
 
-- Order source (phone / WhatsApp / Facebook) was removed from the UI.
+- Order source (phone / WhatsApp / Facebook) was removed from the UI and the database.
 
 ## Still mock / pending
 

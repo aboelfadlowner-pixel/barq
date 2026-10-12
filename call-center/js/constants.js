@@ -1,6 +1,6 @@
 /* App constants. Each item notes whether it is confirmed or only proposed. */
 
-/* Order source (phone / WhatsApp / Facebook) was removed from the UI by decision. */
+/* Order source (phone / WhatsApp / Facebook) was removed by decision (UI and database). */
 
 /* CONFIRMED: cash on delivery is the only payment method. */
 export const PAYMENT_METHOD = { id: 'cash', label: 'كاش عند الاستلام' };
