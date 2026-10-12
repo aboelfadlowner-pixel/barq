@@ -283,7 +283,8 @@
 .tk-sec { padding: 6px 0; border-top: 1px dashed #000; }
 .tk-title { font-size: 11px; font-weight: 800; }
 .tk-strong { font-weight: 900; font-size: 14px; }
-.tk-phone { font-weight: 900; font-size: 15px; }
+.tk-phone { display: block; font-weight: 900; font-size: 15px; line-height: 1.5; }
+.tk-phone-label { font-weight: 700; font-size: 12px; }
 .tk-items { width: 100%; border-collapse: collapse; border-top: 1px dashed #000; margin-top: 2px; }
 .tk-items th { font-size: 11px; font-weight: 800; text-align: start; padding: 5px 2px; border-bottom: 1px solid #000; }
 .tk-items td { padding: 5px 2px; vertical-align: top; border-bottom: 1px dotted #999; font-weight: 700; }

@@ -25,7 +25,7 @@ export function ticketHtml(order) {
       <div class="tk-sec">
         <div class="tk-title">العميل</div>
         <div class="tk-strong">${esc(order.customer.name)}</div>
-        ${phones.map((p) => `<div class="tk-phone ltr-inline">${esc(p)}</div>`).join('')}
+        ${phones.map((p, i) => `<div class="tk-phone"><span class="tk-phone-label">${i === 0 ? 'موبايل' : 'رقم تاني'}:</span> <bdi dir="ltr">${esc(p)}</bdi></div>`).join('')}
       </div>
 
       <div class="tk-sec">
