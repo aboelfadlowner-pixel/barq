@@ -83,16 +83,13 @@ export const products = [
   p('M-804', 'شاي',                  'pack',  'علبة 100 فتلة', 95),
 ];
 
-/* ---------- Delivery areas & fees — PLACEHOLDERS ----------
- * Real areas and fee rules are NOT confirmed. Names are deliberately generic. */
+/* ---------- Delivery areas — CONFIRMED names; fees are PLACEHOLDERS ----------
+ * The four delivery areas. Real fees will be entered from the "المناطق والرسوم" screen. */
 export const areas = [
-  { id: 'area-a', name: 'المنطقة أ (تجريبي)', fee: 15 },
-  { id: 'area-b', name: 'المنطقة ب (تجريبي)', fee: 20 },
-  { id: 'area-c', name: 'المنطقة ج (تجريبي)', fee: 25 },
-  { id: 'area-d', name: 'المنطقة د (تجريبي)', fee: 30 },
-  { id: 'area-e', name: 'المنطقة هـ (تجريبي)', fee: 40 },
-  { id: 'area-f', name: 'المنطقة و (تجريبي)', fee: 50 },
-  { id: 'area-g', name: 'المنطقة ز (موقوفة)', fee: 35, active: false },
+  { id: 'area-a', name: 'الدخيلة',          fee: 15 },
+  { id: 'area-b', name: 'خارج الهانوفيل',   fee: 25 },
+  { id: 'area-c', name: 'الهانوفيل',        fee: 20 },
+  { id: 'area-d', name: 'البيطاش',          fee: 20 },
 ].map((a) => ({ active: true, ...a }));
 
 /* ---------- Order statuses — CONFIRMED: new and cancelled only ---------- */
@@ -115,14 +112,14 @@ export const customers = [
     addr('c-2-a2', 'area-d', 'شارع تجريبي 14', '3', 'أرضي', '1'),
   ] },
   { id: 'c-3', name: 'كريم حسن', phones: ['01200000003'], addresses: [
-    addr('c-3-a1', 'area-e', 'شارع تجريبي 22', '7', '2', '4', 'خلف المسجد'),
+    addr('c-3-a1', 'area-c', 'شارع تجريبي 22', '7', '2', '4', 'خلف المسجد'),
   ] },
   { id: 'c-4', name: 'سارة إبراهيم', phones: ['01500000004'], addresses: [
     addr('c-4-a1', 'area-a', 'شارع تجريبي 3', '15', '6', '12'),
   ] },
   { id: 'c-5', name: 'محمد علي', phones: ['01000000005'], addresses: [] },
   { id: 'c-6', name: 'هبة مصطفى', phones: ['01000000006'], addresses: [
-    addr('c-6-a1', 'area-f', 'شارع تجريبي 30', '9', '4', '8', 'بجوار البنك'),
+    addr('c-6-a1', 'area-d', 'شارع تجريبي 30', '9', '4', '8', 'بجوار البنك'),
   ] },
   // Shares a number with c-1 (as a second number) — demonstrates the L6 warning.
   { id: 'c-7', name: 'نادية محمود', phones: ['01000000007', '01000000001'], addresses: [
@@ -133,7 +130,7 @@ export const customers = [
 // Address names and housing types for the Foodics-style address cards.
 customers.forEach((c) => c.addresses.forEach((a, i) => {
   a.label ??= a.notes === 'عنوان العمل' ? 'الشغل' : (i === 0 ? 'البيت' : 'عنوان ' + (i + 1));
-  a.housingType ??= a.notes === 'عنوان العمل' ? 'office' : 'apartment';
+  a.housingType ??= a.notes === 'عنوان العمل' ? 'office' : (a.id === 'c-6-a1' ? 'villa' : 'building');
 }));
 
 /* ---------- Sample orders ----------

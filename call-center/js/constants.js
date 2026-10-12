@@ -22,13 +22,12 @@ export const ADDRESS_LIMITS = {
   street: { max: 150, label: 'الشارع' },
   notes:  { max: 200, label: 'المعلومات الإضافية' },
 };
+/* CONFIRMED: housing type options, as in Foodics. */
 export const HOUSING_TYPES = [
-  { id: '',          label: 'لا شيء' },
-  { id: 'apartment', label: 'شقة' },
-  { id: 'villa',     label: 'فيلا' },
-  { id: 'house',     label: 'بيت' },
-  { id: 'office',    label: 'مكتب / شركة' },
-  { id: 'shop',      label: 'محل' },
+  { id: '',         label: 'لاشيء' },
+  { id: 'building', label: 'عمارة' },
+  { id: 'villa',    label: 'فيلا' },
+  { id: 'office',   label: 'مكتب' },
 ];
 export const CUSTOMER_NAME_MAX = 120;
 

@@ -450,3 +450,21 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .chip.active { border-color: var(--green-600); background: var(--green-50); color: var(--green-700); }
 .item-calc { margin-top: 8px; font-size: 14px; color: var(--ink-2); min-height: 20px; }
 .item-calc strong { color: var(--green-700); }
+
+/* ---------- Searchable picker (delivery area) ---------- */
+.combo { position: relative; }
+.combo-btn { width: 100%; text-align: start; font: inherit; }
+.combo-btn.placeholder { color: var(--muted); }
+.combo-pop {
+  position: absolute; z-index: 5; inset-inline: 0; top: calc(100% + 4px);
+  background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
+  padding: 10px; display: flex; flex-direction: column; gap: 6px;
+}
+.combo-pop[hidden] { display: none; }
+.combo-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.combo-list li { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.combo-list li[hidden] { display: none; }
+.combo-list li:hover, .combo-list li.active { background: var(--green-50); color: var(--green-700); }
+.combo-list li[aria-selected="true"] { font-weight: 800; }
+.combo-list .combo-empty { color: var(--muted); cursor: default; font-weight: 600; }
+.combo-list .combo-empty:hover { background: none; color: var(--muted); }

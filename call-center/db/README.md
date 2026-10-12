@@ -39,7 +39,7 @@ Rules the SQL enforces:
   manage delivery areas; nobody can write tables directly. Tests use two Auth users: `staff@cc.test` and
   `outsider@cc.test` (signed in, not staff).
 - No order source (removed). Addresses follow the app form: name (`label`, ≤40), delivery area, street (≤150),
-  housing type (optional: apartment/villa/house/office/shop), extra information (`notes`, ≤200).
+  housing type (optional: building/villa/office = عمارة/فيلا/مكتب), extra information (`notes`, ≤200).
   `cc_create_order` takes a saved address as is, a saved address with edits (updated in place, old orders keep
   their copy), or a new one. A second number is saved on the customer only if they have none, and is always
   copied onto the order.

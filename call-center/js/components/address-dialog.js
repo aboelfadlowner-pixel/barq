@@ -1,7 +1,7 @@
 /* "إنشاء العنوان" / "تعديل العنوان" dialog. Calls onSave(address) and closes. */
 import { icon } from './icons.js';
 import { openModal } from './modal.js';
-import { addressFormHtml, readAddressForm, validateAddress, showErrors, clearErrorsOnEdit } from './address-form.js';
+import { addressFormHtml, readAddressForm, validateAddress, showErrors, clearErrorsOnEdit, initAreaPicker } from './address-form.js';
 
 export function openAddressDialog({ address = null, onSave }) {
   const m = openModal({
@@ -21,6 +21,7 @@ export function openAddressDialog({ address = null, onSave }) {
     m.close();
   };
   clearErrorsOnEdit(m.body);
+  initAreaPicker(m.body);
   m.foot.querySelector('[data-save]').addEventListener('click', save);
   m.body.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); save(); }

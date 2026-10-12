@@ -212,7 +212,7 @@ begin
       raise exception 'الشارع مطلوب وبحد أقصى 150 حرف' using errcode = '22023', hint = 'street';
     end if;
     v_housing := nullif(btrim(p_address->>'housing_type'), '');
-    if v_housing is not null and v_housing not in ('apartment', 'villa', 'house', 'office', 'shop') then
+    if v_housing is not null and v_housing not in ('building', 'villa', 'office') then
       raise exception 'نوع السكن غير صحيح' using errcode = '22023', hint = 'housingType';
     end if;
     if char_length(coalesce(p_address->>'notes', '')) > 200 then

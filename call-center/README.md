@@ -66,15 +66,16 @@ approved real source. UI components do not import `mock-data.js` directly.
   Fixed order type (delivery, cash) and the address: pick a saved one, edit it (pencil), or
   "إضافة عنوان جديد". "حفظ" opens the product search with the customer and address already set.
 - Address fields follow Foodics' "إنشاء العنوان": name, delivery area, street, housing type, extra information.
-  ⚠️ The draft database (`db/`) still uses building/floor/apartment and has no address name / housing type or
-  address editing — it must be updated before connecting.
+  - Delivery area: a searchable list of the four areas — الدخيلة، خارج الهانوفيل، الهانوفيل، البيطاش (required, it sets the fee).
+  - Housing type: لاشيء، عمارة، فيلا، مكتب.
+  - The draft database (`db/`) uses the same fields and supports editing a saved address.
 
 - Order source (phone / WhatsApp / Facebook) was removed from the UI and the database.
 
 ## Still mock / pending
 
-- Products, customers, sample orders, delivery areas and fees are fictional.
-  The real delivery areas and fees will be entered from the app.
+- Products, customers, sample orders and delivery fees are fictional; the four area names are real.
+  The real fees will be entered from the "المناطق والرسوم" screen.
 - No login screen in the demo: it opens with the one account. The real version signs in once per device
   (Supabase Auth email + password, never stored in the app) and stays signed in.
 - "Created" orders and edits live in browser memory only and disappear on refresh.

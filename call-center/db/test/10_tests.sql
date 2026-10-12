@@ -95,7 +95,7 @@ begin
   o := public.cc_create_order(
     'aaaaaaaa-0000-0000-0000-000000000001',
     '{"name":"عميل اختبار","phone":"01011112222"}',
-    json_build_object('area_id', area, 'street', 'شارع اختبار', 'label', 'البيت', 'housing_type', 'apartment', 'notes', 'الدور 3 — بجوار الاختبار')::jsonb,
+    json_build_object('area_id', area, 'street', 'شارع اختبار', 'label', 'البيت', 'housing_type', 'building', 'notes', 'الدور 3 — بجوار الاختبار')::jsonb,
     '[{"sku":"T-104","weight_grams":500,"price":1,"note":"شرائح"},
       {"sku":"T-201","qty":2,"price":1,"unit_price":1}]',
     'اتصل قبل الوصول');
@@ -430,7 +430,7 @@ begin
   select id, area_id into addr, old_area from public.cc_addresses where customer_id = cust limit 1;
   select count(*) into n_addr from public.cc_addresses where customer_id = cust;
   if (select label from public.cc_addresses where id = addr) <> 'البيت'
-     or (select housing_type from public.cc_addresses where id = addr) <> 'apartment' then
+     or (select housing_type from public.cc_addresses where id = addr) <> 'building' then
     raise exception 'FAIL T22 new address fields not saved'; end if;
 
   -- second number for a customer who has none → saved on the customer and on the order
@@ -438,7 +438,7 @@ begin
          json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]');
   if o.customer_phone2 is distinct from '01233334444' then raise exception 'FAIL T22 order phone2 %', o.customer_phone2; end if;
   if (select phone2 from public.cc_customers where id = cust) is distinct from '01233334444' then raise exception 'FAIL T22 customer phone2 not saved'; end if;
-  if o.address_label <> 'البيت' or o.housing_type <> 'apartment' or o.address_notes not like 'الدور 3%' then
+  if o.address_label <> 'البيت' or o.housing_type <> 'building' or o.address_notes not like 'الدور 3%' then
     raise exception 'FAIL T22 order address snapshot % / % / %', o.address_label, o.housing_type, o.address_notes; end if;
   -- an existing second number is not overwritten (copied onto the order only)
   o := public.cc_create_order(gen_random_uuid(), json_build_object('id', cust, 'phone2', '01255556666')::jsonb,

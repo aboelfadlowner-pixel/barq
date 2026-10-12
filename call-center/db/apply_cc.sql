@@ -82,7 +82,7 @@ create table if not exists public.cc_addresses (
   area_id     uuid not null references public.cc_delivery_areas(id),
   label        text not null,                    -- اسم العنوان: البيت، الشغل، …
   street       text not null,                    -- الشارع (and building number, written by the call center)
-  housing_type text,                             -- نوع السكن (optional)
+  housing_type text,                             -- نوع السكن (optional): building = عمارة, villa = فيلا, office = مكتب
   notes        text,                             -- معلومات إضافية: floor, flat, landmark, …
   created_at   timestamptz not null default now(),
   created_by   uuid references auth.users(id),
@@ -90,7 +90,7 @@ create table if not exists public.cc_addresses (
   updated_by   uuid references auth.users(id),
   constraint cc_addresses_label_len    check (char_length(btrim(label)) between 1 and 40),
   constraint cc_addresses_street_len   check (char_length(btrim(street)) between 1 and 150),
-  constraint cc_addresses_housing_type check (housing_type is null or housing_type in ('apartment', 'villa', 'house', 'office', 'shop')),
+  constraint cc_addresses_housing_type check (housing_type is null or housing_type in ('building', 'villa', 'office')),
   constraint cc_addresses_notes_len    check (notes is null or char_length(notes) <= 200)
 );
 create index if not exists cc_addresses_customer_idx on public.cc_addresses (customer_id);
@@ -381,7 +381,7 @@ begin
       raise exception 'الشارع مطلوب وبحد أقصى 150 حرف' using errcode = '22023', hint = 'street';
     end if;
     v_housing := nullif(btrim(p_address->>'housing_type'), '');
-    if v_housing is not null and v_housing not in ('apartment', 'villa', 'house', 'office', 'shop') then
+    if v_housing is not null and v_housing not in ('building', 'villa', 'office') then
       raise exception 'نوع السكن غير صحيح' using errcode = '22023', hint = 'housingType';
     end if;
     if char_length(coalesce(p_address->>'notes', '')) > 200 then
