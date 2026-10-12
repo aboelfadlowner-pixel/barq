@@ -70,7 +70,7 @@ export function mountPos(view) {
       const first = getVisibleProducts()[0];
       if (input.value.trim() && first) {
         selectProduct(first);
-        if (first.unitType !== 'weight') setState({ search: '' });
+        setState({ search: '' });
       }
     } else if (e.key === 'Escape' && input.value) {
       e.preventDefault();

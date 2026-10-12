@@ -1,5 +1,6 @@
-/* Weight picker for products sold by kg. Add a new line or edit an existing one. */
-import { addProduct, updateLine } from '../store.js';
+/* Optional weight for a cart line. The product price is treated as the price per kg,
+   so the line total becomes price × weight. Without a weight the line stays by piece. */
+import { setLineWeight, setLineByPiece } from '../store.js';
 import { WEIGHT_PRESETS, WEIGHT_STEP_GRAMS, WEIGHT_MIN_GRAMS, WEIGHT_MAX_GRAMS } from '../constants.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney, formatWeight, toWesternDigits } from '../utils/format.js';
@@ -9,15 +10,16 @@ import { openModal } from './modal.js';
 const priceFor = (product, grams) => (product.price * grams) / 1000;
 const isValid = (g) => g >= WEIGHT_MIN_GRAMS && g <= WEIGHT_MAX_GRAMS;
 
-export function openWeightDialog(product, { line = null } = {}) {
-  let grams = line?.grams ?? 0;
+export function openWeightDialog(product, { line }) {
+  const isWeight = line.unitType === 'weight';
+  let grams = isWeight ? line.grams : 0;
 
   const m = openModal({
-    title: `${icon('scale')} ${esc(product.name)}`,
+    title: `${icon('scale')} بيع بالوزن: ${esc(product.name)}`,
     size: 'sm',
     body: `
       <div class="wd">
-        <div class="wd-rate"><span>سعر الكيلو</span><strong class="num">${formatMoney(product.price)}</strong></div>
+        <div class="wd-rate"><span>سعر الكيلو (سعر الصنف في الشيت)</span><strong class="num">${formatMoney(product.price)}</strong></div>
 
         <div class="seg seg-full" role="tablist" aria-label="طريقة الإدخال">
           <button type="button" class="active" data-mode="weight">بالوزن</button>
@@ -62,8 +64,9 @@ export function openWeightDialog(product, { line = null } = {}) {
         <div class="est-note">${icon('scale')} السعر النهائي يتحدد حسب الوزن الفعلي عند التجهيز</div>
       </div>`,
     footer: `
-      <button type="button" class="btn btn-primary btn-lg" data-ok disabled>${line ? 'حفظ التعديل' : `${icon('plus')} إضافة للسلة`}</button>
-      <button type="button" class="btn btn-secondary btn-lg" data-close>إلغاء</button>`,
+      <button type="button" class="btn btn-primary btn-lg" data-ok disabled>${icon('check')}${isWeight ? 'حفظ الوزن' : 'احسب بالوزن'}</button>
+      <button type="button" class="btn btn-secondary btn-lg" data-close>إلغاء</button>
+      ${isWeight ? `<button type="button" class="btn btn-ghost push" data-piece>${icon('package')}رجوع للبيع بالقطعة</button>` : ''}`,
   });
 
   const $ = (sel) => m.el.querySelector(sel);
@@ -81,8 +84,7 @@ export function openWeightDialog(product, { line = null } = {}) {
 
   function commit() {
     if (!isValid(grams)) return;
-    if (line) updateLine(line.lineId, { grams });
-    else addProduct(product, { grams });
+    setLineWeight(line.lineId, grams);
     m.close();
   }
 
@@ -124,8 +126,9 @@ export function openWeightDialog(product, { line = null } = {}) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
   }));
   okBtn.addEventListener('click', commit);
+  m.foot.querySelector('[data-piece]')?.addEventListener('click', () => { setLineByPiece(line.lineId); m.close(); });
 
   sync();
   gramsInput.focus();
-  if (line) gramsInput.select();
+  if (isWeight) gramsInput.select();
 }

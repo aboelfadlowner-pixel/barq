@@ -89,10 +89,13 @@ export function mountCartPanel(el) {
             ${isWeight
               ? `<button type="button" class="weight-pill" data-action="edit-weight" aria-label="تعديل الوزن">
                    ${icon('scale')}<span class="num">${esc(formatWeight(l.grams))}</span><span class="edit">تعديل</span></button>`
-              : `<div class="stepper" role="group" aria-label="الكمية">
-                   <button type="button" data-action="inc" aria-label="زيادة">${icon('plus')}</button>
-                   <span class="val">${l.qty}</span>
-                   <button type="button" data-action="dec" aria-label="${l.qty === 1 ? 'حذف' : 'نقص'}">${icon(l.qty === 1 ? 'trash' : 'minus')}</button>
+              : `<div class="qty-row">
+                   <div class="stepper" role="group" aria-label="الكمية">
+                     <button type="button" data-action="inc" aria-label="زيادة">${icon('plus')}</button>
+                     <span class="val">${l.qty}</span>
+                     <button type="button" data-action="dec" aria-label="${l.qty === 1 ? 'حذف' : 'نقص'}">${icon(l.qty === 1 ? 'trash' : 'minus')}</button>
+                   </div>
+                   <button type="button" class="btn btn-soft btn-sm" data-action="edit-weight" title="احسب السعر بالوزن من سعر الكيلو">${icon('scale')}وزن</button>
                  </div>`}
             <div class="line-actions">
               <button type="button" class="btn btn-ghost btn-icon btn-sm ${l.note ? 'has-note' : ''}" data-action="toggle-note"

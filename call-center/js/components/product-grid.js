@@ -6,7 +6,6 @@ import { formatWeight, normalizeArabic } from '../utils/format.js';
 import { perUnitLabel } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money } from './chips.js';
-import { openWeightDialog } from './weight-dialog.js';
 
 let visible = [];
 export const getVisibleProducts = () => visible;
@@ -26,8 +25,7 @@ export function filterProducts(categoryId, query) {
 }
 
 export function selectProduct(product) {
-  if (product.unitType === 'weight') openWeightDialog(product);
-  else addProduct(product);
+  addProduct(product);
 }
 
 function inCartSummary(cart) {
@@ -41,12 +39,12 @@ function inCartSummary(cart) {
 
 function card(p, inCart) {
   const badge = !inCart ? ''
-    : p.unitType === 'weight'
-      ? `<span class="p-badge">${icon('check')}${formatWeight(inCart.grams)}</span>`
-      : `<span class="p-badge num">${inCart.qty}</span>`;
+    : inCart.qty > 0
+      ? `<span class="p-badge num">${inCart.qty}${inCart.grams ? ` + ${formatWeight(inCart.grams)}` : ''}</span>`
+      : `<span class="p-badge">${icon('scale')}${formatWeight(inCart.grams)}</span>`;
   const thumb = p.image
     ? `<img src="${esc(p.image)}" alt="" loading="lazy">`
-    : icon(p.unitType === 'weight' ? 'scale' : 'package');
+    : icon('package');
   return `
     <button type="button" class="p-card ${inCart ? 'in-cart' : ''}" data-pid="${esc(p.id)}" role="listitem"
       aria-label="${esc(p.name)}">
@@ -54,7 +52,7 @@ function card(p, inCart) {
       <div class="p-thumb">${thumb}</div>
       <div class="p-name">${esc(p.name)}</div>
       <div class="p-unit">
-        ${p.unitType === 'weight' ? `<span class="tag tag-warn">${icon('scale')}بالوزن</span>` : esc(p.unitLabel)}
+        ${esc(p.unitLabel)}
         · <span class="ltr-inline">${esc(p.code)}</span>
       </div>
       <div class="p-foot">

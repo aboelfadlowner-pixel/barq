@@ -27,24 +27,25 @@ export const categories = [
 ];
 
 /* ---------- Products (sample names, fake prices) ----------
- * unitType: 'weight' → price is per kg, quantity entered in grams
- *           'piece'  → price per piece
- *           'pack'   → price per pack
+ * Every product is sold by piece/pack (like the real products sheet).
+ * The call-center agent may switch a cart line to "by weight"; the line
+ * price is then computed as price-per-kg × weight.
+ * unitType: 'piece' | 'pack'
  * image:    optional URL; cards fall back to an icon when null.          */
 const p = (code, name, categoryId, unitType, unitLabel, price, image = null) =>
   ({ id: code.toLowerCase(), code, name, categoryId, unitType, unitLabel, price, image });
 
 export const products = [
-  p('M-101', 'جبنة رومي قديمة',      'cat-cheese', 'weight', 'بالكيلو', 420),
-  p('M-102', 'جبنة رومي وسط',        'cat-cheese', 'weight', 'بالكيلو', 360),
-  p('M-103', 'جبنة شيدر',            'cat-cheese', 'weight', 'بالكيلو', 380),
-  p('M-104', 'جبنة إسطنبولي',        'cat-cheese', 'weight', 'بالكيلو', 160),
-  p('M-105', 'جبنة فيتا',            'cat-cheese', 'weight', 'بالكيلو', 150),
-  p('M-106', 'جبنة موتزاريلا',       'cat-cheese', 'weight', 'بالكيلو', 310),
-  p('M-107', 'جبنة قريش',            'cat-cheese', 'weight', 'بالكيلو', 95),
-  p('M-108', 'جبنة ريكفورد',         'cat-cheese', 'weight', 'بالكيلو', 540),
-  p('M-109', 'جبنة مش',              'cat-cheese', 'weight', 'بالكيلو', 110),
-  p('M-110', 'جبنة جودا',            'cat-cheese', 'weight', 'بالكيلو', 450),
+  p('M-101', 'جبنة رومي قديمة',      'cat-cheese', 'piece',  'سعر الكيلو', 420),
+  p('M-102', 'جبنة رومي وسط',        'cat-cheese', 'piece',  'سعر الكيلو', 360),
+  p('M-103', 'جبنة شيدر',            'cat-cheese', 'piece',  'سعر الكيلو', 380),
+  p('M-104', 'جبنة إسطنبولي',        'cat-cheese', 'piece',  'سعر الكيلو', 160),
+  p('M-105', 'جبنة فيتا',            'cat-cheese', 'piece',  'سعر الكيلو', 150),
+  p('M-106', 'جبنة موتزاريلا',       'cat-cheese', 'piece',  'سعر الكيلو', 310),
+  p('M-107', 'جبنة قريش',            'cat-cheese', 'piece',  'سعر الكيلو', 95),
+  p('M-108', 'جبنة ريكفورد',         'cat-cheese', 'piece',  'سعر الكيلو', 540),
+  p('M-109', 'جبنة مش',              'cat-cheese', 'piece',  'سعر الكيلو', 110),
+  p('M-110', 'جبنة جودا',            'cat-cheese', 'piece',  'سعر الكيلو', 450),
   p('M-111', 'جبنة كريمي',           'cat-cheese', 'pack',   'علبة 250 جم', 48),
   p('M-112', 'جبنة مثلثات',          'cat-cheese', 'pack',   'علبة 8 قطع', 40),
   p('M-113', 'جبنة شرائح توست',      'cat-cheese', 'pack',   'عبوة 200 جم', 65),
@@ -57,24 +58,24 @@ export const products = [
   p('M-206', 'لبن بالفراولة',        'cat-dairy', 'piece', 'زجاجة 250 مل', 15),
   p('M-207', 'قشطة',                 'cat-dairy', 'pack',  'علبة 200 جم', 38),
 
-  p('M-301', 'زبدة فلاحي',           'cat-butter', 'weight', 'بالكيلو', 360),
+  p('M-301', 'زبدة فلاحي',           'cat-butter', 'piece',  'سعر الكيلو', 360),
   p('M-302', 'زبدة',                 'cat-butter', 'pack',   'عبوة 200 جم', 78),
-  p('M-303', 'سمن بلدي',             'cat-butter', 'weight', 'بالكيلو', 380),
+  p('M-303', 'سمن بلدي',             'cat-butter', 'piece',  'سعر الكيلو', 380),
   p('M-304', 'سمن نباتي',            'cat-butter', 'pack',   'علبة 800 جم', 120),
 
-  p('M-401', 'لانشون بقري',          'cat-deli', 'weight', 'بالكيلو', 260),
-  p('M-402', 'لانشون بالزيتون',      'cat-deli', 'weight', 'بالكيلو', 280),
-  p('M-403', 'بسطرمة',               'cat-deli', 'weight', 'بالكيلو', 680),
-  p('M-404', 'تركي مدخن',            'cat-deli', 'weight', 'بالكيلو', 490),
-  p('M-405', 'سلامي',                'cat-deli', 'weight', 'بالكيلو', 430),
+  p('M-401', 'لانشون بقري',          'cat-deli', 'piece',  'سعر الكيلو', 260),
+  p('M-402', 'لانشون بالزيتون',      'cat-deli', 'piece',  'سعر الكيلو', 280),
+  p('M-403', 'بسطرمة',               'cat-deli', 'piece',  'سعر الكيلو', 680),
+  p('M-404', 'تركي مدخن',            'cat-deli', 'piece',  'سعر الكيلو', 490),
+  p('M-405', 'سلامي',                'cat-deli', 'piece',  'سعر الكيلو', 430),
 
-  p('M-501', 'زيتون أخضر',           'cat-olives', 'weight', 'بالكيلو', 120),
-  p('M-502', 'زيتون أسود',           'cat-olives', 'weight', 'بالكيلو', 145),
-  p('M-503', 'زيتون كالاماتا',       'cat-olives', 'weight', 'بالكيلو', 220),
-  p('M-504', 'مخلل مشكل',            'cat-olives', 'weight', 'بالكيلو', 60),
-  p('M-505', 'ليمون مخلل',           'cat-olives', 'weight', 'بالكيلو', 70),
+  p('M-501', 'زيتون أخضر',           'cat-olives', 'piece',  'سعر الكيلو', 120),
+  p('M-502', 'زيتون أسود',           'cat-olives', 'piece',  'سعر الكيلو', 145),
+  p('M-503', 'زيتون كالاماتا',       'cat-olives', 'piece',  'سعر الكيلو', 220),
+  p('M-504', 'مخلل مشكل',            'cat-olives', 'piece',  'سعر الكيلو', 60),
+  p('M-505', 'ليمون مخلل',           'cat-olives', 'piece',  'سعر الكيلو', 70),
 
-  p('M-601', 'حلاوة طحينية',         'cat-breakfast', 'weight', 'بالكيلو', 150),
+  p('M-601', 'حلاوة طحينية',         'cat-breakfast', 'piece',  'سعر الكيلو', 150),
   p('M-602', 'عسل نحل',              'cat-breakfast', 'pack',   'برطمان 500 جم', 160),
   p('M-603', 'مربى فراولة',          'cat-breakfast', 'pack',   'برطمان 400 جم', 48),
   p('M-604', 'طحينة',                'cat-breakfast', 'pack',   'برطمان 300 جم', 58),
@@ -142,20 +143,20 @@ export const customers = [
 /* ---------- Sample orders ----------
  * Times are generated relative to "now" so the list always has orders
  * for today, yesterday and a few days ago.
- * items: [productId, amount, note?]  amount = grams (weight) or qty.     */
+ * items: [productId, amount, note?]  amount = qty, or 'NNNg' for a line sold by weight. */
 const ORDER_TEMPLATES = [
-  { day: 3, time: '13:10', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-701', 2], ['m-702', 1], ['m-104', 500]] },
-  { day: 3, time: '18:45', src: 'whatsapp', c: 'c-1', a: 'c-1-a2', st: 'delivered', items: [['m-103', 250], ['m-201', 3]] },
-  { day: 1, time: '10:20', src: 'facebook', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', 1000], ['m-602', 1], ['m-107', 500]] },
-  { day: 1, time: '12:05', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'delivered', items: [['m-401', 500, 'شرائح'], ['m-111', 2]] },
-  { day: 1, time: '16:30', src: 'whatsapp', c: 'c-3', a: 'c-3-a1', st: 'cancelled', items: [['m-108', 250]] },
+  { day: 3, time: '13:10', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-701', 2], ['m-702', 1], ['m-104', '500g']] },
+  { day: 3, time: '18:45', src: 'whatsapp', c: 'c-1', a: 'c-1-a2', st: 'delivered', items: [['m-103', '250g'], ['m-201', 3]] },
+  { day: 1, time: '10:20', src: 'facebook', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', '1000g'], ['m-602', 1], ['m-107', '500g']] },
+  { day: 1, time: '12:05', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'delivered', items: [['m-401', '500g', 'شرائح'], ['m-111', 2]] },
+  { day: 1, time: '16:30', src: 'whatsapp', c: 'c-3', a: 'c-3-a1', st: 'cancelled', items: [['m-108', '250g']] },
   { day: 1, time: '20:15', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-706', 1], ['m-203', 6], ['m-801', 6]] },
   { day: 0, time: '09:35', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-701', 2], ['m-702', 2], ['m-705', 1], ['m-706', 1]] },
-  { day: 0, time: '10:50', src: 'whatsapp', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', 500], ['m-107', 500], ['m-205', 2]] },
-  { day: 0, time: '11:40', src: 'phone',    c: 'c-2', a: 'c-2-a2', st: 'cancelled', items: [['m-110', 250]] },
-  { day: 0, time: '12:25', src: 'facebook', c: 'c-3', a: 'c-3-a1', st: 'out',       items: [['m-403', 250, 'شرائح رفيعة'], ['m-103', 500], ['m-704', 1]] },
-  { day: 0, time: '13:15', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'preparing', items: [['m-104', 1000], ['m-203', 6], ['m-602', 1]] },
-  { day: 0, time: '14:05', src: 'whatsapp', c: 'c-1', a: 'c-1-a1', st: 'new',       items: [['m-101', 500], ['m-201', 2], ['m-501', 250, 'منزوع النوى']] },
+  { day: 0, time: '10:50', src: 'whatsapp', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', '500g'], ['m-107', '500g'], ['m-205', 2]] },
+  { day: 0, time: '11:40', src: 'phone',    c: 'c-2', a: 'c-2-a2', st: 'cancelled', items: [['m-110', '250g']] },
+  { day: 0, time: '12:25', src: 'facebook', c: 'c-3', a: 'c-3-a1', st: 'out',       items: [['m-403', '250g', 'شرائح رفيعة'], ['m-103', '500g'], ['m-704', 1]] },
+  { day: 0, time: '13:15', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'preparing', items: [['m-104', '1000g'], ['m-203', 6], ['m-602', 1]] },
+  { day: 0, time: '14:05', src: 'whatsapp', c: 'c-1', a: 'c-1-a1', st: 'new',       items: [['m-101', '500g'], ['m-201', 2], ['m-501', '250g', 'منزوع النوى']] },
 ];
 
 const STATUS_FLOW = ['new', 'preparing', 'out', 'delivered'];
@@ -182,7 +183,9 @@ export function buildSampleOrders(now = new Date()) {
     const items = t.items.map(([pid, amount, note = '']) => {
       const prod = byId(products, pid);
       const base = { productId: prod.id, name: prod.name, unitType: prod.unitType, unitLabel: prod.unitLabel, price: prod.price, note };
-      return prod.unitType === 'weight' ? { ...base, grams: amount } : { ...base, qty: amount };
+      return typeof amount === 'string' && amount.endsWith('g')
+        ? { ...base, unitType: 'weight', grams: parseInt(amount, 10) }
+        : { ...base, qty: amount };
     });
 
     // Fake status history up to the current status.

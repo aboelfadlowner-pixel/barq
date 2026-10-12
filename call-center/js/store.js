@@ -58,17 +58,14 @@ export function currentDeliveryFee(s = state) {
 let seq = 0;
 const newLineId = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-export function addProduct(product, { grams } = {}) {
+export function addProduct(product) {
   const base = {
-    productId: product.id, name: product.name, unitType: product.unitType,
+    productId: product.id, name: product.name, unitType: product.unitType, baseUnitType: product.unitType,
     unitLabel: product.unitLabel, price: product.price, note: '',
   };
   setState((s) => {
-    // Weighted items: each request is its own line (different cuts / notes).
-    if (product.unitType === 'weight') {
-      return { cart: [...s.cart, { ...base, lineId: newLineId(), grams }] };
-    }
-    const existing = s.cart.find((l) => l.productId === product.id);
+    // Lines already switched to weight stay separate; tapping again adds a piece line.
+    const existing = s.cart.find((l) => l.productId === product.id && l.unitType !== 'weight');
     if (existing) {
       return { cart: s.cart.map((l) => (l === existing ? { ...l, qty: Math.min(l.qty + 1, MAX_PIECE_QTY) } : l)) };
     }
@@ -85,6 +82,17 @@ export function changeQty(lineId, delta) {
     cart: s.cart
       .map((l) => (l.lineId === lineId ? { ...l, qty: Math.min(l.qty + delta, MAX_PIECE_QTY) } : l))
       .filter((l) => l.unitType === 'weight' || l.qty > 0),
+  }));
+}
+
+/* The agent chooses a weight: the line is priced as price-per-kg × weight. */
+export const setLineWeight = (lineId, grams) => updateLine(lineId, { unitType: 'weight', grams });
+
+export function setLineByPiece(lineId) {
+  setState((s) => ({
+    cart: s.cart.map((l) => (l.lineId === lineId
+      ? { ...l, unitType: l.baseUnitType ?? 'piece', qty: 1, grams: undefined }
+      : l)),
   }));
 }
 
@@ -110,9 +118,11 @@ export function loadDraftFromOrder(order, todayOrders = []) {
     if (!prod) { skipped.push(it.name); continue; }
     const base = {
       lineId: newLineId(), productId: prod.id, name: prod.name, unitType: prod.unitType,
-      unitLabel: prod.unitLabel, price: prod.price, note: it.note || '',
+      baseUnitType: prod.unitType, unitLabel: prod.unitLabel, price: prod.price, note: it.note || '',
     };
-    cart.push(prod.unitType === 'weight' ? { ...base, grams: it.grams } : { ...base, qty: it.qty ?? 1 });
+    cart.push(it.unitType === 'weight'
+      ? { ...base, unitType: 'weight', grams: it.grams }
+      : { ...base, qty: it.qty ?? 1 });
   }
   const { areaName, ...address } = order.address;
   setState({
