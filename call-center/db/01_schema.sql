@@ -34,17 +34,17 @@ end $$;
 
 create sequence if not exists public.cc_order_no_seq start 1001;
 
--- Staff accounts (CONFIRMED: two accounts — agent and supervisor).
--- Rows link to Supabase Auth users; passwords live in Supabase Auth only.
+-- Staff accounts (CONFIRMED: ONE shared call-center account, no roles — it can
+-- do everything: orders, cancel, delivery areas). A row links to a Supabase Auth
+-- user; the password lives in Supabase Auth only. "active = false" locks it out.
 create table if not exists public.cc_staff (
   user_id      uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
-  role         text not null check (role in ('agent', 'supervisor')),
   active       boolean not null default true,
   created_at   timestamptz not null default now()
 );
 
--- Delivery areas and fees (managed by the supervisor from the app).
+-- Delivery areas and fees (managed from the app).
 create table if not exists public.cc_delivery_areas (
   id         uuid primary key default gen_random_uuid(),
   name       text not null unique check (length(btrim(name)) between 1 and 80),
@@ -73,7 +73,7 @@ create table if not exists public.cc_addresses (
   customer_id uuid not null references public.cc_customers(id),
   area_id     uuid not null references public.cc_delivery_areas(id),
   label        text not null,                    -- اسم العنوان: البيت، الشغل، …
-  street       text not null,                    -- الشارع (and building number, written by the agent)
+  street       text not null,                    -- الشارع (and building number, written by the call center)
   housing_type text,                             -- نوع السكن (optional)
   notes        text,                             -- معلومات إضافية: floor, flat, landmark, …
   created_at   timestamptz not null default now(),

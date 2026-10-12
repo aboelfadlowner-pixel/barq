@@ -20,7 +20,7 @@ trap 'rm -rf "$TMP"' EXIT
 TAG=$(P -c "select coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '')")
 case "$TAG" in CC_TEST_STUB*) ;; *) echo "STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل."; exit 2;; esac
 
-AGENT=$(P -c "select id from auth.users where email = 'agent@cc.test'")
+STAFF=$(P -c "select id from auth.users where email = 'staff@cc.test'")
 AREA=$(P -c "select id from public.cc_delivery_areas where active order by name limit 1")
 fail=0
 
@@ -28,7 +28,7 @@ fail=0
 call() {
 P -v ON_ERROR_STOP=1 <<SQL 2>&1
 begin;
-select set_config('request.jwt.claims', '{"sub":"$AGENT","role":"authenticated"}', true) is not null as ok \gset
+select set_config('request.jwt.claims', '{"sub":"$STAFF","role":"authenticated"}', true) is not null as ok \gset
 set local role authenticated;
 select 'ORDER=' || id from public.cc_create_order('$1', '$2', '$3', '[{"sku":"T-201","qty":1}]');
 select pg_sleep($4);

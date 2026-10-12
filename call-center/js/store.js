@@ -10,7 +10,7 @@ const emptyDraft = () => ({
 });
 
 let state = {
-  user: null,       // { id, role: 'agent' | 'supervisor', name }
+  user: null,       // the one call-center account: { id, name }
   route: 'pos',
   routeParam: null,
   search: '',

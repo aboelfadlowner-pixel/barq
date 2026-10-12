@@ -14,7 +14,8 @@ drop function if exists public.cc_sold_by(text);
 drop view     if exists public.cc_products;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
-drop function if exists public.cc_my_role();   -- after the tables whose policies use it
+drop function if exists public.cc_is_staff();  -- after the tables whose policies use it
+drop function if exists public.cc_my_role();   -- earlier draft
 drop table    if exists public.cc_staff;
 drop sequence if exists public.cc_order_no_seq;
 commit;

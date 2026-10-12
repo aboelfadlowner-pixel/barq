@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Call-center tests — TEST PROJECT / LOCAL SANDBOX ONLY.
---  Each block switches to a role (anon / agent / supervisor / outsider)
+--  Each block switches to a user (anon / the call-center account / outsider)
 --  and raises "FAIL ..." if a rule is broken, or prints "PASS ...".
 --  Guard: every block first checks the CC_TEST_STUB tag and stops otherwise;
 --  setup statements before a block (T09, T12, T14) are inside begin…rollback.
@@ -35,14 +35,14 @@ rollback;
 
 -- T03 — products: staff only, 4 columns only, keyset pages of at most 1,000 (M3)
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare n1 int; n2 int; n3 int; n4 int; last1 text; last2 text; total int; cols text;
 begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select count(*) into total from public.cc_list_products(null, 1000);
-  if total < 5 then raise exception 'FAIL T03 agent sees % products', total; end if;
+  if total < 5 then raise exception 'FAIL T03 account sees % products', total; end if;
   select count(*), max(sku) into n1, last1 from public.cc_list_products(null, 2);
   select count(*), max(sku) into n2, last2 from public.cc_list_products(last1, 2);
   select count(*) into n3 from public.cc_list_products(last2, 2);
@@ -83,9 +83,9 @@ do $$ begin
 end $$;
 rollback;
 
--- T04 — agent creates an order; prices come from the database, sent prices are ignored
+-- T04 — the account creates an order; prices come from the database, sent prices are ignored
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare o public.cc_orders; area uuid;
@@ -112,7 +112,7 @@ commit;
 
 -- T05 — the same draft submitted twice creates ONE order
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare o1 public.cc_orders; o2 public.cc_orders; before int; area uuid;
@@ -133,27 +133,26 @@ begin
 end $$;
 commit;
 
--- T06 — agent cannot cancel, edit areas, or write tables directly
+-- T06 — the account cannot write tables directly (only through the functions)
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare oid uuid;
 begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into oid from public.cc_orders where client_request_id = 'aaaaaaaa-0000-0000-0000-000000000001';
-  begin perform public.cc_cancel_order(oid, 'test'); raise exception 'FAIL T06 agent cancelled'; exception when insufficient_privilege then null; end;
-  begin perform public.cc_save_area(null, 'منطقة الموظف', 10, true); raise exception 'FAIL T06 agent saved area'; exception when insufficient_privilege then null; end;
-  begin update public.cc_orders set total = 1 where id = oid; raise exception 'FAIL T06 agent updated order'; exception when insufficient_privilege then null; end;
-  begin insert into public.cc_customers (name, phone) values ('x', '01000000000'); raise exception 'FAIL T06 agent inserted customer'; exception when insufficient_privilege then null; end;
-  begin delete from public.cc_orders where id = oid; raise exception 'FAIL T06 agent deleted order'; exception when insufficient_privilege then null; end;
-  raise notice 'PASS T06 agent cannot cancel, edit areas or write tables directly';
+  begin insert into public.cc_delivery_areas (name, fee) values ('مباشر', 1); raise exception 'FAIL T06 inserted area directly'; exception when insufficient_privilege then null; end;
+  begin update public.cc_orders set total = 1 where id = oid; raise exception 'FAIL T06 updated order'; exception when insufficient_privilege then null; end;
+  begin insert into public.cc_customers (name, phone) values ('x', '01000000000'); raise exception 'FAIL T06 inserted customer'; exception when insufficient_privilege then null; end;
+  begin delete from public.cc_orders where id = oid; raise exception 'FAIL T06 deleted order'; exception when insufficient_privilege then null; end;
+  raise notice 'PASS T06 no direct writes to orders, customers or areas';
 end $$;
 rollback;
 
 -- T07 — invalid input is rejected and nothing is saved
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare before int; cust uuid; addr uuid; off_area uuid;
@@ -186,7 +185,7 @@ rollback;
 
 -- T08 — existing customer + saved address; zero-price product allowed
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare o public.cc_orders; cust uuid; addr uuid;
@@ -215,9 +214,9 @@ do $$ begin
 end $$;
 rollback;
 
--- T10 — supervisor: cancel needs a reason, works once, and is recorded
+-- T10 — cancel needs a reason, works once, and is recorded
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'supervisor@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare o public.cc_orders; oid uuid;
@@ -231,13 +230,13 @@ begin
   if (select count(*) from public.cc_order_events where order_id = oid) <> 2 then raise exception 'FAIL T10 history'; end if;
   begin perform public.cc_cancel_order(oid, 'مرة تانية'); raise exception 'FAIL T10 cancelled twice';
   exception when no_data_found then null; end;
-  raise notice 'PASS T10 supervisor cancel with reason, once, recorded';
+  raise notice 'PASS T10 cancel with reason, once, recorded';
 end $$;
 commit;
 
--- T11 — supervisor manages areas; agent sees the result
+-- T11 — the account manages areas and sees the result
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'supervisor@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare a public.cc_delivery_areas;
@@ -248,18 +247,18 @@ begin
   if a.fee <> 27.50 then raise exception 'FAIL T11 fee update'; end if;
   begin perform public.cc_save_area(null, 'سالبة', -1, true); raise exception 'FAIL T11 negative fee';
   exception when invalid_parameter_value then null; end;
-  raise notice 'PASS T11 supervisor adds and edits areas';
+  raise notice 'PASS T11 adds and edits areas';
 end $$;
 commit;
 
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if not exists (select 1 from public.cc_delivery_areas where name = 'منطقة اختبار 2' and fee = 27.50) then
-    raise exception 'FAIL T11 agent cannot see new area'; end if;
-  raise notice 'PASS T11b agent sees the updated area';
+    raise exception 'FAIL T11 cannot see new area'; end if;
+  raise notice 'PASS T11b updated area is visible';
 end $$;
 rollback;
 
@@ -267,7 +266,7 @@ rollback;
 begin;
 alter table public.products_master drop constraint products_master_pkey;
 insert into public.products_master (sku, name, price) values ('T-201', 'لبن مكرر (تجريبي)', 99);
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare cust uuid; addr uuid;
@@ -287,7 +286,7 @@ rollback;
 
 -- T13 — address length limits with clear messages and field hints (L5)
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare cust uuid; area uuid; msg text; hnt text; f record;
@@ -321,30 +320,31 @@ rollback;
 
 -- T14 — a deactivated staff account loses access immediately
 begin;
-update public.cc_staff set active = false where user_id = (select id from auth.users where email = 'agent@cc.test');
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+update public.cc_staff set active = false where user_id = (select id from auth.users where email = 'staff@cc.test');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  if (select count(*) from public.cc_orders) <> 0 then raise exception 'FAIL T14 inactive agent reads orders'; end if;
-  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T14 inactive agent lists products';
+  if (select count(*) from public.cc_orders) <> 0 then raise exception 'FAIL T14 inactive account reads orders'; end if;
+  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T14 inactive account lists products';
   exception when insufficient_privilege then null; end;
   raise notice 'PASS T14 deactivated account sees nothing';
 end $$;
 rollback;
 
--- T15 — agent cannot promote itself (no write path to cc_staff)
+-- T15 — the account cannot add staff or change its own staff row (no write path to cc_staff)
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  begin update public.cc_staff set role = 'supervisor' where user_id = auth.uid(); raise exception 'FAIL T15 agent updated own role';
+  begin update public.cc_staff set display_name = 'x' where user_id = auth.uid(); raise exception 'FAIL T15 updated own staff row';
   exception when insufficient_privilege then null; end;
-  begin insert into public.cc_staff (user_id, display_name, role) values (auth.uid(), 'x', 'supervisor'); raise exception 'FAIL T15 agent inserted staff row';
+  begin insert into public.cc_staff (user_id, display_name) values ((select id from auth.users where email = 'outsider@cc.test'), 'x');
+        raise exception 'FAIL T15 added a staff account';
   exception when insufficient_privilege then null; end;
-  if public.cc_my_role() <> 'agent' then raise exception 'FAIL T15 role changed'; end if;
-  raise notice 'PASS T15 agent cannot change its own role';
+  if not public.cc_is_staff() then raise exception 'FAIL T15 lost access'; end if;
+  raise notice 'PASS T15 cannot add staff or change its own staff row';
 end $$;
 rollback;
 
@@ -365,7 +365,7 @@ end $$;
 -- T20 — sold by unit vs by weight (Storage Unit): decimals rejected for unit products,
 --       kg lines only for كيلو products, لتر counts as unit; nothing saved on rejection
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare before int; cust uuid; addr uuid; msg text; o public.cc_orders;
@@ -406,11 +406,11 @@ rollback;
 
 -- T21 — the internal helper cc_sold_by is not callable by signed-in users
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  begin perform public.cc_sold_by('T-101'); raise exception 'FAIL T21 agent called cc_sold_by directly';
+  begin perform public.cc_sold_by('T-101'); raise exception 'FAIL T21 account called cc_sold_by directly';
   exception when insufficient_privilege then null; end;
   raise notice 'PASS T21 cc_sold_by is internal only';
 end $$;
@@ -418,7 +418,7 @@ rollback;
 
 -- T22 — no order source; new address fields; second number; editing a saved address
 begin;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
 declare o public.cc_orders; o2 public.cc_orders; cust uuid; addr uuid; area uuid; old_area uuid; n_addr int;

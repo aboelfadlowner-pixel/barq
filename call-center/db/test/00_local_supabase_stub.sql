@@ -23,10 +23,10 @@ grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 grant usage on schema public to anon, authenticated;
 
--- Three test users (in a Supabase test project, create them in Authentication instead).
+-- Two test users (in a Supabase test project, create them in Authentication instead):
+-- the shared call-center account, and a signed-in user who is NOT staff.
 insert into auth.users (id, email) values
-  (gen_random_uuid(), 'agent@cc.test'),
-  (gen_random_uuid(), 'supervisor@cc.test'),
+  (gen_random_uuid(), 'staff@cc.test'),
   (gen_random_uuid(), 'outsider@cc.test')
 on conflict do nothing;
 commit;

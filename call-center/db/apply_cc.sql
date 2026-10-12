@@ -42,17 +42,17 @@ end $$;
 
 create sequence if not exists public.cc_order_no_seq start 1001;
 
--- Staff accounts (CONFIRMED: two accounts — agent and supervisor).
--- Rows link to Supabase Auth users; passwords live in Supabase Auth only.
+-- Staff accounts (CONFIRMED: ONE shared call-center account, no roles — it can
+-- do everything: orders, cancel, delivery areas). A row links to a Supabase Auth
+-- user; the password lives in Supabase Auth only. "active = false" locks it out.
 create table if not exists public.cc_staff (
   user_id      uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
-  role         text not null check (role in ('agent', 'supervisor')),
   active       boolean not null default true,
   created_at   timestamptz not null default now()
 );
 
--- Delivery areas and fees (managed by the supervisor from the app).
+-- Delivery areas and fees (managed from the app).
 create table if not exists public.cc_delivery_areas (
   id         uuid primary key default gen_random_uuid(),
   name       text not null unique check (length(btrim(name)) between 1 and 80),
@@ -81,7 +81,7 @@ create table if not exists public.cc_addresses (
   customer_id uuid not null references public.cc_customers(id),
   area_id     uuid not null references public.cc_delivery_areas(id),
   label        text not null,                    -- اسم العنوان: البيت، الشغل، …
-  street       text not null,                    -- الشارع (and building number, written by the agent)
+  street       text not null,                    -- الشارع (and building number, written by the call center)
   housing_type text,                             -- نوع السكن (optional)
   notes        text,                             -- معلومات إضافية: floor, flat, landmark, …
   created_at   timestamptz not null default now(),
@@ -184,13 +184,14 @@ create index if not exists cc_order_events_order_idx on public.cc_order_events (
 --  app can show the message under the right input.
 -- =====================================================================
 
--- Role of the signed-in user ('agent' | 'supervisor'), or null if not active staff.
-create or replace function public.cc_my_role()
-returns text
+-- True when the signed-in user is the active call-center account.
+-- (Earlier drafts had roles and a role function; 03_security.sql drops it.)
+create or replace function public.cc_is_staff()
+returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
-  select s.role from public.cc_staff s where s.user_id = auth.uid() and s.active
+  select exists (select 1 from public.cc_staff s where s.user_id = auth.uid() and s.active)
 $$;
 
 -- ---------------------------------------------------------------------
@@ -229,7 +230,7 @@ language plpgsql stable security definer
 set search_path = ''
 as $$
 begin
-  if public.cc_my_role() is null then
+  if not public.cc_is_staff() then
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
@@ -506,7 +507,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Cancel an order (supervisor only, reason required, only from 'new').
+-- Cancel an order (call-center account, reason required, only from 'new').
 -- ---------------------------------------------------------------------
 create or replace function public.cc_cancel_order(p_order_id uuid, p_reason text)
 returns public.cc_orders
@@ -518,7 +519,7 @@ declare
   v_order public.cc_orders;
 begin
   select * into v_staff from public.cc_staff where user_id = auth.uid() and active;
-  if not found or v_staff.role <> 'supervisor' then
+  if not found then
     raise exception 'إلغاء الطلب للمشرف فقط' using errcode = '42501';
   end if;
   if p_reason is null or length(btrim(p_reason)) = 0 then
@@ -541,7 +542,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Add or edit a delivery area (supervisor only). p_id null = new area.
+-- Add or edit a delivery area (call-center account). p_id null = new area.
 -- ---------------------------------------------------------------------
 create or replace function public.cc_save_area(p_id uuid, p_name text, p_fee numeric, p_active boolean)
 returns public.cc_delivery_areas
@@ -551,7 +552,7 @@ as $$
 declare
   v_area public.cc_delivery_areas;
 begin
-  if public.cc_my_role() is distinct from 'supervisor' then
+  if not public.cc_is_staff() then
     raise exception 'تعديل المناطق للمشرف فقط' using errcode = '42501';
   end if;
   if p_name is null or char_length(btrim(p_name)) not between 1 and 80 then
@@ -589,7 +590,7 @@ $$;
 --
 --  • anon (no login)          : no access to anything cc_*.
 --  • signed in, not staff     : no rows, no products, cannot create orders.
---  • active staff (any role)  : read areas, customers, addresses, orders;
+--  • the active account       : read areas, customers, addresses, orders;
 --                               products only through cc_list_products().
 --  • writes                   : ONLY through the security-definer functions
 --                               (create order / cancel / save area). No direct
@@ -617,24 +618,24 @@ grant select on public.cc_staff, public.cc_delivery_areas, public.cc_customers, 
                 public.cc_orders, public.cc_order_items, public.cc_order_events
   to authenticated;
 
--- Each user sees only their own staff row (the app reads its role after login).
+-- Each user sees only their own staff row (the app checks it after login).
 drop policy if exists cc_staff_self on public.cc_staff;
 create policy cc_staff_self on public.cc_staff
   for select to authenticated using (user_id = auth.uid());
 
--- Active staff (agent or supervisor) can read everything else (CONFIRMED: both see all orders).
+-- The active call-center account can read everything else (CONFIRMED: one shared account).
 drop policy if exists cc_areas_staff_read     on public.cc_delivery_areas;
 drop policy if exists cc_customers_staff_read on public.cc_customers;
 drop policy if exists cc_addresses_staff_read on public.cc_addresses;
 drop policy if exists cc_orders_staff_read    on public.cc_orders;
 drop policy if exists cc_items_staff_read     on public.cc_order_items;
 drop policy if exists cc_events_staff_read    on public.cc_order_events;
-create policy cc_areas_staff_read     on public.cc_delivery_areas for select to authenticated using ((select public.cc_my_role()) is not null);
-create policy cc_customers_staff_read on public.cc_customers      for select to authenticated using ((select public.cc_my_role()) is not null);
-create policy cc_addresses_staff_read on public.cc_addresses      for select to authenticated using ((select public.cc_my_role()) is not null);
-create policy cc_orders_staff_read    on public.cc_orders         for select to authenticated using ((select public.cc_my_role()) is not null);
-create policy cc_items_staff_read     on public.cc_order_items    for select to authenticated using ((select public.cc_my_role()) is not null);
-create policy cc_events_staff_read    on public.cc_order_events   for select to authenticated using ((select public.cc_my_role()) is not null);
+create policy cc_areas_staff_read     on public.cc_delivery_areas for select to authenticated using ((select public.cc_is_staff()));
+create policy cc_customers_staff_read on public.cc_customers      for select to authenticated using ((select public.cc_is_staff()));
+create policy cc_addresses_staff_read on public.cc_addresses      for select to authenticated using ((select public.cc_is_staff()));
+create policy cc_orders_staff_read    on public.cc_orders         for select to authenticated using ((select public.cc_is_staff()));
+create policy cc_items_staff_read     on public.cc_order_items    for select to authenticated using ((select public.cc_is_staff()));
+create policy cc_events_staff_read    on public.cc_order_events   for select to authenticated using ((select public.cc_is_staff()));
 
 -- M3: the earlier draft exposed products through a view; products are now read
 -- only through cc_list_products(). Remove the draft view if a test run created it.
@@ -642,8 +643,9 @@ drop view if exists public.cc_products;
 
 -- Functions: Postgres (and Supabase's default privileges) grant EXECUTE to
 -- PUBLIC / anon on new functions — remove that, then allow signed-in users only.
--- Each function still checks the caller's staff role itself.
-revoke all on function public.cc_my_role()                                              from public, anon;
+-- Each function still checks the caller is the active account itself.
+drop function if exists public.cc_my_role();   -- earlier draft (roles), replaced by cc_is_staff()
+revoke all on function public.cc_is_staff()                                             from public, anon;
 -- cc_sold_by is internal (used by the functions below); nobody calls it directly.
 revoke all on function public.cc_sold_by(text)                                          from public, anon, authenticated;
 revoke all on function public.cc_list_products(text, int)                               from public, anon;
@@ -651,7 +653,7 @@ revoke all on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text)  
 revoke all on function public.cc_cancel_order(uuid, text)                               from public, anon;
 revoke all on function public.cc_save_area(uuid, text, numeric, boolean)                from public, anon;
 
-grant execute on function public.cc_my_role()                                           to authenticated;
+grant execute on function public.cc_is_staff()                                          to authenticated;
 grant execute on function public.cc_list_products(text, int)                            to authenticated;
 grant execute on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text) to authenticated;
 grant execute on function public.cc_cancel_order(uuid, text)                            to authenticated;

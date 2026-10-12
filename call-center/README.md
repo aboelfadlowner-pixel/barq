@@ -54,9 +54,9 @@ approved real source. UI components do not import `mock-data.js` directly.
 - Cash on delivery is the only payment method.
 - Order tickets print on an 80mm receipt roll, for the preparation team: customer, phones, address, items with
   quantity or weight and notes. No prices, fees or totals on the ticket.
-- Two accounts: call-center agent and supervisor. The supervisor can also cancel orders (with a reason),
-  manage delivery areas and fees, and see the daily summary.
-- Order statuses: new and cancelled only. Both accounts see all orders.
+- One shared call-center account for everyone, no roles: it creates and cancels orders (with a reason),
+  manages delivery areas and fees, and sees the daily summary and all orders.
+- Order statuses: new and cancelled only.
 
 ## Order start (Foodics-style)
 
@@ -74,6 +74,7 @@ approved real source. UI components do not import `mock-data.js` directly.
 ## Still mock / pending
 
 - Products, customers, sample orders, delivery areas and fees are fictional.
-  The supervisor will enter the real delivery areas and fees from the app.
-- Login is a demo account picker. The real version uses Supabase Auth.
+  The real delivery areas and fees will be entered from the app.
+- No login screen in the demo: it opens with the one account. The real version signs in once per device
+  (Supabase Auth email + password, never stored in the app) and stays signed in.
 - "Created" orders and edits live in browser memory only and disappear on refresh.

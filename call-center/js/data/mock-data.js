@@ -12,11 +12,8 @@
 
 export const MOCK_LABEL = 'بيانات تجريبية';
 
-/* CONFIRMED: two accounts only. Demo login — no passwords in the demo. */
-export const demoAccounts = [
-  { id: 'acc-agent',      role: 'agent',      name: 'موظف الكول سنتر' },
-  { id: 'acc-supervisor', role: 'supervisor', name: 'المشرف' },
-];
+/* CONFIRMED: one shared call-center account, no roles. The demo opens with it directly. */
+export const account = { id: 'acc-cc', name: 'مركز الاتصال' };
 
 /* ---------- Products (sample names, fake prices) ----------
  * unitType: 'weight' → sold by weight, price is per kg, quantity may have decimals (kg)
@@ -185,10 +182,10 @@ export function buildSampleOrders(now = new Date()) {
         : { ...base, qty: amount };
     });
 
-    const history = [{ status: 'new', at: created.toISOString(), by: demoAccounts[0].name }];
+    const history = [{ status: 'new', at: created.toISOString(), by: account.name }];
     if (t.st === 'cancelled') {
       history.push({ status: 'cancelled', at: new Date(created.getTime() + 20 * 60000).toISOString(),
-        by: demoAccounts[1].name, reason: 'العميل لغى الطلب بالتليفون' });
+        by: account.name, reason: 'العميل لغى الطلب بالتليفون' });
     }
 
     return {
@@ -204,7 +201,7 @@ export function buildSampleOrders(now = new Date()) {
       note: '',
       status: t.st,
       statusHistory: history,
-      employee: demoAccounts[0].name,
+      employee: account.name,
       cancelReason: history[1]?.reason ?? '',
       isDemo: true,
     };

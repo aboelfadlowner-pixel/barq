@@ -5,7 +5,7 @@ Nothing in this folder has been run on the real Supabase project.
 | File | What it does | Where it may run |
 |---|---|---|
 | `01_schema.sql` | Preflight check + new `cc_*` tables + order-number sequence | via `apply_cc.sql` only |
-| `02_functions.sql` | `cc_my_role`, `cc_sold_by` (internal), `cc_list_products`, `cc_create_order`, `cc_cancel_order`, `cc_save_area` | via `apply_cc.sql` only |
+| `02_functions.sql` | `cc_is_staff`, `cc_sold_by` (internal), `cc_list_products`, `cc_create_order`, `cc_cancel_order`, `cc_save_area` | via `apply_cc.sql` only |
 | `03_security.sql` | RLS, grants, EXECUTE rights | via `apply_cc.sql` only |
 | `build_apply.sh` | Builds `apply_cc.sql` = 01+02+03 in ONE transaction | local |
 | `apply_cc.sql` | The file to run (all or nothing, safe to re-run) | test project, later production (after approval) |
@@ -14,7 +14,7 @@ Nothing in this folder has been run on the real Supabase project.
 | `test/00_local_supabase_stub.sql` | Fake `auth` schema for a plain local Postgres | **local sandbox only** |
 | `test/01_products_master_stub.sql` | `products_master` copy with fictional rows | **test project / local only — never production** |
 | `test/02_seed_test_data.sql` | Staff rows for test users + test areas | **test project / local only** |
-| `test/10_tests.sql` | Roles, products paging, pricing, weight, sold by unit/weight, duplicates, cancel, limits | **test project / local only** |
+| `test/10_tests.sql` | Access (account / outsider / anon), products paging, pricing, weight, sold by unit/weight, duplicates, cancel, limits | **test project / local only** |
 | `test/20_concurrency.sh` | Same draft from two sessions at once (M2) | **test project / local only** |
 | `test/run_local.sh` | Runs everything on a throwaway local Postgres in /tmp | local |
 
@@ -35,6 +35,9 @@ Rules the SQL enforces:
 - Weight lines: `price_per_kg × grams / 1000`, rounded to 2 decimals.
 - `client_request_id` (one per draft) + a transaction-level advisory lock: a repeated or simultaneous submit returns the same order.
 - Products are read only through `cc_list_products` (sku, name, barcode, price, sold_by; staff only, pages of ≤1,000); duplicated skus are excluded and rejected.
+- One shared call-center account, no roles (`cc_staff`: user, name, active). It can create and cancel orders and
+  manage delivery areas; nobody can write tables directly. Tests use two Auth users: `staff@cc.test` and
+  `outsider@cc.test` (signed in, not staff).
 - No order source (removed). Addresses follow the app form: name (`label`, ≤40), delivery area, street (≤150),
   housing type (optional: apartment/villa/house/office/shop), extra information (`notes`, ≤200).
   `cc_create_order` takes a saved address as is, a saved address with edits (updated in place, old orders keep

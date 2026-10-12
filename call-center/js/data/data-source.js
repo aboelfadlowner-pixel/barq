@@ -29,8 +29,9 @@ export const getAreas         = () => resolve(areas);   // includes inactive are
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
 
 /* ---------- Accounts (DEMO: pick an account, no password) ---------- */
-export const getDemoAccounts = () => resolve(mock.demoAccounts);
-export const demoLogin = (accountId) => resolve(mock.demoAccounts.find((a) => a.id === accountId) ?? null);
+/* The one call-center account. The real version signs in once per device
+   (Supabase Auth, password never stored in the app) and stays signed in. */
+export const getAccount = () => resolve(mock.account);
 
 /* ---------- Customers ---------- */
 function lastOrderAt(customerId) {

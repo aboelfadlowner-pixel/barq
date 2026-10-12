@@ -15,13 +15,14 @@
 --  app can show the message under the right input.
 -- =====================================================================
 
--- Role of the signed-in user ('agent' | 'supervisor'), or null if not active staff.
-create or replace function public.cc_my_role()
-returns text
+-- True when the signed-in user is the active call-center account.
+-- (Earlier drafts had roles and a role function; 03_security.sql drops it.)
+create or replace function public.cc_is_staff()
+returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
-  select s.role from public.cc_staff s where s.user_id = auth.uid() and s.active
+  select exists (select 1 from public.cc_staff s where s.user_id = auth.uid() and s.active)
 $$;
 
 -- ---------------------------------------------------------------------
@@ -60,7 +61,7 @@ language plpgsql stable security definer
 set search_path = ''
 as $$
 begin
-  if public.cc_my_role() is null then
+  if not public.cc_is_staff() then
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
@@ -337,7 +338,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Cancel an order (supervisor only, reason required, only from 'new').
+-- Cancel an order (call-center account, reason required, only from 'new').
 -- ---------------------------------------------------------------------
 create or replace function public.cc_cancel_order(p_order_id uuid, p_reason text)
 returns public.cc_orders
@@ -349,7 +350,7 @@ declare
   v_order public.cc_orders;
 begin
   select * into v_staff from public.cc_staff where user_id = auth.uid() and active;
-  if not found or v_staff.role <> 'supervisor' then
+  if not found then
     raise exception 'إلغاء الطلب للمشرف فقط' using errcode = '42501';
   end if;
   if p_reason is null or length(btrim(p_reason)) = 0 then
@@ -372,7 +373,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Add or edit a delivery area (supervisor only). p_id null = new area.
+-- Add or edit a delivery area (call-center account). p_id null = new area.
 -- ---------------------------------------------------------------------
 create or replace function public.cc_save_area(p_id uuid, p_name text, p_fee numeric, p_active boolean)
 returns public.cc_delivery_areas
@@ -382,7 +383,7 @@ as $$
 declare
   v_area public.cc_delivery_areas;
 begin
-  if public.cc_my_role() is distinct from 'supervisor' then
+  if not public.cc_is_staff() then
     raise exception 'تعديل المناطق للمشرف فقط' using errcode = '42501';
   end if;
   if p_name is null or char_length(btrim(p_name)) not between 1 and 80 then

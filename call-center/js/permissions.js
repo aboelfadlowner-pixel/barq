@@ -1,10 +1,5 @@
-/* CONFIRMED: two accounts. The supervisor can do everything the agent does, plus: */
-const SUPERVISOR_ONLY = new Set(['cancelOrder', 'manageAreas', 'viewDailySummary']);
-
-export const ROLE_LABELS = { agent: 'موظف', supervisor: 'مشرف' };
-
-export function can(user, action) {
-  if (!user) return false;
-  if (SUPERVISOR_ONLY.has(action)) return user.role === 'supervisor';
-  return true;
+/* CONFIRMED: one shared call-center account with no roles — it can do everything
+   (create and cancel orders, delivery areas and fees, the daily summary). */
+export function can(user) {
+  return !!user;
 }

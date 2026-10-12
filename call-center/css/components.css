@@ -304,17 +304,6 @@
 .tk-cash { margin: 4px 0; padding: 5px; border: 1.5px solid #000; border-radius: 4px; text-align: center; font-weight: 900; font-size: 13px; }
 
 /* ---------- Login ---------- */
-.login-page { height: 100%; overflow-y: auto; display: grid; place-items: center; padding: 24px 16px; background: var(--surface); }
-.login-card { width: min(480px, 100%); padding: 26px 24px; display: flex; flex-direction: column; gap: 16px; }
-.login-card h1 { font-size: 20px; font-weight: 900; }
-.login-accounts { display: flex; flex-direction: column; gap: 10px; }
-.account-btn {
-  display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; text-align: start;
-  border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer;
-}
-.account-btn:hover { border-color: var(--green-500); background: var(--green-50); }
-.account-btn .grow { display: flex; flex-direction: column; gap: 2px; }
-.account-btn .chev { color: var(--muted); }
 
 /* ---------- Areas (supervisor) ---------- */
 .page-narrow { max-width: 860px; }

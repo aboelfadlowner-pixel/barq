@@ -1,9 +1,8 @@
-/* Top bar: brand, navigation, account + logout. */
-import { bind, getState, setUser, resetDraft } from '../store.js';
-import { can, ROLE_LABELS } from '../permissions.js';
-import { esc, on } from '../utils/dom.js';
+/* Top bar: brand, navigation, account name. */
+import { bind } from '../store.js';
+import { can } from '../permissions.js';
+import { esc } from '../utils/dom.js';
 import { icon } from './icons.js';
-import { confirmDialog } from './modal.js';
 
 const brand = `
   <div class="brand">
@@ -15,18 +14,8 @@ const brand = `
   </div>`;
 
 export function mountTopbar(el) {
-  on(el, 'click', '[data-logout]', async () => {
-    const s = getState();
-    if ((s.cart.length || s.customer) && !(await confirmDialog({
-      title: 'تسجيل الخروج', message: 'فيه طلب لسه ما اتأكدش. لو خرجت هيتمسح.', confirmLabel: 'خروج', danger: true,
-    }))) return;
-    resetDraft();
-    setUser(null);
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-  });
-
   return bind((s) => ({ route: s.route, user: s.user }), ({ route, user }) => {
-    if (route === 'login' || !user) {
+    if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
       return;
@@ -43,9 +32,7 @@ export function mountTopbar(el) {
       <div class="spacer"></div>
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
-        <span class="user-chip">${icon('user')}${esc(user.name)}
-          <span class="tag ${user.role === 'supervisor' ? 'tag-warn' : 'tag-green'}">${ROLE_LABELS[user.role]}</span></span>
-        <button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>
+        <span class="user-chip">${icon('headset')}${esc(user.name)}</span>
       </div>`;
   });
 }
