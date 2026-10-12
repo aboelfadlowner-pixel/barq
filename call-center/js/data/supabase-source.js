@@ -146,6 +146,9 @@ export async function signIn(email, password) {
   const c = await sb();
   const { error } = await c.auth.signInWithPassword({ email: (email || ACCOUNT_EMAIL).trim(), password });
   if (error) {
+    if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message || '')) {
+      throw new Error('لازم تأكد الإيميل الأول — افتح رسالة Supabase على الإيميل واضغط رابط التأكيد');
+    }
     throw new Error(error.status === 400 ? 'كلمة السر أو البريد غير صحيح' : 'تعذر تسجيل الدخول — تأكد من الإنترنت وحاول تاني');
   }
   const account = await getAccount();
