@@ -70,11 +70,23 @@ export async function openCustomerDialog({ phone = '', edit = false } = {}) {
         </div>`;
       return;
     }
-    box.innerHTML = st.results.map((c) => `
+    // L6: phone2 is not unique, so one full number can belong to several customers.
+    const norm = normalizePhone(st.query);
+    const exact = isValidPhone(norm)
+      ? st.results.filter((c) => c.phones.some((ph) => normalizePhone(ph) === norm)) : [];
+    const sharedWarning = exact.length > 1 ? `
+      <div class="alert alert-warn">${icon('alert')}<span>الرقم <strong class="ltr-inline">${esc(norm)}</strong>
+        مسجل عند ${exact.length} عملاء. اتأكد من الاسم والعنوان مع العميل قبل ما تختار.</span></div>` : '';
+    const phoneTag = (c) => {
+      const i = c.phones.findIndex((ph) => normalizePhone(ph) === norm);
+      if (i === -1 || exact.length < 2) return '';
+      return `<span class="tag ${i === 0 ? 'tag-green' : 'tag-warn'}">${i === 0 ? 'الرقم الأساسي' : 'رقم إضافي'}</span>`;
+    };
+    box.innerHTML = sharedWarning + st.results.map((c) => `
       <button type="button" class="result-card" data-cid="${esc(c.id)}">
         <div class="avatar">${initial(c.name)}</div>
         <div class="grow">
-          <div class="cust-name">${esc(c.name)}</div>
+          <div class="cust-name">${esc(c.name)} ${phoneTag(c)}</div>
           <div class="meta">
             <span class="ltr-inline">${c.phones.map(esc).join(' / ')}</span>
             <span>${c.addresses.length ? `${c.addresses.length} ${c.addresses.length === 1 ? 'عنوان محفوظ' : 'عناوين محفوظة'}` : 'لا توجد عناوين'}</span>

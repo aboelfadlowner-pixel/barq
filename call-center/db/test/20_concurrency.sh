@@ -16,6 +16,10 @@ P() { psql ${CONN:+"$CONN"} -X -q -t -A "$@"; }
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# Guard: stop unless this is the test project (products_master tagged CC_TEST_STUB).
+TAG=$(P -c "select coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '')")
+case "$TAG" in CC_TEST_STUB*) ;; *) echo "STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل."; exit 2;; esac
+
 AGENT=$(P -c "select id from auth.users where email = 'agent@cc.test'")
 AREA=$(P -c "select id from public.cc_delivery_areas where active order by name limit 1")
 fail=0

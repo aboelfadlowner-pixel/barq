@@ -18,6 +18,14 @@ Nothing in this folder has been run on the real Supabase project.
 | `test/20_concurrency.sh` | Same draft from two sessions at once (M2) | **test project / local only** |
 | `test/run_local.sh` | Runs everything on a throwaway local Postgres in /tmp | local |
 
+Safety guards (test-only files):
+- `test/01_products_master_stub.sql` stops (and changes nothing) if `products_master` already exists or any
+  real table (`branch_orders`, `dc_products`, `pricing_requests_v3`) is present. It tags the stub table `CC_TEST_STUB`.
+- `test/02_seed_test_data.sql`, every block in `test/10_tests.sql`, and `test/20_concurrency.sh` stop unless
+  `products_master` carries the `CC_TEST_STUB` tag.
+- `test/00_local_supabase_stub.sql` stops on any database that already has an `auth` schema (every Supabase project).
+- `test/run_local.sh` proves this on a production-like local database: all files stop, nothing changes.
+
 Run order (test project): `test/01_products_master_stub.sql` → `apply_cc.sql` → `test/02_seed_test_data.sql`
 → `test/10_tests.sql` → `test/20_concurrency.sh`. Each test prints `PASS …` or `FAIL …`.
 

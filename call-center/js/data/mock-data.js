@@ -127,6 +127,10 @@ export const customers = [
   { id: 'c-6', name: 'هبة مصطفى', phones: ['01000000006'], addresses: [
     addr('c-6-a1', 'area-f', 'شارع تجريبي 30', '9', '4', '8', 'بجوار البنك'),
   ] },
+  // Shares a number with c-1 (as a second number) — demonstrates the L6 warning.
+  { id: 'c-7', name: 'نادية محمود', phones: ['01000000007', '01000000001'], addresses: [
+    addr('c-7-a1', 'area-b', 'شارع تجريبي 40', '2', '1', '3', 'نفس عمارة الصيدلية'),
+  ] },
 ];
 
 /* ---------- Sample orders ----------

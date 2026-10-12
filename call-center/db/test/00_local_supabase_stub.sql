@@ -1,5 +1,13 @@
 -- LOCAL SANDBOX ONLY. Mimics the bits of Supabase the call-center SQL relies on
--- (auth.users, auth.uid(), roles anon/authenticated). Never run on Supabase.
+-- (auth.users, auth.uid(), roles anon/authenticated). Never run on Supabase:
+-- the guard stops if an auth schema already exists (every Supabase project has one).
+begin;
+do $$
+begin
+  if to_regnamespace('auth') is not null then
+    raise exception 'STOP: schema auth موجود — ده مشروع Supabase مش Postgres محلي. مفيش أي تغيير اتعمل.';
+  end if;
+end $$;
 create extension if not exists pgcrypto;
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
@@ -21,3 +29,4 @@ insert into auth.users (id, email) values
   (gen_random_uuid(), 'supervisor@cc.test'),
   (gen_random_uuid(), 'outsider@cc.test')
 on conflict do nothing;
+commit;

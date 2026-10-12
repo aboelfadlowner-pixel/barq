@@ -2,12 +2,15 @@
 --  Call-center tests — TEST PROJECT / LOCAL SANDBOX ONLY.
 --  Each block switches to a role (anon / agent / supervisor / outsider)
 --  and raises "FAIL ..." if a rule is broken, or prints "PASS ...".
+--  Guard: every block first checks the CC_TEST_STUB tag and stops otherwise;
+--  setup statements before a block (T09, T12, T14) are inside begin…rollback.
 -- =====================================================================
 
 -- T01 — no login: nothing is readable or callable
 begin;
 set local role anon;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   begin perform 1 from public.cc_orders limit 1;    raise exception 'FAIL T01 anon read cc_orders';    exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_customers limit 1; raise exception 'FAIL T01 anon read cc_customers'; exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_staff limit 1;     raise exception 'FAIL T01 anon read cc_staff';     exception when insufficient_privilege then null; end;
@@ -22,6 +25,7 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if (select count(*) from public.cc_delivery_areas) <> 0 then raise exception 'FAIL T02 outsider sees areas'; end if;
   begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{}', '{}', '[{"sku":"T-201","qty":1}]');
         raise exception 'FAIL T02 outsider created order'; exception when insufficient_privilege then null; end;
@@ -36,6 +40,7 @@ set local role authenticated;
 do $$
 declare n1 int; n2 int; n3 int; n4 int; last1 text; last2 text; total int; cols text;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select count(*) into total from public.cc_list_products(null, 1000);
   if total < 5 then raise exception 'FAIL T03 agent sees % products', total; end if;
   select count(*), max(sku) into n1, last1 from public.cc_list_products(null, 2);
@@ -54,6 +59,7 @@ rollback;
 begin;
 set local role anon;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T03b anon listed products';
   exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_products limit 1; raise exception 'FAIL T03b old view still exists';
@@ -66,6 +72,7 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T03c outsider listed products';
   exception when insufficient_privilege then null; end;
   raise notice 'PASS T03c signed-in non-staff cannot list products';
@@ -79,6 +86,7 @@ set local role authenticated;
 do $$
 declare o public.cc_orders; area uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   o := public.cc_create_order(
     'aaaaaaaa-0000-0000-0000-000000000001', 'whatsapp',
@@ -105,6 +113,7 @@ set local role authenticated;
 do $$
 declare o1 public.cc_orders; o2 public.cc_orders; before int; area uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select count(*) into before from public.cc_orders;
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   o2 := public.cc_create_order(
@@ -127,6 +136,7 @@ set local role authenticated;
 do $$
 declare oid uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into oid from public.cc_orders where client_request_id = 'aaaaaaaa-0000-0000-0000-000000000001';
   begin perform public.cc_cancel_order(oid, 'test'); raise exception 'FAIL T06 agent cancelled'; exception when insufficient_privilege then null; end;
   begin perform public.cc_save_area(null, 'منطقة الموظف', 10, true); raise exception 'FAIL T06 agent saved area'; exception when insufficient_privilege then null; end;
@@ -144,6 +154,7 @@ set local role authenticated;
 do $$
 declare before int; cust uuid; addr uuid; off_area uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select count(*) into before from public.cc_orders;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
@@ -179,6 +190,7 @@ set local role authenticated;
 do $$
 declare o public.cc_orders; cust uuid; addr uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
   o := public.cc_create_order('aaaaaaaa-0000-0000-0000-000000000002', 'phone',
@@ -194,6 +206,7 @@ commit;
 begin;
 update public.products_master set price = 999 where sku = 'T-104';
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if (select line_total from public.cc_order_items i join public.cc_orders o on o.id = i.order_id
        where o.client_request_id = 'aaaaaaaa-0000-0000-0000-000000000001' and i.sku = 'T-104') <> 80.00 then
     raise exception 'FAIL T09 old order changed after price update'; end if;
@@ -208,6 +221,7 @@ set local role authenticated;
 do $$
 declare o public.cc_orders; oid uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into oid from public.cc_orders where client_request_id = 'aaaaaaaa-0000-0000-0000-000000000002';
   begin perform public.cc_cancel_order(oid, '  '); raise exception 'FAIL T10 empty reason accepted';
   exception when invalid_parameter_value then null; end;
@@ -227,6 +241,7 @@ set local role authenticated;
 do $$
 declare a public.cc_delivery_areas;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   a := public.cc_save_area(null, 'منطقة اختبار 2', 25, true);
   a := public.cc_save_area(a.id, 'منطقة اختبار 2', 27.5, true);
   if a.fee <> 27.50 then raise exception 'FAIL T11 fee update'; end if;
@@ -240,6 +255,7 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if not exists (select 1 from public.cc_delivery_areas where name = 'منطقة اختبار 2' and fee = 27.50) then
     raise exception 'FAIL T11 agent cannot see new area'; end if;
   raise notice 'PASS T11b agent sees the updated area';
@@ -255,6 +271,7 @@ set local role authenticated;
 do $$
 declare cust uuid; addr uuid;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if exists (select 1 from public.cc_list_products(null, 1000) where sku = 'T-201') then
     raise exception 'FAIL T12 duplicated sku is listed'; end if;
   select id into cust from public.cc_customers where phone = '01011112222';
@@ -274,6 +291,7 @@ set local role authenticated;
 do $$
 declare cust uuid; area uuid; msg text; hnt text; f record;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
   for f in select * from (values
@@ -305,6 +323,7 @@ update public.cc_staff set active = false where user_id = (select id from auth.u
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if (select count(*) from public.cc_orders) <> 0 then raise exception 'FAIL T14 inactive agent reads orders'; end if;
   begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T14 inactive agent lists products';
   exception when insufficient_privilege then null; end;
@@ -317,6 +336,7 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   begin update public.cc_staff set role = 'supervisor' where user_id = auth.uid(); raise exception 'FAIL T15 agent updated own role';
   exception when insufficient_privilege then null; end;
   begin insert into public.cc_staff (user_id, display_name, role) values (auth.uid(), 'x', 'supervisor'); raise exception 'FAIL T15 agent inserted staff row';
@@ -330,6 +350,7 @@ rollback;
 do $$
 declare bad text;
 begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select string_agg(p.proname, ', ') into bad
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname like 'cc\_%'
