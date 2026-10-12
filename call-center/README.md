@@ -26,7 +26,7 @@ call-center/
     app.js                Bootstrap + hash router (#/pos, #/orders, #/orders/:id)
     store.js              State (cart, customer, address, source) + actions
     catalog.js            Reference data cached at startup
-    constants.js          Order sources (confirmed) + weight presets (proposed)
+    constants.js          Limits, housing types, weight presets
     data/
       mock-data.js        ⚠️ ALL MOCK DATA (products, customers, areas, fees, statuses, orders)
       data-source.js      The ONLY data access layer used by the UI
@@ -43,7 +43,12 @@ approved real source. UI components do not import `mock-data.js` directly.
 ## Confirmed decisions reflected in the demo
 
 - Products and prices will come from the data-center products sheet (`products_master`), read only.
-- All products are sold by piece. The agent can switch a cart line to a weight, and the price is then price-per-kg × weight.
+- How a product is sold comes from the DC sheet's Storage Unit (`dc_stock_levels.unit`, joined to `products_master` by SKU):
+  - `كيلو` → sold by weight: quantity in kg, decimals allowed, price = price-per-kg × weight (estimated).
+  - Anything else (Unit, علبة, لتر, كرتونة…) or no unit → sold by unit: whole numbers only; a decimal shows
+    "لا يمكن أن تحتوي الكمية على أرقام عشرية في المنتجات التي يتم بيعها بالوحدة."
+  - 52 products are marked `كيلو` although their name has a pack size; they were sent to the DC to fix in the sheet.
+  - The UI uses a mock flag until the DB function returns it.
 - No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
   Products with a zero price stay visible as they are in the sheet.
 - Cash on delivery is the only payment method.
