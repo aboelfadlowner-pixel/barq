@@ -1,27 +1,5 @@
 /* Components: categories, search, product cards, cart, dialogs, tables */
 
-/* ---------- Categories ---------- */
-.cats-title { font-size: 12px; font-weight: 800; color: var(--muted); padding: 2px 12px 8px; }
-.cat-list { display: flex; flex-direction: column; gap: 2px; }
-.cat-btn {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  height: 44px; padding: 0 12px; border: 1px solid transparent; border-radius: 9px;
-  background: transparent; color: var(--ink-2); font-weight: 700; text-align: start; cursor: pointer;
-}
-.cat-btn:hover { background: var(--surface); }
-.cat-btn .count { font-size: 12px; font-weight: 700; color: var(--muted); }
-.cat-btn.active { background: var(--green-600); color: #fff; }
-.cat-btn.active .count { color: rgba(255, 255, 255, .8); }
-.cat-list.dimmed .cat-btn.active { background: var(--green-50); color: var(--green-700); }
-.cat-list.dimmed .cat-btn.active .count { color: var(--green-700); }
-
-@media (max-width: 1279px) {
-  .cats-title { display: none; }
-  .cat-list { flex-direction: row; gap: 6px; }
-  .cat-btn { flex: none; height: 38px; border-color: var(--line); border-radius: 999px; background: #fff; white-space: nowrap; }
-  .cat-btn.active { border-color: var(--green-600); }
-}
-
 /* ---------- Search ---------- */
 .search { position: relative; }
 .search > .svg-icon { position: absolute; inset-inline-start: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
@@ -359,3 +337,5 @@
 .stat .v { font-size: 20px; font-weight: 900; }
 .tone-text-red { color: var(--danger); }
 .timeline li > div { display: flex; flex-direction: column; gap: 2px; }
+.grid-start { padding-top: 90px; }
+.grid-start .svg-icon { width: 42px; height: 42px; color: var(--green-500); }

@@ -44,6 +44,8 @@ approved real source. UI components do not import `mock-data.js` directly.
 
 - Products and prices will come from the data-center products sheet (`products_master`), read only.
 - All products are sold by piece. The agent can switch a cart line to a weight, and the price is then price-per-kg × weight.
+- No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
+  Products with a zero price stay visible as they are in the sheet.
 - Cash on delivery is the only payment method.
 - Order tickets print on an 80mm receipt roll.
 - Two accounts: call-center agent and supervisor. The supervisor can also cancel orders (with a reason),
@@ -53,5 +55,6 @@ approved real source. UI components do not import `mock-data.js` directly.
 ## Still mock / pending
 
 - Products, customers, sample orders, delivery areas and fees are fictional.
+  The supervisor will enter the real delivery areas and fees from the app.
 - Login is a demo account picker. The real version uses Supabase Auth.
 - "Created" orders and edits live in browser memory only and disappear on refresh.

@@ -70,7 +70,7 @@ export function mountCartPanel(el) {
       </div>`;
     if (!cart.length) {
       box.innerHTML = `${head}
-        <div class="cart-empty">${icon('cart')}<strong>السلة فارغة</strong>اختر المنتجات من القائمة أو ابحث بالاسم</div>`;
+        <div class="cart-empty">${icon('cart')}<strong>السلة فارغة</strong>ابحث باسم الصنف واضغط عليه لإضافته</div>`;
       return;
     }
     box.innerHTML = head + cart.map((l) => {

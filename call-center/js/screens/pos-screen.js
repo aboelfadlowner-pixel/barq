@@ -1,24 +1,22 @@
-/* Main POS screen: categories | products | cart. */
+/* Main POS screen: product search | cart. */
 import { bind, getState, setState } from '../store.js';
 import { isTypingTarget, on } from '../utils/dom.js';
 import { computeTotals } from '../utils/pricing.js';
 import { currentDeliveryFee } from '../store.js';
 import { icon } from '../components/icons.js';
 import { money } from '../components/chips.js';
-import { mountCategoryNav } from '../components/category-nav.js';
 import { mountProductGrid, getVisibleProducts, selectProduct } from '../components/product-grid.js';
 import { mountCartPanel } from '../components/cart-panel.js';
 
 export function mountPos(view) {
   view.innerHTML = `
     <div class="pos" data-pos>
-      <aside class="pos-cats" aria-label="الأقسام"></aside>
       <section class="pos-products" aria-label="المنتجات">
         <div class="products-head">
           <div class="search" data-search>
             ${icon('search')}
             <input id="productSearch" type="search" autocomplete="off" spellcheck="false"
-              placeholder="ابحث باسم المنتج أو الكود…" aria-label="بحث عن منتج">
+              placeholder="ابحث باسم الصنف…" aria-label="بحث عن منتج">
             <span class="search-end">
               <span class="kbd" title="اختصار: اضغط / للبحث">/</span>
               <button type="button" class="btn btn-ghost btn-icon btn-sm clear-btn" data-clear-search aria-label="مسح البحث">${icon('x')}</button>
@@ -39,11 +37,10 @@ export function mountPos(view) {
   input.value = getState().search;
 
   const cleanups = [
-    mountCategoryNav(root.querySelector('.pos-cats')),
     mountProductGrid(root.querySelector('.product-grid'), root.querySelector('.results-meta')),
     mountCartPanel(root.querySelector('.pos-cart')),
 
-    // Keep the static search input in sync (e.g. a category click clears the search).
+    // Keep the static search input in sync (e.g. after Enter adds a product).
     bind((s) => s.search, (q) => {
       if (input.value !== q) input.value = q;
       searchBox.classList.toggle('has-value', q !== '');

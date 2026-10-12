@@ -14,7 +14,6 @@ let state = {
   user: null,       // { id, role: 'agent' | 'supervisor', name }
   route: 'pos',
   routeParam: null,
-  activeCategory: 'all',
   search: '',
   cartOpen: false,
   ...emptyDraft(),
@@ -108,7 +107,7 @@ export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });
 
 export function resetDraft() {
-  setState({ ...emptyDraft(), search: '', activeCategory: 'all', cartOpen: false });
+  setState({ ...emptyDraft(), search: '', cartOpen: false });
 }
 
 /* Repeat an old order: current catalog prices are used, missing products are skipped. */

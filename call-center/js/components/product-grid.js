@@ -10,18 +10,18 @@ import { money } from './chips.js';
 let visible = [];
 export const getVisibleProducts = () => visible;
 
-/* Search covers every category (name, code, category name). */
-export function filterProducts(categoryId, query) {
+/* CONFIRMED: no categories — the agent searches by the product name as written in the sheet.
+   Code and barcode also match. Results are capped so the grid stays fast with 5,000+ products. */
+export const MAX_RESULTS = 60;
+
+export function filterProducts(query) {
   const q = normalizeArabic(query);
-  if (q) {
-    const terms = q.split(' ');
-    const catName = new Map(catalog.categories.map((c) => [c.id, c.name]));
-    return catalog.products.filter((p) => {
-      const hay = normalizeArabic(`${p.name} ${p.code} ${catName.get(p.categoryId) ?? ''}`);
-      return terms.every((t) => hay.includes(t));
-    });
-  }
-  return categoryId === 'all' ? catalog.products : catalog.products.filter((p) => p.categoryId === categoryId);
+  if (!q) return [];
+  const terms = q.split(' ');
+  return catalog.products.filter((p) => {
+    const hay = normalizeArabic(`${p.name} ${p.code ?? ''} ${p.barcode ?? ''}`);
+    return terms.every((t) => hay.includes(t));
+  });
 }
 
 export function selectProduct(product) {
@@ -68,19 +68,27 @@ export function mountProductGrid(gridEl, metaEl) {
   });
 
   const unbind = bind(
-    (s) => ({ cat: s.activeCategory, q: s.search, inCart: inCartSummary(s.cart) }),
-    ({ cat, q, inCart }) => {
-      visible = filterProducts(cat, q);
-      const catName = cat === 'all' ? 'كل المنتجات' : catalog.categories.find((c) => c.id === cat)?.name;
-      metaEl.innerHTML = q.trim()
-        ? `<span>نتائج البحث عن «<strong>${esc(q.trim())}</strong>» في كل الأقسام: <strong class="num">${visible.length}</strong></span>
-           ${visible.length ? '<span>اضغط <span class="kbd">Enter</span> لإضافة أول نتيجة</span>' : ''}`
-        : `<span><strong>${esc(catName)}</strong> · <span class="num">${visible.length}</span> منتج</span>
-           <span class="muted">الأسعار والمنتجات تجريبية</span>`;
+    (s) => ({ q: s.search, inCart: inCartSummary(s.cart) }),
+    ({ q, inCart }) => {
+      const query = q.trim();
+      const all = filterProducts(query);
+      visible = all.slice(0, MAX_RESULTS);
 
+      if (!query) {
+        metaEl.innerHTML = `<span><span class="num">${catalog.products.length}</span> صنف متاح</span>
+          <span class="muted">الأسعار والمنتجات تجريبية</span>`;
+        gridEl.innerHTML = `<div class="grid-empty grid-start">${icon('search')}
+          <h3>اكتب اسم الصنف زي ما هو في الشيت</h3>
+          <p>مثال: «رومي» أو «لبن» — تقدر كمان تبحث بالكود أو الباركود</p></div>`;
+        return;
+      }
+      metaEl.innerHTML = `
+        <span>نتائج «<strong>${esc(query)}</strong>»: <strong class="num">${all.length}</strong>
+          ${all.length > MAX_RESULTS ? `<span class="muted">(أول ${MAX_RESULTS} — اكتب أكتر لتضييق النتايج)</span>` : ''}</span>
+        ${visible.length ? '<span>اضغط <span class="kbd">Enter</span> لإضافة أول نتيجة</span>' : ''}`;
       gridEl.innerHTML = visible.length
         ? visible.map((p) => card(p, inCart[p.id])).join('')
-        : `<div class="grid-empty">${icon('search')}<h3>لا توجد نتائج</h3><p>جرّب كلمة أخرى أو اسماً أقصر</p></div>`;
+        : `<div class="grid-empty">${icon('search')}<h3>لا توجد نتائج</h3><p>جرّب كلمة أخرى أو جزء من الاسم</p></div>`;
     },
   );
 

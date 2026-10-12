@@ -24,7 +24,6 @@ const orders = mock.buildSampleOrders();
 let nextOrderNo = 1001 + orders.length;
 
 /* ---------- Catalog ---------- */
-export const getCategories    = () => resolve(mock.categories);
 export const getProducts      = () => resolve(mock.products);
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);

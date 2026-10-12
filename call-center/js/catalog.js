@@ -2,7 +2,6 @@
 import * as ds from './data/data-source.js';
 
 export const catalog = {
-  categories: [],
   products: [],
   productsById: new Map(),
   areas: [],
@@ -12,11 +11,10 @@ export const catalog = {
 };
 
 export async function loadCatalog() {
-  const [categories, products, areas, statuses] = await Promise.all([
-    ds.getCategories(), ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(),
+  const [products, areas, statuses] = await Promise.all([
+    ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(),
   ]);
   Object.assign(catalog, {
-    categories,
     products,
     productsById: new Map(products.map((p) => [p.id, p])),
     allAreas: areas,
