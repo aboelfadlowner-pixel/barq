@@ -444,3 +444,7 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .foot-actions.stack { flex-direction: column; }
 .send-btn { justify-content: space-between; }
 .foot-actions.stack .btn { flex: none; width: 100%; }
+
+.tk-items td.tk-qty { font-size: 14px; font-weight: 900; white-space: nowrap; }
+.tk-items td:nth-child(1) { font-size: 14px; }
+.tk-count { padding: 6px 0; border-top: 1px solid #000; font-weight: 800; text-align: center; }

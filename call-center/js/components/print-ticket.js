@@ -1,14 +1,14 @@
-/* Printable order ticket (80mm receipt layout) + preview dialog. */
-import { PAYMENT_METHOD } from '../constants.js';
+/* Preparation ticket (80mm receipt): who the order is for, where it goes and
+   what to prepare. CONFIRMED: no prices, fees or totals on the printed ticket. */
 import { esc } from '../utils/dom.js';
-import { formatAddress, formatMoney, formatDateTime } from '../utils/format.js';
-import { computeTotals, lineTotal, quantityLabel } from '../utils/pricing.js';
+import { formatAddress, formatDateTime } from '../utils/format.js';
+import { quantityLabel } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { openModal } from './modal.js';
 
 export function ticketHtml(order) {
-  const t = computeTotals(order.items, order.deliveryFee);
   const a = order.address;
+  const phones = [order.customer.phone, order.customer.phone2].filter(Boolean);
   return `
     <div class="ticket" dir="rtl">
       <div class="tk-head">
@@ -20,44 +20,35 @@ export function ticketHtml(order) {
       <div class="tk-rows">
         <div><span>التاريخ</span><span class="num">${formatDateTime(order.createdAt)}</span></div>
         <div><span>الموظف</span><span>${esc(order.employee)}</span></div>
-        <div><span>الدفع</span><span>${PAYMENT_METHOD.label}</span></div>
       </div>
 
       <div class="tk-sec">
         <div class="tk-title">العميل</div>
         <div class="tk-strong">${esc(order.customer.name)}</div>
-        <div class="tk-phone ltr-inline">${esc(order.customer.phone)}</div>
+        ${phones.map((p) => `<div class="tk-phone ltr-inline">${esc(p)}</div>`).join('')}
       </div>
 
       <div class="tk-sec">
         <div class="tk-title">العنوان</div>
         <div class="tk-strong">${a.label ? `${esc(a.label)} — ` : ''}${esc(a.areaName)}</div>
         <div>${esc(formatAddress(a))}</div>
-        ${a.landmark ? `<div>علامة مميزة: ${esc(a.landmark)}</div>` : ''}
+        ${a.landmark ? `<div>${esc(a.landmark)}</div>` : ''}
         ${a.notes ? `<div>${esc(a.notes)}</div>` : ''}
       </div>
 
       <table class="tk-items">
-        <thead><tr><th>الصنف</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+        <thead><tr><th>الصنف</th><th>الكمية / الوزن</th></tr></thead>
         <tbody>
           ${order.items.map((it) => `
             <tr>
               <td>${esc(it.name)}
                 ${it.note ? `<div class="tk-note">* ${esc(it.note)}</div>` : ''}</td>
-              <td class="num">${esc(quantityLabel(it))}</td>
-              <td class="num">${formatMoney(lineTotal(it))}</td>
+              <td class="num tk-qty">${esc(quantityLabel(it))}</td>
             </tr>`).join('')}
         </tbody>
       </table>
-
-      <div class="tk-rows tk-totals">
-        <div><span>المجموع</span><span class="num">${formatMoney(t.subtotal)}</span></div>
-        <div><span>رسوم التوصيل</span><span class="num">${formatMoney(t.deliveryFee ?? 0)}</span></div>
-        <div class="tk-total"><span>${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}</span><span class="num">${formatMoney(t.total)}</span></div>
-      </div>
-      <div class="tk-cash">المطلوب تحصيله كاش: <span class="num">${formatMoney(t.total)}</span></div>
-      ${t.estimated ? '<div class="tk-hint">الأصناف الموزونة تُحسب حسب الوزن الفعلي</div>' : ''}
-      ${order.note ? `<div class="tk-sec"><div class="tk-title">ملاحظات الطلب</div><div>${esc(order.note)}</div></div>` : ''}
+      <div class="tk-count">عدد الأصناف: <span class="num">${order.items.length}</span></div>
+      ${order.note ? `<div class="tk-sec"><div class="tk-title">ملاحظات العميل</div><div class="tk-strong">${esc(order.note)}</div></div>` : ''}
     </div>`;
 }
 

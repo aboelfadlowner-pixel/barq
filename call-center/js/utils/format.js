@@ -75,13 +75,14 @@ export const housingLabel = (id) => (id ? HOUSING_TYPES.find((h) => h.id === id)
 
 export function formatAddress(a) {
   if (!a) return '';
-  return [
+  const text = [
     a.street,
-    housingLabel(a.housingType),
     a.building && `عمارة ${a.building}`,
     a.floor && `الدور ${a.floor}`,
     a.apartment && `شقة ${a.apartment}`,
   ].filter(Boolean).join('، ');
+  const housing = housingLabel(a.housingType);
+  return housing ? `${text} (${housing})` : text;
 }
 
 /* "منذ 5 دقائق" style time for order cards. */

@@ -47,7 +47,8 @@ approved real source. UI components do not import `mock-data.js` directly.
 - No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
   Products with a zero price stay visible as they are in the sheet.
 - Cash on delivery is the only payment method.
-- Order tickets print on an 80mm receipt roll.
+- Order tickets print on an 80mm receipt roll, for the preparation team: customer, phones, address, items with
+  quantity or weight and notes. No prices, fees or totals on the ticket.
 - Two accounts: call-center agent and supervisor. The supervisor can also cancel orders (with a reason),
   manage delivery areas and fees, and see the daily summary.
 - Order statuses: new and cancelled only. Both accounts see all orders.
@@ -57,11 +58,13 @@ approved real source. UI components do not import `mock-data.js` directly.
 - Home is the call-center board (`#/board`): today's orders in columns — draft, new, cancelled.
 - "طلب جديد لمركز الاتصال" opens a dialog: customer phone (+ optional second number). A registered customer's
   name and saved addresses appear automatically; a shared number lists the matching customers to choose from.
-  Order source, fixed order type (delivery, cash), and the address: pick a saved one, edit it (pencil), or
+  Fixed order type (delivery, cash) and the address: pick a saved one, edit it (pencil), or
   "إضافة عنوان جديد". "حفظ" opens the product search with the customer and address already set.
 - Address fields follow Foodics' "إنشاء العنوان": name, delivery area, street, housing type, extra information.
   ⚠️ The draft database (`db/`) still uses building/floor/apartment and has no address name / housing type or
   address editing — it must be updated before connecting.
+
+- Order source (phone / WhatsApp / Facebook) was removed from the UI.
 
 ## Still mock / pending
 

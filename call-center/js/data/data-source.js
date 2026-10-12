@@ -119,7 +119,7 @@ export function createDemoOrder(draft) {
     type: 'delivery',
     paymentMethod: 'cash',
     source,
-    customer: { id: cust.id, name: cust.name, phone: customer.phone },
+    customer: { id: cust.id, name: cust.name, phone: customer.phone, phone2: customer.phone2 || '' },
     address: { ...addrFields, id: addrId, areaName: area.name },
     deliveryFee: area.fee,
     items: cart.map(({ lineId, ...item }) => item),
