@@ -33,7 +33,7 @@ export function ticketHtml(order) {
 
       <div class="tk-sec">
         <div class="tk-title">العنوان</div>
-        <div class="tk-strong">${esc(a.areaName)}</div>
+        <div class="tk-strong">${a.label ? `${esc(a.label)} — ` : ''}${esc(a.areaName)}</div>
         <div>${esc(formatAddress(a))}</div>
         ${a.landmark ? `<div>علامة مميزة: ${esc(a.landmark)}</div>` : ''}
         ${a.notes ? `<div>${esc(a.notes)}</div>` : ''}

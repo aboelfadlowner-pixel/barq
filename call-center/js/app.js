@@ -1,10 +1,11 @@
 /* App bootstrap + hash router.
-   Routes: #/pos, #/orders, #/orders/:id, #/areas (supervisor). Login comes first. */
+   Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas (supervisor). Login comes first. */
 import { loadCatalog } from './catalog.js';
 import { getState, setState } from './store.js';
 import { can } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
 import { mountLogin } from './screens/login-screen.js';
+import { mountBoard } from './screens/board-screen.js';
 import { mountPos } from './screens/pos-screen.js';
 import { mountOrders } from './screens/orders-screen.js';
 import { mountOrderDetails } from './screens/order-details-screen.js';
@@ -18,14 +19,15 @@ function parseRoute() {
   if (section === 'orders' && param) return { route: 'order', param: decodeURIComponent(param) };
   if (section === 'orders') return { route: 'orders', param: null };
   if (section === 'areas') return { route: 'areas', param: null };
-  return { route: 'pos', param: null };
+  if (section === 'pos') return { route: 'pos', param: null };
+  return { route: 'board', param: null };
 }
 
 function render() {
   let { route, param } = parseRoute();
   const { user } = getState();
   if (!user) route = 'login';
-  else if (route === 'areas' && !can(user, 'manageAreas')) route = 'pos';
+  else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
 
   if (unmount) unmount();
   view.innerHTML = '';
@@ -34,7 +36,8 @@ function render() {
   else if (route === 'orders') unmount = mountOrders(view);
   else if (route === 'order') unmount = mountOrderDetails(view, param);
   else if (route === 'areas') unmount = mountAreas(view);
-  else unmount = mountPos(view);
+  else if (route === 'pos') unmount = mountPos(view);
+  else unmount = mountBoard(view);
 }
 
 async function start() {

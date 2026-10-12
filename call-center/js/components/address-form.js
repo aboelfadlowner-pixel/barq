@@ -1,48 +1,60 @@
-/* Delivery address form (used for new customers and new addresses). */
+/* Address fields — same layout as the Foodics "إنشاء العنوان" form:
+   name, delivery area, street, housing type, extra information. */
 import { catalog } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney } from '../utils/format.js';
-import { ADDRESS_LIMITS } from '../constants.js';
+import { ADDRESS_LIMITS, HOUSING_TYPES } from '../constants.js';
 
-/* PROPOSED: required fields are area, street and building. */
-const REQUIRED = { areaId: 'اختر منطقة التوصيل', street: 'اكتب اسم الشارع', building: 'اكتب رقم العمارة' };
-
-const text = (name, label, value, { span = '', required = false, placeholder = '' } = {}) => `
-  <div class="field ${span}">
-    <label for="af-${name}">${label}${required ? '<span class="req">*</span>' : ''}</label>
-    <input id="af-${name}" class="input" name="${name}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off"
-      maxlength="${ADDRESS_LIMITS[name]?.max ?? 200}">
-    <div class="field-error" data-err="${name}"></div>
-  </div>`;
+/* Area is required for the delivery fee; street for the driver. */
+const REQUIRED = {
+  label: 'اكتب اسم للعنوان (مثال: البيت، الشغل)',
+  areaId: 'اختر منطقة التوصيل',
+  street: 'اكتب اسم الشارع',
+};
 
 export function addressFormHtml(v = {}) {
-  const options = catalog.areas.map((a) => `
+  const areas = catalog.areas.map((a) => `
     <option value="${esc(a.id)}" ${a.id === v.areaId ? 'selected' : ''}>${esc(a.name)} — رسوم ${formatMoney(a.fee)}</option>`).join('');
+  const housing = HOUSING_TYPES.map((h) => `
+    <option value="${h.id}" ${h.id === (v.housingType ?? '') ? 'selected' : ''}>${esc(h.label)}</option>`).join('');
   return `
-    <div class="form-grid" data-address-form>
-      <div class="field span-3">
+    <div class="stack-form" data-address-form>
+      <div class="field">
+        <label for="af-label">الاسم<span class="req">*</span></label>
+        <input id="af-label" class="input" name="label" value="${esc(v.label ?? '')}" maxlength="${ADDRESS_LIMITS.label.max}"
+          placeholder="مثال: البيت، الشغل، بيت الوالدة" autocomplete="off">
+        <div class="field-error" data-err="label"></div>
+      </div>
+      <div class="field">
         <label for="af-areaId">منطقة التوصيل<span class="req">*</span></label>
         <select id="af-areaId" class="select" name="areaId">
-          <option value="">اختر المنطقة…</option>${options}
+          <option value="">اختر…</option>${areas}
         </select>
         <div class="field-error" data-err="areaId"></div>
       </div>
-      ${text('street', 'الشارع', v.street, { span: 'span-3', required: true, placeholder: 'اسم الشارع أو المنطقة السكنية' })}
-      ${text('building', 'رقم العمارة', v.building, { required: true })}
-      ${text('floor', 'الدور', v.floor)}
-      ${text('apartment', 'الشقة', v.apartment)}
-      ${text('landmark', 'علامة مميزة', v.landmark, { span: 'span-3', placeholder: 'مثال: بجوار صيدلية…' })}
-      ${text('notes', 'ملاحظات للتوصيل', v.notes, { span: 'span-3' })}
+      <div class="field">
+        <label for="af-street">الشارع<span class="req">*</span></label>
+        <input id="af-street" class="input" name="street" value="${esc(v.street ?? '')}" maxlength="${ADDRESS_LIMITS.street.max}"
+          placeholder="اسم الشارع ورقم العمارة" autocomplete="off">
+        <div class="field-error" data-err="street"></div>
+      </div>
+      <div class="field">
+        <label for="af-housingType">نوع السكن</label>
+        <select id="af-housingType" class="select" name="housingType">${housing}</select>
+      </div>
+      <div class="field">
+        <label for="af-notes">معلومات إضافية</label>
+        <textarea id="af-notes" class="textarea" name="notes" rows="3" maxlength="${ADDRESS_LIMITS.notes.max}"
+          placeholder="الدور، الشقة، علامة مميزة…">${esc(v.notes ?? '')}</textarea>
+        <div class="field-error" data-err="notes"></div>
+      </div>
     </div>`;
 }
 
 export function readAddressForm(root) {
   const form = root.querySelector('[data-address-form]');
   const val = (n) => form.querySelector(`[name="${n}"]`).value.trim();
-  return {
-    areaId: val('areaId'), street: val('street'), building: val('building'),
-    floor: val('floor'), apartment: val('apartment'), landmark: val('landmark'), notes: val('notes'),
-  };
+  return { label: val('label'), areaId: val('areaId'), street: val('street'), housingType: val('housingType'), notes: val('notes') };
 }
 
 export function validateAddress(values) {
@@ -54,12 +66,24 @@ export function validateAddress(values) {
   return errors;
 }
 
+/* Clears a field's error message as soon as the user edits that field. */
+export function clearErrorsOnEdit(root) {
+  const clear = (e) => {
+    const field = e.target.closest('.field');
+    if (!field) return;
+    field.querySelectorAll('.field-error').forEach((el) => { el.textContent = ''; });
+    field.querySelectorAll('.invalid').forEach((el) => el.classList.remove('invalid'));
+  };
+  root.addEventListener('input', clear);
+  root.addEventListener('change', clear);
+}
+
 /* Paints errors onto any fields inside root that have data-err / name attributes. */
 export function showErrors(root, errors) {
   root.querySelectorAll('[data-err]').forEach((el) => {
     const msg = errors[el.dataset.err] ?? '';
     el.textContent = msg;
-    const input = el.parentElement.querySelector('.input, .select');
+    const input = el.parentElement.querySelector('.input, .select, .textarea');
     input?.classList.toggle('invalid', !!msg);
   });
   const first = Object.keys(errors)[0];

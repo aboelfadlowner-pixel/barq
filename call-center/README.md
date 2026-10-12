@@ -52,6 +52,17 @@ approved real source. UI components do not import `mock-data.js` directly.
   manage delivery areas and fees, and see the daily summary.
 - Order statuses: new and cancelled only. Both accounts see all orders.
 
+## Order start (Foodics-style)
+
+- Home is the call-center board (`#/board`): today's orders in columns — draft, new, cancelled.
+- "طلب جديد لمركز الاتصال" opens a dialog: customer phone (+ optional second number). A registered customer's
+  name and saved addresses appear automatically; a shared number lists the matching customers to choose from.
+  Order source, fixed order type (delivery, cash), and the address: pick a saved one, edit it (pencil), or
+  "إضافة عنوان جديد". "حفظ" opens the product search with the customer and address already set.
+- Address fields follow Foodics' "إنشاء العنوان": name, delivery area, street, housing type, extra information.
+  ⚠️ The draft database (`db/`) still uses building/floor/apartment and has no address name / housing type or
+  address editing — it must be updated before connecting.
+
 ## Still mock / pending
 
 - Products, customers, sample orders, delivery areas and fees are fictional.

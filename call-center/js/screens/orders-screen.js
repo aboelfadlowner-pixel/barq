@@ -9,6 +9,7 @@ import { icon } from '../components/icons.js';
 import { money, statusChip, sourceChip } from '../components/chips.js';
 import { getState } from '../store.js';
 import { can } from '../permissions.js';
+import { startNewOrder } from './board-screen.js';
 
 // Filters survive navigating to an order and back.
 const DEFAULT_FILTERS = { q: '', date: 'today', source: '', status: '' };
@@ -44,7 +45,7 @@ export function mountOrders(view) {
             <span class="demo-pill">${icon('info')}بيانات وحالات تجريبية</span>
           </div>
         </div>
-        <a href="#/pos" class="btn btn-primary btn-lg">${icon('plus')}طلب جديد</a>
+        <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
       </div>
 
       <div data-summary></div>
@@ -115,6 +116,7 @@ export function mountOrders(view) {
   $('#ordStatus').addEventListener('change', (e) => setFilter({ status: e.target.value }));
 
   const offs = [
+    on(view, 'click', '[data-new-order]', () => startNewOrder()),
     on(view, 'click', '[data-reset]', () => {
       filters = { ...DEFAULT_FILTERS };
       $('#ordQ').value = filters.q;

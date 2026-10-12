@@ -1,6 +1,8 @@
 /* Reset, typography, buttons, form controls, tags */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
+/* The closed cart drawer sits off-screen; never let it create sideways scrolling. */
+html { overflow-x: hidden; }
 body {
   font-family: var(--font);
   font-size: 15px;

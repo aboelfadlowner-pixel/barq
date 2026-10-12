@@ -6,6 +6,7 @@ import { icon } from './icons.js';
 import { money, statusChip } from './chips.js';
 import { openModal, showToast } from './modal.js';
 import { openPrintPreview } from './print-ticket.js';
+import { openNewOrderDialog } from './new-order-dialog.js';
 
 export function openSuccessDialog(order) {
   const t = computeTotals(order.items, order.deliveryFee);
@@ -22,7 +23,7 @@ export function openSuccessDialog(order) {
         <div class="alert alert-warn">${icon('info')}<span>طلب تجريبي محفوظ في ذاكرة المتصفح فقط. لم يُرسل إلى أي نظام، ويُحذف عند تحديث الصفحة.</span></div>
       </div>`,
     footer: `
-      <button type="button" class="btn btn-primary btn-lg" data-close>${icon('plus')}طلب جديد</button>
+      <button type="button" class="btn btn-primary btn-lg" data-new>${icon('plus')}طلب جديد</button>
       <button type="button" class="btn btn-soft" data-print>${icon('note')}طباعة الطلب</button>
       <button type="button" class="btn btn-secondary" data-copy>${icon('copy')}نسخ الملخص</button>
       <a class="btn btn-ghost" href="#/orders/${encodeURIComponent(order.id)}" data-view>عرض الطلب</a>`,
@@ -33,6 +34,11 @@ export function openSuccessDialog(order) {
   });
   m.foot.querySelector('[data-print]').addEventListener('click', () => openPrintPreview(order));
   m.foot.querySelector('[data-view]').addEventListener('click', () => m.close());
-  m.onClose(() => document.getElementById('productSearch')?.focus());
-  m.foot.querySelector('[data-close]').focus();
+  m.foot.querySelector('[data-new]').addEventListener('click', () => {
+    m.close();
+    location.hash = '#/board';
+    setTimeout(() => openNewOrderDialog(), 0);
+  });
+  m.onClose(() => { if (location.hash === '#/pos') location.hash = '#/board'; });
+  m.foot.querySelector('[data-new]').focus();
 }

@@ -44,9 +44,10 @@ export function mountTopbar(el) {
     el.innerHTML = `
       ${brand}
       <nav class="topnav" aria-label="التنقل الرئيسي">
-        <a href="#/pos" class="${isPos ? 'active' : ''}">${icon('cart')}<span>طلب جديد</span></a>
-        <a href="#/orders" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>الطلبات</span></a>
-        ${can(user, 'manageAreas') ? `<a href="#/areas" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والرسوم</span></a>` : ''}
+        <a href="#/board" title="مركز الاتصال" class="${route === 'board' ? 'active' : ''}">${icon('headset')}<span>مركز الاتصال</span></a>
+        <a href="#/pos" title="الطلب الحالي" class="${isPos ? 'active' : ''}">${icon('cart')}<span>الطلب الحالي</span></a>
+        <a href="#/orders" title="سجل الطلبات" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>سجل الطلبات</span></a>
+        ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والرسوم" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والرسوم</span></a>` : ''}
       </nav>
       ${isPos ? `
         <div class="source-picker">

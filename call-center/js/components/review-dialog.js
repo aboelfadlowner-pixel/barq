@@ -10,7 +10,7 @@ import { money, totalsRows, estimateNote } from './chips.js';
 import { openModal, showToast } from './modal.js';
 import { sourceButtons } from './topbar.js';
 import { PAYMENT_METHOD } from '../constants.js';
-import { openCustomerDialog, todayWarning } from './customer-dialog.js';
+import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openSuccessDialog } from './success-dialog.js';
 
 export function missingFields(s) {
@@ -64,6 +64,7 @@ export function openReviewDialog() {
             <h4><span>${icon('pin')}عنوان التوصيل</span>
               ${s.customer ? `<button type="button" class="btn btn-ghost btn-sm" data-edit-customer>${icon('edit')}تغيير</button>` : ''}</h4>
             ${s.address ? `
+              ${s.address.label ? `<div class="addr-label">${esc(s.address.label)}</div>` : ''}
               <div class="big">${esc(area?.name ?? 'منطقة غير معروفة')} ${area ? `<span class="fee-chip">${money(area.fee)}</span>` : ''}</div>
               <div class="addr-text">${esc(formatAddress(s.address))}</div>
               ${s.address.landmark ? `<div class="addr-extra">علامة مميزة: ${esc(s.address.landmark)}</div>` : ''}
@@ -117,7 +118,7 @@ export function openReviewDialog() {
   m.onClose(unbind);
 
   on(m.el, 'click', '[data-source]', (e, btn) => setSource(btn.dataset.source));
-  on(m.el, 'click', '[data-edit-customer]', () => openCustomerDialog({ edit: !!getState().customer }));
+  on(m.el, 'click', '[data-edit-customer]', () => openNewOrderDialog({ edit: !!getState().customer }));
   on(m.el, 'input', '[data-order-note]', (e, ta) => setOrderNote(ta.value));
   on(m.el, 'click', '[data-confirm]', async (e, btn) => {
     const s = getState();

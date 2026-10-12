@@ -71,10 +71,14 @@
    Responsive
    ========================================================= */
 
+/* Top bar shrinks step by step so it never overflows. */
+@media (max-width: 1400px) { .brand-sub, .source-picker .label { display: none; } }
+@media (max-width: 1300px) { .topnav a span { display: none; } .topnav a { padding: 0 11px; } }
+
 /* Small desktop / tablet landscape: narrower cart */
 @media (max-width: 1279px) {
   .pos { grid-template-columns: minmax(0, 1fr) 370px; }
-  .brand-sub { display: none; }
+  .topnav a { padding: 0 10px; }
   .product-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 }
 
@@ -87,7 +91,8 @@
     border: 0; box-shadow: var(--shadow-lg);
     transform: translateX(-105%); transition: transform .2s ease;
   }
-  .pos.cart-open .pos-cart { transform: none; }
+  .pos.cart-open .pos-cart { transform: none; visibility: visible; }
+  .pos-cart { visibility: hidden; transition: transform .2s ease, visibility .2s; }
   .pos.cart-open .cart-backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(16, 30, 22, .4); }
   .cart-drawer-head {
     display: flex; align-items: center; justify-content: space-between;

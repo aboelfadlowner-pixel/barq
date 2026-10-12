@@ -19,15 +19,22 @@ export const UNIT_TYPES = {
   pack:   { label: 'بالعبوة', per: 'عبوة' },
 };
 
-/* Address text limits — must match db/01_schema.sql and cc_create_order (L5). */
+/* Address form fields (Foodics-style "إنشاء العنوان") and their length limits.
+   ⚠️ The draft DB (db/01_schema.sql) still has building/floor/apartment and no
+   label/housing type — it must be updated to match before connecting. */
 export const ADDRESS_LIMITS = {
-  street:    { max: 150, label: 'الشارع' },
-  building:  { max: 30,  label: 'رقم العمارة' },
-  floor:     { max: 20,  label: 'الدور' },
-  apartment: { max: 20,  label: 'الشقة' },
-  landmark:  { max: 150, label: 'العلامة المميزة' },
-  notes:     { max: 200, label: 'ملاحظات التوصيل' },
+  label:  { max: 40,  label: 'اسم العنوان' },
+  street: { max: 150, label: 'الشارع' },
+  notes:  { max: 200, label: 'المعلومات الإضافية' },
 };
+export const HOUSING_TYPES = [
+  { id: '',          label: 'لا شيء' },
+  { id: 'apartment', label: 'شقة' },
+  { id: 'villa',     label: 'فيلا' },
+  { id: 'house',     label: 'بيت' },
+  { id: 'office',    label: 'مكتب / شركة' },
+  { id: 'shop',      label: 'محل' },
+];
 export const CUSTOMER_NAME_MAX = 120;
 
 /* PROPOSED (pending approval): weight presets, step and limits. */

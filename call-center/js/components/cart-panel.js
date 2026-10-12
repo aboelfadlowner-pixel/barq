@@ -10,7 +10,7 @@ import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { confirmDialog } from './modal.js';
 import { openWeightDialog } from './weight-dialog.js';
-import { openCustomerDialog, todayWarning } from './customer-dialog.js';
+import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openReviewDialog } from './review-dialog.js';
 
 export function mountCartPanel(el) {
@@ -35,12 +35,8 @@ export function mountCartPanel(el) {
     if (!customer) {
       box.innerHTML = `
         <div class="sec-head"><h3>${icon('user')}العميل</h3></div>
-        <form class="phone-search" data-form="phone" novalidate>
-          <input class="input ltr" name="phone" type="tel" inputmode="tel" autocomplete="off"
-            placeholder="01xxxxxxxxx" aria-label="رقم موبايل العميل">
-          <button type="submit" class="btn btn-soft">${icon('search')}بحث</button>
-        </form>
-        <p class="hint">ابحث برقم الموبايل لاختيار عميل مسجل أو إضافة عميل جديد.</p>`;
+        <button type="button" class="btn btn-primary btn-block" data-action="edit-customer">${icon('headset')}بيانات العميل والعنوان</button>
+        <p class="hint">ابدأ برقم موبايل العميل — لو مسجل بياناته وعناوينه هتظهر لوحدها.</p>`;
       return;
     }
     box.innerHTML = `
@@ -53,7 +49,7 @@ export function mountCartPanel(el) {
         <div class="grow">
           <div class="cust-name">${esc(customer.name)}
             ${customer.isNew ? '<span class="tag tag-info">عميل جديد</span>' : '<span class="tag tag-green">مسجل</span>'}</div>
-          <div class="cust-phone ltr-inline">${esc(customer.phone)}</div>
+          <div class="cust-phone ltr-inline">${esc(customer.phone)}${customer.phone2 ? ` / ${esc(customer.phone2)}` : ''}</div>
         </div>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-action="remove-customer" aria-label="إزالة العميل" title="إزالة العميل">${icon('x')}</button>
       </div>
@@ -127,12 +123,14 @@ export function mountCartPanel(el) {
     box.innerHTML = `
       ${head(`<button type="button" class="btn btn-ghost btn-sm" data-action="edit-customer">${icon('edit')}تغيير</button>`)}
       <div class="addr-box">
+        ${address.label ? `<div class="addr-label">${esc(address.label)}</div>` : ''}
         <div class="addr-area"><span>${esc(area?.name ?? 'منطقة غير معروفة')}</span>
           ${area ? `<span class="fee-chip">${money(area.fee)}</span>` : ''}</div>
         <div class="addr-text">${esc(formatAddress(address))}</div>
         ${address.landmark ? `<div class="addr-extra">علامة مميزة: ${esc(address.landmark)}</div>` : ''}
         ${address.notes ? `<div class="addr-extra">${esc(address.notes)}</div>` : ''}
         ${address.isNew ? '<div class="addr-extra"><span class="tag tag-info">عنوان جديد</span></div>' : ''}
+        ${address.edited ? '<div class="addr-extra"><span class="tag tag-info">عنوان معدّل</span></div>' : ''}
       </div>
       ${note}`;
   };
@@ -165,10 +163,6 @@ export function mountCartPanel(el) {
   };
 
   const offs = [
-    on(el, 'submit', '[data-form="phone"]', (e, form) => {
-      e.preventDefault();
-      openCustomerDialog({ phone: form.phone.value.trim() });
-    }),
     on(el, 'click', '[data-action]', async (e, btn) => {
       const action = btn.dataset.action;
       const line = lineOf(btn);
@@ -186,7 +180,7 @@ export function mountCartPanel(el) {
           renderItems();
           el.querySelector(`[data-line="${line.lineId}"] [data-note]`)?.focus();
           break;
-        case 'edit-customer': openCustomerDialog({ edit: true }); break;
+        case 'edit-customer': openNewOrderDialog({ edit: !!getState().customer }); break;
         case 'remove-customer': clearCustomer(); break;
         case 'review': openReviewDialog(); break;
         case 'clear':

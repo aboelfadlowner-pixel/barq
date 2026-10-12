@@ -49,6 +49,20 @@ export function findCustomersByPhone(query) {
   return resolve(found);
 }
 
+/* Customers whose main or extra number equals this full number (new-order dialog). */
+export function findCustomersByExactPhone(phone) {
+  const q = normalizePhone(phone);
+  const found = customers
+    .filter((c) => c.phones.some((ph) => normalizePhone(ph) === q))
+    .map((c) => ({ ...c, lastOrderAt: lastOrderAt(c.id) }));
+  return resolve(found);
+}
+
+/* Latest orders of one customer ("عرض الطلبات الأخيرة"). */
+export const listCustomerOrders = (customerId, limit = 5) =>
+  resolve(orders.filter((o) => o.customer.id === customerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit));
+
 /* Orders placed today for this phone number (duplicate-order warning). */
 export function findTodayOrdersByPhone(phone) {
   const q = normalizePhone(phone);
@@ -83,11 +97,17 @@ export function createDemoOrder(draft) {
     customers.push(cust);
   }
 
-  const { isNew, ...addrFields } = address;
+  // DEMO: an extra number typed in the dialog is added to the customer.
+  if (customer.phone2 && !cust.phones.includes(customer.phone2)) cust.phones.push(customer.phone2);
+
+  const { isNew, edited, ...addrFields } = address;
   let addrId = address.id;
   if (isNew || !addrId) {
     addrId = `${cust.id}-a${Date.now()}`;
     cust.addresses.push({ ...addrFields, id: addrId });
+  } else if (edited) {
+    const saved = cust.addresses.find((a) => a.id === addrId);
+    if (saved) Object.assign(saved, addrFields);   // DEMO: edits to a saved address
   }
 
   const now = new Date().toISOString();

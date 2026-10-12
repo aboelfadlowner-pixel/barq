@@ -42,7 +42,7 @@ export function mountLogin(view) {
     const user = await ds.demoLogin(btn.dataset.account);
     if (!user) return;
     setUser(user);
-    if (location.hash && location.hash !== '#/pos') location.hash = '#/pos';
+    if (location.hash && location.hash !== '#/board') location.hash = '#/board';
     else window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
 }

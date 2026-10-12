@@ -1,4 +1,5 @@
 /* Formatting & normalization helpers (Arabic UI, Western digits). */
+import { HOUSING_TYPES } from '../constants.js';
 
 export const CURRENCY = 'ج.م';
 
@@ -70,12 +71,25 @@ export function normalizeArabic(text) {
     .trim();
 }
 
+export const housingLabel = (id) => (id ? HOUSING_TYPES.find((h) => h.id === id)?.label ?? '' : '');
+
 export function formatAddress(a) {
   if (!a) return '';
   return [
     a.street,
+    housingLabel(a.housingType),
     a.building && `عمارة ${a.building}`,
     a.floor && `الدور ${a.floor}`,
     a.apartment && `شقة ${a.apartment}`,
   ].filter(Boolean).join('، ');
+}
+
+/* "منذ 5 دقائق" style time for order cards. */
+export function formatRelative(iso, now = new Date()) {
+  const mins = Math.round((now - new Date(iso)) / 60000);
+  if (mins < 1) return 'منذ لحظات';
+  if (mins < 60) return `منذ ${mins} ${mins <= 10 ? 'دقائق' : 'دقيقة'}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24 && isSameDay(iso, now)) return `منذ ${hrs} ${hrs === 1 ? 'ساعة' : hrs <= 10 ? 'ساعات' : 'ساعة'}`;
+  return formatDateTime(iso);
 }

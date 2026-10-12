@@ -133,6 +133,12 @@ export const customers = [
   ] },
 ];
 
+// Address names and housing types for the Foodics-style address cards.
+customers.forEach((c) => c.addresses.forEach((a, i) => {
+  a.label ??= a.notes === 'عنوان العمل' ? 'الشغل' : (i === 0 ? 'البيت' : 'عنوان ' + (i + 1));
+  a.housingType ??= a.notes === 'عنوان العمل' ? 'office' : 'apartment';
+}));
+
 /* ---------- Sample orders ----------
  * Times are generated relative to "now" so the list always has orders
  * for today, yesterday and a few days ago.
