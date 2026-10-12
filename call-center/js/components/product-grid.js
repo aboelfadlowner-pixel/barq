@@ -1,5 +1,6 @@
 /* Product grid + search filtering. */
-import { bind, addProduct } from '../store.js';
+import { bind } from '../store.js';
+import { openItemDialog } from './item-dialog.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { formatWeight, normalizeArabic } from '../utils/format.js';
@@ -25,7 +26,7 @@ export function filterProducts(query) {
 }
 
 export function selectProduct(product) {
-  addProduct(product);
+  openItemDialog(product);
 }
 
 function inCartSummary(cart) {
@@ -52,7 +53,7 @@ function card(p, inCart) {
       <div class="p-thumb">${thumb}</div>
       <div class="p-name">${esc(p.name)}</div>
       <div class="p-unit">
-        ${esc(p.unitLabel)}
+        ${p.unitType === 'weight' ? `<span class="tag tag-warn">${icon('scale')}بالوزن</span>` : esc(p.unitLabel)}
         · <span class="ltr-inline">${esc(p.code)}</span>
       </div>
       <div class="p-foot">
@@ -85,7 +86,7 @@ export function mountProductGrid(gridEl, metaEl) {
       metaEl.innerHTML = `
         <span>نتائج «<strong>${esc(query)}</strong>»: <strong class="num">${all.length}</strong>
           ${all.length > MAX_RESULTS ? `<span class="muted">(أول ${MAX_RESULTS} — اكتب أكتر لتضييق النتايج)</span>` : ''}</span>
-        ${visible.length ? '<span>اضغط <span class="kbd">Enter</span> لإضافة أول نتيجة</span>' : ''}`;
+        ${visible.length ? '<span>اضغط <span class="kbd">Enter</span> لاختيار أول نتيجة</span>' : ''}`;
       gridEl.innerHTML = visible.length
         ? visible.map((p) => card(p, inCart[p.id])).join('')
         : `<div class="grid-empty">${icon('search')}<h3>لا توجد نتائج</h3><p>جرّب كلمة أخرى أو جزء من الاسم</p></div>`;

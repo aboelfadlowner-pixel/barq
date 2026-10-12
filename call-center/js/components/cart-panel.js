@@ -11,7 +11,7 @@ import { computeTotals, lineTotal, perUnitLabel } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { confirmDialog, showToast } from './modal.js';
-import { openWeightDialog } from './weight-dialog.js';
+import { openItemDialog } from './item-dialog.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openReviewDialog } from './review-dialog.js';
 
@@ -104,7 +104,6 @@ export function mountCartPanel(el) {
                      <span class="val">${l.qty}</span>
                      <button type="button" data-action="dec" aria-label="${l.qty === 1 ? 'حذف' : 'نقص'}">${icon(l.qty === 1 ? 'trash' : 'minus')}</button>
                    </div>
-                   <button type="button" class="btn btn-soft btn-sm" data-action="edit-weight" title="احسب السعر بالوزن من سعر الكيلو">${icon('scale')}وزن</button>
                  </div>`}
             <div class="line-actions">
               <button type="button" class="btn btn-ghost btn-icon btn-sm ${l.note ? 'has-note' : ''}" data-action="toggle-note"
@@ -154,7 +153,7 @@ export function mountCartPanel(el) {
         case 'remove': openNotes.delete(line.lineId); removeLine(line.lineId); break;
         case 'edit-weight': {
           const product = catalog.productsById.get(line.productId) ?? { ...line, id: line.productId };
-          openWeightDialog({ ...product, price: line.price }, { line });
+          openItemDialog({ ...product, price: line.price, unitType: line.unitType }, { line });
           break;
         }
         case 'toggle-note':
