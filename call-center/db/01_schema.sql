@@ -2,9 +2,29 @@
 --  Abu El Fadl Call Center — schema (FOR REVIEW — NOT APPLIED ANYWHERE)
 --
 --  Adds new cc_* objects only. Does NOT alter, drop or write to any
---  existing table. products_master is only read (through cc_products
---  and inside cc_create_order).
+--  existing table. products_master is only read (inside cc_list_products
+--  and cc_create_order).
+--
+--  Apply 01 + 02 + 03 together in ONE transaction (see apply_cc.sql), so a
+--  failure leaves nothing behind and no table is ever visible without RLS.
+--  Safe to re-run: every statement is "if not exists" / "or replace".
 -- =====================================================================
+
+-- Preflight: stop before creating anything if this is not the expected database.
+do $$
+begin
+  if to_regprocedure('auth.uid()') is null then
+    raise exception 'auth.uid() غير موجود — ده مش مشروع Supabase. وقف التطبيق.';
+  end if;
+  if to_regclass('public.products_master') is null then
+    raise exception 'جدول products_master غير موجود. وقف التطبيق.';
+  end if;
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public' and table_name = 'products_master'
+         and column_name in ('sku', 'name', 'barcode', 'price')) <> 4 then
+    raise exception 'products_master ناقصه عمود من (sku, name, barcode, price). وقف التطبيق.';
+  end if;
+end $$;
 
 create sequence if not exists public.cc_order_no_seq start 1001;
 
@@ -28,7 +48,8 @@ create table if not exists public.cc_delivery_areas (
   updated_by uuid references auth.users(id)
 );
 
--- Customers: one row per mobile number (normalized 01xxxxxxxxx).
+-- Customers: one row per main mobile number (normalized 01xxxxxxxxx).
+-- phone2 is optional and intentionally NOT unique (see review note L6).
 create table if not exists public.cc_customers (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (length(btrim(name)) between 1 and 120),
@@ -39,18 +60,26 @@ create table if not exists public.cc_customers (
 );
 create index if not exists cc_customers_phone2_idx on public.cc_customers (phone2);
 
+-- Address length limits (L5). cc_create_order checks the same limits first and
+-- returns a clear Arabic message; these constraints are the last line of defence.
 create table if not exists public.cc_addresses (
   id          uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.cc_customers(id),
   area_id     uuid not null references public.cc_delivery_areas(id),
-  street      text not null check (length(btrim(street)) > 0),
-  building    text not null check (length(btrim(building)) > 0),
+  street      text not null,
+  building    text not null,
   floor       text,
   apartment   text,
   landmark    text,
   notes       text,
   created_at  timestamptz not null default now(),
-  created_by  uuid references auth.users(id)
+  created_by  uuid references auth.users(id),
+  constraint cc_addresses_street_len    check (char_length(btrim(street)) between 1 and 150),
+  constraint cc_addresses_building_len  check (char_length(btrim(building)) between 1 and 30),
+  constraint cc_addresses_floor_len     check (floor is null or char_length(floor) <= 20),
+  constraint cc_addresses_apartment_len check (apartment is null or char_length(apartment) <= 20),
+  constraint cc_addresses_landmark_len  check (landmark is null or char_length(landmark) <= 150),
+  constraint cc_addresses_notes_len     check (notes is null or char_length(notes) <= 200)
 );
 create index if not exists cc_addresses_customer_idx on public.cc_addresses (customer_id);
 

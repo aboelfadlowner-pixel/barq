@@ -10,7 +10,7 @@ set local role anon;
 do $$ begin
   begin perform 1 from public.cc_orders limit 1;    raise exception 'FAIL T01 anon read cc_orders';    exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_customers limit 1; raise exception 'FAIL T01 anon read cc_customers'; exception when insufficient_privilege then null; end;
-  begin perform 1 from public.cc_products limit 1;  raise exception 'FAIL T01 anon read cc_products';  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_staff limit 1;     raise exception 'FAIL T01 anon read cc_staff';     exception when insufficient_privilege then null; end;
   begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{}', '{}', '[]');
         raise exception 'FAIL T01 anon create order'; exception when insufficient_privilege then null; end;
   raise notice 'PASS T01 anon has no access';
@@ -22,7 +22,6 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
-  if (select count(*) from public.cc_products) <> 0 then raise exception 'FAIL T02 outsider sees products'; end if;
   if (select count(*) from public.cc_delivery_areas) <> 0 then raise exception 'FAIL T02 outsider sees areas'; end if;
   begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{}', '{}', '[{"sku":"T-201","qty":1}]');
         raise exception 'FAIL T02 outsider created order'; exception when insufficient_privilege then null; end;
@@ -30,15 +29,46 @@ do $$ begin
 end $$;
 rollback;
 
--- T03 — agent sees products without cost/margin
+-- T03 — products: staff only, 4 columns only, keyset pages of at most 1,000 (M3)
 begin;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
+do $$
+declare n1 int; n2 int; n3 int; n4 int; last1 text; last2 text; total int; cols text;
+begin
+  select count(*) into total from public.cc_list_products(null, 1000);
+  if total < 5 then raise exception 'FAIL T03 agent sees % products', total; end if;
+  select count(*), max(sku) into n1, last1 from public.cc_list_products(null, 2);
+  select count(*), max(sku) into n2, last2 from public.cc_list_products(last1, 2);
+  select count(*) into n3 from public.cc_list_products(last2, 2);
+  if n1 <> 2 or n2 <> 2 or last2 <= last1 then raise exception 'FAIL T03 paging % % % %', n1, n2, last1, last2; end if;
+  if n1 + n2 + n3 <> total then raise exception 'FAIL T03 pages do not add up (% + % + % <> %)', n1, n2, n3, total; end if;
+  select count(*) into n4 from public.cc_list_products(null, 5000);
+  if n4 > 1000 then raise exception 'FAIL T03 limit not capped'; end if;
+  select pg_get_function_result('public.cc_list_products(text,int)'::regprocedure) into cols;
+  if cols ~* 'cost|margin' then raise exception 'FAIL T03 cost/margin exposed: %', cols; end if;
+  raise notice 'PASS T03 products: % rows, pages 2+2+%, result columns = %', total, n3, cols;
+end $$;
+rollback;
+
+begin;
+set local role anon;
 do $$ begin
-  if (select count(*) from public.cc_products) < 5 then raise exception 'FAIL T03 agent cannot see products'; end if;
-  if exists (select 1 from information_schema.columns where table_name = 'cc_products' and column_name in ('cost', 'margin')) then
-    raise exception 'FAIL T03 cost/margin exposed'; end if;
-  raise notice 'PASS T03 agent reads products (no cost/margin)';
+  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T03b anon listed products';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_products limit 1; raise exception 'FAIL T03b old view still exists';
+  exception when undefined_table then null; end;
+  raise notice 'PASS T03b anon cannot list products; old cc_products view is gone';
+end $$;
+rollback;
+
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T03c outsider listed products';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T03c signed-in non-staff cannot list products';
 end $$;
 rollback;
 
@@ -215,3 +245,96 @@ do $$ begin
   raise notice 'PASS T11b agent sees the updated area';
 end $$;
 rollback;
+
+-- T12 — duplicated sku in products_master (M4): not listed, cannot be ordered (test data only, rolled back)
+begin;
+alter table public.products_master drop constraint products_master_pkey;
+insert into public.products_master (sku, name, price) values ('T-201', 'لبن مكرر (تجريبي)', 99);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare cust uuid; addr uuid;
+begin
+  if exists (select 1 from public.cc_list_products(null, 1000) where sku = 'T-201') then
+    raise exception 'FAIL T12 duplicated sku is listed'; end if;
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id into addr from public.cc_addresses where customer_id = cust limit 1;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb,
+          json_build_object('id', addr)::jsonb, '[{"sku":"T-201","qty":1}]');
+        raise exception 'FAIL T12 order with duplicated sku accepted';
+  exception when sqlstate 'P0003' then null; end;
+  raise notice 'PASS T12 duplicated sku hidden from the list and rejected with a clear message';
+end $$;
+rollback;
+
+-- T13 — address length limits with clear messages and field hints (L5)
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare cust uuid; area uuid; msg text; hnt text; f record;
+begin
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id into area from public.cc_delivery_areas where name = 'منطقة اختبار 1';
+  for f in select * from (values
+      ('street', repeat('ش', 151)), ('building', repeat('1', 31)), ('floor', repeat('1', 21)),
+      ('apartment', repeat('1', 21)), ('landmark', repeat('ع', 151)), ('notes', repeat('م', 201)), ('street', '   ')
+    ) as t(field, val) loop
+    begin
+      perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb,
+        (json_build_object('area_id', area, 'street', 'شارع', 'building', '1')::jsonb) || jsonb_build_object(f.field, f.val),
+        '[{"sku":"T-203","qty":1}]');
+      raise exception 'FAIL T13 % with % chars accepted', f.field, char_length(f.val);
+    exception when invalid_parameter_value then
+      get stacked diagnostics msg = message_text, hnt = pg_exception_hint;
+      if hnt <> f.field then raise exception 'FAIL T13 hint % for field %', hnt, f.field; end if;
+    end;
+  end loop;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', '{"name":"عميل","phone":"0123"}',
+          json_build_object('area_id', area, 'street', 'ش', 'building', '1')::jsonb, '[{"sku":"T-203","qty":1}]');
+        raise exception 'FAIL T13 bad phone accepted';
+  exception when invalid_parameter_value then get stacked diagnostics hnt = pg_exception_hint;
+        if hnt <> 'phone' then raise exception 'FAIL T13 phone hint %', hnt; end if; end;
+  raise notice 'PASS T13 too-long / empty address fields and bad phone rejected (last message: %)', msg;
+end $$;
+rollback;
+
+-- T14 — a deactivated staff account loses access immediately
+begin;
+update public.cc_staff set active = false where user_id = (select id from auth.users where email = 'agent@cc.test');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if (select count(*) from public.cc_orders) <> 0 then raise exception 'FAIL T14 inactive agent reads orders'; end if;
+  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T14 inactive agent lists products';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T14 deactivated account sees nothing';
+end $$;
+rollback;
+
+-- T15 — agent cannot promote itself (no write path to cc_staff)
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin update public.cc_staff set role = 'supervisor' where user_id = auth.uid(); raise exception 'FAIL T15 agent updated own role';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.cc_staff (user_id, display_name, role) values (auth.uid(), 'x', 'supervisor'); raise exception 'FAIL T15 agent inserted staff row';
+  exception when insufficient_privilege then null; end;
+  if public.cc_my_role() <> 'agent' then raise exception 'FAIL T15 role changed'; end if;
+  raise notice 'PASS T15 agent cannot change its own role';
+end $$;
+rollback;
+
+-- T16 — every cc_* function is SECURITY DEFINER with an empty search_path; anon cannot execute any (L1)
+do $$
+declare bad text;
+begin
+  select string_agg(p.proname, ', ') into bad
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname like 'cc\_%'
+     and (not p.prosecdef or p.proconfig is null or not ('search_path=""' = any(p.proconfig))
+          or has_function_privilege('anon', p.oid, 'execute'));
+  if bad is not null then raise exception 'FAIL T16 %', bad; end if;
+  raise notice 'PASS T16 all cc_* functions: SECURITY DEFINER, search_path empty, no anon EXECUTE';
+end $$;

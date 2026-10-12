@@ -2,6 +2,7 @@
 import { catalog } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney } from '../utils/format.js';
+import { ADDRESS_LIMITS } from '../constants.js';
 
 /* PROPOSED: required fields are area, street and building. */
 const REQUIRED = { areaId: 'اختر منطقة التوصيل', street: 'اكتب اسم الشارع', building: 'اكتب رقم العمارة' };
@@ -9,7 +10,8 @@ const REQUIRED = { areaId: 'اختر منطقة التوصيل', street: 'اكت
 const text = (name, label, value, { span = '', required = false, placeholder = '' } = {}) => `
   <div class="field ${span}">
     <label for="af-${name}">${label}${required ? '<span class="req">*</span>' : ''}</label>
-    <input id="af-${name}" class="input" name="${name}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off">
+    <input id="af-${name}" class="input" name="${name}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off"
+      maxlength="${ADDRESS_LIMITS[name]?.max ?? 200}">
     <div class="field-error" data-err="${name}"></div>
   </div>`;
 
@@ -45,6 +47,9 @@ export function readAddressForm(root) {
 
 export function validateAddress(values) {
   const errors = {};
+  for (const [k, { max, label }] of Object.entries(ADDRESS_LIMITS)) {
+    if ((values[k] ?? '').length > max) errors[k] = `${label} بحد أقصى ${max} حرف`;
+  }
   for (const [k, msg] of Object.entries(REQUIRED)) if (!values[k]) errors[k] = msg;
   return errors;
 }

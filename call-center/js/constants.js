@@ -19,6 +19,17 @@ export const UNIT_TYPES = {
   pack:   { label: 'بالعبوة', per: 'عبوة' },
 };
 
+/* Address text limits — must match db/01_schema.sql and cc_create_order (L5). */
+export const ADDRESS_LIMITS = {
+  street:    { max: 150, label: 'الشارع' },
+  building:  { max: 30,  label: 'رقم العمارة' },
+  floor:     { max: 20,  label: 'الدور' },
+  apartment: { max: 20,  label: 'الشقة' },
+  landmark:  { max: 150, label: 'العلامة المميزة' },
+  notes:     { max: 200, label: 'ملاحظات التوصيل' },
+};
+export const CUSTOMER_NAME_MAX = 120;
+
 /* PROPOSED (pending approval): weight presets, step and limits. */
 export const WEIGHT_PRESETS = [
   { grams: 125,  label: 'تُمن كيلو' },

@@ -7,6 +7,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatAddress, formatMoney, formatTime, dayLabel, normalizePhone, isValidPhone } from '../utils/format.js';
 import { icon } from './icons.js';
 import { openModal, showToast } from './modal.js';
+import { CUSTOMER_NAME_MAX } from '../constants.js';
 import { addressFormHtml, readAddressForm, validateAddress, showErrors } from './address-form.js';
 
 const initial = (name) => esc((name || '؟').trim().charAt(0));
@@ -144,7 +145,7 @@ export async function openCustomerDialog({ phone = '', edit = false } = {}) {
       <div class="form-grid" data-cust-form>
         <div class="field span-3">
           <label for="nc-name">اسم العميل<span class="req">*</span></label>
-          <input id="nc-name" class="input" name="name" value="${esc(p.name ?? '')}" autocomplete="off">
+          <input id="nc-name" class="input" name="name" value="${esc(p.name ?? '')}" autocomplete="off" maxlength="${CUSTOMER_NAME_MAX}">
           <div class="field-error" data-err="name"></div>
         </div>
         <div class="field">
