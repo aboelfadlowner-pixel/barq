@@ -289,3 +289,37 @@
 }
 
 .qty-row { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Order ticket (preview + print) ---------- */
+.ticket-preview { display: flex; justify-content: center; padding: 12px; background: var(--surface); border-radius: var(--radius); }
+.ticket {
+  width: 300px; max-width: 100%; padding: 14px 12px; background: #fff; color: #000;
+  font-size: 12.5px; line-height: 1.5; box-shadow: var(--shadow-sm);
+}
+.tk-head { text-align: center; padding-bottom: 6px; }
+.tk-store { font-size: 18px; font-weight: 900; }
+.tk-demo { display: inline-block; margin-top: 2px; padding: 0 8px; border: 1px solid #000; border-radius: 4px; font-weight: 800; font-size: 11px; }
+.tk-no { display: block; text-align: center; font-size: 19px; font-weight: 900; letter-spacing: .5px; padding: 4px 0; border-block: 1px dashed #000; }
+.tk-rows > div { display: flex; justify-content: space-between; gap: 8px; }
+.tk-rows { padding: 6px 0; }
+.tk-sec { padding: 6px 0; border-top: 1px dashed #000; }
+.tk-title { font-size: 11px; font-weight: 800; }
+.tk-strong { font-weight: 900; font-size: 14px; }
+.tk-phone { font-weight: 900; font-size: 15px; }
+.tk-items { width: 100%; border-collapse: collapse; border-top: 1px dashed #000; margin-top: 2px; }
+.tk-items th { font-size: 11px; font-weight: 800; text-align: start; padding: 5px 2px; border-bottom: 1px solid #000; }
+.tk-items td { padding: 5px 2px; vertical-align: top; border-bottom: 1px dotted #999; font-weight: 700; }
+.tk-items td:nth-child(2), .tk-items td:nth-child(3), .tk-items th:nth-child(2), .tk-items th:nth-child(3) { white-space: nowrap; }
+.tk-note { font-size: 11.5px; font-weight: 800; }
+.tk-totals { border-top: 1px solid #000; margin-top: 4px; }
+.tk-total { font-size: 15px; font-weight: 900; border-top: 1px dashed #000; padding-top: 4px; margin-top: 2px; }
+.tk-hint { font-size: 11px; text-align: center; padding-bottom: 4px; }
+#print-root { display: none; }
+
+@media print {
+  @page { size: 80mm auto; margin: 3mm; }
+  html, body { height: auto !important; background: #fff !important; }
+  body > *:not(#print-root) { display: none !important; }
+  #print-root { display: block !important; }
+  #print-root .ticket { width: 100%; padding: 0; box-shadow: none; }
+}

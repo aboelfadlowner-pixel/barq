@@ -9,6 +9,7 @@ import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
 import { money, statusChip, sourceChip, totalsRows, estimateNote } from '../components/chips.js';
 import { confirmDialog, showToast } from '../components/modal.js';
+import { openPrintPreview } from '../components/print-ticket.js';
 
 export function mountOrderDetails(view, orderId) {
   view.innerHTML = '<div class="page"><div class="page-inner"><p class="muted">جارٍ التحميل…</p></div></div>';
@@ -43,6 +44,7 @@ export function mountOrderDetails(view, orderId) {
             </div>
           </div>
           <div class="page-actions">
+            <button type="button" class="btn btn-primary" data-print>${icon('note')}طباعة</button>
             <button type="button" class="btn btn-soft" data-repeat>${icon('repeat')}تكرار الطلب</button>
             <button type="button" class="btn btn-secondary" data-copy>${icon('copy')}نسخ الملخص</button>
           </div>
@@ -101,6 +103,7 @@ export function mountOrderDetails(view, orderId) {
       </div></div>`;
 
     offs = [
+      on(view, 'click', '[data-print]', () => openPrintPreview(order)),
       on(view, 'click', '[data-copy]', async () => {
         showToast((await copyText(buildOrderSummary(order))) ? 'تم نسخ ملخص الطلب' : 'تعذر النسخ');
       }),
