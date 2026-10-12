@@ -8,7 +8,7 @@ import { icon } from './icons.js';
 export function sourceButtons(active) {
   return ORDER_SOURCES.map((s) => `
     <button type="button" data-source="${s.id}" class="${active === s.id ? 'active' : ''}" aria-pressed="${active === s.id}">
-      ${icon(s.icon)}${esc(s.label)}
+      ${icon(s.icon)}<span class="seg-label">${esc(s.label)}</span>
     </button>`).join('');
 }
 
@@ -36,7 +36,7 @@ export function mountTopbar(el) {
           <div class="seg ${source ? '' : 'needs'}" role="group" aria-label="مصدر الطلب">${sourceButtons(source)}</div>
         </div>` : '<div class="spacer"></div>'}
       <div class="top-meta">
-        <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}وضع تجريبي</span>
+        <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
         <span class="user-chip">${icon('user')}${esc(catalog.employee?.name ?? '')}</span>
       </div>`;
   });

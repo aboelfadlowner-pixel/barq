@@ -1,5 +1,5 @@
 /* App shell, top bar, POS grid, pages, responsive rules */
-.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.app { display: flex; flex-direction: column; height: 100%; }
 #view { flex: 1; min-height: 0; }
 
 /* ---------- Top bar ---------- */
@@ -128,4 +128,15 @@
   .topnav a { padding: 0 11px; }
   .seg button { padding: 0 10px; }
   .brand-name { display: none; }
+}
+
+/* Phone width: icon-only source buttons and a compact top bar */
+@media (max-width: 600px) {
+  .topbar { gap: 8px; padding: 0 10px; }
+  .topbar .seg-label, .topbar .demo-text { display: none; }
+  .topbar .seg button { padding: 0 9px; }
+  .topbar .demo-pill { padding: 0 7px; }
+  .page-inner { padding: 16px 16px 32px; }
+  .products-head, .product-grid { padding-inline: 16px; }
+  .product-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 }
