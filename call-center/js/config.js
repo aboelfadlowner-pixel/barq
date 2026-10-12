@@ -3,7 +3,8 @@
  *
  *  DATA_MODE
  *    'supabase' → the call-center tables (cc_*) in Supabase — on the GitHub
- *                 Pages link (aboelfadlowner-pixel.github.io/barq/call-center/).
+ *                 Pages link (aboelfadlowner-pixel.github.io/barq/call-center/)
+ *                 and on a raw.githack.com preview of a branch.
  *    'mock'     → built-in demo data anywhere else (local preview, demo link).
  *                 Nothing leaves the browser.
  *
@@ -11,7 +12,11 @@
  *  Never put the service_role key, the database password or any user
  *  password in this file or anywhere in the code.
  * ===================================================================== */
-export const DATA_MODE = location.hostname === 'aboelfadlowner-pixel.github.io' ? 'supabase' : 'mock';
+const LIVE_HOSTS = [
+  'aboelfadlowner-pixel.github.io',   // the real link (GitHub Pages, main branch)
+  'raw.githack.com',                  // preview of a branch before merging
+];
+export const DATA_MODE = LIVE_HOSTS.includes(location.hostname) ? 'supabase' : 'mock';
 
 /* Same project and the same PUBLIC anon key the other Abu El Fadl tools use. */
 export const SUPABASE_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co';
