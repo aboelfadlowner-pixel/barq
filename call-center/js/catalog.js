@@ -9,21 +9,29 @@ export const catalog = {
   areasById: new Map(),
   statuses: [],
   statusesById: new Map(),
-  employee: null,
 };
 
 export async function loadCatalog() {
-  const [categories, products, areas, statuses, employee] = await Promise.all([
-    ds.getCategories(), ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(), ds.getCurrentEmployee(),
+  const [categories, products, areas, statuses] = await Promise.all([
+    ds.getCategories(), ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(),
   ]);
   Object.assign(catalog, {
     categories,
     products,
     productsById: new Map(products.map((p) => [p.id, p])),
-    areas,
-    areasById: new Map(areas.map((a) => [a.id, a])),
+    allAreas: areas,
+    areas: areas.filter((a) => a.active),            // selectable for new addresses
+    areasById: new Map(areas.map((a) => [a.id, a])), // includes inactive (old addresses)
     statuses,
     statusesById: new Map(statuses.map((s) => [s.id, s])),
-    employee,
+  });
+}
+
+export async function reloadAreas() {
+  const areas = await ds.getAreas();
+  Object.assign(catalog, {
+    allAreas: areas,
+    areas: areas.filter((a) => a.active),
+    areasById: new Map(areas.map((a) => [a.id, a])),
   });
 }

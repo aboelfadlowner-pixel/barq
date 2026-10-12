@@ -12,7 +12,11 @@
 
 export const MOCK_LABEL = 'بيانات تجريبية';
 
-export const demoEmployee = { id: 'emp-demo', name: 'موظف تجريبي' };
+/* CONFIRMED: two accounts only. Demo login — no passwords in the demo. */
+export const demoAccounts = [
+  { id: 'acc-agent',      role: 'agent',      name: 'موظف الكول سنتر' },
+  { id: 'acc-supervisor', role: 'supervisor', name: 'المشرف' },
+];
 
 /* ---------- Categories (sample) ---------- */
 export const categories = [
@@ -103,16 +107,13 @@ export const areas = [
   { id: 'area-d', name: 'المنطقة د (تجريبي)', fee: 30 },
   { id: 'area-e', name: 'المنطقة هـ (تجريبي)', fee: 40 },
   { id: 'area-f', name: 'المنطقة و (تجريبي)', fee: 50 },
-];
+  { id: 'area-g', name: 'المنطقة ز (موقوفة)', fee: 35, active: false },
+].map((a) => ({ active: true, ...a }));
 
-/* ---------- Order statuses — PLACEHOLDERS ----------
- * Final statuses and who changes them are an unresolved business decision. */
+/* ---------- Order statuses — CONFIRMED: new and cancelled only ---------- */
 export const orderStatuses = [
-  { id: 'new',       label: 'جديد',          tone: 'blue' },
-  { id: 'preparing', label: 'قيد التجهيز',    tone: 'amber' },
-  { id: 'out',       label: 'خرج للتوصيل',    tone: 'purple' },
-  { id: 'delivered', label: 'تم التوصيل',     tone: 'green' },
-  { id: 'cancelled', label: 'ملغي',           tone: 'red' },
+  { id: 'new',       label: 'جديد', tone: 'blue' },
+  { id: 'cancelled', label: 'ملغي', tone: 'red' },
 ];
 
 /* ---------- Customers (fictional names, fake numbers) ---------- */
@@ -145,21 +146,19 @@ export const customers = [
  * for today, yesterday and a few days ago.
  * items: [productId, amount, note?]  amount = qty, or 'NNNg' for a line sold by weight. */
 const ORDER_TEMPLATES = [
-  { day: 3, time: '13:10', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-701', 2], ['m-702', 1], ['m-104', '500g']] },
-  { day: 3, time: '18:45', src: 'whatsapp', c: 'c-1', a: 'c-1-a2', st: 'delivered', items: [['m-103', '250g'], ['m-201', 3]] },
-  { day: 1, time: '10:20', src: 'facebook', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', '1000g'], ['m-602', 1], ['m-107', '500g']] },
-  { day: 1, time: '12:05', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'delivered', items: [['m-401', '500g', 'شرائح'], ['m-111', 2]] },
+  { day: 3, time: '13:10', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 1], ['m-104', '500g']] },
+  { day: 3, time: '18:45', src: 'whatsapp', c: 'c-1', a: 'c-1-a2', st: 'new'      , items: [['m-103', '250g'], ['m-201', 3]] },
+  { day: 1, time: '10:20', src: 'facebook', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '1000g'], ['m-602', 1], ['m-107', '500g']] },
+  { day: 1, time: '12:05', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-401', '500g', 'شرائح'], ['m-111', 2]] },
   { day: 1, time: '16:30', src: 'whatsapp', c: 'c-3', a: 'c-3-a1', st: 'cancelled', items: [['m-108', '250g']] },
-  { day: 1, time: '20:15', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-706', 1], ['m-203', 6], ['m-801', 6]] },
-  { day: 0, time: '09:35', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'delivered', items: [['m-701', 2], ['m-702', 2], ['m-705', 1], ['m-706', 1]] },
-  { day: 0, time: '10:50', src: 'whatsapp', c: 'c-6', a: 'c-6-a1', st: 'delivered', items: [['m-601', '500g'], ['m-107', '500g'], ['m-205', 2]] },
+  { day: 1, time: '20:15', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-706', 1], ['m-203', 6], ['m-801', 6]] },
+  { day: 0, time: '09:35', src: 'phone',    c: 'c-4', a: 'c-4-a1', st: 'new'      , items: [['m-701', 2], ['m-702', 2], ['m-705', 1], ['m-706', 1]] },
+  { day: 0, time: '10:50', src: 'whatsapp', c: 'c-6', a: 'c-6-a1', st: 'new'      , items: [['m-601', '500g'], ['m-107', '500g'], ['m-205', 2]] },
   { day: 0, time: '11:40', src: 'phone',    c: 'c-2', a: 'c-2-a2', st: 'cancelled', items: [['m-110', '250g']] },
-  { day: 0, time: '12:25', src: 'facebook', c: 'c-3', a: 'c-3-a1', st: 'out',       items: [['m-403', '250g', 'شرائح رفيعة'], ['m-103', '500g'], ['m-704', 1]] },
-  { day: 0, time: '13:15', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'preparing', items: [['m-104', '1000g'], ['m-203', 6], ['m-602', 1]] },
+  { day: 0, time: '12:25', src: 'facebook', c: 'c-3', a: 'c-3-a1', st: 'new',       items: [['m-403', '250g', 'شرائح رفيعة'], ['m-103', '500g'], ['m-704', 1]] },
+  { day: 0, time: '13:15', src: 'phone',    c: 'c-2', a: 'c-2-a1', st: 'new'      , items: [['m-104', '1000g'], ['m-203', 6], ['m-602', 1]] },
   { day: 0, time: '14:05', src: 'whatsapp', c: 'c-1', a: 'c-1-a1', st: 'new',       items: [['m-101', '500g'], ['m-201', 2], ['m-501', '250g', 'منزوع النوى']] },
 ];
-
-const STATUS_FLOW = ['new', 'preparing', 'out', 'delivered'];
 
 export function buildSampleOrders(now = new Date()) {
   const byId = (list, id) => list.find((x) => x.id === id);
@@ -188,10 +187,11 @@ export function buildSampleOrders(now = new Date()) {
         : { ...base, qty: amount };
     });
 
-    // Fake status history up to the current status.
-    const history = [];
-    const steps = t.st === 'cancelled' ? ['new', 'cancelled'] : STATUS_FLOW.slice(0, STATUS_FLOW.indexOf(t.st) + 1);
-    steps.forEach((s, k) => history.push({ status: s, at: new Date(created.getTime() + k * 25 * 60000).toISOString() }));
+    const history = [{ status: 'new', at: created.toISOString(), by: demoAccounts[0].name }];
+    if (t.st === 'cancelled') {
+      history.push({ status: 'cancelled', at: new Date(created.getTime() + 20 * 60000).toISOString(),
+        by: demoAccounts[1].name, reason: 'العميل لغى الطلب بالتليفون' });
+    }
 
     return {
       id: `o-${1001 + i}`,
@@ -207,7 +207,8 @@ export function buildSampleOrders(now = new Date()) {
       note: '',
       status: t.st,
       statusHistory: history,
-      employee: demoEmployee.name,
+      employee: demoAccounts[0].name,
+      cancelReason: history[1]?.reason ?? '',
       isDemo: true,
     };
   });

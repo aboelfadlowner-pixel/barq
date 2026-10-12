@@ -140,3 +140,4 @@
   .products-head, .product-grid { padding-inline: 16px; }
   .product-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 }
+@media (max-width: 1100px) { .logout-text, .user-chip .tag { display: none; } }

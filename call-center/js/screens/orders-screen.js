@@ -7,6 +7,8 @@ import { dayLabel, formatTime, isSameDay, normalizeArabic, normalizePhone } from
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, statusChip, sourceChip } from '../components/chips.js';
+import { getState } from '../store.js';
+import { can } from '../permissions.js';
 
 // Filters survive navigating to an order and back.
 const DEFAULT_FILTERS = { q: '', date: 'today', source: '', status: '' };
@@ -45,6 +47,7 @@ export function mountOrders(view) {
         <a href="#/pos" class="btn btn-primary btn-lg">${icon('plus')}طلب جديد</a>
       </div>
 
+      <div data-summary></div>
       <div class="card filters" role="search">
         <div class="search search-sm">${icon('search')}
           <input id="ordQ" type="search" autocomplete="off" placeholder="رقم الطلب أو الموبايل أو اسم العميل" value="${esc(filters.q)}" aria-label="بحث في الطلبات">
@@ -127,7 +130,22 @@ export function mountOrders(view) {
     }),
   ];
 
-  ds.listOrders().then((list) => { orders = list; renderList(); });
+  function renderSummary() {
+    if (!can(getState().user, 'viewDailySummary')) return;
+    const today = orders.filter((o) => isSameDay(o.createdAt, new Date()));
+    const active = today.filter((o) => o.status !== 'cancelled');
+    const total = active.reduce((acc, o) => acc + computeTotals(o.items, o.deliveryFee).total, 0);
+    const bySource = ORDER_SOURCES.map((s) => ({ ...s, n: active.filter((o) => o.source === s.id).length }));
+    $('[data-summary]').innerHTML = `
+      <div class="summary-row">
+        <div class="stat card"><span class="k">طلبات اليوم</span><strong class="v num">${active.length}</strong></div>
+        <div class="stat card"><span class="k">إجمالي اليوم</span><strong class="v">${money(total)}</strong></div>
+        ${bySource.map((s) => `<div class="stat card"><span class="k">${icon(s.icon)}${esc(s.label)}</span><strong class="v num">${s.n}</strong></div>`).join('')}
+        <div class="stat card"><span class="k">ملغي اليوم</span><strong class="v num tone-text-red">${today.length - active.length}</strong></div>
+      </div>`;
+  }
+
+  ds.listOrders().then((list) => { orders = list; renderSummary(); renderList(); });
   $('#ordQ').focus();
   return () => offs.forEach((f) => f());
 }

@@ -11,6 +11,7 @@ const emptyDraft = () => ({
 });
 
 let state = {
+  user: null,       // { id, role: 'agent' | 'supervisor', name }
   route: 'pos',
   routeParam: null,
   activeCategory: 'all',
@@ -101,6 +102,7 @@ export const clearCart = () => setState({ cart: [] });
 
 /* ---------- Draft actions ---------- */
 export const setSource = (source) => setState({ source });
+export const setUser = (user) => setState({ user });
 export const setCustomer = (customer, address) => setState({ customer, address });
 export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });

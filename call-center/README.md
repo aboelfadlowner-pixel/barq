@@ -40,11 +40,18 @@ call-center/
 Re-implement the functions in `js/data/data-source.js` (same names and return shapes) against the
 approved real source. UI components do not import `mock-data.js` directly.
 
-## Still mock / pending decisions
+## Confirmed decisions reflected in the demo
 
-- Products, categories, prices, customers and sample orders are fictional.
-- Delivery areas and fees are placeholders. Fee rules are not confirmed.
-- Order statuses are placeholders. Status changes are not implemented.
-- "Created" orders live in browser memory only and disappear on refresh.
-- No login: the employee is a fixed demo user.
-- Weight presets, the "by amount" weight input and the required address fields are proposals.
+- Products and prices will come from the data-center products sheet (`products_master`), read only.
+- All products are sold by piece. The agent can switch a cart line to a weight, and the price is then price-per-kg × weight.
+- Cash on delivery is the only payment method.
+- Order tickets print on an 80mm receipt roll.
+- Two accounts: call-center agent and supervisor. The supervisor can also cancel orders (with a reason),
+  manage delivery areas and fees, and see the daily summary.
+- Order statuses: new and cancelled only. Both accounts see all orders.
+
+## Still mock / pending
+
+- Products, customers, sample orders, delivery areas and fees are fictional.
+- Login is a demo account picker. The real version uses Supabase Auth.
+- "Created" orders and edits live in browser memory only and disappear on refresh.

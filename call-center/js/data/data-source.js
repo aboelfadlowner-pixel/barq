@@ -19,15 +19,19 @@ const resolve = (v) => Promise.resolve(clone(v));
 
 // In-memory working copies (reset on every page load).
 const customers = clone(mock.customers);
+const areas = clone(mock.areas);
 const orders = mock.buildSampleOrders();
 let nextOrderNo = 1001 + orders.length;
 
 /* ---------- Catalog ---------- */
 export const getCategories    = () => resolve(mock.categories);
 export const getProducts      = () => resolve(mock.products);
-export const getAreas         = () => resolve(mock.areas);
+export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
-export const getCurrentEmployee = () => resolve(mock.demoEmployee);
+
+/* ---------- Accounts (DEMO: pick an account, no password) ---------- */
+export const getDemoAccounts = () => resolve(mock.demoAccounts);
+export const demoLogin = (accountId) => resolve(mock.demoAccounts.find((a) => a.id === accountId) ?? null);
 
 /* ---------- Customers ---------- */
 function lastOrderAt(customerId) {
@@ -71,8 +75,8 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
 export function createDemoOrder(draft) {
   const { source, cart, customer, address, orderNote, employee } = draft;
-  const area = mock.areas.find((a) => a.id === address.areaId);
-  if (!area) return Promise.reject(new Error('منطقة التوصيل غير موجودة'));
+  const area = areas.find((a) => a.id === address.areaId);
+  if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
 
   let cust = customer.id ? customers.find((c) => c.id === customer.id) : null;
   if (!cust) {
@@ -102,10 +106,36 @@ export function createDemoOrder(draft) {
     items: cart.map(({ lineId, ...item }) => item),
     note: orderNote || '',
     status: mock.orderStatuses[0].id,
-    statusHistory: [{ status: mock.orderStatuses[0].id, at: now }],
-    employee: employee?.name ?? mock.demoEmployee.name,
+    statusHistory: [{ status: mock.orderStatuses[0].id, at: now, by: employee?.name ?? '' }],
+    employee: employee?.name ?? '',
+    cancelReason: '',
     isDemo: true,
   };
   orders.push(order);
   return resolve(order);
+}
+
+/* Supervisor only (enforced again by database rules in the real version). */
+export function cancelOrder(orderId, reason, user) {
+  const o = orders.find((x) => x.id === orderId);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ملغي بالفعل'));
+  o.status = 'cancelled';
+  o.cancelReason = reason;
+  o.statusHistory.push({ status: 'cancelled', at: new Date().toISOString(), by: user.name, reason });
+  return resolve(o);
+}
+
+/* ---------- Delivery areas (supervisor) ---------- */
+export function saveArea({ id, name, fee, active }) {
+  const clean = { name: String(name).trim(), fee: Math.max(0, Number(fee) || 0), active: !!active };
+  if (id) {
+    const a = areas.find((x) => x.id === id);
+    if (!a) return Promise.reject(new Error('المنطقة غير موجودة'));
+    Object.assign(a, clean);
+    return resolve(a);
+  }
+  const created = { id: `area-${Date.now()}`, ...clean };
+  areas.push(created);
+  return resolve(created);
 }

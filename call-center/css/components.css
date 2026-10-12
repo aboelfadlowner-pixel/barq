@@ -324,3 +324,38 @@
   #print-root .ticket { width: 100%; padding: 0; box-shadow: none; }
 }
 .tk-cash { margin: 4px 0; padding: 5px; border: 1.5px solid #000; border-radius: 4px; text-align: center; font-weight: 900; font-size: 13px; }
+
+/* ---------- Login ---------- */
+.login-page { height: 100%; overflow-y: auto; display: grid; place-items: center; padding: 24px 16px; background: var(--surface); }
+.login-card { width: min(480px, 100%); padding: 26px 24px; display: flex; flex-direction: column; gap: 16px; }
+.login-card h1 { font-size: 20px; font-weight: 900; }
+.login-accounts { display: flex; flex-direction: column; gap: 10px; }
+.account-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; text-align: start;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer;
+}
+.account-btn:hover { border-color: var(--green-500); background: var(--green-50); }
+.account-btn .grow { display: flex; flex-direction: column; gap: 2px; }
+.account-btn .chev { color: var(--muted); }
+
+/* ---------- Areas (supervisor) ---------- */
+.page-narrow { max-width: 860px; }
+.add-area { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.add-area .fee-field { width: 140px; }
+.add-area .field-error { flex-basis: 100%; }
+.areas-table td { vertical-align: middle; }
+.areas-table .fee-cell { width: 130px; }
+.areas-table .input { height: 38px; }
+.row-off td { background: var(--surface); }
+.row-off input[name="name"] { color: var(--muted); }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.switch input { width: 18px; height: 18px; accent-color: var(--green-600); }
+
+/* ---------- Supervisor daily summary ---------- */
+.summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.stat { padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.stat .k { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: var(--muted); }
+.stat .k .svg-icon { color: var(--green-600); }
+.stat .v { font-size: 20px; font-weight: 900; }
+.tone-text-red { color: var(--danger); }
+.timeline li > div { display: flex; flex-direction: column; gap: 2px; }

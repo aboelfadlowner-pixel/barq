@@ -18,7 +18,7 @@ export function missingFields(s) {
   if (!s.source) missing.push('اختر مصدر الطلب (هاتف / واتساب / فيسبوك)');
   if (!s.customer) missing.push('حدد العميل');
   if (!s.address) missing.push('حدد عنوان التوصيل');
-  else if (!catalog.areasById.get(s.address.areaId)) missing.push('منطقة التوصيل غير معروفة');
+  else if (!catalog.areasById.get(s.address.areaId)?.active) missing.push('منطقة التوصيل موقوفة أو غير معروفة — اختر عنواناً آخر');
   if (!s.cart.length) missing.push('أضف صنفاً واحداً على الأقل');
   return missing;
 }
@@ -128,7 +128,7 @@ export function openReviewDialog() {
     try {
       const order = await ds.createDemoOrder({
         source: s.source, cart: s.cart, customer: s.customer, address: s.address,
-        orderNote: s.orderNote.trim(), employee: catalog.employee,
+        orderNote: s.orderNote.trim(), employee: s.user,
       });
       m.close();
       resetDraft();

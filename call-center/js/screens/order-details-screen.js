@@ -8,7 +8,8 @@ import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
 import { money, statusChip, sourceChip, totalsRows, estimateNote } from '../components/chips.js';
-import { confirmDialog, showToast } from '../components/modal.js';
+import { confirmDialog, openModal, showToast } from '../components/modal.js';
+import { can } from '../permissions.js';
 import { openPrintPreview } from '../components/print-ticket.js';
 import { PAYMENT_METHOD } from '../constants.js';
 
@@ -49,9 +50,14 @@ export function mountOrderDetails(view, orderId) {
             <button type="button" class="btn btn-primary" data-print>${icon('note')}طباعة</button>
             <button type="button" class="btn btn-soft" data-repeat>${icon('repeat')}تكرار الطلب</button>
             <button type="button" class="btn btn-secondary" data-copy>${icon('copy')}نسخ الملخص</button>
+            ${order.status !== 'cancelled' && can(getState().user, 'cancelOrder')
+              ? `<button type="button" class="btn btn-danger-ghost" data-cancel>${icon('x')}إلغاء الطلب</button>` : ''}
           </div>
         </div>
 
+        ${order.status === 'cancelled' ? `
+          <div class="alert alert-danger" style="margin-bottom:14px">${icon('alert')}
+            <span>الطلب ده ملغي. السبب: ${esc(order.cancelReason || '—')}</span></div>` : ''}
         <div class="details-grid">
           <div class="card">
             <div class="table-wrap">
@@ -96,9 +102,12 @@ export function mountOrderDetails(view, orderId) {
               <h4 class="block-title" style="margin:0 0 10px">${icon('clock')}سجل الحالة</h4>
               <ul class="timeline">
                 ${order.statusHistory.map((h) => `
-                  <li>${statusChip(h.status)}<span class="muted num">${dayLabel(h.at)} · ${formatTime(h.at)}</span></li>`).join('')}
+                  <li>
+                    <div>${statusChip(h.status)}
+                      ${h.reason ? `<div class="addr-extra">السبب: ${esc(h.reason)}</div>` : ''}</div>
+                    <span class="muted num">${h.by ? `${esc(h.by)} · ` : ''}${dayLabel(h.at)} · ${formatTime(h.at)}</span>
+                  </li>`).join('')}
               </ul>
-              <div class="unconfirmed">${icon('info')}<span>تغيير الحالة غير متاح بعد — الحالات النهائية والصلاحيات في انتظار الاعتماد.</span></div>
             </div>
           </div>
         </div>
@@ -106,6 +115,7 @@ export function mountOrderDetails(view, orderId) {
 
     offs = [
       on(view, 'click', '[data-print]', () => openPrintPreview(order)),
+      on(view, 'click', '[data-cancel]', () => openCancelDialog(order)),
       on(view, 'click', '[data-copy]', async () => {
         showToast((await copyText(buildOrderSummary(order))) ? 'تم نسخ ملخص الطلب' : 'تعذر النسخ');
       }),
@@ -127,4 +137,38 @@ export function mountOrderDetails(view, orderId) {
   });
 
   return () => { alive = false; offs.forEach((f) => f()); };
+}
+
+/* Supervisor only: cancel with a required reason. */
+function openCancelDialog(order) {
+  const m = openModal({
+    title: `${icon('alert')} إلغاء الطلب <span class="ltr-inline">${esc(order.number)}</span>`,
+    size: 'sm',
+    body: `
+      <div class="field">
+        <label for="cancelReason">سبب الإلغاء<span class="req">*</span></label>
+        <textarea id="cancelReason" class="textarea" maxlength="200" placeholder="مثال: العميل لغى الطلب"></textarea>
+        <div class="field-error" data-err="reason"></div>
+      </div>
+      <p class="hint">الإلغاء نهائي، والطلب هيفضل ظاهر في القائمة بحالة «ملغي».</p>`,
+    footer: `
+      <button type="button" class="btn btn-danger btn-lg" data-ok>${icon('x')}إلغاء الطلب</button>
+      <button type="button" class="btn btn-secondary btn-lg" data-close>رجوع</button>`,
+  });
+  const ta = m.body.querySelector('#cancelReason');
+  ta.focus();
+  m.foot.querySelector('[data-ok]').addEventListener('click', async (e) => {
+    const reason = ta.value.trim();
+    if (!reason) { m.body.querySelector('[data-err="reason"]').textContent = 'اكتب سبب الإلغاء'; ta.focus(); return; }
+    e.currentTarget.disabled = true;
+    try {
+      await ds.cancelOrder(order.id, reason, getState().user);
+      m.close();
+      showToast(`تم إلغاء الطلب ${order.number}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    } catch (err) {
+      e.currentTarget.disabled = false;
+      showToast(err.message);
+    }
+  });
 }
