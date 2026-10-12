@@ -1,18 +1,17 @@
 /* Orders list with search and filters. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
-import { ORDER_SOURCES } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import { dayLabel, formatTime, isSameDay, normalizeArabic, normalizePhone } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
-import { money, statusChip, sourceChip } from '../components/chips.js';
+import { money, statusChip } from '../components/chips.js';
 import { getState } from '../store.js';
 import { can } from '../permissions.js';
 import { startNewOrder } from './board-screen.js';
 
 // Filters survive navigating to an order and back.
-const DEFAULT_FILTERS = { q: '', date: 'today', source: '', status: '' };
+const DEFAULT_FILTERS = { q: '', date: 'today', status: '' };
 let filters = { ...DEFAULT_FILTERS };
 
 function matchesDate(iso, range) {
@@ -56,9 +55,6 @@ export function mountOrders(view) {
         <select class="select" id="ordDate" aria-label="التاريخ">
           ${opt('today', 'اليوم', filters.date)}${opt('yesterday', 'أمس', filters.date)}${opt('7d', 'آخر 7 أيام', filters.date)}${opt('all', 'كل الطلبات', filters.date)}
         </select>
-        <select class="select" id="ordSource" aria-label="المصدر">
-          ${opt('', 'كل المصادر', filters.source)}${ORDER_SOURCES.map((s) => opt(s.id, s.label, filters.source)).join('')}
-        </select>
         <select class="select" id="ordStatus" aria-label="الحالة">
           ${opt('', 'كل الحالات', filters.status)}${catalog.statuses.map((s) => opt(s.id, s.label, filters.status)).join('')}
         </select>
@@ -70,9 +66,9 @@ export function mountOrders(view) {
         <table class="table orders-table">
           <thead><tr>
             <th>رقم الطلب</th><th>الوقت</th><th>العميل</th><th class="col-opt">الموبايل</th>
-            <th class="col-opt">المنطقة</th><th>المصدر</th><th>الإجمالي</th><th>الحالة</th>
+            <th class="col-opt">المنطقة</th><th>الإجمالي</th><th>الحالة</th>
           </tr></thead>
-          <tbody data-body><tr><td colspan="8" class="table-empty">جارٍ التحميل…</td></tr></tbody>
+          <tbody data-body><tr><td colspan="7" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
     </div></div>`;
@@ -83,7 +79,6 @@ export function mountOrders(view) {
   function renderList() {
     const list = orders.filter((o) =>
       matchesDate(o.createdAt, filters.date)
-      && (!filters.source || o.source === filters.source)
       && (!filters.status || o.status === filters.status)
       && matchesQuery(o, filters.q.trim()));
 
@@ -101,18 +96,16 @@ export function mountOrders(view) {
           <td><strong>${esc(o.customer.name)}</strong></td>
           <td class="col-opt"><span class="ltr-inline">${esc(o.customer.phone)}</span></td>
           <td class="col-opt">${esc(o.address.areaName)}</td>
-          <td>${sourceChip(o.source)}</td>
           <td class="nowrap"><strong>${money(t.total)}</strong>${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</td>
           <td>${statusChip(o.status)}</td>
         </tr>`;
-    }).join('') : `<tr><td colspan="8" class="table-empty">لا توجد طلبات مطابقة.
+    }).join('') : `<tr><td colspan="7" class="table-empty">لا توجد طلبات مطابقة.
         ${filters.date !== 'all' ? '<button type="button" class="btn btn-soft btn-sm" data-all-dates>عرض كل التواريخ</button>' : ''}</td></tr>`;
   }
 
   const setFilter = (patch) => { filters = { ...filters, ...patch }; renderList(); };
   $('#ordQ').addEventListener('input', (e) => setFilter({ q: e.target.value }));
   $('#ordDate').addEventListener('change', (e) => setFilter({ date: e.target.value }));
-  $('#ordSource').addEventListener('change', (e) => setFilter({ source: e.target.value }));
   $('#ordStatus').addEventListener('change', (e) => setFilter({ status: e.target.value }));
 
   const offs = [
@@ -121,7 +114,6 @@ export function mountOrders(view) {
       filters = { ...DEFAULT_FILTERS };
       $('#ordQ').value = filters.q;
       $('#ordDate').value = filters.date;
-      $('#ordSource').value = filters.source;
       $('#ordStatus').value = filters.status;
       renderList();
     }),
@@ -137,12 +129,10 @@ export function mountOrders(view) {
     const today = orders.filter((o) => isSameDay(o.createdAt, new Date()));
     const active = today.filter((o) => o.status !== 'cancelled');
     const total = active.reduce((acc, o) => acc + computeTotals(o.items, o.deliveryFee).total, 0);
-    const bySource = ORDER_SOURCES.map((s) => ({ ...s, n: active.filter((o) => o.source === s.id).length }));
     $('[data-summary]').innerHTML = `
       <div class="summary-row">
         <div class="stat card"><span class="k">طلبات اليوم</span><strong class="v num">${active.length}</strong></div>
         <div class="stat card"><span class="k">إجمالي اليوم</span><strong class="v">${money(total)}</strong></div>
-        ${bySource.map((s) => `<div class="stat card"><span class="k">${icon(s.icon)}${esc(s.label)}</span><strong class="v num">${s.n}</strong></div>`).join('')}
         <div class="stat card"><span class="k">ملغي اليوم</span><strong class="v num tone-text-red">${today.length - active.length}</strong></div>
       </div>`;
   }

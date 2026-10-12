@@ -1,4 +1,4 @@
-/* Main POS screen: product search | cart. */
+/* Order screen (Foodics-style): order summary panel on the side | product search. */
 import { bind, getState, setState } from '../store.js';
 import { isTypingTarget, on } from '../utils/dom.js';
 import { computeTotals } from '../utils/pricing.js';
@@ -7,12 +7,21 @@ import { icon } from '../components/icons.js';
 import { money } from '../components/chips.js';
 import { mountProductGrid, getVisibleProducts, selectProduct } from '../components/product-grid.js';
 import { mountCartPanel } from '../components/cart-panel.js';
+import { openNewOrderDialog } from '../components/new-order-dialog.js';
+import { confirmDialog } from '../components/modal.js';
+import { resetDraft } from '../store.js';
 
 export function mountPos(view) {
   view.innerHTML = `
     <div class="pos" data-pos>
+      <aside class="pos-cart" aria-label="ملخص الطلب"></aside>
       <section class="pos-products" aria-label="المنتجات">
+        <div class="pos-title">
+          <button type="button" class="back-link link-btn" data-cancel-order>${icon('arrowRight')}إلغاء</button>
+          <h1>طلب جديد لمركز الاتصال</h1>
+        </div>
         <div class="products-head">
+          <div class="search-row">
           <div class="search" data-search>
             ${icon('search')}
             <input id="productSearch" type="search" autocomplete="off" spellcheck="false"
@@ -22,11 +31,12 @@ export function mountPos(view) {
               <button type="button" class="btn btn-ghost btn-icon btn-sm clear-btn" data-clear-search aria-label="مسح البحث">${icon('x')}</button>
             </span>
           </div>
+          <button type="button" class="btn btn-secondary btn-lg" data-customer-info>${icon('user')}معلومات العميل</button>
+          </div>
           <div class="results-meta"></div>
         </div>
         <div class="product-grid" role="list"></div>
       </section>
-      <aside class="pos-cart" aria-label="السلة"></aside>
       <div class="cart-backdrop" data-close-cart></div>
       <button type="button" class="cart-bar" data-open-cart></button>
     </div>`;
@@ -56,6 +66,16 @@ export function mountPos(view) {
     }),
 
     on(root, 'click', '[data-open-cart]', () => setState({ cartOpen: true })),
+    on(root, 'click', '[data-customer-info]', () => openNewOrderDialog({ edit: !!getState().customer })),
+    on(root, 'click', '[data-cancel-order]', async () => {
+      const s = getState();
+      if ((s.cart.length || s.customer) && !(await confirmDialog({
+        title: 'إلغاء الطلب', message: 'هيتمسح العميل والأصناف اللي في الطلب ده. لو عايز تكمّله بعدين اختار «حفظ كمسودة».',
+        confirmLabel: 'إلغاء الطلب', cancelLabel: 'رجوع', danger: true,
+      }))) return;
+      resetDraft();
+      location.hash = '#/board';
+    }),
     on(root, 'click', '[data-close-cart]', () => setState({ cartOpen: false })),
     on(root, 'click', '[data-clear-search]', () => { setState({ search: '' }); input.focus(); }),
   ];

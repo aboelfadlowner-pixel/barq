@@ -3,7 +3,6 @@ import { catalog } from './catalog.js';
 import { MAX_PIECE_QTY } from './constants.js';
 
 const emptyDraft = () => ({
-  source: null,     // 'phone' | 'whatsapp' | 'facebook'
   cart: [],         // { lineId, productId, name, unitType, unitLabel, price, qty|grams, note }
   customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
   address: null,    // { id|null, isNew, areaId, street, building, floor, apartment, landmark, notes }
@@ -100,7 +99,6 @@ export const removeLine = (lineId) => setState((s) => ({ cart: s.cart.filter((l)
 export const clearCart = () => setState({ cart: [] });
 
 /* ---------- Draft actions ---------- */
-export const setSource = (source) => setState({ source });
 export const setUser = (user) => setState({ user });
 export const setCustomer = (customer, address) => setState({ customer, address });
 export const clearCustomer = () => setState({ customer: null, address: null });

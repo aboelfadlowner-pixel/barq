@@ -1,11 +1,11 @@
 /* "طلب جديد لمركز الاتصال" — Foodics-style start of an order:
    customer phone (+ optional extra number) → existing customer's data appears,
-   or a new customer is entered → order source → delivery address
+   or a new customer is entered → delivery address
    (saved addresses, edit, or "إضافة عنوان جديد"). "حفظ" opens the product search. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, setState } from '../store.js';
-import { ORDER_SOURCES, CUSTOMER_NAME_MAX } from '../constants.js';
+import { CUSTOMER_NAME_MAX } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import {
   formatAddress, formatMoney, formatTime, formatDateTime, normalizePhone, isValidPhone,
@@ -43,7 +43,6 @@ export function openNewOrderDialog({ edit = false } = {}) {
     addresses: [],           // working list: saved copies + new/edited ones
     addressId: null,
     todayOrders: [],
-    source: s0.source,
   };
 
   const m = openModal({
@@ -150,14 +149,6 @@ export function openNewOrderDialog({ edit = false } = {}) {
       ${todayWarning(st.todayOrders)}
 
       <div class="field">
-        <label>مصدر الطلب<span class="req">*</span></label>
-        <div class="seg seg-full ${st.source ? '' : 'needs'}" role="group" aria-label="مصدر الطلب">
-          ${ORDER_SOURCES.map((s) => `<button type="button" data-src="${s.id}" class="${st.source === s.id ? 'active' : ''}">${icon(s.icon)}${esc(s.label)}</button>`).join('')}
-        </div>
-        <div class="field-error" data-err="source"></div>
-      </div>
-
-      <div class="field">
         <label>نوع الطلب</label>
         <div class="fixed-value">${icon('package')}توصيل <span class="muted">· الدفع كاش عند الاستلام</span></div>
       </div>
@@ -222,7 +213,6 @@ export function openNewOrderDialog({ edit = false } = {}) {
     if (phone2 && phone2 === phone) errors.phone2 = 'الرقم التاني نفس الرقم الأساسي';
     if (st.status === 'choose') errors.phone = 'اختار العميل الصح من القائمة';
     if (st.status === 'new' && !st.name.trim()) errors.name = 'اكتب اسم العميل';
-    if (!st.source) errors.source = 'اختار مصدر الطلب';
     const address = st.addresses.find((a) => a.id === st.addressId);
     if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختار عنوان أو أضف عنوان جديد';
 
@@ -239,7 +229,7 @@ export function openNewOrderDialog({ edit = false } = {}) {
       : { id: null, name: st.name.trim(), phone, phone2, isNew: true, todayOrders: st.todayOrders };
     const { id, isNew, edited, ...fields } = address;
     const addr = { ...fields, id: isNew ? null : id, isNew: !!isNew, edited: !!edited };
-    setState({ customer, address: addr, source: st.source });
+    setState({ customer, address: addr });
     m.close();
     if (location.hash !== '#/pos') location.hash = '#/pos';
     else document.getElementById('productSearch')?.focus();
@@ -262,7 +252,6 @@ export function openNewOrderDialog({ edit = false } = {}) {
 
   on(m.el, 'click', '[data-add-phone2]', () => { st.showPhone2 = true; renderPhone2(); $('#no-phone2')?.focus(); });
   on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); });
-  on(m.el, 'click', '[data-src]', (e, b) => { st.source = b.dataset.src; renderDetails(); });
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));
@@ -287,7 +276,6 @@ export function openNewOrderDialog({ edit = false } = {}) {
     });
   });
   clearErrorsOnEdit(m.body);
-  on(m.el, 'click', '[data-src]', () => { const e = m.el.querySelector('[data-err="source"]'); if (e) e.textContent = ''; });
   m.foot.querySelector('[data-save]').addEventListener('click', save);
 
   /* ---------- Start (prefill when changing the current draft) ---------- */

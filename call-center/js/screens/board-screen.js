@@ -3,16 +3,15 @@
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
-import { ORDER_SOURCES } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, isSameDay, normalizeArabic, normalizePhone } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
-import { money, statusChip, sourceChip } from '../components/chips.js';
+import { money, statusChip } from '../components/chips.js';
 import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 
-const filters = { q: '', source: '' };
+const filters = { q: '' };
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
 export async function startNewOrder() {
@@ -31,7 +30,6 @@ export async function startNewOrder() {
 }
 
 function matches(o) {
-  if (filters.source && o.source !== filters.source) return false;
   const q = filters.q.trim();
   if (!q) return true;
   const digits = normalizePhone(q);
@@ -52,7 +50,6 @@ function orderCard(o) {
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
       <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}</span></div>
       <div class="o-row">${icon('pin')}<span>${esc(o.address.areaName)}</span></div>
-      <div class="o-row">${sourceChip(o.source)}</div>
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
     </button>`;
@@ -88,22 +85,18 @@ function column(title, count, body, emptyText, tone = '') {
 }
 
 export function mountBoard(view) {
-  const opt = (v, label) => `<option value="${esc(v)}" ${filters.source === v ? 'selected' : ''}>${esc(label)}</option>`;
   view.innerHTML = `
     <div class="page"><div class="page-inner board">
       <div class="page-head">
         <div>
           <h1 class="title-icon">${icon('headset')}مركز الاتصال</h1>
-          <div class="page-sub"><span>طلبات التوصيل من الهاتف والواتساب والفيسبوك</span>
+          <div class="page-sub"><span>طلبات التوصيل اللي بيعملها مركز الاتصال</span>
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
         <div class="board-actions">
           <div class="search search-sm">${icon('search')}
             <input id="boardQ" type="search" autocomplete="off" placeholder="رقم الطلب أو الموبايل أو الاسم" value="${esc(filters.q)}" aria-label="بحث في طلبات اليوم">
           </div>
-          <select id="boardSource" class="select" aria-label="المصدر">
-            ${opt('', 'كل المصادر')}${ORDER_SOURCES.map((s) => opt(s.id, s.label)).join('')}
-          </select>
           <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
         </div>
       </div>
@@ -128,7 +121,6 @@ export function mountBoard(view) {
   };
 
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
-  view.querySelector('#boardSource').addEventListener('change', (e) => { filters.source = e.target.value; render(); });
   const offs = [
     on(view, 'click', '[data-new-order]', () => startNewOrder()),
     on(view, 'click', '.o-card[data-id]', (e, el) => { location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`; }),

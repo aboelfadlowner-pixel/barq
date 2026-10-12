@@ -1,5 +1,5 @@
 /* Printable order ticket (80mm receipt layout) + preview dialog. */
-import { ORDER_SOURCES, PAYMENT_METHOD } from '../constants.js';
+import { PAYMENT_METHOD } from '../constants.js';
 import { esc } from '../utils/dom.js';
 import { formatAddress, formatMoney, formatDateTime } from '../utils/format.js';
 import { computeTotals, lineTotal, quantityLabel } from '../utils/pricing.js';
@@ -9,7 +9,6 @@ import { openModal } from './modal.js';
 export function ticketHtml(order) {
   const t = computeTotals(order.items, order.deliveryFee);
   const a = order.address;
-  const source = ORDER_SOURCES.find((s) => s.id === order.source)?.label ?? '—';
   return `
     <div class="ticket" dir="rtl">
       <div class="tk-head">
@@ -20,7 +19,6 @@ export function ticketHtml(order) {
       <div class="tk-no ltr-inline">${esc(order.number)}</div>
       <div class="tk-rows">
         <div><span>التاريخ</span><span class="num">${formatDateTime(order.createdAt)}</span></div>
-        <div><span>المصدر</span><span>${esc(source)}</span></div>
         <div><span>الموظف</span><span>${esc(order.employee)}</span></div>
         <div><span>الدفع</span><span>${PAYMENT_METHOD.label}</span></div>
       </div>

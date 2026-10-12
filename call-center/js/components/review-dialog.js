@@ -1,21 +1,19 @@
 /* Order review before confirmation. Re-renders live if the draft changes. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
-import { bind, getState, setSource, setOrderNote, resetDraft, currentDeliveryFee } from '../store.js';
+import { bind, getState, setOrderNote, resetDraft, currentDeliveryFee } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress } from '../utils/format.js';
 import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { openModal, showToast } from './modal.js';
-import { sourceButtons } from './topbar.js';
 import { PAYMENT_METHOD } from '../constants.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openSuccessDialog } from './success-dialog.js';
 
 export function missingFields(s) {
   const missing = [];
-  if (!s.source) missing.push('اختر مصدر الطلب (هاتف / واتساب / فيسبوك)');
   if (!s.customer) missing.push('حدد العميل');
   if (!s.address) missing.push('حدد عنوان التوصيل');
   else if (!catalog.areasById.get(s.address.areaId)?.active) missing.push('منطقة التوصيل موقوفة أو غير معروفة — اختر عنواناً آخر');
@@ -38,11 +36,6 @@ export function openReviewDialog() {
           <div class="alert alert-danger missing">${icon('alert')}
             <div><strong>أكمل البيانات التالية قبل التأكيد:</strong><ul>${missing.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
           </div>` : ''}
-
-        <div class="review-row">
-          <span class="label">مصدر الطلب<span class="req">*</span></span>
-          <div class="seg ${s.source ? '' : 'needs'}" role="group" aria-label="مصدر الطلب">${sourceButtons(s.source)}</div>
-        </div>
 
         <div class="review-row">
           <span class="label">طريقة الدفع</span>
@@ -114,10 +107,9 @@ export function openReviewDialog() {
   };
 
   // orderNote is excluded so typing in the textarea never re-renders it.
-  const unbind = bind((s) => ({ source: s.source, cart: s.cart, customer: s.customer, address: s.address }), render);
+  const unbind = bind((s) => ({ cart: s.cart, customer: s.customer, address: s.address }), render);
   m.onClose(unbind);
 
-  on(m.el, 'click', '[data-source]', (e, btn) => setSource(btn.dataset.source));
   on(m.el, 'click', '[data-edit-customer]', () => openNewOrderDialog({ edit: !!getState().customer }));
   on(m.el, 'input', '[data-order-note]', (e, ta) => setOrderNote(ta.value));
   on(m.el, 'click', '[data-confirm]', async (e, btn) => {
@@ -128,7 +120,7 @@ export function openReviewDialog() {
     btn.innerHTML = `${icon('check')}جارٍ الإنشاء…`;
     try {
       const order = await ds.createDemoOrder({
-        source: s.source, cart: s.cart, customer: s.customer, address: s.address,
+        cart: s.cart, customer: s.customer, address: s.address,
         orderNote: s.orderNote.trim(), employee: s.user,
       });
       m.close();

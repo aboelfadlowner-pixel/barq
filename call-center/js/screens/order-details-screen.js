@@ -7,7 +7,7 @@ import { formatAddress, formatDateTime, formatTime, dayLabel } from '../utils/fo
 import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/pricing.js';
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
-import { money, statusChip, sourceChip, totalsRows, estimateNote } from '../components/chips.js';
+import { money, statusChip, totalsRows, estimateNote } from '../components/chips.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { can } from '../permissions.js';
 import { openPrintPreview } from '../components/print-ticket.js';
@@ -39,7 +39,7 @@ export function mountOrderDetails(view, orderId) {
           <div>
             <h1>طلب <span class="ltr-inline">${esc(order.number)}</span></h1>
             <div class="meta-row">
-              ${statusChip(order.status)} ${sourceChip(order.source)}
+              ${statusChip(order.status)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
               <span>أنشأه: ${esc(order.employee)}</span>
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>

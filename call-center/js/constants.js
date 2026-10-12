@@ -1,11 +1,6 @@
 /* App constants. Each item notes whether it is confirmed or only proposed. */
 
-/* CONFIRMED: the three order sources. */
-export const ORDER_SOURCES = [
-  { id: 'phone',    label: 'هاتف',   icon: 'phone' },
-  { id: 'whatsapp', label: 'واتساب', icon: 'whatsapp' },
-  { id: 'facebook', label: 'فيسبوك', icon: 'facebook' },
-];
+/* Order source (phone / WhatsApp / Facebook) was removed from the UI by decision. */
 
 /* CONFIRMED: cash on delivery is the only payment method. */
 export const PAYMENT_METHOD = { id: 'cash', label: 'كاش عند الاستلام' };

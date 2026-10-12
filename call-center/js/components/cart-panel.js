@@ -1,14 +1,16 @@
-/* Persistent cart panel: customer, items, delivery, totals, actions. */
+/* Order side panel (Foodics-style): order summary card (customer, phone, type,
+   address, notes), items, totals, "إرسال الطلب" and "حفظ كمسودة". */
 import {
-  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, clearCustomer, currentDeliveryFee,
+  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, currentDeliveryFee, setOrderNote,
 } from '../store.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress, formatWeight } from '../utils/format.js';
+import { PAYMENT_METHOD } from '../constants.js';
 import { computeTotals, lineTotal, perUnitLabel } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
-import { confirmDialog } from './modal.js';
+import { confirmDialog, showToast } from './modal.js';
 import { openWeightDialog } from './weight-dialog.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openReviewDialog } from './review-dialog.js';
@@ -16,44 +18,54 @@ import { openReviewDialog } from './review-dialog.js';
 export function mountCartPanel(el) {
   el.innerHTML = `
     <div class="cart-drawer-head">
-      <h2>السلة والعميل</h2>
-      <button type="button" class="btn btn-ghost btn-icon" data-action="close-cart" aria-label="إغلاق السلة">${icon('x')}</button>
+      <h2>ملخص الطلب</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-action="close-cart" aria-label="إغلاق">${icon('x')}</button>
     </div>
     <div class="cart-scroll">
-      <section class="cart-sec" data-sec="customer" aria-label="العميل"></section>
-      <section class="cart-sec" data-sec="items" aria-label="الأصناف"></section>
-      <section class="cart-sec" data-sec="delivery" aria-label="التوصيل"></section>
+      <section class="sum-card" data-sec="summary" aria-label="بيانات الطلب"></section>
+      <section class="cart-sec items-sec" data-sec="items" aria-label="الأصناف"></section>
     </div>
     <footer class="cart-foot" data-sec="footer"></footer>`;
 
   const sec = (name) => el.querySelector(`[data-sec="${name}"]`);
   const openNotes = new Set();
 
-  /* ---------- Customer ---------- */
-  const renderCustomer = ({ customer }) => {
-    const box = sec('customer');
+  /* ---------- Order summary card ---------- */
+  let noteOpen = false;
+  const row = (label, value) => `<div class="sum-row"><span class="k">${label}</span><div class="v">${value}</div></div>`;
+  const editBtn = (title) => `<button type="button" class="pen" data-action="edit-customer" title="${title}" aria-label="${title}">${icon('edit')}</button>`;
+  const renderSummary = ({ customer, address }) => {
+    const box = sec('summary');
     if (!customer) {
       box.innerHTML = `
-        <div class="sec-head"><h3>${icon('user')}العميل</h3></div>
-        <button type="button" class="btn btn-primary btn-block" data-action="edit-customer">${icon('headset')}بيانات العميل والعنوان</button>
-        <p class="hint">ابدأ برقم موبايل العميل — لو مسجل بياناته وعناوينه هتظهر لوحدها.</p>`;
+        <div class="sum-empty">
+          <p>ابدأ برقم موبايل العميل — لو مسجل، بياناته وعناوينه هتظهر لوحدها.</p>
+          <button type="button" class="btn btn-primary btn-block" data-action="edit-customer">${icon('headset')}بيانات العميل والعنوان</button>
+        </div>`;
       return;
     }
+    const area = address ? catalog.areasById.get(address.areaId) : null;
+    const note = getState().orderNote;
     box.innerHTML = `
-      <div class="sec-head">
-        <h3>${icon('user')}العميل</h3>
-        <button type="button" class="btn btn-ghost btn-sm" data-action="edit-customer">${icon('edit')}تغيير</button>
-      </div>
-      <div class="cust-card">
-        <div class="avatar">${esc(customer.name.charAt(0))}</div>
-        <div class="grow">
-          <div class="cust-name">${esc(customer.name)}
-            ${customer.isNew ? '<span class="tag tag-info">عميل جديد</span>' : '<span class="tag tag-green">مسجل</span>'}</div>
-          <div class="cust-phone ltr-inline">${esc(customer.phone)}${customer.phone2 ? ` / ${esc(customer.phone2)}` : ''}</div>
-        </div>
-        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-action="remove-customer" aria-label="إزالة العميل" title="إزالة العميل">${icon('x')}</button>
-      </div>
+      ${row('اسم العميل', `<span class="link-val">${esc(customer.name)}</span>${editBtn('تعديل العميل')}
+        ${customer.isNew ? '<span class="tag tag-info">جديد</span>' : ''}`)}
+      ${row('هاتف العميل', `<span class="ltr-inline num">${esc(customer.phone)}${customer.phone2 ? ` / ${esc(customer.phone2)}` : ''}</span>`)}
+      ${row('نوع الطلب', `<span class="link-val">توصيل</span><span class="muted"> · ${PAYMENT_METHOD.label}</span>`)}
+      ${row('العنوان', address ? `
+        <div class="addr-val">
+          <div><span class="link-val">${esc(address.label || 'العنوان')}</span>${editBtn('تغيير العنوان')}
+            ${address.isNew ? '<span class="tag tag-info">جديد</span>' : ''}${address.edited ? '<span class="tag tag-info">معدّل</span>' : ''}</div>
+          <div class="addr-extra">${esc(area?.name ?? 'منطقة غير معروفة')}${area ? ` · رسوم ${money(area.fee)}` : ''}</div>
+          <div class="addr-extra">${esc(formatAddress(address))}</div>
+          ${address.notes ? `<div class="addr-extra">${esc(address.notes)}</div>` : ''}
+        </div>` : `<button type="button" class="link-btn" data-action="edit-customer">${icon('plus')}اختر العنوان</button>`)}
+      ${row('ملاحظات العميل', noteOpen
+        ? `<textarea class="textarea" data-order-note rows="2" maxlength="300" placeholder="مثال: الاتصال قبل الوصول">${esc(note)}</textarea>`
+        : note
+          ? `<span class="note-val">${esc(note)}</span>${`<button type="button" class="pen" data-action="edit-note" aria-label="تعديل الملاحظات">${icon('edit')}</button>`}`
+          : `<button type="button" class="link-btn" data-action="edit-note">${icon('plus')}إضافة ملاحظات العميل</button>`)}
       ${todayWarning(customer.todayOrders)}`;
+    if (noteOpen) box.querySelector('[data-order-note]')?.focus();
   };
 
   /* ---------- Items ---------- */
@@ -63,10 +75,11 @@ export function mountCartPanel(el) {
     const head = `
       <div class="sec-head">
         <h3>${icon('cart')}الأصناف ${cart.length ? `<span class="count-pill num">${cart.length}</span>` : ''}</h3>
+        ${cart.length ? `<button type="button" class="btn btn-ghost btn-sm" data-action="clear">${icon('trash')}تفريغ</button>` : ''}
       </div>`;
     if (!cart.length) {
       box.innerHTML = `${head}
-        <div class="cart-empty">${icon('cart')}<strong>السلة فارغة</strong>ابحث باسم الصنف واضغط عليه لإضافته</div>`;
+        <div class="cart-empty">${icon('cart')}<strong>لسه مفيش أصناف</strong>ابحث باسم الصنف واضغط عليه لإضافته</div>`;
       return;
     }
     box.innerHTML = head + cart.map((l) => {
@@ -106,54 +119,23 @@ export function mountCartPanel(el) {
     }).join('');
   };
 
-  /* ---------- Delivery ---------- */
-  const renderDelivery = ({ customer, address }) => {
-    const box = sec('delivery');
-    const head = (btn = '') => `<div class="sec-head"><h3>${icon('pin')}التوصيل</h3>${btn}</div>`;
-    const note = `<div class="unconfirmed">${icon('info')}<span>الرسوم حسب منطقة التوصيل. المناطق والرسوم المعروضة تجريبية وقواعدها لم تُعتمد بعد.</span></div>`;
-    if (!customer) {
-      box.innerHTML = `${head()}<p class="hint" style="margin:0">حدد العميل أولاً لاختيار عنوان التوصيل.</p>`;
-      return;
-    }
-    if (!address) {
-      box.innerHTML = `${head()}<button type="button" class="btn btn-soft btn-block" data-action="edit-customer">${icon('pin')}اختر عنوان التوصيل</button>${note}`;
-      return;
-    }
-    const area = catalog.areasById.get(address.areaId);
-    box.innerHTML = `
-      ${head(`<button type="button" class="btn btn-ghost btn-sm" data-action="edit-customer">${icon('edit')}تغيير</button>`)}
-      <div class="addr-box">
-        ${address.label ? `<div class="addr-label">${esc(address.label)}</div>` : ''}
-        <div class="addr-area"><span>${esc(area?.name ?? 'منطقة غير معروفة')}</span>
-          ${area ? `<span class="fee-chip">${money(area.fee)}</span>` : ''}</div>
-        <div class="addr-text">${esc(formatAddress(address))}</div>
-        ${address.landmark ? `<div class="addr-extra">علامة مميزة: ${esc(address.landmark)}</div>` : ''}
-        ${address.notes ? `<div class="addr-extra">${esc(address.notes)}</div>` : ''}
-        ${address.isNew ? '<div class="addr-extra"><span class="tag tag-info">عنوان جديد</span></div>' : ''}
-        ${address.edited ? '<div class="addr-extra"><span class="tag tag-info">عنوان معدّل</span></div>' : ''}
-      </div>
-      ${note}`;
-  };
-
   /* ---------- Footer ---------- */
   const renderFooter = ({ cart }, s) => {
     const t = computeTotals(cart, currentDeliveryFee(s));
     sec('footer').innerHTML = `
       <div class="totals">${totalsRows(t)}</div>
       ${t.estimated ? estimateNote() : ''}
-      <div class="foot-actions">
-        <button type="button" class="btn btn-primary btn-lg" data-action="review" ${cart.length ? '' : 'disabled'}>
-          ${icon('clipboard')}مراجعة الطلب</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-action="clear" ${cart.length ? '' : 'disabled'}
-          title="تفريغ السلة">${icon('trash')}تفريغ</button>
+      <div class="foot-actions stack">
+        <button type="button" class="btn btn-primary btn-lg send-btn" data-action="review" ${cart.length && s.customer && s.address ? '' : 'disabled'}>
+          <span>إرسال الطلب</span>${icon('chevronLeft')}</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-action="save-draft" ${cart.length || s.customer ? '' : 'disabled'}>حفظ كمسودة</button>
       </div>`;
   };
 
   const unbinds = [
-    bind((s) => ({ customer: s.customer }), renderCustomer),
+    bind((s) => ({ customer: s.customer, address: s.address }), renderSummary),
     bind((s) => s.cart, renderItems),
-    bind((s) => ({ customer: s.customer, address: s.address }), renderDelivery),
-    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null }), renderFooter),
+    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address }), renderFooter),
   ];
 
   /* ---------- Events ---------- */
@@ -181,7 +163,11 @@ export function mountCartPanel(el) {
           el.querySelector(`[data-line="${line.lineId}"] [data-note]`)?.focus();
           break;
         case 'edit-customer': openNewOrderDialog({ edit: !!getState().customer }); break;
-        case 'remove-customer': clearCustomer(); break;
+        case 'edit-note': noteOpen = true; renderSummary(getState()); break;
+        case 'save-draft':
+          location.hash = '#/board';
+          showToast('اتحفظ الطلب كمسودة — تقدر تكمّله من كارت «مسودة»');
+          break;
         case 'review': openReviewDialog(); break;
         case 'clear':
           if (await confirmDialog({ title: 'تفريغ السلة', message: 'سيتم حذف كل الأصناف من السلة. بيانات العميل والعنوان ستبقى كما هي.', confirmLabel: 'تفريغ السلة', danger: true })) {
@@ -193,7 +179,10 @@ export function mountCartPanel(el) {
         default: break;
       }
     }),
-    // Notes save on blur/Enter (Esc cancels) so typing never re-renders the input.
+    // Order note: typing updates the draft without re-rendering; closing shows the text.
+    on(el, 'input', '[data-order-note]', (e, ta) => setOrderNote(ta.value)),
+    on(el, 'focusout', '[data-order-note]', () => { noteOpen = false; renderSummary(getState()); }),
+    // Line notes save on blur/Enter (Esc cancels) so typing never re-renders the input.
     on(el, 'focusout', '[data-note]', (e, input) => {
       const line = lineOf(input);
       if (!line) return;

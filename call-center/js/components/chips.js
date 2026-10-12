@@ -1,6 +1,5 @@
 /* Small shared display pieces: status chip, source chip, money. */
 import { catalog } from '../catalog.js';
-import { ORDER_SOURCES } from '../constants.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney } from '../utils/format.js';
 import { icon } from './icons.js';
@@ -8,12 +7,6 @@ import { icon } from './icons.js';
 export function statusChip(statusId) {
   const s = catalog.statusesById.get(statusId);
   return `<span class="status tone-${s?.tone ?? 'gray'}">${esc(s?.label ?? statusId)}</span>`;
-}
-
-export function sourceChip(sourceId) {
-  const s = ORDER_SOURCES.find((x) => x.id === sourceId);
-  if (!s) return '<span class="muted">—</span>';
-  return `<span class="src-chip">${icon(s.icon)}${esc(s.label)}</span>`;
 }
 
 export const money = (n) => `<span class="num">${formatMoney(n)}</span>`;
