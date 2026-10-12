@@ -155,3 +155,6 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
   box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity .15s;
 }
 .toast.show { opacity: 1; }
+
+/* Live mode (connected to the database): hide every demo-only label. */
+body.live .demo-pill, body.live .demo-only { display: none !important; }

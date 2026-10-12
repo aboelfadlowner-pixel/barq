@@ -16,11 +16,11 @@ export function openSuccessDialog(order) {
     body: `
       <div class="success">
         <div class="success-icon">${icon('check')}</div>
-        <h3>تم إنشاء طلب تجريبي</h3>
+        <h3>${order.isDemo ? 'تم إنشاء طلب تجريبي' : 'تم حفظ الطلب'}</h3>
         <div class="order-no ltr-inline">${esc(order.number)}</div>
         <div>الحالة: ${statusChip(order.status)}</div>
         <div class="muted">${esc(order.customer.name)} · ${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'} ${money(t.total)}</div>
-        <div class="alert alert-warn">${icon('info')}<span>طلب تجريبي محفوظ في ذاكرة المتصفح فقط. لم يُرسل إلى أي نظام، ويُحذف عند تحديث الصفحة.</span></div>
+        <div class="alert alert-warn demo-only">${icon('info')}<span>طلب تجريبي محفوظ في ذاكرة المتصفح فقط. لم يُرسل إلى أي نظام، ويُحذف عند تحديث الصفحة.</span></div>
       </div>`,
     footer: `
       <button type="button" class="btn btn-primary btn-lg" data-new>${icon('plus')}طلب جديد</button>

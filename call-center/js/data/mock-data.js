@@ -92,11 +92,8 @@ export const areas = [
   { id: 'area-d', name: 'البيطاش',          fee: 20 },
 ].map((a) => ({ active: true, ...a }));
 
-/* ---------- Order statuses — CONFIRMED: new and cancelled only ---------- */
-export const orderStatuses = [
-  { id: 'new',       label: 'جديد', tone: 'blue' },
-  { id: 'cancelled', label: 'ملغي', tone: 'red' },
-];
+/* ---------- Order statuses — CONFIRMED: new and cancelled only (shared with the real source) ---------- */
+export { ORDER_STATUSES as orderStatuses } from '../constants.js';
 
 /* ---------- Customers (fictional names, fake numbers) ---------- */
 const addr = (id, areaId, street, building, floor = '', apartment = '', landmark = '', notes = '') =>

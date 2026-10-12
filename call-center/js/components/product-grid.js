@@ -77,7 +77,7 @@ export function mountProductGrid(gridEl, metaEl) {
 
       if (!query) {
         metaEl.innerHTML = `<span><span class="num">${catalog.products.length}</span> صنف متاح</span>
-          <span class="muted">الأسعار والمنتجات تجريبية</span>`;
+          <span class="muted demo-only">الأسعار والمنتجات تجريبية</span>`;
         gridEl.innerHTML = `<div class="grid-empty grid-start">${icon('search')}
           <h3>اكتب اسم الصنف زي ما هو في الشيت</h3>
           <p>مثال: «رومي» أو «لبن» — تقدر كمان تبحث بالكود أو الباركود</p></div>`;

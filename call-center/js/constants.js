@@ -44,3 +44,9 @@ export const WEIGHT_STEP_GRAMS = 50;
 export const WEIGHT_MIN_GRAMS = 10;
 export const WEIGHT_MAX_GRAMS = 20000;
 export const MAX_PIECE_QTY = 999;
+
+/* CONFIRMED: order statuses are new and cancelled only (same values as the database). */
+export const ORDER_STATUSES = [
+  { id: 'new',       label: 'جديد', tone: 'blue' },
+  { id: 'cancelled', label: 'ملغي', tone: 'red' },
+];

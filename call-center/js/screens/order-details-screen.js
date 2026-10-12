@@ -25,7 +25,7 @@ export function mountOrderDetails(view, orderId) {
         <div class="page"><div class="page-inner">
           <a href="#/orders" class="back-link">${icon('arrowRight')}رجوع للطلبات</a>
           <div class="card card-pad"><h2>الطلب غير موجود</h2>
-            <p class="muted">الطلبات التجريبية الجديدة تُحذف عند تحديث الصفحة.</p></div>
+            <p class="muted demo-only">الطلبات التجريبية الجديدة تُحذف عند تحديث الصفحة.</p></div>
         </div></div>`;
       return;
     }

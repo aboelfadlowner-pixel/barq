@@ -2,10 +2,20 @@
 import { catalog } from './catalog.js';
 import { MAX_PIECE_QTY } from './constants.js';
 
+/* One id per draft: sending the same draft again (double click, retry after a
+   network error) returns the same order instead of creating a second one. */
+const newRequestId = () => (globalThis.crypto?.randomUUID
+  ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  }));
+
 const emptyDraft = () => ({
+  requestId: newRequestId(),
   cart: [],         // { lineId, productId, name, unitType, unitLabel, price, qty|grams, note }
   customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
-  address: null,    // { id|null, isNew, areaId, street, building, floor, apartment, landmark, notes }
+  address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
 });
 

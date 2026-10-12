@@ -23,22 +23,29 @@ call-center/
   index.html              App shell
   css/                    tokens · base · layout · components
   js/
-    app.js                Bootstrap + hash router (#/pos, #/orders, #/orders/:id)
+    config.js             DATA_MODE ('mock' | 'supabase'), project URL, public anon key, account email
+    app.js                Bootstrap (sign-in when connected) + hash router
     store.js              State (cart, customer, address, order note) + actions
     catalog.js            Reference data cached at startup
     constants.js          Limits, housing types, weight presets
     data/
-      mock-data.js        ⚠️ ALL MOCK DATA (products, customers, areas, fees, statuses, orders)
-      data-source.js      The ONLY data access layer used by the UI
+      data-source.js      The ONLY data access layer used by the UI — forwards to one of:
+      mock-source.js        demo data in browser memory (mock-data.js ⚠️ all fictional)
+      supabase-source.js    the cc_* tables and functions in Supabase
     components/           Topbar, categories, product grid, cart, dialogs, address form…
-    screens/              POS, orders list, order details
+    screens/              Board, POS, orders list, order details, areas, sign-in
     utils/                Formatting, Arabic/phone normalization, totals, order summary
 ```
 
-## Replacing the mock data later
+## Connecting to Supabase
 
-Re-implement the functions in `js/data/data-source.js` (same names and return shapes) against the
-approved real source. UI components do not import `mock-data.js` directly.
+1. Apply `db/apply_cc.sql` to the target project (only after approval — see `db/README.md`).
+2. In `js/config.js` set `DATA_MODE = 'supabase'`, `SUPABASE_URL`, the **public anon key** and
+   `ACCOUNT_EMAIL` (the one call-center account). Never put the service_role key or a password there.
+3. Open the app: it asks for the password once per device, then remembers the session.
+
+In connected mode every "تجريبي" label is hidden; prices, fees and totals come from the database;
+sending the same draft twice returns the same order. supabase-js 2.45.4 loads from jsDelivr.
 
 ## Confirmed decisions reflected in the demo
 

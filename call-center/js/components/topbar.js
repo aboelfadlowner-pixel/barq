@@ -1,7 +1,9 @@
-/* Top bar: brand, navigation, account name. */
-import { bind } from '../store.js';
+/* Top bar: brand, navigation, account name (+ sign out when connected to the database). */
+import { bind, getState, resetDraft } from '../store.js';
+import * as ds from '../data/data-source.js';
+import { confirmDialog } from './modal.js';
 import { can } from '../permissions.js';
-import { esc } from '../utils/dom.js';
+import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
 
 const brand = `
@@ -14,6 +16,20 @@ const brand = `
   </div>`;
 
 export function mountTopbar(el) {
+  on(el, 'click', '[data-logout]', async () => {
+    const s = getState();
+    const unsent = s.cart.length || s.customer;
+    if (!(await confirmDialog({
+      title: 'تسجيل الخروج',
+      message: `${unsent ? 'فيه طلب لسه ما اتبعتش وهيتمسح. ' : ''}بعد الخروج هتحتاج كلمة السر عشان تدخل تاني على الجهاز ده.`,
+      confirmLabel: 'خروج', danger: true,
+    }))) return;
+    resetDraft();
+    await ds.signOut();
+    location.hash = '#/board';
+    location.reload();
+  });
+
   return bind((s) => ({ route: s.route, user: s.user }), ({ route, user }) => {
     if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
@@ -33,6 +49,7 @@ export function mountTopbar(el) {
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
         <span class="user-chip">${icon('headset')}${esc(user.name)}</span>
+        ${ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`}
       </div>`;
   });
 }

@@ -468,3 +468,9 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .combo-list li[aria-selected="true"] { font-weight: 800; }
 .combo-list .combo-empty { color: var(--muted); cursor: default; font-weight: 600; }
 .combo-list .combo-empty:hover { background: none; color: var(--muted); }
+
+/* ---------- Sign-in (Supabase mode) ---------- */
+.login-page { height: 100%; overflow-y: auto; display: grid; place-items: center; padding: 24px 16px; background: var(--surface); }
+.login-card { width: min(420px, 100%); padding: 26px 24px; display: flex; flex-direction: column; gap: 14px; }
+.login-card h1 { font-size: 20px; font-weight: 900; }
+.login-note { font-size: 12.5px; text-align: center; }

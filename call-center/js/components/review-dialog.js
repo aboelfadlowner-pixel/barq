@@ -94,7 +94,7 @@ export function openReviewDialog() {
           </div>
         </div>
 
-        <div class="alert alert-warn">${icon('info')}<span>وضع تجريبي: التأكيد ينشئ طلباً في ذاكرة المتصفح فقط. لا يتم إرسال أو حفظ أي شيء في أي نظام حقيقي.</span></div>
+        <div class="alert alert-warn demo-only">${icon('info')}<span>وضع تجريبي: التأكيد ينشئ طلباً في ذاكرة المتصفح فقط. لا يتم إرسال أو حفظ أي شيء في أي نظام حقيقي.</span></div>
       </div>`;
 
     m.foot.innerHTML = `
@@ -119,8 +119,8 @@ export function openReviewDialog() {
     btn.disabled = true;
     btn.innerHTML = `${icon('check')}جارٍ الإنشاء…`;
     try {
-      const order = await ds.createDemoOrder({
-        cart: s.cart, customer: s.customer, address: s.address,
+      const order = await ds.createOrder({
+        requestId: s.requestId, cart: s.cart, customer: s.customer, address: s.address,
         orderNote: s.orderNote.trim(), employee: s.user,
       });
       m.close();
