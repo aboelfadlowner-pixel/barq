@@ -520,7 +520,7 @@ declare
 begin
   select * into v_staff from public.cc_staff where user_id = auth.uid() and active;
   if not found then
-    raise exception 'إلغاء الطلب للمشرف فقط' using errcode = '42501';
+    raise exception 'غير مصرح' using errcode = '42501';
   end if;
   if p_reason is null or length(btrim(p_reason)) = 0 then
     raise exception 'سبب الإلغاء مطلوب' using errcode = '22023', hint = 'reason';
@@ -553,7 +553,7 @@ declare
   v_area public.cc_delivery_areas;
 begin
   if not public.cc_is_staff() then
-    raise exception 'تعديل المناطق للمشرف فقط' using errcode = '42501';
+    raise exception 'غير مصرح' using errcode = '42501';
   end if;
   if p_name is null or char_length(btrim(p_name)) not between 1 and 80 then
     raise exception 'اسم المنطقة مطلوب وبحد أقصى 80 حرف' using errcode = '22023', hint = 'name';
