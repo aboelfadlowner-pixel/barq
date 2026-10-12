@@ -2,8 +2,8 @@
 --  Abu El Fadl Call Center — schema (FOR REVIEW — NOT APPLIED ANYWHERE)
 --
 --  Adds new cc_* objects only. Does NOT alter, drop or write to any
---  existing table. products_master is only read (inside cc_list_products
---  and cc_create_order).
+--  existing table. products_master and dc_stock_levels are only read (inside
+--  cc_list_products, cc_create_order and cc_sold_by).
 --
 --  Apply 01 + 02 + 03 together in ONE transaction (see apply_cc.sql), so a
 --  failure leaves nothing behind and no table is ever visible without RLS.
@@ -23,6 +23,12 @@ begin
        where table_schema = 'public' and table_name = 'products_master'
          and column_name in ('sku', 'name', 'barcode', 'price')) <> 4 then
     raise exception 'products_master ناقصه عمود من (sku, name, barcode, price). وقف التطبيق.';
+  end if;
+  -- Storage Unit from the DC sheet decides "sold by weight" (read only).
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public' and table_name = 'dc_stock_levels'
+         and column_name in ('sku', 'unit')) <> 2 then
+    raise exception 'جدول dc_stock_levels (sku, unit) غير موجود — مصدر «وحدة التخزين». وقف التطبيق.';
   end if;
 end $$;
 

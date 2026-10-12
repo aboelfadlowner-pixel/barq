@@ -52,6 +52,10 @@ begin
   if n4 > 1000 then raise exception 'FAIL T03 limit not capped'; end if;
   select pg_get_function_result('public.cc_list_products(text,int)'::regprocedure) into cols;
   if cols ~* 'cost|margin' then raise exception 'FAIL T03 cost/margin exposed: %', cols; end if;
+  if (select string_agg(sku || '=' || sold_by, ',' order by sku) from public.cc_list_products(null, 1000))
+     <> 'T-101=weight,T-104=weight,T-201=unit,T-203=unit,T-900=unit' then
+    raise exception 'FAIL T03 sold_by: %', (select string_agg(sku || '=' || sold_by, ',' order by sku) from public.cc_list_products(null, 1000));
+  end if;
   raise notice 'PASS T03 products: % rows, pages 2+2+%, result columns = %', total, n3, cols;
 end $$;
 rollback;
@@ -359,3 +363,57 @@ begin
   if bad is not null then raise exception 'FAIL T16 %', bad; end if;
   raise notice 'PASS T16 all cc_* functions: SECURITY DEFINER, search_path empty, no anon EXECUTE';
 end $$;
+
+-- T20 — sold by unit vs by weight (Storage Unit): decimals rejected for unit products,
+--       kg lines only for كيلو products, لتر counts as unit; nothing saved on rejection
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare before int; cust uuid; addr uuid; msg text; o public.cc_orders;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select count(*) into before from public.cc_orders;
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id into addr from public.cc_addresses where customer_id = cust limit 1;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-203","qty":1.5}]'); raise exception 'FAIL T20 decimal qty accepted';
+  exception when invalid_parameter_value then get stacked diagnostics msg = message_text; end;
+  if msg not like 'لا يمكن أن تحتوي الكمية على أرقام عشرية%' then raise exception 'FAIL T20 decimal message: %', msg; end if;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-203","qty":"1.5"}]'); raise exception 'FAIL T20 decimal qty (text) accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-203","weight_grams":500}]'); raise exception 'FAIL T20 weight on unit product accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-201","weight_grams":1000}]'); raise exception 'FAIL T20 liter product sold by weight';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-900","weight_grams":500}]'); raise exception 'FAIL T20 no-unit product sold by weight';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-101","qty":1}]'); raise exception 'FAIL T20 piece qty on kilo product accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+          '[{"sku":"T-101","weight_grams":250.5}]'); raise exception 'FAIL T20 fractional grams accepted';
+  exception when invalid_parameter_value then null; end;
+  if (select count(*) from public.cc_orders) <> before then raise exception 'FAIL T20 a rejected order was saved'; end if;
+  o := public.cc_create_order(gen_random_uuid(), 'phone', json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+         '[{"sku":"T-101","weight_grams":250},{"sku":"T-201","qty":2}]');
+  if o.subtotal <> 189.00 or not o.is_estimated then raise exception 'FAIL T20 totals % / %', o.subtotal, o.is_estimated; end if;
+  raise notice 'PASS T20 unit products whole numbers only (Arabic decimal message), كيلو by weight, لتر/no unit by unit';
+end $$;
+rollback;
+
+-- T21 — the internal helper cc_sold_by is not callable by signed-in users
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'agent@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_sold_by('T-101'); raise exception 'FAIL T21 agent called cc_sold_by directly';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T21 cc_sold_by is internal only';
+end $$;
+rollback;

@@ -25,16 +25,37 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
+-- How a product is sold (CONFIRMED): from the DC sheet's Storage Unit
+-- (dc_stock_levels.unit, read only, joined by sku).
+--   'weight' : every row for the sku says كيلو → quantity in kg, decimals allowed.
+--   'unit'   : anything else (Unit, علبة, لتر, كرتونة, …) or no row → whole numbers only.
+-- Unknown or mixed values fall back to 'unit' (the safer choice).
+-- ---------------------------------------------------------------------
+create or replace function public.cc_sold_by(p_sku text)
+returns text
+language sql stable security definer
+set search_path = ''
+as $$
+  select case when bool_and(btrim(s.unit) = 'كيلو') then 'weight' else 'unit' end
+    from public.dc_stock_levels s
+   where s.sku = p_sku
+$$;
+
+-- ---------------------------------------------------------------------
 -- Product list for the call center (M3). Replaces the earlier cc_products view.
 --   • Active staff only; anyone else gets an error.
---   • Returns code, name, barcode and price only — never cost or margin.
+--   • Returns code, name, barcode, price and sold_by ('weight' | 'unit') —
+--     never cost or margin.
 --   • Keyset pages ordered by sku: pass the last sku of the previous page.
 --     At most 1,000 rows per call (Supabase's default API row limit).
 --   • A sku that appears more than once in products_master is left out (M4),
 --     so the app can never show or order a product with an ambiguous price.
 -- ---------------------------------------------------------------------
-create or replace function public.cc_list_products(p_after_sku text default null, p_limit int default 1000)
-returns table (sku text, name text, barcode text, price numeric)
+-- The result columns changed (sold_by added), and "create or replace" cannot
+-- change them, so the old version is dropped first. Grants are re-applied in 03.
+drop function if exists public.cc_list_products(text, int);
+create function public.cc_list_products(p_after_sku text default null, p_limit int default 1000)
+returns table (sku text, name text, barcode text, price numeric, sold_by text)
 language plpgsql stable security definer
 set search_path = ''
 as $$
@@ -44,7 +65,8 @@ begin
   end if;
 
   return query
-    select p.sku, p.name, p.barcode, coalesce(p.price, 0)::numeric(12,2)
+    select p.sku, p.name, p.barcode, coalesce(p.price, 0)::numeric(12,2),
+           coalesce(public.cc_sold_by(p.sku), 'unit')
       from public.products_master p
      where p.sku is not null
        and (p_after_sku is null or p.sku > p_after_sku)
@@ -64,8 +86,9 @@ $$;
 --             or {"name": text, "phone": text, "phone2"?: text}
 --   p_address  : {"id": uuid}
 --             or {"area_id": uuid, "street", "building", "floor"?, "apartment"?, "landmark"?, "notes"?}
---   p_items    : [{"sku": text, "qty": int, "note"?: text}
---               | {"sku": text, "weight_grams": int, "note"?: text}, ...]
+--   p_items    : [{"sku": text, "qty": int, "note"?: text}            ← products sold by unit
+--               | {"sku": text, "weight_grams": int, "note"?: text}, ...] ← products sold by weight
+--               The database checks each line against cc_sold_by(sku).
 --   Any "price" sent by the app is ignored.
 -- ---------------------------------------------------------------------
 create or replace function public.cc_create_order(
@@ -92,6 +115,7 @@ declare
   v_prod     record;
   v_qty      int;
   v_grams    int;
+  v_sold_by  text;
   v_total    numeric(12,2);
   v_subtotal numeric(12,2) := 0;
   v_est      boolean := false;
@@ -220,10 +244,30 @@ begin
           using errcode = 'P0003', hint = 'items';
     end;
 
+    -- Quantity must be a whole number (checked before casting, so 1.5 gets a clear message).
+    if v_item ? 'qty' and coalesce(v_item->>'qty', '') !~ '^[0-9]+$' then
+      if v_item->>'qty' ~ '^[0-9]*[.][0-9]+$' then
+        raise exception 'لا يمكن أن تحتوي الكمية على أرقام عشرية في المنتجات التي يتم بيعها بالوحدة. (السطر %)', v_line_no
+          using errcode = '22023', hint = 'items';
+      end if;
+      raise exception 'الكمية غير صحيحة في السطر %', v_line_no using errcode = '22023', hint = 'items';
+    end if;
+    if v_item ? 'weight_grams' and coalesce(v_item->>'weight_grams', '') !~ '^[0-9]+$' then
+      raise exception 'الوزن غير صحيح في السطر %', v_line_no using errcode = '22023', hint = 'items';
+    end if;
     v_qty   := (v_item->>'qty')::int;
     v_grams := (v_item->>'weight_grams')::int;
     if (v_qty is null) = (v_grams is null) then
       raise exception 'السطر % لازم يكون بالكمية أو بالوزن', v_line_no using errcode = '22023', hint = 'items';
+    end if;
+
+    -- The line must match how the product is sold.
+    v_sold_by := coalesce(public.cc_sold_by(v_prod.sku), 'unit');
+    if v_sold_by = 'unit' and v_grams is not null then
+      raise exception 'الصنف «%» بيتباع بالوحدة — اكتب الكمية بالعدد', v_prod.name using errcode = '22023', hint = 'items';
+    end if;
+    if v_sold_by = 'weight' and v_qty is not null then
+      raise exception 'الصنف «%» بيتباع بالوزن — اكتب الوزن بالكيلو', v_prod.name using errcode = '22023', hint = 'items';
     end if;
     if v_qty is not null and v_qty not between 1 and 999 then
       raise exception 'الكمية غير صحيحة في السطر %', v_line_no using errcode = '22023', hint = 'items';

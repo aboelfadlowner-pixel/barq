@@ -5,7 +5,7 @@ Nothing in this folder has been run on the real Supabase project.
 | File | What it does | Where it may run |
 |---|---|---|
 | `01_schema.sql` | Preflight check + new `cc_*` tables + order-number sequence | via `apply_cc.sql` only |
-| `02_functions.sql` | `cc_my_role`, `cc_list_products`, `cc_create_order`, `cc_cancel_order`, `cc_save_area` | via `apply_cc.sql` only |
+| `02_functions.sql` | `cc_my_role`, `cc_sold_by` (internal), `cc_list_products`, `cc_create_order`, `cc_cancel_order`, `cc_save_area` | via `apply_cc.sql` only |
 | `03_security.sql` | RLS, grants, EXECUTE rights | via `apply_cc.sql` only |
 | `build_apply.sh` | Builds `apply_cc.sql` = 01+02+03 in ONE transaction | local |
 | `apply_cc.sql` | The file to run (all or nothing, safe to re-run) | test project, later production (after approval) |
@@ -14,7 +14,7 @@ Nothing in this folder has been run on the real Supabase project.
 | `test/00_local_supabase_stub.sql` | Fake `auth` schema for a plain local Postgres | **local sandbox only** |
 | `test/01_products_master_stub.sql` | `products_master` copy with fictional rows | **test project / local only — never production** |
 | `test/02_seed_test_data.sql` | Staff rows for test users + test areas | **test project / local only** |
-| `test/10_tests.sql` | Roles, products paging, pricing, weight, duplicates, cancel, limits | **test project / local only** |
+| `test/10_tests.sql` | Roles, products paging, pricing, weight, sold by unit/weight, duplicates, cancel, limits | **test project / local only** |
 | `test/20_concurrency.sh` | Same draft from two sessions at once (M2) | **test project / local only** |
 | `test/run_local.sh` | Runs everything on a throwaway local Postgres in /tmp | local |
 
@@ -34,7 +34,11 @@ Rules the SQL enforces:
 - The app never sends prices. `cc_create_order` reads prices from `products_master` and the fee from `cc_delivery_areas`.
 - Weight lines: `price_per_kg × grams / 1000`, rounded to 2 decimals.
 - `client_request_id` (one per draft) + a transaction-level advisory lock: a repeated or simultaneous submit returns the same order.
-- Products are read only through `cc_list_products` (4 columns, staff only, pages of ≤1,000); duplicated skus are excluded and rejected.
+- Products are read only through `cc_list_products` (sku, name, barcode, price, sold_by; staff only, pages of ≤1,000); duplicated skus are excluded and rejected.
+- "Sold by" comes from the DC Storage Unit (`dc_stock_levels.unit`, read only): `كيلو` → `weight`; anything else
+  (including `لتر`) or no row → `unit`. `cc_create_order` rejects a decimal quantity on a unit product with
+  "لا يمكن أن تحتوي الكمية على أرقام عشرية في المنتجات التي يتم بيعها بالوحدة.", a weight on a unit product, and a
+  piece quantity on a weight product. The apply stops if `dc_stock_levels (sku, unit)` is missing.
 - Every function: `SECURITY DEFINER`, `search_path = ''`, no EXECUTE for `anon`.
 - No direct insert/update/delete on `cc_*` tables; writes only through the functions.
 - `anon` has no access to any `cc_*` object.

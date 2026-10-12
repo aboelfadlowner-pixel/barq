@@ -16,7 +16,7 @@ begin
     raise exception 'STOP: products_master موجود بالفعل — الملف ده للمشروع التجريبي الفاضي بس. مفيش أي تغيير اتعمل.';
   end if;
   if to_regclass('public.branch_orders') is not null or to_regclass('public.dc_products') is not null
-     or to_regclass('public.pricing_requests_v3') is not null then
+     or to_regclass('public.pricing_requests_v3') is not null or to_regclass('public.dc_stock_levels') is not null then
     raise exception 'STOP: فيه جداول من قاعدة البيانات الحقيقية — ده مش المشروع التجريبي. مفيش أي تغيير اتعمل.';
   end if;
 end $$;
@@ -39,5 +39,16 @@ insert into public.products_master (sku, name, barcode, cost, price) values
   ('T-201', 'لبن كامل الدسم (تجريبي)',  '6220000000201',  30,  42),
   ('T-203', 'زبادي طبيعي (تجريبي)',     '6220000000203',   6,   9),
   ('T-900', 'صنف بدون سعر (تجريبي)',    null,              0,   0);
+
+-- Storage Unit (same columns the app reads from the real dc_stock_levels).
+-- T-101/T-104 كيلو → weight · T-201 لتر → unit · T-203 Unit → unit · T-900 no row → unit.
+create table public.dc_stock_levels (sku text, name text, unit text, qty numeric default 0);
+comment on table public.dc_stock_levels is 'CC_TEST_STUB — fictional storage units for the call-center test project';
+alter table public.dc_stock_levels enable row level security;
+insert into public.dc_stock_levels (sku, name, unit) values
+  ('T-101', 'جبنة رومي قديمة (تجريبي)', 'كيلو'),
+  ('T-104', 'جبنة إسطنبولي (تجريبي)',   ' كيلو '),
+  ('T-201', 'لبن كامل الدسم (تجريبي)',  'لتر'),
+  ('T-203', 'زبادي طبيعي (تجريبي)',     'Unit');
 
 commit;

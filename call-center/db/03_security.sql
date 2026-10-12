@@ -58,6 +58,8 @@ drop view if exists public.cc_products;
 -- PUBLIC / anon on new functions — remove that, then allow signed-in users only.
 -- Each function still checks the caller's staff role itself.
 revoke all on function public.cc_my_role()                                              from public, anon;
+-- cc_sold_by is internal (used by the functions below); nobody calls it directly.
+revoke all on function public.cc_sold_by(text)                                          from public, anon, authenticated;
 revoke all on function public.cc_list_products(text, int)                               from public, anon;
 revoke all on function public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, text)    from public, anon;
 revoke all on function public.cc_cancel_order(uuid, text)                               from public, anon;

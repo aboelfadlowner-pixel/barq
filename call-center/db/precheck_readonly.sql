@@ -30,5 +30,15 @@ select count(*) as required_columns
  where table_schema = 'public' and table_name = 'products_master'
    and column_name in ('sku', 'name', 'barcode', 'price');
 
--- 5) Do existing tools sign people up through Supabase Auth? (before turning off sign-ups)
+-- 5) Storage Unit source for "sold by weight" — expect 2 columns, 0 duplicated skus,
+--    and the unit counts (كيلو → weight, everything else → unit).
+select count(*) as dc_stock_levels_columns from information_schema.columns
+ where table_schema = 'public' and table_name = 'dc_stock_levels' and column_name in ('sku', 'unit');
+select count(*) as dc_duplicated_skus
+  from (select sku from public.dc_stock_levels group by sku having count(*) > 1) d;
+select case when btrim(s.unit) = 'كيلو' then 'weight' else 'unit' end as sold_by, count(*) as products
+  from public.products_master p left join public.dc_stock_levels s on s.sku = p.sku
+ group by 1;
+
+-- 6) Do existing tools sign people up through Supabase Auth? (before turning off sign-ups)
 select count(*) as auth_users, max(created_at) as last_signup from auth.users;

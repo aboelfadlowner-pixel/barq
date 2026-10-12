@@ -45,11 +45,14 @@ psql -X -q -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<'SQL'
 create table public.products_master (sku text primary key, name text, barcode text, cost numeric, price numeric);
 insert into public.products_master values ('REAL-1', 'صنف حقيقي', null, 10, 20);
 create table public.branch_orders (id int);
+create table public.dc_stock_levels (sku text, unit text);
+insert into public.dc_stock_levels values ('REAL-1', 'كيلو');
 SQL
 psql -X -q -v ON_ERROR_STOP=1 -f apply_cc.sql >/dev/null 2>&1
 snap() { psql -X -t -A -c "select (select string_agg(sku||':'||price, ',') from public.products_master)
   || ' | staff=' || (select count(*) from public.cc_staff) || ' areas=' || (select count(*) from public.cc_delivery_areas)
   || ' orders=' || (select count(*) from public.cc_orders) || ' pk=' || (select count(*) from pg_constraint where conname = 'products_master_pkey')
+  || ' dc=' || (select string_agg(sku||':'||unit, ',') from public.dc_stock_levels)
   || ' auth_uid_src=' || md5((select prosrc from pg_proc where oid = 'auth.uid()'::regprocedure))"; }
 BEFORE=$(snap)
 for f in test/00_local_supabase_stub.sql test/01_products_master_stub.sql test/02_seed_test_data.sql test/10_tests.sql; do
