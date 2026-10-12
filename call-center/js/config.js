@@ -16,3 +16,8 @@ export const SUPABASE_ANON_KEY = '';   // public anon key only
 /* The one shared call-center account (Supabase Auth email). When set, the
    login screen asks for the password only. */
 export const ACCOUNT_EMAIL = '';
+
+/* One-time helper: shows "إنشاء الأكونت لأول مرة" on the sign-in screen so the
+   call-center account can be created without the Supabase dashboard. A new
+   account sees nothing until it is linked in cc_staff. Keep false otherwise. */
+export const ALLOW_SIGNUP = false;

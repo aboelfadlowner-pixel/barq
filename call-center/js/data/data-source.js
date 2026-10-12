@@ -16,6 +16,7 @@ const impl = IS_MOCK ? await import('./mock-source.js') : await import('./supaba
 export const getAccount = () => impl.getAccount();
 export const signIn     = (email, password) => impl.signIn(email, password);
 export const signOut    = () => impl.signOut();
+export const signUp     = (email, password) => impl.signUp(email, password);
 
 /* Catalog */
 export const getProducts      = () => impl.getProducts();

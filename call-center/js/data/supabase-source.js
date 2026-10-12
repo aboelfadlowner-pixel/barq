@@ -153,6 +153,25 @@ export async function signIn(email, password) {
   return account;
 }
 
+/* One-time account creation (ALLOW_SIGNUP). The account can read nothing until
+   it is linked in cc_staff. Returns whether an email confirmation is pending. */
+export async function signUp(email, password) {
+  const c = await sb();
+  const { data, error } = await c.auth.signUp({
+    email: email.trim(), password,
+    options: { emailRedirectTo: location.origin + location.pathname },
+  });
+  if (error) {
+    const m = String(error.message || '').toLowerCase();
+    if (m.includes('already')) throw new Error('الإيميل ده عنده أكونت بالفعل — ادخل بيه');
+    if (m.includes('not allowed') || m.includes('disabled')) throw new Error('إنشاء الأكونتات مقفول في المشروع — لازم يتعمل من لوحة Supabase');
+    if (m.includes('password')) throw new Error('كلمة السر ضعيفة — خليها 8 حروف/أرقام على الأقل');
+    throw new Error('تعذر إنشاء الأكونت — تأكد من الإنترنت وحاول تاني');
+  }
+  if (data.session) await c.auth.signOut();   // not linked yet: don't keep a session
+  return { needsConfirmation: !data.session };
+}
+
 export async function signOut() {
   const c = await sb();
   await c.auth.signOut();

@@ -26,6 +26,7 @@ export const getOrderStatuses = () => resolve(mock.orderStatuses);
 export const getAccount = () => resolve(mock.account);
 export const signIn = () => resolve(mock.account);
 export const signOut = () => Promise.resolve();
+export const signUp = () => Promise.resolve({ needsConfirmation: false });
 
 /* ---------- Customers ---------- */
 function lastOrderAt(customerId) {
