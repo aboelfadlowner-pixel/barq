@@ -94,6 +94,7 @@ export function createDemoOrder(draft) {
     number: `DEMO-${no}`,
     createdAt: now,
     type: 'delivery',
+    paymentMethod: 'cash',
     source,
     customer: { id: cust.id, name: cust.name, phone: customer.phone },
     address: { ...addrFields, id: addrId, areaName: area.name },

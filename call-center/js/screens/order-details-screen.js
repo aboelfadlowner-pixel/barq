@@ -10,6 +10,7 @@ import { icon } from '../components/icons.js';
 import { money, statusChip, sourceChip, totalsRows, estimateNote } from '../components/chips.js';
 import { confirmDialog, showToast } from '../components/modal.js';
 import { openPrintPreview } from '../components/print-ticket.js';
+import { PAYMENT_METHOD } from '../constants.js';
 
 export function mountOrderDetails(view, orderId) {
   view.innerHTML = '<div class="page"><div class="page-inner"><p class="muted">جارٍ التحميل…</p></div></div>';
@@ -40,6 +41,7 @@ export function mountOrderDetails(view, orderId) {
               ${statusChip(order.status)} ${sourceChip(order.source)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
               <span>أنشأه: ${esc(order.employee)}</span>
+              <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
               ${order.isDemo ? '<span class="demo-pill">طلب تجريبي</span>' : ''}
             </div>
           </div>

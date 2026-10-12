@@ -198,6 +198,7 @@ export function buildSampleOrders(now = new Date()) {
       number: `DEMO-${1001 + i}`,
       createdAt: created.toISOString(),
       type: 'delivery',
+      paymentMethod: 'cash',
       source: t.src,
       customer: { id: cust.id, name: cust.name, phone: cust.phones[0] },
       address: { ...address, areaName: area.name },

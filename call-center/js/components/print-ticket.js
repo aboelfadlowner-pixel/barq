@@ -1,5 +1,5 @@
 /* Printable order ticket (80mm receipt layout) + preview dialog. */
-import { ORDER_SOURCES } from '../constants.js';
+import { ORDER_SOURCES, PAYMENT_METHOD } from '../constants.js';
 import { esc } from '../utils/dom.js';
 import { formatAddress, formatMoney, formatDateTime } from '../utils/format.js';
 import { computeTotals, lineTotal, quantityLabel } from '../utils/pricing.js';
@@ -22,6 +22,7 @@ export function ticketHtml(order) {
         <div><span>التاريخ</span><span class="num">${formatDateTime(order.createdAt)}</span></div>
         <div><span>المصدر</span><span>${esc(source)}</span></div>
         <div><span>الموظف</span><span>${esc(order.employee)}</span></div>
+        <div><span>الدفع</span><span>${PAYMENT_METHOD.label}</span></div>
       </div>
 
       <div class="tk-sec">
@@ -56,6 +57,7 @@ export function ticketHtml(order) {
         <div><span>رسوم التوصيل</span><span class="num">${formatMoney(t.deliveryFee ?? 0)}</span></div>
         <div class="tk-total"><span>${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}</span><span class="num">${formatMoney(t.total)}</span></div>
       </div>
+      <div class="tk-cash">المطلوب تحصيله كاش: <span class="num">${formatMoney(t.total)}</span></div>
       ${t.estimated ? '<div class="tk-hint">الأصناف الموزونة تُحسب حسب الوزن الفعلي</div>' : ''}
       ${order.note ? `<div class="tk-sec"><div class="tk-title">ملاحظات الطلب</div><div>${esc(order.note)}</div></div>` : ''}
     </div>`;

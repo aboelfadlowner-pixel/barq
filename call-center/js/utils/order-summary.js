@@ -1,5 +1,5 @@
 /* Plain-text order summary (for pasting into WhatsApp / Facebook chats). */
-import { ORDER_SOURCES } from '../constants.js';
+import { ORDER_SOURCES, PAYMENT_METHOD } from '../constants.js';
 import { formatAddress, formatMoney } from './format.js';
 import { computeTotals, lineTotal, quantityLabel } from './pricing.js';
 
@@ -20,6 +20,7 @@ export function buildOrderSummary(order) {
     `المجموع: ${formatMoney(t.subtotal)}`,
     `رسوم التوصيل: ${formatMoney(t.deliveryFee ?? 0)}`,
     `${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}: ${formatMoney(t.total)}`,
+    `الدفع: ${PAYMENT_METHOD.label}`,
     t.estimated ? '* السعر النهائي حسب الوزن الفعلي' : null,
     order.note ? `ملاحظات: ${order.note}` : null,
   ];

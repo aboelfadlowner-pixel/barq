@@ -7,6 +7,9 @@ export const ORDER_SOURCES = [
   { id: 'facebook', label: 'فيسبوك', icon: 'facebook' },
 ];
 
+/* CONFIRMED: cash on delivery is the only payment method. */
+export const PAYMENT_METHOD = { id: 'cash', label: 'كاش عند الاستلام' };
+
 /* CONFIRMED: order type is delivery. */
 export const ORDER_TYPE = 'delivery';
 

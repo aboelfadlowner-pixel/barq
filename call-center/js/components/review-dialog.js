@@ -9,6 +9,7 @@ import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { openModal, showToast } from './modal.js';
 import { sourceButtons } from './topbar.js';
+import { PAYMENT_METHOD } from '../constants.js';
 import { openCustomerDialog, todayWarning } from './customer-dialog.js';
 import { openSuccessDialog } from './success-dialog.js';
 
@@ -41,6 +42,11 @@ export function openReviewDialog() {
         <div class="review-row">
           <span class="label">مصدر الطلب<span class="req">*</span></span>
           <div class="seg ${s.source ? '' : 'needs'}" role="group" aria-label="مصدر الطلب">${sourceButtons(s.source)}</div>
+        </div>
+
+        <div class="review-row">
+          <span class="label">طريقة الدفع</span>
+          <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
         </div>
 
         <div class="review-grid">
