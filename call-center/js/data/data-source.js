@@ -19,6 +19,8 @@ export const signOut    = () => impl.signOut();
 export const signUp     = (email, password) => impl.signUp(email, password);
 
 /* Catalog */
+// Refresh "by weight / by unit" from the products sheet (Supabase only; at most every 10 min).
+export const syncSaleUnits    = () => impl.syncSaleUnits();
 export const getProducts      = () => impl.getProducts();
 export const getAreas         = () => impl.getAreas();          // includes inactive areas
 export const getOrderStatuses = () => impl.getOrderStatuses();

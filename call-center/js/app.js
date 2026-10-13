@@ -2,7 +2,7 @@
    Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas.
    One shared account. Demo: always signed in. Supabase: the password is asked
    once per device (login screen), then the session is remembered. */
-import { loadCatalog } from './catalog.js';
+import { loadCatalog, reloadProducts } from './catalog.js';
 import { getState, setState, setUser } from './store.js';
 import * as ds from './data/data-source.js';
 import { can } from './permissions.js';
@@ -56,6 +56,11 @@ async function startSignedIn(user) {
   window.addEventListener('hashchange', render);
   restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   render();
+  // In the background: refresh "by weight / by unit" from the products sheet; if anything
+  // changed, reload the product list quietly. Never blocks or breaks the app.
+  ds.syncSaleUnits()
+    .then((r) => (r?.status === 'ok' && r.rows_changed ? reloadProducts() : null))
+    .catch(() => {});
 }
 
 async function start() {

@@ -203,6 +203,16 @@ export async function getAreas() {
   return ok(await c.from('cc_delivery_areas').select('id, name, fee, active').order('name')).map(toArea);
 }
 
+/* Asks the call-center function cc-sale-unit to refresh "by weight / by unit"
+   from the products sheet (is_sold_by_weight). It runs at most once every
+   10 minutes; failures never block the app (the last known values stay). */
+export async function syncSaleUnits() {
+  const c = await sb();
+  const { data, error } = await c.functions.invoke('cc-sale-unit', { body: {} });
+  if (error) return { status: 'failed', error: error.message };
+  return data;
+}
+
 export const getOrderStatuses = () => Promise.resolve(ORDER_STATUSES.map((s) => ({ ...s })));
 
 /* ---------- Customers ---------- */

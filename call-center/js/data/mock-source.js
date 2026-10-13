@@ -22,6 +22,7 @@ let nextOrderNo = 1001 + orders.length;
 export const getProducts      = () => resolve(mock.products);
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
+export const syncSaleUnits = () => Promise.resolve({ status: 'skipped' });
 
 /* ---------- Employee names ---------- */
 export const getAgents = () => resolve(agents);

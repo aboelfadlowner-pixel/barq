@@ -553,3 +553,49 @@ do $$ begin
   raise notice 'PASS T25b signed-out users have no access to names or ordering';
 end $$;
 rollback;
+
+-- T26 — "sold by weight" from the products sheet wins over the storage unit; fallback still works
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+-- setup as the table owner (the edge function writes with the service role)
+insert into public.cc_product_sale_unit (sku, sold_by_weight) values ('T-101', false), ('T-203', true);
+insert into public.cc_sync_status (name, finished_at, ok, rows_total, message) values ('sale_unit', now(), true, 2, 'ok');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare got text; o public.cc_orders; ag public.cc_agents; cust uuid; addr uuid; st record;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select string_agg(sku || '=' || sold_by, ',' order by sku) into got from public.cc_list_products(null, 1000);
+  -- T-101 storage كيلو but sheet No → unit; T-203 storage Unit but sheet Yes → weight;
+  -- T-104 not in the sheet list → storage كيلو → weight; T-201 لتر → unit; T-900 nothing → unit
+  if got <> 'T-101=unit,T-104=weight,T-201=unit,T-203=weight,T-900=unit' then raise exception 'FAIL T26 list %', got; end if;
+  ag := public.cc_save_agent(null, 'اختبار الوزن', true);
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id into addr from public.cc_addresses where customer_id = cust limit 1;
+  begin perform public.cc_place_order(ag.id, gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb, '[{"sku":"T-101","weight_grams":500}]');
+        raise exception 'FAIL T26 weight accepted for a sheet-unit product';
+  exception when invalid_parameter_value then null; end;
+  o := public.cc_place_order(ag.id, gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb,
+         '[{"sku":"T-101","qty":2},{"sku":"T-203","weight_grams":250}]');
+  if o.subtotal <> 842.25 or not o.is_estimated then raise exception 'FAIL T26 order % %', o.subtotal, o.is_estimated; end if;
+  select * into st from public.cc_sale_unit_status();
+  if not st.ok or st.rows_total <> 2 then raise exception 'FAIL T26 status'; end if;
+  begin perform 1 from public.cc_product_sale_unit; raise exception 'FAIL T26 app read the sheet table directly';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_sync_status; raise exception 'FAIL T26 app read the status table directly';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T26 sheet flag wins (T-101 unit, T-203 weight), storage-unit fallback, order rules follow it, tables not readable directly';
+end $$;
+rollback;
+begin;
+set local role anon;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform * from public.cc_sale_unit_status(); raise exception 'FAIL T26b anon read sync status';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T26b signed-out users cannot read the sync status';
+end $$;
+rollback;

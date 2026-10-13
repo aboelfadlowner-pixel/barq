@@ -45,3 +45,9 @@ export async function reloadAreas() {
 export async function reloadAgents() {
   setAgents(await ds.getAgents());
 }
+
+/* Products again (after the products sheet changed how some are sold). */
+export async function reloadProducts() {
+  const products = await ds.getProducts();
+  Object.assign(catalog, { products, productsById: new Map(products.map((p) => [p.id, p])) });
+}
