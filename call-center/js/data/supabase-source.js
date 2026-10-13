@@ -4,7 +4,8 @@
  *  Talks only to the call-center objects created by db/apply_cc.sql:
  *    reads  : cc_staff (own row), cc_delivery_areas, cc_customers, cc_addresses,
  *             cc_orders, cc_order_items, cc_order_events (RLS: the active account only)
- *    writes : the functions cc_create_order, cc_cancel_order, cc_save_area
+ *             cc_agents (employee names)
+ *    writes : the functions cc_place_order, cc_cancel_order_as, cc_save_area, cc_save_agent
  *    products: the function cc_list_products (code, name, barcode, price, sold_by)
  *  Prices, fees and totals are always computed by the database.
  *
@@ -53,6 +54,8 @@ export const toProduct = (r) => ({
   image: null,
 });
 
+export const toAgent = (r) => ({ id: r.id, name: r.name, active: !!r.active });
+
 export const toArea = (r) => ({ id: r.id, name: r.name, fee: Number(r.fee) || 0, active: !!r.active });
 
 export const toAddress = (r) => ({
@@ -97,7 +100,8 @@ export function toOrder(r) {
     note: r.note || '',
     status: r.status,
     statusHistory,
-    employee: r.created_by_name,
+    agentId: r.agent_id || null,
+    employee: r.agent_name || r.created_by_name,     // older orders have no employee name
     cancelReason: r.cancel_reason || '',
     isDemo: false,
   };
@@ -271,18 +275,32 @@ export async function getOrder(id) {
   return row ? toOrder(row) : null;
 }
 
-/* Sending the same draft twice (double click, retry) returns the same order. */
+/* Sending the same draft twice (double click, retry) returns the same order.
+   The employee who took it is saved with it (cc_place_order). */
 export async function createOrder(draft) {
   if (!draft.requestId) throw new Error('رقم المسودة مفقود — أعد فتح الطلب');
+  if (!draft.agent?.id) throw new Error('اختار اسمك من قايمة الموظفين الأول');
   const c = await sb();
-  const created = ok(await c.rpc('cc_create_order', toCreateOrderArgs(draft)));
+  const created = ok(await c.rpc('cc_place_order', { p_agent_id: draft.agent.id, ...toCreateOrderArgs(draft) }));
   return getOrder(created.id);
 }
 
-export async function cancelOrder(orderId, reason) {
+export async function cancelOrder(orderId, reason, agent) {
+  if (!agent?.id) throw new Error('اختار اسمك من قايمة الموظفين الأول');
   const c = await sb();
-  ok(await c.rpc('cc_cancel_order', { p_order_id: orderId, p_reason: reason }));
+  ok(await c.rpc('cc_cancel_order_as', { p_agent_id: agent.id, p_order_id: orderId, p_reason: reason }));
   return getOrder(orderId);
+}
+
+/* ---------- Employee names ---------- */
+export async function getAgents() {
+  const c = await sb();
+  return ok(await c.from('cc_agents').select('id, name, active').order('name')).map(toAgent);
+}
+
+export async function saveAgent({ id = null, name, active = true }) {
+  const c = await sb();
+  return toAgent(ok(await c.rpc('cc_save_agent', { p_id: id || null, p_name: String(name).trim(), p_active: !!active })));
 }
 
 /* ---------- Delivery areas ---------- */

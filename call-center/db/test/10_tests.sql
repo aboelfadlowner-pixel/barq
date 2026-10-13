@@ -468,3 +468,88 @@ begin
   raise notice 'PASS T22 no source; label/housing type/notes saved; phone2 saved once + copied to order; saved address edited in place';
 end $$;
 rollback;
+
+-- T23 — employee names: add, no duplicates (case/space), rename, deactivate
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare a public.cc_agents; b public.cc_agents;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  a := public.cc_save_agent(null, 'عمر', true);
+  begin perform public.cc_save_agent(null, '  عمر ', true); raise exception 'FAIL T23 duplicate name accepted';
+  exception when unique_violation then null; end;
+  b := public.cc_save_agent(null, 'Omar', true);
+  begin perform public.cc_save_agent(null, 'OMAR', true); raise exception 'FAIL T23 case duplicate accepted';
+  exception when unique_violation then null; end;
+  begin perform public.cc_save_agent(null, '   ', true); raise exception 'FAIL T23 empty name accepted';
+  exception when invalid_parameter_value then null; end;
+  b := public.cc_save_agent(b.id, 'كريم', false);
+  if b.name <> 'كريم' or b.active then raise exception 'FAIL T23 rename/deactivate'; end if;
+  if (select count(*) from public.cc_agents) <> 2 then raise exception 'FAIL T23 agents not readable'; end if;
+  begin insert into public.cc_agents (name) values ('مباشر'); raise exception 'FAIL T23 direct insert';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T23 names: add, no duplicates (spaces/case), rename, deactivate, no direct writes';
+end $$;
+rollback;
+
+-- T24 — orders and cancels carry the employee name; repeat keeps the first name; inactive/unknown rejected
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare omar public.cc_agents; mona public.cc_agents; old public.cc_agents; o public.cc_orders; o2 public.cc_orders; c public.cc_orders;
+        cust uuid; addr uuid; req uuid := gen_random_uuid();
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  omar := public.cc_save_agent(null, 'عمر', true);
+  mona := public.cc_save_agent(null, 'منى', true);
+  old  := public.cc_save_agent(null, 'قديم', false);
+  select id into cust from public.cc_customers where phone = '01011112222';
+  select id into addr from public.cc_addresses where customer_id = cust limit 1;
+  o := public.cc_place_order(omar.id, req, json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":2}]');
+  if o.agent_id <> omar.id or o.agent_name <> 'عمر' or o.created_by_name <> 'مركز الاتصال' then raise exception 'FAIL T24 agent % %', o.agent_name, o.created_by_name; end if;
+  if (select by_name from public.cc_order_events where order_id = o.id and status = 'new') <> 'عمر' then raise exception 'FAIL T24 event name'; end if;
+  o2 := public.cc_place_order(mona.id, req, json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":5}]');
+  if o2.id <> o.id or o2.agent_name <> 'عمر' then raise exception 'FAIL T24 repeat changed the order/name'; end if;
+  begin perform public.cc_place_order(old.id, gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]');
+        raise exception 'FAIL T24 inactive agent accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_place_order(null, gen_random_uuid(), json_build_object('id', cust)::jsonb, json_build_object('id', addr)::jsonb, '[{"sku":"T-203","qty":1}]');
+        raise exception 'FAIL T24 no agent accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_cancel_order_as(mona.id, o.id, '  '); raise exception 'FAIL T24 cancel without reason';
+  exception when invalid_parameter_value then null; end;
+  c := public.cc_cancel_order_as(mona.id, o.id, 'العميل لغى');
+  if c.status <> 'cancelled' or c.cancelled_by_agent <> 'منى' or c.agent_name <> 'عمر' then raise exception 'FAIL T24 cancel names % %', c.cancelled_by_agent, c.agent_name; end if;
+  if (select by_name from public.cc_order_events where order_id = o.id and status = 'cancelled') <> 'منى' then raise exception 'FAIL T24 cancel event name'; end if;
+  raise notice 'PASS T24 order by عمر, repeat keeps عمر, inactive/no name rejected, cancelled by منى';
+end $$;
+rollback;
+
+-- T25 — signed-out and non-staff users cannot use the employee functions
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_save_agent(null, 'دخيل', true); raise exception 'FAIL T25 outsider saved a name';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_place_order(gen_random_uuid(), gen_random_uuid(), '{}', '{}', '[]'); raise exception 'FAIL T25 outsider placed order';
+  exception when insufficient_privilege then null; end;
+  if (select count(*) from public.cc_agents) <> 0 then raise exception 'FAIL T25 outsider reads names'; end if;
+  raise notice 'PASS T25 non-staff cannot read names, add names or place orders';
+end $$;
+rollback;
+begin;
+set local role anon;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_place_order(gen_random_uuid(), gen_random_uuid(), '{}', '{}', '[]'); raise exception 'FAIL T25 anon placed order';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_agents; raise exception 'FAIL T25 anon read names';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T25b signed-out users have no access to names or ordering';
+end $$;
+rollback;

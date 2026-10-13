@@ -21,6 +21,7 @@ const emptyDraft = () => ({
 
 let state = {
   user: null,       // the one call-center account: { id, name }
+  agent: null,      // the person working now, picked after opening: { id, name }
   route: 'pos',
   routeParam: null,
   search: '',
@@ -103,6 +104,7 @@ export const clearCart = () => setState({ cart: [] });
 
 /* ---------- Draft actions ---------- */
 export const setUser = (user) => setState({ user });
+export const setAgent = (agent) => setState({ agent });
 export const setCustomer = (customer, address) => setState({ customer, address });
 export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });

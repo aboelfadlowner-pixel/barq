@@ -9,10 +9,12 @@ import { money, statusChip } from '../components/chips.js';
 import { getState } from '../store.js';
 import { can } from '../permissions.js';
 import { startNewOrder } from './board-screen.js';
+import { agentFilterHtml, initAgentFilter, matchesAgent } from '../components/agent-filter.js';
 
 // Filters survive navigating to an order and back.
 const DEFAULT_FILTERS = { q: '', date: 'today', status: '' };
 let filters = { ...DEFAULT_FILTERS };
+const agentFilter = new Set();   // employee names; empty = everyone
 
 function matchesDate(iso, range) {
   const now = new Date();
@@ -58,6 +60,7 @@ export function mountOrders(view) {
         <select class="select" id="ordStatus" aria-label="الحالة">
           ${opt('', 'كل الحالات', filters.status)}${catalog.statuses.map((s) => opt(s.id, s.label, filters.status)).join('')}
         </select>
+        ${agentFilterHtml()}
         <button type="button" class="btn btn-ghost" data-reset>مسح الفلاتر</button>
       </div>
 
@@ -66,9 +69,9 @@ export function mountOrders(view) {
         <table class="table orders-table">
           <thead><tr>
             <th>رقم الطلب</th><th>الوقت</th><th>العميل</th><th class="col-opt">الموبايل</th>
-            <th class="col-opt">المنطقة</th><th>الإجمالي</th><th>الحالة</th>
+            <th class="col-opt">المنطقة</th><th class="col-opt">الموظف</th><th>الإجمالي</th><th>الحالة</th>
           </tr></thead>
-          <tbody data-body><tr><td colspan="7" class="table-empty">جارٍ التحميل…</td></tr></tbody>
+          <tbody data-body><tr><td colspan="8" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
     </div></div>`;
@@ -80,6 +83,7 @@ export function mountOrders(view) {
     const list = orders.filter((o) =>
       matchesDate(o.createdAt, filters.date)
       && (!filters.status || o.status === filters.status)
+      && matchesAgent(o, agentFilter)
       && matchesQuery(o, filters.q.trim()));
 
     const sum = list.reduce((acc, o) => acc + (o.status === 'cancelled' ? 0 : computeTotals(o.items, o.deliveryFee).total), 0);
@@ -96,10 +100,11 @@ export function mountOrders(view) {
           <td><strong>${esc(o.customer.name)}</strong></td>
           <td class="col-opt"><span class="ltr-inline">${esc(o.customer.phone)}</span></td>
           <td class="col-opt">${esc(o.address.areaName)}</td>
+          <td class="col-opt">${esc(o.employee)}</td>
           <td class="nowrap"><strong>${money(t.total)}</strong>${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</td>
           <td>${statusChip(o.status)}</td>
         </tr>`;
-    }).join('') : `<tr><td colspan="7" class="table-empty">لا توجد طلبات مطابقة.
+    }).join('') : `<tr><td colspan="8" class="table-empty">لا توجد طلبات مطابقة.
         ${filters.date !== 'all' ? '<button type="button" class="btn btn-soft btn-sm" data-all-dates>عرض كل التواريخ</button>' : ''}</td></tr>`;
   }
 
@@ -115,6 +120,9 @@ export function mountOrders(view) {
       $('#ordQ').value = filters.q;
       $('#ordDate').value = filters.date;
       $('#ordStatus').value = filters.status;
+      agentFilter.clear();
+      cleanAgentFilter();
+      mountAgentFilter();
       renderList();
     }),
     on(view, 'click', '[data-all-dates]', () => { $('#ordDate').value = 'all'; setFilter({ date: 'all' }); }),
@@ -123,6 +131,15 @@ export function mountOrders(view) {
       if (e.key === 'Enter') location.hash = `#/orders/${encodeURIComponent(tr.dataset.id)}`;
     }),
   ];
+
+  let cleanAgentFilter = () => {};
+  const mountAgentFilter = () => {
+    const holder = view.querySelector('[data-agent-filter]');
+    holder.outerHTML = agentFilterHtml();
+    cleanAgentFilter = initAgentFilter(view, { selected: agentFilter, getOrders: () => orders, onChange: renderList });
+  };
+  mountAgentFilter();
+  offs.push(() => cleanAgentFilter());
 
   function renderSummary() {
     if (!can(getState().user, 'viewDailySummary')) return;

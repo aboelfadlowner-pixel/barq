@@ -14,6 +14,7 @@ const resolve = (v) => Promise.resolve(clone(v));
 // In-memory working copies (reset on every page load).
 const customers = clone(mock.customers);
 const areas = clone(mock.areas);
+const agents = clone(mock.agents);
 const orders = mock.buildSampleOrders();
 let nextOrderNo = 1001 + orders.length;
 
@@ -21,6 +22,26 @@ let nextOrderNo = 1001 + orders.length;
 export const getProducts      = () => resolve(mock.products);
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
+
+/* ---------- Employee names ---------- */
+export const getAgents = () => resolve(agents);
+export function saveAgent({ id = null, name, active = true }) {
+  const clean = String(name ?? '').trim();
+  if (!clean || clean.length > 40) return Promise.reject(new Error('اكتب الاسم (بحد أقصى 40 حرف)'));
+  const key = clean.toLowerCase();
+  if (agents.some((a) => a.id !== id && a.name.trim().toLowerCase() === key)) {
+    return Promise.reject(new Error('الاسم ده موجود بالفعل في القايمة'));
+  }
+  if (id) {
+    const a = agents.find((x) => x.id === id);
+    if (!a) return Promise.reject(new Error('الاسم غير موجود'));
+    Object.assign(a, { name: clean, active: !!active });
+    return resolve(a);
+  }
+  const created = { id: `ag-${Date.now()}`, name: clean, active: !!active };
+  agents.push(created);
+  return resolve(created);
+}
 
 /* ---------- Account (the demo is always signed in) ---------- */
 export const getAccount = () => resolve(mock.account);
@@ -83,7 +104,10 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
 export function createOrder(draft) {
-  const { cart, customer, address, orderNote, employee } = draft;
+  const { cart, customer, address, orderNote, agent } = draft;
+  if (!agent || !agents.some((a) => a.id === agent.id && a.active)) {
+    return Promise.reject(new Error('اختار اسمك من قايمة الموظفين الأول'));
+  }
   const area = areas.find((a) => a.id === address.areaId);
   if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
 
@@ -120,8 +144,9 @@ export function createOrder(draft) {
     items: cart.map(({ lineId, ...item }) => item),
     note: orderNote || '',
     status: mock.orderStatuses[0].id,
-    statusHistory: [{ status: mock.orderStatuses[0].id, at: now, by: employee?.name ?? '' }],
-    employee: employee?.name ?? '',
+    statusHistory: [{ status: mock.orderStatuses[0].id, at: now, by: agent.name }],
+    agentId: agent.id,
+    employee: agent.name,
     cancelReason: '',
     isDemo: true,
   };
@@ -129,13 +154,14 @@ export function createOrder(draft) {
   return resolve(order);
 }
 
-export function cancelOrder(orderId, reason, user) {
+export function cancelOrder(orderId, reason, agent) {
+  if (!agent) return Promise.reject(new Error('اختار اسمك من قايمة الموظفين الأول'));
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
   if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ملغي بالفعل'));
   o.status = 'cancelled';
   o.cancelReason = reason;
-  o.statusHistory.push({ status: 'cancelled', at: new Date().toISOString(), by: user.name, reason });
+  o.statusHistory.push({ status: 'cancelled', at: new Date().toISOString(), by: agent.name, reason });
   return resolve(o);
 }
 

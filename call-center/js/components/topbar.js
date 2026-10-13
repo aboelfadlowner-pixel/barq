@@ -2,6 +2,7 @@
 import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
 import { confirmDialog } from './modal.js';
+import { openAgentPicker } from './agent-dialog.js';
 import { can } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
@@ -30,7 +31,9 @@ export function mountTopbar(el) {
     location.reload();
   });
 
-  return bind((s) => ({ route: s.route, user: s.user }), ({ route, user }) => {
+  on(el, 'click', '[data-change-agent]', () => openAgentPicker());
+
+  return bind((s) => ({ route: s.route, user: s.user, agent: s.agent }), ({ route, user, agent }) => {
     if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
@@ -43,12 +46,13 @@ export function mountTopbar(el) {
         <a href="#/board" title="مركز الاتصال" class="${route === 'board' ? 'active' : ''}">${icon('headset')}<span>مركز الاتصال</span></a>
         <a href="#/pos" title="الطلب الحالي" class="${isPos ? 'active' : ''}">${icon('cart')}<span>الطلب الحالي</span></a>
         <a href="#/orders" title="سجل الطلبات" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>سجل الطلبات</span></a>
-        ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والرسوم" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والرسوم</span></a>` : ''}
+        ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والموظفين" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والموظفين</span></a>` : ''}
       </nav>
       <div class="spacer"></div>
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
-        <span class="user-chip">${icon('headset')}${esc(user.name)}</span>
+        <span class="agent-chip" title="الطلبات بتتسجل باسم الموظف ده">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختار اسمك')}</span>
+          <button type="button" class="btn btn-soft btn-sm" data-change-agent>تغيير</button></span>
         ${ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`}
       </div>`;
   });

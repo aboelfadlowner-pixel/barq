@@ -8,12 +8,20 @@ export const catalog = {
   areasById: new Map(),
   statuses: [],
   statusesById: new Map(),
+  agents: [],          // active employee names (picker)
+  allAgents: [],       // including inactive (settings screen)
 };
 
+const setAgents = (list) => Object.assign(catalog, {
+  allAgents: list,
+  agents: list.filter((a) => a.active).sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+});
+
 export async function loadCatalog() {
-  const [products, areas, statuses] = await Promise.all([
-    ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(),
+  const [products, areas, statuses, agents] = await Promise.all([
+    ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(), ds.getAgents(),
   ]);
+  setAgents(agents);
   Object.assign(catalog, {
     products,
     productsById: new Map(products.map((p) => [p.id, p])),
@@ -32,4 +40,8 @@ export async function reloadAreas() {
     areas: areas.filter((a) => a.active),
     areasById: new Map(areas.map((a) => [a.id, a])),
   });
+}
+
+export async function reloadAgents() {
+  setAgents(await ds.getAgents());
 }

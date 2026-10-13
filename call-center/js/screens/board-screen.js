@@ -10,8 +10,9 @@ import { icon } from '../components/icons.js';
 import { money, statusChip } from '../components/chips.js';
 import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
+import { agentFilterHtml, initAgentFilter, matchesAgent } from '../components/agent-filter.js';
 
-const filters = { q: '' };
+const filters = { q: '', agents: new Set() };   // survive navigating away and back
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
 export async function startNewOrder() {
@@ -30,6 +31,7 @@ export async function startNewOrder() {
 }
 
 function matches(o) {
+  if (!matchesAgent(o, filters.agents)) return false;
   const q = filters.q.trim();
   if (!q) return true;
   const digits = normalizePhone(q);
@@ -97,6 +99,7 @@ export function mountBoard(view) {
           <div class="search search-sm">${icon('search')}
             <input id="boardQ" type="search" autocomplete="off" placeholder="رقم الطلب أو الموبايل أو الاسم" value="${esc(filters.q)}" aria-label="بحث في طلبات اليوم">
           </div>
+          ${agentFilterHtml()}
           <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
         </div>
       </div>
@@ -131,6 +134,8 @@ export function mountBoard(view) {
       }
     }),
   ];
+
+  offs.push(initAgentFilter(view, { selected: filters.agents, getOrders: () => orders, onChange: () => render() }));
 
   ds.listOrders().then((list) => { orders = list; render(); });
   return () => offs.forEach((f) => f());

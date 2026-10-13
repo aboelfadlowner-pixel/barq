@@ -132,3 +132,12 @@
   .product-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 }
 @media (max-width: 1100px) { .user-chip, .logout-text { display: none; } }
+
+/* Employee chip stays visible on every width; it gets compact on phones. */
+@media (max-width: 600px) {
+  .topbar .demo-pill { display: none; }
+  .agent-chip { gap: 4px; padding: 0 3px 0 8px; font-size: 13px; max-width: 46vw; }
+  .agent-chip > .svg-icon { display: none; }
+  .agent-chip [data-agent-name] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-chip .btn { padding: 0 8px; }
+}

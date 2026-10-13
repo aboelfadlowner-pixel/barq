@@ -15,6 +15,14 @@ export const MOCK_LABEL = 'بيانات تجريبية';
 /* CONFIRMED: one shared call-center account, no roles. The demo opens with it directly. */
 export const account = { id: 'acc-cc', name: 'مركز الاتصال' };
 
+/* CONFIRMED: after signing in, the person picks their name from this list
+   (managed from the settings screen). Names here are fictional. */
+export const agents = [
+  { id: 'ag-1', name: 'عمر',  active: true },
+  { id: 'ag-2', name: 'كريم', active: true },
+  { id: 'ag-3', name: 'منى',  active: true },
+];
+
 /* ---------- Products (sample names, fake prices) ----------
  * unitType: 'weight' → sold by weight, price is per kg, quantity may have decimals (kg)
  *           'piece' / 'pack' → sold by unit, quantity must be a whole number.
@@ -176,10 +184,12 @@ export function buildSampleOrders(now = new Date()) {
         : { ...base, qty: amount };
     });
 
-    const history = [{ status: 'new', at: created.toISOString(), by: account.name }];
+    const agent = agents[i % agents.length];
+    const canceller = agents[(i + 1) % agents.length];
+    const history = [{ status: 'new', at: created.toISOString(), by: agent.name }];
     if (t.st === 'cancelled') {
       history.push({ status: 'cancelled', at: new Date(created.getTime() + 20 * 60000).toISOString(),
-        by: account.name, reason: 'العميل لغى الطلب بالتليفون' });
+        by: canceller.name, reason: 'العميل لغى الطلب بالتليفون' });
     }
 
     return {
@@ -195,7 +205,8 @@ export function buildSampleOrders(now = new Date()) {
       note: '',
       status: t.st,
       statusHistory: history,
-      employee: account.name,
+      agentId: agent.id,
+      employee: agent.name,
       cancelReason: history[1]?.reason ?? '',
       isDemo: true,
     };

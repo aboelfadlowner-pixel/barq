@@ -34,7 +34,11 @@ export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(
 export const listOrders  = () => impl.listOrders();
 export const getOrder    = (id) => impl.getOrder(id);
 export const createOrder = (draft) => impl.createOrder(draft);
-export const cancelOrder = (orderId, reason, user) => impl.cancelOrder(orderId, reason, user);
+export const cancelOrder = (orderId, reason, agent) => impl.cancelOrder(orderId, reason, agent);
+
+/* Employee names (picked after signing in; managed in settings) */
+export const getAgents = () => impl.getAgents();                 // includes inactive names
+export const saveAgent = (agent) => impl.saveAgent(agent);
 
 /* Delivery areas */
 export const saveArea = (area) => impl.saveArea(area);

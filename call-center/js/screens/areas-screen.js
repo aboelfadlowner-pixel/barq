@@ -1,6 +1,8 @@
-/* Supervisor: delivery areas and fees (add, rename, change fee, stop/resume). */
+/* Settings: delivery areas and fees, and the employee names list
+   (add, rename, stop/resume). */
 import * as ds from '../data/data-source.js';
-import { catalog, reloadAreas } from '../catalog.js';
+import { catalog, reloadAreas, reloadAgents } from '../catalog.js';
+import { getState, setAgent } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import { toWesternDigits } from '../utils/format.js';
 import { icon } from '../components/icons.js';
@@ -16,7 +18,7 @@ export function mountAreas(view) {
     <div class="page"><div class="page-inner page-narrow">
       <div class="page-head">
         <div>
-          <h1>مناطق التوصيل والرسوم</h1>
+          <h1>المناطق والموظفين</h1>
           <div class="page-sub"><span>المناطق النشطة بس هي اللي بتظهر للموظف عند إضافة عنوان.</span>
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
@@ -41,6 +43,23 @@ export function mountAreas(view) {
           <tbody data-rows></tbody>
         </table>
       </div>
+
+      <h2 class="section-title">${icon('headset')}أسماء الموظفين</h2>
+      <p class="muted section-sub">دي القايمة اللي الموظف بيختار منها اسمه أول ما يفتح البرنامج. الاسم الموقوف مش بيظهر في القايمة، والطلبات القديمة بتفضل باسمه.</p>
+      <form class="card card-pad add-area" data-add-agent novalidate>
+        <div class="field grow">
+          <label for="newAgentName">اسم جديد</label>
+          <input id="newAgentName" class="input" name="name" maxlength="40" autocomplete="off" placeholder="اسم الموظف زي ما هيظهر على الطلبات">
+        </div>
+        <button type="submit" class="btn btn-primary">${icon('plus')}إضافة</button>
+        <div class="field-error" data-err="agent"></div>
+      </form>
+      <div class="card table-wrap">
+        <table class="table areas-table">
+          <thead><tr><th>الاسم</th><th>الحالة</th><th></th></tr></thead>
+          <tbody data-agent-rows></tbody>
+        </table>
+      </div>
     </div></div>`;
 
   const rows = view.querySelector('[data-rows]');
@@ -56,7 +75,51 @@ export function mountAreas(view) {
   };
   render();
 
+  const agentRows = view.querySelector('[data-agent-rows]');
+  const renderAgents = () => {
+    agentRows.innerHTML = catalog.allAgents.length ? catalog.allAgents.map((a) => `
+      <tr data-agent-id="${esc(a.id)}" class="${a.active ? '' : 'row-off'}">
+        <td><input class="input" name="agentName" maxlength="40" value="${esc(a.name)}" aria-label="اسم الموظف"></td>
+        <td><label class="switch"><input type="checkbox" name="agentActive" ${a.active ? 'checked' : ''}>
+          <span>${a.active ? 'نشط' : 'موقوف'}</span></label></td>
+        <td><button type="button" class="btn btn-soft btn-sm" data-save-agent>${icon('check')}حفظ</button></td>
+      </tr>`).join('') : '<tr><td colspan="3" class="table-empty">لسه مفيش أسماء</td></tr>';
+  };
+  renderAgents();
+
   const offs = [
+    on(view, 'submit', '[data-add-agent]', async (e, form) => {
+      e.preventDefault();
+      const err = form.querySelector('[data-err="agent"]');
+      const name = form.name.value.trim();
+      if (!name) { err.textContent = 'اكتب الاسم'; form.name.focus(); return; }
+      try {
+        await ds.saveAgent({ name, active: true });
+        err.textContent = '';
+        await reloadAgents();
+        form.reset();
+        renderAgents();
+        showToast(`تمت إضافة «${name}»`);
+      } catch (ex) { err.textContent = ex.message; }
+    }),
+    on(view, 'change', 'input[name="agentActive"]', (e, box) => {
+      box.nextElementSibling.textContent = box.checked ? 'نشط' : 'موقوف';
+    }),
+    on(view, 'click', '[data-save-agent]', async (e, btn) => {
+      const tr = btn.closest('tr');
+      const name = tr.querySelector('[name="agentName"]').value.trim();
+      const active = tr.querySelector('[name="agentActive"]').checked;
+      if (!name) { showToast('اكتب الاسم'); return; }
+      try {
+        const saved = await ds.saveAgent({ id: tr.dataset.agentId, name, active });
+        await reloadAgents();
+        renderAgents();
+        // Keep the top bar right if the person working now was renamed or stopped.
+        const cur = getState().agent;
+        if (cur?.id === saved.id) setAgent(saved.active ? { id: saved.id, name: saved.name } : null);
+        showToast('تم حفظ التعديل');
+      } catch (ex) { showToast(ex.message); }
+    }),
     on(view, 'submit', '[data-add]', async (e, form) => {
       e.preventDefault();
       const name = form.name.value.trim();

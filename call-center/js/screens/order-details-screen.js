@@ -41,7 +41,7 @@ export function mountOrderDetails(view, orderId) {
             <div class="meta-row">
               ${statusChip(order.status)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
-              <span>أنشأه: ${esc(order.employee)}</span>
+              <span>${icon('headset')} أخد الطلب: <strong>${esc(order.employee)}</strong></span>
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
               ${order.isDemo ? '<span class="demo-pill">طلب تجريبي</span>' : ''}
             </div>
@@ -162,7 +162,7 @@ function openCancelDialog(order) {
     if (!reason) { m.body.querySelector('[data-err="reason"]').textContent = 'اكتب سبب الإلغاء'; ta.focus(); return; }
     e.currentTarget.disabled = true;
     try {
-      await ds.cancelOrder(order.id, reason, getState().user);
+      await ds.cancelOrder(order.id, reason, getState().agent);
       m.close();
       showToast(`تم إلغاء الطلب ${order.number}`);
       window.dispatchEvent(new HashChangeEvent('hashchange'));
