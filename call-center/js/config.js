@@ -28,6 +28,6 @@ export const ACCOUNT_EMAIL = '';
 
 /* One-time helper: shows "إنشاء الأكونت لأول مرة" on the sign-in screen so the
    call-center account can be created without the Supabase dashboard. A new
-   account sees nothing until it is linked in cc_staff. Turn back to false once
-   the call-center account exists. */
-export const ALLOW_SIGNUP = true;
+   account sees nothing until it is linked in cc_staff. Off: the call-center
+   account exists. */
+export const ALLOW_SIGNUP = false;

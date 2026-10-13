@@ -494,11 +494,7 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
   width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
   background: var(--green-600); color: #fff; font-weight: 900;
 }
-.agent-add { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.agent-add .link-btn { align-self: flex-start; }
-.agent-add-row { display: flex; gap: 8px; }
-.agent-add-row[hidden] { display: none; }
-.agent-add-row .input { flex: 1; }
+.agent-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; font-weight: 700; }
 .agent-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px 0 12px;
   border: 1px solid var(--line); border-radius: 999px; background: #fff; font-weight: 800; font-size: 14px;
