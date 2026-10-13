@@ -10,12 +10,20 @@ import { icon } from '../components/icons.js';
 import { money, statusChip } from '../components/chips.js';
 import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
-import { agentFilterHtml, initAgentFilter, matchesAgent } from '../components/agent-filter.js';
+import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
 
-const filters = { q: '', agents: new Set() };   // survive navigating away and back
+const filters = { q: '' };
+let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
 export async function startNewOrder() {
+  if (!getState().agent) {
+    requireAgent();
+    openNameListOnBoard = true;
+    if (location.hash !== '#/board') location.hash = '#/board';
+    else window.dispatchEvent(new HashChangeEvent('hashchange'));
+    return;
+  }
   const s = getState();
   if (s.customer || s.cart.length) {
     const ok = await confirmDialog({
@@ -31,7 +39,6 @@ export async function startNewOrder() {
 }
 
 function matches(o) {
-  if (!matchesAgent(o, filters.agents)) return false;
   const q = filters.q.trim();
   if (!q) return true;
   const digits = normalizePhone(q);
@@ -99,7 +106,7 @@ export function mountBoard(view) {
           <div class="search search-sm">${icon('search')}
             <input id="boardQ" type="search" autocomplete="off" placeholder="رقم الطلب أو الموبايل أو الاسم" value="${esc(filters.q)}" aria-label="بحث في طلبات اليوم">
           </div>
-          ${agentFilterHtml()}
+          ${agentSelectHtml()}
           <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
         </div>
       </div>
@@ -135,7 +142,9 @@ export function mountBoard(view) {
     }),
   ];
 
-  offs.push(initAgentFilter(view, { selected: filters.agents, getOrders: () => orders, onChange: () => render() }));
+  const nameList = initAgentSelect(view);
+  offs.push(nameList.destroy);
+  if (openNameListOnBoard) { openNameListOnBoard = false; nameList.open(); }
 
   ds.listOrders().then((list) => { orders = list; render(); });
   return () => offs.forEach((f) => f());

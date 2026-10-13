@@ -1,5 +1,6 @@
 /* Read-only order details + "repeat order" and "copy summary". */
 import * as ds from '../data/data-source.js';
+import { requireAgent } from '../components/agent-select.js';
 import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder } from '../store.js';
 import { esc, on, copyText } from '../utils/dom.js';
@@ -159,6 +160,7 @@ function openCancelDialog(order) {
   ta.focus();
   m.foot.querySelector('[data-ok]').addEventListener('click', async (e) => {
     const reason = ta.value.trim();
+    if (!requireAgent()) return;
     if (!reason) { m.body.querySelector('[data-err="reason"]').textContent = 'اكتب سبب الإلغاء'; ta.focus(); return; }
     e.currentTarget.disabled = true;
     try {

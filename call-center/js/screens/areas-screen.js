@@ -2,7 +2,8 @@
    (add, rename, stop/resume). */
 import * as ds from '../data/data-source.js';
 import { catalog, reloadAreas, reloadAgents } from '../catalog.js';
-import { getState, setAgent } from '../store.js';
+import { getState } from '../store.js';
+import { chooseAgent } from '../components/agent-select.js';
 import { esc, on } from '../utils/dom.js';
 import { toWesternDigits } from '../utils/format.js';
 import { icon } from '../components/icons.js';
@@ -116,7 +117,7 @@ export function mountAreas(view) {
         renderAgents();
         // Keep the top bar right if the person working now was renamed or stopped.
         const cur = getState().agent;
-        if (cur?.id === saved.id) setAgent(saved.active ? { id: saved.id, name: saved.name } : null);
+        if (cur?.id === saved.id) chooseAgent(saved.active ? saved : null);
         showToast('تم حفظ التعديل');
       } catch (ex) { showToast(ex.message); }
     }),

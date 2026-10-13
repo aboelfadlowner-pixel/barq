@@ -509,3 +509,12 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .af-row input { width: 18px; height: 18px; accent-color: var(--green-600); }
 .agent-filter .combo-list li { padding: 0; }
 .agent-filter .combo-list li:hover { background: none; }
+
+/* "اختار اسمك" on the call-center screen */
+.agent-select { min-width: 180px; }
+.agent-select .combo-btn { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.agent-select .combo-btn .svg-icon { width: 18px; height: 18px; flex: none; }
+.agent-select .combo-btn.has-value { border-color: var(--green-600); color: var(--green-700); background-color: var(--green-50); }
+.agent-select .combo-btn.needs-value { border-color: var(--warn); color: var(--warn); background-color: var(--warn-50); }
+a.agent-chip { text-decoration: none; color: inherit; padding: 0 12px; }
+a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }

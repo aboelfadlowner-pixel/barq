@@ -2,7 +2,6 @@
 import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
 import { confirmDialog } from './modal.js';
-import { openAgentPicker } from './agent-dialog.js';
 import { can } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
@@ -31,8 +30,6 @@ export function mountTopbar(el) {
     location.reload();
   });
 
-  on(el, 'click', '[data-change-agent]', () => openAgentPicker());
-
   return bind((s) => ({ route: s.route, user: s.user, agent: s.agent }), ({ route, user, agent }) => {
     if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
@@ -51,8 +48,7 @@ export function mountTopbar(el) {
       <div class="spacer"></div>
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
-        <span class="agent-chip" title="الطلبات بتتسجل باسم الموظف ده">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختار اسمك')}</span>
-          <button type="button" class="btn btn-soft btn-sm" data-change-agent>تغيير</button></span>
+        <a href="#/board" class="agent-chip ${agent ? '' : 'needs-value'}" title="الطلبات بتتسجل باسم الموظف ده — تغيّره من «اختار اسمك» في شاشة مركز الاتصال">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختار اسمك')}</span></a>
         ${ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`}
       </div>`;
   });

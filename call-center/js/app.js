@@ -7,7 +7,7 @@ import { getState, setState, setUser } from './store.js';
 import * as ds from './data/data-source.js';
 import { can } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
-import { openAgentPicker } from './components/agent-dialog.js';
+import { restoreAgent } from './components/agent-select.js';
 import { mountLogin } from './screens/login-screen.js';
 import { mountBoard } from './screens/board-screen.js';
 import { mountPos } from './screens/pos-screen.js';
@@ -54,9 +54,8 @@ async function startSignedIn(user) {
     return;
   }
   window.addEventListener('hashchange', render);
+  restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   render();
-  // CONFIRMED: every time the app opens, the person working picks their name.
-  if (!getState().agent) openAgentPicker({ required: true });
 }
 
 async function start() {

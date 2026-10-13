@@ -11,7 +11,7 @@ import { openModal, showToast } from './modal.js';
 import { PAYMENT_METHOD } from '../constants.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openSuccessDialog } from './success-dialog.js';
-import { openAgentPicker } from './agent-dialog.js';
+import { requireAgent } from './agent-select.js';
 
 export function missingFields(s) {
   const missing = [];
@@ -116,7 +116,7 @@ export function openReviewDialog() {
   on(m.el, 'click', '[data-confirm]', async (e, btn) => {
     const s = getState();
     if (saving || missingFields(s).length) return;
-    if (!s.agent) { openAgentPicker({ required: true }); return; }
+    if (!requireAgent()) return;
     saving = true;                       // lock: one click = one order
     btn.disabled = true;
     btn.innerHTML = `${icon('check')}جارٍ الإنشاء…`;
