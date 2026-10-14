@@ -45,6 +45,7 @@ export function mountAreas(view) {
         </table>
       </div>
 
+      <div data-code-section>
       <h2 class="section-title">${icon('user')}كود التسجيل للأجهزة الجديدة</h2>
       <p class="muted section-sub">أي حد يعمل أكونت جديد من شاشة الدخول لازم يكتب الكود ده مرة واحدة عشان يدخل. ادّيه للموظفين بس، وغيّره لو اتسرّب — الأكونتات اللي دخلت قبل كده مش هتتأثر.</p>
       <form class="card card-pad add-area" data-signup-code novalidate>
@@ -55,6 +56,7 @@ export function mountAreas(view) {
         <button type="submit" class="btn btn-primary">${icon('check')}حفظ الكود</button>
         <div class="field-error" data-err="code"></div>
       </form>
+      </div>
 
       <h2 class="section-title">${icon('headset')}أسماء الموظفين</h2>
       <p class="muted section-sub">دي القايمة اللي الموظف بيختار منها اسمه أول ما يفتح البرنامج. الاسم الموقوف مش بيظهر في القايمة، والطلبات القديمة بتفضل باسمه.</p>
@@ -101,7 +103,8 @@ export function mountAreas(view) {
 
   const codeStatus = view.querySelector('[data-code-status]');
   const showCodeStatus = () => ds.getSignupCodeStatus()
-    .then(({ isSet, updatedAt }) => {
+    .then(({ isSet, updatedAt, installed = true }) => {
+      view.querySelector('[data-code-section]').hidden = !installed;   // hidden until 06_signup_code.sql is applied
       codeStatus.textContent = isSet
         ? `(فيه كود شغال${updatedAt ? ` من ${new Date(updatedAt).toLocaleDateString('ar-EG')}` : ''})`
         : '(لسه مفيش كود — محدش جديد هيقدر يدخل)';

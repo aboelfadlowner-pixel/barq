@@ -165,9 +165,14 @@ export async function signIn(email, password) {
 }
 
 /* Registration code: links this signed-in account as the call-center account. */
+// PGRST202 = the function is not on the database yet (06_signup_code.sql not applied).
+const NOT_INSTALLED = 'PGRST202';
+
 export async function joinWithCode(code) {
   const c = await sb();
-  const linked = ok(await c.rpc('cc_join_with_code', { p_code: String(code || '') }));
+  const res = await c.rpc('cc_join_with_code', { p_code: String(code || '') });
+  if (res.error?.code === NOT_INSTALLED) throw new Error('التسجيل بالكود لسه مش متفعّل — كلّم المسؤول');
+  const linked = ok(res);
   if (!linked) throw new Error('كود التسجيل غلط');
   return getAccount();
 }
@@ -179,8 +184,10 @@ export async function setSignupCode(code) {
 
 export async function getSignupCodeStatus() {
   const c = await sb();
-  const [row] = ok(await c.rpc('cc_signup_code_status'));
-  return { isSet: !!row?.is_set, updatedAt: row?.updated_at || null };
+  const res = await c.rpc('cc_signup_code_status');
+  if (res.error?.code === NOT_INSTALLED) return { isSet: false, updatedAt: null, installed: false };
+  const [row] = ok(res);
+  return { isSet: !!row?.is_set, updatedAt: row?.updated_at || null, installed: true };
 }
 
 /* Account creation (ALLOW_SIGNUP). The new account can read nothing until it
