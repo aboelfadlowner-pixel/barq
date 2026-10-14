@@ -42,7 +42,8 @@ export function openItemDialog(product, { line = null } = {}) {
             <button type="button" class="btn btn-secondary" data-step="1" aria-label="زيادة">${icon('plus')}</button>
           </div>
           ${byWeight ? `<div class="chips">${WEIGHT_PRESETS.map((p) => `
-            <button type="button" class="chip" data-kg="${p.grams / 1000}">${esc(p.label)}</button>`).join('')}</div>` : ''}
+            <button type="button" class="chip" data-kg="${p.grams / 1000}">${esc(p.label)}${p.grams % 1000
+              ? ` <span class="chip-num num">${p.grams / 1000}</span>` : ''}</button>`).join('')}</div>` : ''}
           <div class="item-calc" data-calc></div>
         </div>
         <div class="field">
