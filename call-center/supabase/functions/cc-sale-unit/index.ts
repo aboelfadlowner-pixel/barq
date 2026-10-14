@@ -33,6 +33,7 @@ Deno.serve(async (req: Request) => {
   let products: Promise<string> | null = null;
   const loadProducts = () => (products ??= fetchDriveCsv(PRODUCTS_FILE_ID));
   const result = await syncSaleUnits(sb, loadProducts);
-  const categories = await syncCategories(sb, loadProducts, () => fetchDriveCsv(CATEGORIES_FILE_ID));
+  const categories = await syncCategories(sb, loadProducts, () => fetchDriveCsv(CATEGORIES_FILE_ID))
+    .catch((e) => ({ status: "failed", error: String(e instanceof Error ? e.message : e) }));
   return json({ ...result, categories }, result.status === "failed" ? 502 : 200);
 });
