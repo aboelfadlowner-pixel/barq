@@ -6,6 +6,15 @@
 --  setup statements before a block (T09, T12, T14) are inside begin…rollback.
 -- =====================================================================
 
+-- Setup (local sandbox only): the older tests below call the core functions cc_create_order /
+-- cc_cancel_order directly; on the real database only the role-checked wrappers can (10_edit_order.sql).
+-- T32 checks that real setup.
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  grant execute on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text) to authenticated;
+  grant execute on function public.cc_cancel_order(uuid, text) to authenticated;
+end $$;
+
 -- T01 — no login: nothing is readable or callable
 begin;
 set local role anon;
@@ -835,5 +844,77 @@ reset role;
 do $$ begin
   if (select count(*) from public.cc_order_stage_events where order_id = current_setting('cc.oid')::uuid) <> 7 then raise exception 'FAIL T31c log count'; end if;
   raise notice 'PASS T31c every tap is logged with who and when';
+end $$;
+rollback;
+
+-- T32 — edit an order until «على الكاشير»; the branch sees «اتعدّل» with what changed; old lines kept in the log
+begin;
+revoke execute on function public.cc_create_order(uuid, jsonb, jsonb, jsonb, text) from authenticated;
+revoke execute on function public.cc_cancel_order(uuid, text) from authenticated;
+insert into auth.users (id, email) values (gen_random_uuid(), 'prep3@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'prep3@cc.test';
+insert into public.cc_agents (name) values ('موظف تعديل') on conflict do nothing;
+select set_config('cc.agent', (select id::text from public.cc_agents where name = 'موظف تعديل'), true);
+select set_config('cc.area2', (select id::text from public.cc_delivery_areas where active order by name desc limit 1), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  -- the core functions are closed; the wrappers work
+  begin perform public.cc_cancel_order(gen_random_uuid(), 'x'); raise exception 'FAIL T32 core cancel callable';
+  exception when insufficient_privilege then null; end;
+  o := public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميل تعديل", "phone": "01055555555"}',
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'شارع التعديل'),
+         '[{"sku": "T-101", "weight_grams": 1000}, {"sku": "T-201", "qty": 2}]', null);
+  perform set_config('cc.edited', o.id::text, true);
+end $$;
+reset role;
+select set_config('cc.old101', (select price::text from public.products_master where sku = 'T-101'), true);
+update public.products_master set price = price + 100 where sku in ('T-101', 'T-203');   -- prices change in the sheet
+select set_config('cc.new203', (select price::text from public.products_master where sku = 'T-203'), true);
+set local role authenticated;
+do $$ declare o public.cc_orders; oid uuid := current_setting('cc.edited')::uuid; old_price numeric := current_setting('cc.old101')::numeric; begin
+  begin perform public.cc_edit_order(current_setting('cc.agent')::uuid, oid, null, '[{"sku": "T-101", "weight_grams": 1000}, {"sku": "T-201", "qty": 2}]', null);
+    raise exception 'FAIL T32 no-change edit accepted';
+  exception when invalid_parameter_value then null; end;
+  o := public.cc_edit_order(current_setting('cc.agent')::uuid, oid,
+         jsonb_build_object('area_id', current_setting('cc.area2'), 'street', 'شارع جديد'),
+         '[{"sku": "T-101", "weight_grams": 500}, {"sku": "T-203", "qty": 3, "note": "بارد"}]', 'اتصل قبل الوصول');
+  if (select unit_price from public.cc_order_items where order_id = oid and sku = 'T-101') <> old_price then raise exception 'FAIL T32 kept line price changed'; end if;
+  if (select unit_price from public.cc_order_items where order_id = oid and sku = 'T-203') <> current_setting('cc.new203')::numeric then raise exception 'FAIL T32 new line price'; end if;
+  if o.total <> (select sum(line_total) from public.cc_order_items where order_id = oid) + o.delivery_fee then raise exception 'FAIL T32 totals'; end if;
+  if o.edit_count <> 1 or o.edited_by_name <> 'موظف تعديل' or o.street <> 'شارع جديد' or o.note <> 'اتصل قبل الوصول' then raise exception 'FAIL T32 order fields'; end if;
+  if (select string_agg(c->>'kind', ',' order by c->>'kind') from jsonb_array_elements(o.edit_changes) c) <> 'added,address,amount,order_note,removed' then
+    raise exception 'FAIL T32 changes %', o.edit_changes; end if;
+  if exists (select 1 from public.cc_addresses where street = 'شارع جديد') then raise exception 'FAIL T32 saved address changed'; end if;
+end $$;
+reset role;
+-- the branch: «اتعدّل» shows until «شُفت التعديل»; then the order reaches the cashier and editing stops
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep3@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare oid uuid := current_setting('cc.edited')::uuid; x jsonb; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select y into x from public.cc_prep_orders() y where y->>'id' = oid::text;
+  if x->>'edited_at' is null or x->>'edit_seen_at' is not null or jsonb_array_length(x->'edit_changes') <> 5 then raise exception 'FAIL T32 prep mark %', x; end if;
+  begin perform public.cc_edit_order(null, oid, null, '[]', null); raise exception 'FAIL T32 prep edited';
+  exception when insufficient_privilege then null; end;
+  if not public.cc_ack_edit(oid) then raise exception 'FAIL T32 ack'; end if;
+  perform public.cc_set_stage(oid, 'preparing');
+  perform public.cc_set_stage(oid, 'at_cashier');
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare oid uuid := current_setting('cc.edited')::uuid; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if (select edit_seen_at from public.cc_orders where id = oid) is null then raise exception 'FAIL T32 ack not saved'; end if;
+  begin perform public.cc_edit_order(current_setting('cc.agent')::uuid, oid, null, '[{"sku": "T-201", "qty": 1}]', null); raise exception 'FAIL T32 edited at the cashier';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+do $$ declare oid uuid := current_setting('cc.edited')::uuid; begin
+  if (select count(*) from public.cc_order_edits where order_id = oid) <> 1 then raise exception 'FAIL T32 log'; end if;
+  if (select jsonb_array_length(old_items) from public.cc_order_edits where order_id = oid) <> 2 then raise exception 'FAIL T32 old lines not kept'; end if;
+  raise notice 'PASS T32 edit: kept lines keep their price, new lines today''s price, totals recomputed, changes listed, saved address untouched, branch mark + ack, blocked at the cashier, old lines logged, core create/cancel closed';
 end $$;
 rollback;

@@ -1,8 +1,9 @@
 /* Order side panel (Foodics-style): order summary card (customer, phone, type,
    address, notes), items, totals, "إرسال الطلب" and "حفظ كمسودة". */
 import {
-  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, currentDeliveryFee, setOrderNote,
+  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, currentDeliveryFee, setOrderNote, setCustomer,
 } from '../store.js';
+import { openAddressDialog } from './address-dialog.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress, formatWeight } from '../utils/format.js';
@@ -126,15 +127,15 @@ export function mountCartPanel(el) {
       ${t.estimated ? estimateNote() : ''}
       <div class="foot-actions stack">
         <button type="button" class="btn btn-primary btn-lg send-btn" data-action="review" ${cart.length && s.customer && s.address ? '' : 'disabled'}>
-          <span>إرسال الطلب</span>${icon('chevronLeft')}</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-action="save-draft" ${cart.length || s.customer ? '' : 'disabled'}>حفظ كمسودة</button>
+          <span>${s.editing ? 'مراجعة وحفظ التعديل' : 'إرسال الطلب'}</span>${icon('chevronLeft')}</button>
+        ${s.editing ? '' : `<button type="button" class="btn btn-secondary btn-lg" data-action="save-draft" ${cart.length || s.customer ? '' : 'disabled'}>حفظ كمسودة</button>`}
       </div>`;
   };
 
   const unbinds = [
     bind((s) => ({ customer: s.customer, address: s.address }), renderSummary),
     bind((s) => s.cart, renderItems),
-    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address }), renderFooter),
+    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address, editing: !!s.editing }), renderFooter),
   ];
 
   /* ---------- Events ---------- */
@@ -161,7 +162,12 @@ export function mountCartPanel(el) {
           renderItems();
           el.querySelector(`[data-line="${line.lineId}"] [data-note]`)?.focus();
           break;
-        case 'edit-customer': openNewOrderDialog({ edit: !!getState().customer }); break;
+        case 'edit-customer':
+          // Editing a sent order: the customer stays; the pencils change only this order's address.
+          if (getState().editing) {
+            openAddressDialog({ address: getState().address, onSave: (address) => setCustomer(getState().customer, { ...address, edited: true }) });
+          } else openNewOrderDialog({ edit: !!getState().customer });
+          break;
         case 'edit-note': noteOpen = true; renderSummary(getState()); break;
         case 'save-draft':
           location.hash = '#/board';

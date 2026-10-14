@@ -57,6 +57,7 @@ function orderCard(o) {
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
         ${orderStateChip(o)}
       </div>
+      ${o.editCount ? `<div class="o-edited">${icon('edit')}اتعدّل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · الفرع شافه' : ' · لسه الفرع ما شافوش'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
       <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}${stageSince(o)}</span></div>

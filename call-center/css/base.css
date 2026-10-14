@@ -99,6 +99,7 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
 }
 .tag .svg-icon { width: 13px; height: 13px; }
 .tag-green  { background: var(--green-50);  color: var(--green-700); }
+.tag-amber  { background: #fff7e6; color: #9a5b00; }
 .tag-info   { background: var(--info-50);   color: var(--info); }
 .tag-warn   { background: var(--warn-50);   color: var(--warn); }
 .tag-danger { background: var(--danger-50); color: var(--danger); }

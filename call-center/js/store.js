@@ -17,6 +17,7 @@ const emptyDraft = () => ({
   customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
   address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
+  editing: null,    // editing a sent order: { orderId, number } (until «على الكاشير»)
 });
 
 let state = {
@@ -113,6 +114,27 @@ export const setOrderNote = (orderNote) => setState({ orderNote });
 
 export function resetDraft() {
   setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
+}
+
+/* Edit a sent order: same lines with their original prices, its address and note; customer fixed. */
+export function loadDraftForEdit(order) {
+  const cart = order.items.map((it) => {
+    const prod = catalog.productsById.get(it.productId);
+    const base = {
+      lineId: newLineId(), productId: it.productId, name: it.name, unitType: it.unitType,
+      unitLabel: prod?.unitLabel ?? it.unitLabel, price: it.price, note: it.note || '',
+    };
+    return it.unitType === 'weight' ? { ...base, grams: it.grams } : { ...base, qty: it.qty };
+  });
+  const { areaName, ...address } = order.address;
+  setState({
+    ...emptyDraft(),
+    cart,
+    customer: { id: order.customer.id, name: order.customer.name, phone: order.customer.phone, phone2: order.customer.phone2 || '', isNew: false, todayOrders: [] },
+    address: { ...address, isNew: false },
+    orderNote: order.note || '',
+    editing: { orderId: order.id, number: order.number },
+  });
 }
 
 /* Repeat an old order: current catalog prices are used, missing products are skipped. */

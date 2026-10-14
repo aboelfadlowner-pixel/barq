@@ -17,6 +17,7 @@ export function ticketHtml(order) {
         ${order.isDemo ? '<div class="tk-demo">طلب تجريبي</div>' : ''}
       </div>
       <div class="tk-no ltr-inline">${esc(order.number)}</div>
+      ${order.editCount ? `<div class="tk-edited">معدّل${order.editCount > 1 ? ` (${order.editCount})` : ''} — بدل الورقة القديمة</div>` : ''}
       <div class="tk-rows">
         <div><span>التاريخ</span><span class="num">${formatDateTime(order.createdAt)}</span></div>
         <div><span>الموظف</span><span>${esc(order.employee)}</span></div>

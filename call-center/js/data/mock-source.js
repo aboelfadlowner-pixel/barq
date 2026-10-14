@@ -142,6 +142,47 @@ export function setStage(orderId, stage) {
   return resolve({ id: o.id, stage: o.stage });
 }
 
+export function ackEdit(orderId) {
+  const o = orders.find((x) => x.id === orderId);
+  if (o) o.editSeenAt = new Date().toISOString();
+  return Promise.resolve(true);
+}
+
+/* Edit (demo): same rules as the database — until «على الكاشير»; kept lines keep their price. */
+export function editOrder({ orderId, cart, address, orderNote, agent }) {
+  const o = orders.find((x) => x.id === orderId);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده ملغي — مينفعش يتعدّل'));
+  if (!['new', 'preparing'].includes(o.stage || 'new')) return Promise.reject(new Error('الطلب وصل الكاشير — أي تعديل يبقى بالتليفون مع الفرع'));
+  const amount = (l) => (l.unitType === 'weight' ? { qty: null, grams: l.grams } : { qty: l.qty, grams: null });
+  const key = (a) => `${a.qty}|${a.grams}`;
+  const oldBy = new Map(o.items.map((l) => [l.productId, l]));
+  const newBy = new Map(cart.map((l) => [l.productId, l]));
+  const changes = [];
+  for (const [id, n] of newBy) {
+    const old = oldBy.get(id);
+    if (!old) changes.push({ kind: 'added', name: n.name, to: amount(n) });
+    else if (key(amount(old)) !== key(amount(n))) changes.push({ kind: 'amount', name: n.name, from: amount(old), to: amount(n) });
+    else if ((old.note || '') !== (n.note || '')) changes.push({ kind: 'note', name: n.name, to: n.note || '' });
+  }
+  for (const [id, old] of oldBy) if (!newBy.has(id)) changes.push({ kind: 'removed', name: old.name, from: amount(old) });
+  const area = areas.find((a) => a.id === address.areaId);
+  const addrChanged = address.areaId !== o.address.areaId || address.street !== o.address.street
+    || (address.housingType || '') !== (o.address.housingType || '') || (address.notes || '') !== (o.address.notes || '');
+  if (addrChanged) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
+  if ((orderNote || '') !== (o.note || '')) changes.push({ kind: 'order_note', name: 'ملاحظات الطلب', to: orderNote || '' });
+  if (!changes.length) return Promise.reject(new Error('مفيش أي تغيير في الطلب'));
+  o.items = cart.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
+  if (addrChanged) {
+    if (address.areaId !== o.address.areaId) o.deliveryFee = area?.fee ?? o.deliveryFee;
+    o.address = { ...o.address, areaId: address.areaId, areaName: area?.name ?? o.address.areaName, street: address.street,
+      housingType: address.housingType || '', notes: address.notes || '' };
+  }
+  o.note = orderNote || '';
+  Object.assign(o, { editCount: (o.editCount || 0) + 1, editedAt: new Date().toISOString(), editedBy: agent?.name || '', editChanges: changes, editSeenAt: null });
+  return resolve(o);
+}
+
 export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null);
 
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */

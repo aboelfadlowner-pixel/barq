@@ -2,7 +2,7 @@
 import * as ds from '../data/data-source.js';
 import { requireAgent } from '../components/agent-select.js';
 import { catalog } from '../catalog.js';
-import { getState, loadDraftFromOrder } from '../store.js';
+import { getState, loadDraftFromOrder, loadDraftForEdit } from '../store.js';
 import { esc, on, copyText } from '../utils/dom.js';
 import { formatAddress, formatDateTime, formatTime, dayLabel } from '../utils/format.js';
 import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/pricing.js';
@@ -53,10 +53,16 @@ export function mountOrderDetails(view, orderId) {
               <span>${icon('headset')} أخد الطلب: <strong>${esc(order.employee)}</strong></span>
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
               ${order.isDemo ? '<span class="demo-pill">طلب تجريبي</span>' : ''}
+              ${order.editCount ? `<span class="tag tag-amber">${icon('edit')}اتعدّل${order.editCount > 1 ? ` ${order.editCount} مرات` : ''}${order.editedBy ? ` — آخر تعديل: ${esc(order.editedBy)}` : ''}</span>` : ''}
             </div>
           </div>
           <div class="page-actions">
             <button type="button" class="btn btn-primary" data-print>${icon('note')}طباعة</button>
+            ${order.status !== 'cancelled' && can(getState().user, 'createOrder')
+              ? (['new', 'preparing'].includes(order.stage || 'new')
+                ? `<button type="button" class="btn btn-soft" data-edit-order>${icon('edit')}تعديل الطلب</button>`
+                : `<span class="muted edit-locked" title="الفاتورة اتعملت على فوديكس">${icon('info')}وصل الكاشير — التعديل بالتليفون مع الفرع</span>`)
+              : ''}
             <button type="button" class="btn btn-soft" data-repeat>${icon('repeat')}تكرار الطلب</button>
             <button type="button" class="btn btn-secondary" data-copy>${icon('copy')}نسخ الملخص</button>
             ${order.status !== 'cancelled' && can(getState().user, 'cancelOrder')
@@ -127,6 +133,17 @@ export function mountOrderDetails(view, orderId) {
       on(view, 'click', '[data-cancel]', () => openCancelDialog(order)),
       on(view, 'click', '[data-copy]', async () => {
         showToast((await copyText(buildOrderSummary(order))) ? 'تم نسخ ملخص الطلب' : 'تعذر النسخ');
+      }),
+      on(view, 'click', '[data-edit-order]', async () => {
+        const s = getState();
+        if ((s.cart.length || s.customer) && !s.editing && !(await confirmDialog({
+          title: 'تعديل الطلب',
+          message: 'فيه طلب قيد الإنشاء — هيتشال من الشاشة عشان تعدّل الطلب ده.',
+          confirmLabel: 'كمّل للتعديل',
+        }))) return;
+        loadDraftForEdit(order);
+        location.hash = '#/pos';
+        showToast(`بتعدّل طلب ${order.number} — غيّر اللي محتاجه واضغط «حفظ التعديل»`);
       }),
       on(view, 'click', '[data-repeat]', async () => {
         const s = getState();

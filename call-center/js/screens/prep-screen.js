@@ -43,6 +43,20 @@ function itemLine(it) {
     ${it.note ? `<div class="pi-note">${icon('note')}${esc(it.note)}</div>` : ''}</li>`;
 }
 
+const amountText = (a) => (a?.grams ? formatWeight(a.grams) : a?.qty != null ? `${a.qty}` : '');
+function changeLine(c) {
+  switch (c.kind) {
+    case 'added': return `<li><strong>اتضاف:</strong> ${esc(c.name)} <span class="num">${esc(amountText(c.to))}</span></li>`;
+    case 'removed': return `<li class="chg-removed"><strong>اتشال:</strong> ${esc(c.name)}</li>`;
+    case 'amount': return `<li><strong>${esc(c.name)}:</strong> كان <span class="num">${esc(amountText(c.from))}</span> ← بقى <strong class="num">${esc(amountText(c.to))}</strong></li>`;
+    case 'note': return `<li><strong>${esc(c.name)}:</strong> ملاحظة «${esc(c.to)}»</li>`;
+    case 'address': return `<li><strong>العنوان اتغيّر:</strong> ${esc(c.to?.area || '')} · ${esc(c.to?.street || '')}</li>`;
+    case 'order_note': return `<li><strong>ملاحظات الطلب:</strong> ${esc(c.to || '—')}</li>`;
+    default: return '';
+  }
+}
+const editUnseen = (o) => o.editedAt && o.status !== 'cancelled' && (!o.editSeenAt || o.editSeenAt < o.editedAt);
+
 function prepCard(o, busy) {
   const cancelled = o.status === 'cancelled';
   const next = cancelled ? null : nextOf(o.stage);
@@ -50,13 +64,18 @@ function prepCard(o, busy) {
   const since = { preparing: o.preparingAt, at_cashier: o.atCashierAt }[o.stage];
   const a = o.address;
   return `
-    <article class="p-order ${cancelled ? 'is-cancelled' : ''}" data-oid="${esc(o.id)}">
+    <article class="p-order ${cancelled ? 'is-cancelled' : ''} ${editUnseen(o) ? 'is-edited' : ''}" data-oid="${esc(o.id)}">
       <header class="po-head">
         <strong class="po-no num">#${esc(o.number)}</strong>
         <span class="po-time">${icon('clock')}<span class="num">${formatTime(o.createdAt)}</span> · ${formatRelative(o.createdAt)}</span>
       </header>
       ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>الطلب ده اتلغى — متكملش تجهيزه</strong>
         ${o.cancelReason ? `<div>السبب: ${esc(o.cancelReason)}</div>` : ''}</div></div>` : ''}
+      ${editUnseen(o) ? `<div class="po-edited">
+        <div class="po-edited-head">${icon('edit')}<strong>اتعدّل${o.editCount > 1 ? ` (${o.editCount})` : ''} — الكول سنتر هيبعت ورقة جديدة</strong></div>
+        <ul>${(o.editChanges || []).map(changeLine).join('')}</ul>
+        <button type="button" class="btn btn-soft po-ack" data-ack ${busy ? 'disabled' : ''}>${icon('check')}شُفت التعديل</button>
+      </div>` : ''}
       <ul class="po-items">${o.items.map(itemLine).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
@@ -102,6 +121,7 @@ export function mountPrep(view) {
   const soundBtn = view.querySelector('[data-sound]');
   let orders = [];
   let known = null;          // order ids seen so far (null until the first load: no ring on open)
+  const editsSeen = new Map(); // order id → last edit time already announced
   let busyId = null;
   let timer = null;
   let stopped = false;
@@ -133,13 +153,16 @@ export function mountPrep(view) {
       const list = await ds.listPrepOrders();
       if (stopped) return;
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
+      const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);
       known = new Set(list.map((o) => o.id));
+      list.forEach((o) => editsSeen.set(o.id, o.editedAt || null));
       orders = list;
       render();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
-      if (fresh.length) {
+      if (fresh.length || edited.length) {
         if (soundOn()) ring();
-        showToast(fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`);
+        showToast([fresh.length ? (fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`) : '',
+          edited.length ? `اتعدّل: ${edited.map((o) => `#${o.number}`).join('، ')}` : ''].filter(Boolean).join(' · '));
       }
     } catch (err) {
       if (stopped) return;
@@ -173,6 +196,13 @@ export function mountPrep(view) {
       move(btn.closest('[data-oid]').dataset.oid, btn.dataset.back);
     }),
     on(view, 'click', '[data-refresh]', () => load()),
+    on(view, 'click', '[data-ack]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      busyId = id; render();
+      try { await ds.ackEdit(id); } catch (err) { showToast(err.message); }
+      busyId = null;
+      await load();
+    }),
     on(view, 'click', '[data-sound]', () => { setSound(!soundOn()); paintSound(); if (soundOn()) ring(); }),
   ];
   const onVisible = () => { if (!document.hidden) load(); };

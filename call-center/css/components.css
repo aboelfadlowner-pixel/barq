@@ -586,3 +586,17 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .out-list li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .btn.needs-value { border-color: #d97706; color: #9a5b00; background: #fff7e6; }
 @media (max-width: 1000px) { .prep-cols { grid-template-columns: 1fr; } .p-col-body { min-height: 0; } }
+/* ---------- Edited orders ---------- */
+.p-order.is-edited { border: 2px solid #d97706; }
+.po-edited { padding: 10px; border-radius: 10px; background: #fff7e6; color: #7a4a00; display: flex; flex-direction: column; gap: 6px; }
+.po-edited-head { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.po-edited-head .svg-icon { width: 17px; height: 17px; }
+.po-edited ul { margin: 0; padding-inline-start: 18px; font-size: 14px; display: flex; flex-direction: column; gap: 3px; }
+.po-edited .chg-removed { text-decoration: line-through; }
+.po-ack { align-self: stretch; justify-content: center; min-height: 44px; font-weight: 900; }
+.o-edited { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; color: #9a5b00; }
+.o-edited .svg-icon { width: 14px; height: 14px; }
+.edit-banner { margin: 0 18px 4px; }
+.edit-locked { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.edit-locked .svg-icon { width: 15px; height: 15px; }
+.tk-edited { text-align: center; font-weight: 900; font-size: 14px; border: 2px solid #000; margin-top: 4px; padding: 2px; }

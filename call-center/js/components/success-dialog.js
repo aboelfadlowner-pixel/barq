@@ -8,15 +8,16 @@ import { openModal, showToast } from './modal.js';
 import { openPrintPreview } from './print-ticket.js';
 import { openNewOrderDialog } from './new-order-dialog.js';
 
-export function openSuccessDialog(order) {
+export function openSuccessDialog(order, { edited = false } = {}) {
   const t = computeTotals(order.items, order.deliveryFee);
   const m = openModal({
-    title: `${icon('check')} تم إنشاء الطلب`,
+    title: `${icon('check')} ${edited ? 'تم حفظ التعديل' : 'تم إنشاء الطلب'}`,
     size: 'sm',
     body: `
       <div class="success">
         <div class="success-icon">${icon('check')}</div>
-        <h3>${order.isDemo ? 'تم إنشاء طلب تجريبي' : 'تم حفظ الطلب'}</h3>
+        <h3>${edited ? 'الطلب اتعدّل' : (order.isDemo ? 'تم إنشاء طلب تجريبي' : 'تم حفظ الطلب')}</h3>
+        ${edited ? `<div class="alert alert-warn">${icon('note')}<span>اطبع الورقة الجديدة وابعتها للي بيجهّز بدل القديمة — الفرع شايف علامة «اتعدّل».</span></div>` : ''}
         <div class="order-no ltr-inline">${esc(order.number)}</div>
         <div>الحالة: ${statusChip(order.status)}</div>
         <div class="muted">${esc(order.customer.name)} · ${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'} ${money(t.total)}</div>
@@ -40,5 +41,5 @@ export function openSuccessDialog(order) {
     setTimeout(() => openNewOrderDialog(), 0);
   });
   m.onClose(() => { if (location.hash === '#/pos') location.hash = '#/board'; });
-  m.foot.querySelector('[data-new]').focus();
+  (edited ? m.foot.querySelector('[data-print]') : m.foot.querySelector('[data-new]')).focus();
 }

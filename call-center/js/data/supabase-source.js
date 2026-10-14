@@ -104,6 +104,11 @@ export function toOrder(r) {
     preparingAt: r.preparing_at || null,
     atCashierAt: r.at_cashier_at || null,
     outAt: r.out_at || null,
+    editCount: r.edit_count || 0,             // edits (10_edit_order.sql)
+    editedAt: r.edited_at || null,
+    editedBy: r.edited_by_name || '',
+    editChanges: r.edit_changes || [],
+    editSeenAt: r.edit_seen_at || null,
     agentId: r.agent_id || null,
     employee: r.agent_name || r.created_by_name,     // older orders have no employee name
     cancelReason: r.cancel_reason || '',
@@ -164,6 +169,7 @@ const toPrepOrder = (r) => ({
   customer: { name: r.customer_name, phone: r.customer_phone, phone2: r.customer_phone2 || '' },
   address: { areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' },
   note: r.note || '', employee: r.agent_name || '',
+  editCount: r.edit_count || 0, editedAt: r.edited_at || null, editChanges: r.edit_changes || [], editSeenAt: r.edit_seen_at || null,
   items: (r.items || []).map((it) => (it.weight_grams != null
     ? { name: it.name, unitType: 'weight', grams: it.weight_grams, note: it.note || '' }
     : { name: it.name, unitType: 'piece', qty: it.qty, note: it.note || '' })),
@@ -174,6 +180,22 @@ export async function listPrepOrders() {
   const res = await c.rpc('cc_prep_orders');
   if (res.error?.code === NOT_INSTALLED) throw new Error('شاشة التجهيز لسه مش متفعّلة على قاعدة البيانات');
   return ok(res).map(toPrepOrder);
+}
+
+export async function ackEdit(orderId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_ack_edit', { p_order_id: orderId }));
+}
+
+/* Edit an order (until «على الكاشير»). The database recomputes prices and totals. */
+export async function editOrder({ orderId, cart, address, orderNote, agent }) {
+  const c = await sb();
+  const { p_items } = toCreateOrderArgs({ requestId: null, cart, customer: { id: 'x' }, address, orderNote });
+  const p_address = { area_id: address.areaId, street: address.street, housing_type: address.housingType || null, notes: address.notes || null };
+  const res = await c.rpc('cc_edit_order', { p_agent_id: agent?.id ?? null, p_order_id: orderId, p_address, p_items, p_note: orderNote || null });
+  if (res.error?.code === NOT_INSTALLED) throw new Error('تعديل الطلبات لسه مش متفعّل على قاعدة البيانات');
+  ok(res);
+  return getOrder(orderId);
 }
 
 export async function setStage(orderId, stage) {

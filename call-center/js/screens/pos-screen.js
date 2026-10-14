@@ -9,7 +9,9 @@ import { mountProductGrid, getVisibleProducts, selectProduct } from '../componen
 import { mountCartPanel } from '../components/cart-panel.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { confirmDialog } from '../components/modal.js';
-import { resetDraft } from '../store.js';
+import { resetDraft, setCustomer } from '../store.js';
+import { openAddressDialog } from '../components/address-dialog.js';
+import { esc } from '../utils/dom.js';
 
 export function mountPos(view) {
   view.innerHTML = `
@@ -17,9 +19,11 @@ export function mountPos(view) {
       <aside class="pos-cart" aria-label="ملخص الطلب"></aside>
       <section class="pos-products" aria-label="المنتجات">
         <div class="pos-title">
-          <button type="button" class="back-link link-btn" data-cancel-order>${icon('arrowRight')}إلغاء</button>
-          <h1>طلب جديد لمركز الاتصال</h1>
+          <button type="button" class="back-link link-btn" data-cancel-order>${icon('arrowRight')}${getState().editing ? 'إلغاء التعديل' : 'إلغاء'}</button>
+          <h1>${getState().editing ? `تعديل طلب <span class="ltr-inline">${esc(getState().editing.number)}</span>` : 'طلب جديد لمركز الاتصال'}</h1>
         </div>
+        ${getState().editing ? `<div class="alert alert-warn edit-banner">${icon('edit')}<span>بتعدّل طلب اتبعت للفرع. التعديل مسموح لحد «على الكاشير»،
+          والفرع هيشوف علامة «اتعدّل». بعد الحفظ اطبع الورقة الجديدة وابعتها بدل القديمة.</span></div>` : ''}
         <div class="products-head">
           <div class="search-row">
           <div class="search" data-search>
@@ -31,7 +35,9 @@ export function mountPos(view) {
               <button type="button" class="btn btn-ghost btn-icon btn-sm clear-btn" data-clear-search aria-label="مسح البحث">${icon('x')}</button>
             </span>
           </div>
-          <button type="button" class="btn btn-secondary btn-lg" data-customer-info>${icon('user')}معلومات العميل</button>
+          ${getState().editing
+            ? `<button type="button" class="btn btn-secondary btn-lg" data-edit-address>${icon('pin')}تعديل العنوان</button>`
+            : `<button type="button" class="btn btn-secondary btn-lg" data-customer-info>${icon('user')}معلومات العميل</button>`}
           </div>
           <div class="results-meta"></div>
         </div>
@@ -67,8 +73,20 @@ export function mountPos(view) {
 
     on(root, 'click', '[data-open-cart]', () => setState({ cartOpen: true })),
     on(root, 'click', '[data-customer-info]', () => openNewOrderDialog({ edit: !!getState().customer })),
+    // Editing a sent order: the customer stays; only the delivery address of this order can change.
+    on(root, 'click', '[data-edit-address]', () => openAddressDialog({
+      address: getState().address,
+      onSave: (address) => setCustomer(getState().customer, { ...address, edited: true }),
+    })),
     on(root, 'click', '[data-cancel-order]', async () => {
       const s = getState();
+      if (s.editing) {
+        if (!(await confirmDialog({ title: 'إلغاء التعديل', message: 'الطلب هيفضل زي ما هو من غير أي تغيير.', confirmLabel: 'إلغاء التعديل', cancelLabel: 'رجوع' }))) return;
+        const id = s.editing.orderId;
+        resetDraft();
+        location.hash = `#/orders/${encodeURIComponent(id)}`;
+        return;
+      }
       if ((s.cart.length || s.customer) && !(await confirmDialog({
         title: 'إلغاء الطلب', message: 'هيتمسح العميل والأصناف اللي في الطلب ده. لو عايز تكمّله بعدين اختار «حفظ كمسودة».',
         confirmLabel: 'إلغاء الطلب', cancelLabel: 'رجوع', danger: true,

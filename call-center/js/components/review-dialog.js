@@ -100,7 +100,7 @@ export function openReviewDialog() {
 
     m.foot.innerHTML = `
       <button type="button" class="btn btn-primary btn-lg" data-confirm ${missing.length || saving ? 'disabled' : ''}>
-        ${icon('check')}${saving ? 'جارٍ الإنشاء…' : 'تأكيد الطلب'}</button>
+        ${icon('check')}${saving ? 'جارٍ الحفظ…' : (getState().editing ? 'حفظ التعديل' : 'تأكيد الطلب')}</button>
       <button type="button" class="btn btn-secondary btn-lg" data-close>${icon('edit')}رجوع للتعديل</button>
       <div class="foot-total push">
         <span>${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}</span>${money(t.total)}
@@ -119,20 +119,22 @@ export function openReviewDialog() {
     if (!requireAgent()) return;
     saving = true;                       // lock: one click = one order
     btn.disabled = true;
-    btn.innerHTML = `${icon('check')}جارٍ الإنشاء…`;
+    btn.innerHTML = `${icon('check')}جارٍ الحفظ…`;
     try {
-      const order = await ds.createOrder({
-        requestId: s.requestId, cart: s.cart, customer: s.customer, address: s.address,
-        orderNote: s.orderNote.trim(), agent: s.agent,
-      });
+      const order = s.editing
+        ? await ds.editOrder({ orderId: s.editing.orderId, cart: s.cart, address: s.address, orderNote: s.orderNote.trim(), agent: s.agent })
+        : await ds.createOrder({
+          requestId: s.requestId, cart: s.cart, customer: s.customer, address: s.address,
+          orderNote: s.orderNote.trim(), agent: s.agent,
+        });
       m.close();
       resetDraft();
-      openSuccessDialog(order);
+      openSuccessDialog(order, { edited: !!s.editing });
     } catch (err) {
       saving = false;
       btn.disabled = false;
       btn.innerHTML = `${icon('check')}إعادة المحاولة`;
-      showToast(`تعذر إنشاء الطلب: ${err.message}`);
+      showToast(`${s.editing ? 'تعذر حفظ التعديل' : 'تعذر إنشاء الطلب'}: ${err.message}`);
     }
   });
 
