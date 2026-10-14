@@ -25,7 +25,8 @@ const fetchCategories = () => ds.getCategories().catch(() => []);
 function setCategories(list) {
   const categories = list
     .map((c) => ({ ...c, productIds: c.productIds.filter((id) => catalog.productsById.has(id)) }))
-    .filter((c) => c.productIds.length);
+    .filter((c) => c.productIds.length)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar'));   // CONFIRMED: alphabetical
   Object.assign(catalog, { categories, categoriesById: new Map(categories.map((c) => [c.id, c])) });
 }
 
