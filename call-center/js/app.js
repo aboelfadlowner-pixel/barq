@@ -47,8 +47,9 @@ function showError(title, err) {
 
 async function startSignedIn(user) {
   setUser(user);
+  let refreshing = null;
   try {
-    await loadCatalog();                 // products and areas need a signed-in account
+    ({ refresh: refreshing } = await loadCatalog());   // products and areas need a signed-in account
   } catch (err) {
     showError('تعذر تحميل البيانات', err);
     return;
@@ -56,6 +57,8 @@ async function startSignedIn(user) {
   window.addEventListener('hashchange', render);
   restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   render();
+  // Opened with the product list saved on this device → bring it up to date quietly.
+  refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});
   // In the background: refresh "by weight / by unit" and the categories from the products
   // sheet; if anything changed, reload the product list quietly. Never blocks or breaks the app.
   ds.syncSaleUnits()

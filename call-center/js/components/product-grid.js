@@ -22,7 +22,7 @@ export function filterProducts(query) {
   if (!q) return [];
   const terms = q.split(' ');
   return catalog.products.filter((p) => {
-    const hay = normalizeArabic(`${p.name} ${p.code ?? ''} ${p.barcode ?? ''}`);
+    const hay = p.searchKey ?? normalizeArabic(`${p.name} ${p.code ?? ''} ${p.barcode ?? ''}`);
     return terms.every((t) => hay.includes(t));
   });
 }

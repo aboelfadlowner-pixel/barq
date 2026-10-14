@@ -1,5 +1,6 @@
 /* Reference data loaded once at startup through the data-source adapter. */
 import * as ds from './data/data-source.js';
+import { normalizeArabic } from './utils/format.js';
 
 export const catalog = {
   products: [],
@@ -19,6 +20,30 @@ const setAgents = (list) => Object.assign(catalog, {
   agents: list.filter((a) => a.active).sort((a, b) => a.name.localeCompare(b.name, 'ar')),
 });
 
+/* Speed (the customer is on the phone):
+   • every product gets its search text prepared once, so typing never re-processes 5,000+ names;
+   • the product list and categories are kept on this device, so the app opens at once with the last
+     list and refreshes it quietly in the background (prices are always re-checked by the database
+     when the order is sent). */
+const CACHE_KEY = 'cc-catalog-v1';
+const readCache = () => {
+  if (ds.IS_MOCK) return null;
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    return Array.isArray(c?.products) && c.products.length ? c : null;
+  } catch { return null; }
+};
+const writeCache = (products, categories) => {
+  if (ds.IS_MOCK) return;
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ products, categories, savedAt: Date.now() })); } catch { /* full or blocked: fine */ }
+};
+export const clearCatalogCache = () => { try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ } };
+
+function setProducts(products) {
+  for (const p of products) p.searchKey = normalizeArabic(`${p.name} ${p.code ?? ''} ${p.barcode ?? ''}`);
+  Object.assign(catalog, { products, productsById: new Map(products.map((p) => [p.id, p])) });
+}
+
 /* Categories never block the app: if they can't be loaded the screen falls back to search only. */
 const fetchCategories = () => ds.getCategories().catch(() => []);
 
@@ -30,14 +55,18 @@ function setCategories(list) {
   Object.assign(catalog, { categories, categoriesById: new Map(categories.map((c) => [c.id, c])) });
 }
 
+/* Returns { refresh } — a promise for the background refresh when the saved list was used
+   (wrapped in an object so awaiting loadCatalog() does not wait for it). */
 export async function loadCatalog() {
-  const [products, areas, statuses, agents, categories] = await Promise.all([
-    ds.getProducts(), ds.getAreas(), ds.getOrderStatuses(), ds.getAgents(), fetchCategories(),
+  const cached = readCache();
+  const fresh = cached ? null : Promise.all([ds.getProducts(), fetchCategories()]);
+  const [areas, statuses, agents, [products, categories]] = await Promise.all([
+    ds.getAreas(), ds.getOrderStatuses(), ds.getAgents(), fresh ?? [cached.products, cached.categories || []],
   ]);
+  if (fresh) writeCache(products, categories);
   setAgents(agents);
+  setProducts(products);
   Object.assign(catalog, {
-    products,
-    productsById: new Map(products.map((p) => [p.id, p])),
     allAreas: areas,
     areas: areas.filter((a) => a.active),            // selectable for new addresses
     areasById: new Map(areas.map((a) => [a.id, a])), // includes inactive (old addresses)
@@ -45,6 +74,7 @@ export async function loadCatalog() {
     statusesById: new Map(statuses.map((s) => [s.id, s])),
   });
   setCategories(categories);
+  return { refresh: cached ? reloadProducts() : null };
 }
 
 export async function reloadAreas() {
@@ -63,6 +93,7 @@ export async function reloadAgents() {
 /* Products again (after the products sheet changed how some are sold). */
 export async function reloadProducts() {
   const [products, categories] = await Promise.all([ds.getProducts(), fetchCategories()]);
-  Object.assign(catalog, { products, productsById: new Map(products.map((p) => [p.id, p])) });
+  writeCache(products, categories);
+  setProducts(products);
   setCategories(categories);
 }

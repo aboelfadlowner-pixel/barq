@@ -1,6 +1,7 @@
 /* Top bar: brand, navigation, account name (+ sign out when connected to the database). */
 import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
+import { clearCatalogCache } from '../catalog.js';
 import { confirmDialog } from './modal.js';
 import { can } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
@@ -25,6 +26,7 @@ export function mountTopbar(el) {
       confirmLabel: 'خروج', danger: true,
     }))) return;
     resetDraft();
+    clearCatalogCache();
     await ds.signOut();
     location.hash = '#/board';
     location.reload();
