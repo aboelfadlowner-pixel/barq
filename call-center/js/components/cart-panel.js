@@ -79,7 +79,7 @@ export function mountCartPanel(el) {
       </div>`;
     if (!cart.length) {
       box.innerHTML = `${head}
-        <div class="cart-empty">${icon('cart')}<strong>لسه مفيش أصناف</strong>ابحث باسم الصنف واضغط عليه لإضافته</div>`;
+        <div class="cart-empty">${icon('cart')}<strong>لسه مفيش أصناف</strong>اختار تصنيف أو ابحث باسم الصنف واضغط عليه لإضافته</div>`;
       return;
     }
     box.innerHTML = head + cart.map((l) => {

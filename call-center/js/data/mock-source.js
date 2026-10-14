@@ -20,6 +20,7 @@ let nextOrderNo = 1001 + orders.length;
 
 /* ---------- Catalog ---------- */
 export const getProducts      = () => resolve(mock.products);
+export const getCategories    = () => resolve(mock.categories);
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
 export const syncSaleUnits = () => Promise.resolve({ status: 'skipped' });

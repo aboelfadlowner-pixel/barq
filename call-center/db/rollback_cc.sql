@@ -5,6 +5,7 @@
 --  Run only with explicit approval.
 -- =====================================================================
 begin;
+drop function if exists public.cc_list_categories();
 drop function if exists public.cc_join_with_code(text);
 drop function if exists public.cc_signup_code_status();
 drop function if exists public.cc_set_signup_code(text);
@@ -21,7 +22,8 @@ drop function if exists public.cc_create_order(uuid, text, jsonb, jsonb, jsonb, 
 drop function if exists public.cc_list_products(text, int);
 drop function if exists public.cc_sold_by(text);
 drop view     if exists public.cc_products;
-drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, public.cc_settings, public.cc_join_attempts;
+drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, public.cc_settings, public.cc_join_attempts,
+                        public.cc_categories, public.cc_product_categories;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it

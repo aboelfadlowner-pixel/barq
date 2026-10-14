@@ -680,3 +680,34 @@ do $$ begin
   raise notice 'PASS T28b signed-out users cannot use the code';
 end $$;
 rollback;
+
+-- T29 — categories: staff sees active categories with their products; empty/inactive hidden; tables closed to the app
+begin;
+insert into public.cc_categories (reference, name, sort_order, active) values
+  ('c01', 'مخبوزات ابو الفضل', 2, true), ('c02', 'اجبان', 1, true), ('c03', 'فاضي', 3, true), ('c04', 'قديم', 4, false);
+insert into public.cc_product_categories (sku, reference) values
+  ('T-101', 'c02'), ('T-104', 'c02'), ('T-203', 'c01'), ('T-201', null), ('T-102', 'c04');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare got text; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select string_agg(name || ':' || array_to_string(skus, '+'), ',') into got from public.cc_list_categories();
+  if got is distinct from 'اجبان:T-101+T-104,مخبوزات ابو الفضل:T-203' then raise exception 'FAIL T29 list = %', got; end if;
+  begin perform * from public.cc_categories; raise exception 'FAIL T29 table readable';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.cc_product_categories (sku, reference) values ('X', 'c01'); raise exception 'FAIL T29 table writable';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T29 categories listed with their products (empty/old hidden), tables closed to the app';
+end $$;
+rollback;
+begin;
+update public.cc_staff set active = false where user_id = (select id from auth.users where email = 'staff@cc.test');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform * from public.cc_list_categories(); raise exception 'FAIL T29b stopped account listed categories';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T29b stopped account cannot list categories';
+end $$;
+rollback;

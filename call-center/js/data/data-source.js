@@ -26,6 +26,7 @@ export const getSignupCodeStatus = () => impl.getSignupCodeStatus();
 // Refresh "by weight / by unit" from the products sheet (Supabase only; at most every 10 min).
 export const syncSaleUnits    = () => impl.syncSaleUnits();
 export const getProducts      = () => impl.getProducts();
+export const getCategories    = () => impl.getCategories();
 export const getAreas         = () => impl.getAreas();          // includes inactive areas
 export const getOrderStatuses = () => impl.getOrderStatuses();
 

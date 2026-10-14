@@ -56,10 +56,12 @@ async function startSignedIn(user) {
   window.addEventListener('hashchange', render);
   restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   render();
-  // In the background: refresh "by weight / by unit" from the products sheet; if anything
-  // changed, reload the product list quietly. Never blocks or breaks the app.
+  // In the background: refresh "by weight / by unit" and the categories from the products
+  // sheet; if anything changed, reload the product list quietly. Never blocks or breaks the app.
   ds.syncSaleUnits()
-    .then((r) => (r?.status === 'ok' && r.rows_changed ? reloadProducts() : null))
+    .then((r) => ((r?.status === 'ok' && r.rows_changed) || (r?.categories?.status === 'ok' && r.categories.rows_changed)
+      ? reloadProducts().then(() => setState({ catalogVersion: Date.now() }))
+      : null))
     .catch(() => {});
 }
 

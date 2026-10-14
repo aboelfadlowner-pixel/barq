@@ -2,10 +2,11 @@
 // Keeps cc_product_sale_unit (sku → sold by weight) in step with the products
 // sheet's is_sold_by_weight column. Called by the call-center app when it opens
 // (at most once every 10 minutes). Only the active call-center account may call it.
-// Writes only cc_product_sale_unit and cc_sync_status; reads the Drive file only.
+// Also refreshes the categories (التصنيفات.csv + category_reference), same throttle.
+// Writes only call-center tables; reads the Drive files only.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { fetchDriveCsv, PRODUCTS_FILE_ID, syncSaleUnits } from "./core.ts";
+import { CATEGORIES_FILE_ID, fetchDriveCsv, PRODUCTS_FILE_ID, syncCategories, syncSaleUnits } from "./core.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,10 @@ Deno.serve(async (req: Request) => {
   const { data: staff } = await sb.from("cc_staff").select("active").eq("user_id", who.user.id).maybeSingle();
   if (!staff?.active) return json({ error: "غير مصرح" }, 403);
 
-  const result = await syncSaleUnits(sb, () => fetchDriveCsv(PRODUCTS_FILE_ID));
-  return json(result, result.status === "failed" ? 502 : 200);
+  // The products file is downloaded once and shared by both syncs.
+  let products: Promise<string> | null = null;
+  const loadProducts = () => (products ??= fetchDriveCsv(PRODUCTS_FILE_ID));
+  const result = await syncSaleUnits(sb, loadProducts);
+  const categories = await syncCategories(sb, loadProducts, () => fetchDriveCsv(CATEGORIES_FILE_ID));
+  return json({ ...result, categories }, result.status === "failed" ? 502 : 200);
 });

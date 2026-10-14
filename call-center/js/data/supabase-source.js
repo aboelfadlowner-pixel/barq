@@ -221,6 +221,13 @@ export async function getProducts() {
   return all;
 }
 
+/* Categories (like Foodics) with the codes of their products, in one call. */
+export async function getCategories() {
+  const c = await sb();
+  return ok(await c.rpc('cc_list_categories'))
+    .map((r) => ({ id: r.reference, name: r.name, productIds: r.skus || [] }));
+}
+
 export async function getAreas() {
   const c = await sb();
   return ok(await c.from('cc_delivery_areas').select('id, name, fee, active').order('name')).map(toArea);

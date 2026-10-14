@@ -91,6 +91,20 @@ export const products = [
   p('M-804', 'شاي',                  'pack',  'علبة 100 فتلة', 95),
 ];
 
+/* ---------- Categories (like Foodics) — sample names; the real ones come from
+ * the Foodics categories export. skus = product codes in the category. */
+const cat = (id, name, codes) => ({ id, name, productIds: codes.map((c) => c.toLowerCase()) });
+export const categories = [
+  cat('c01', 'اجبان',               ['M-101', 'M-102', 'M-103', 'M-104', 'M-105', 'M-106', 'M-107', 'M-108', 'M-109', 'M-110', 'M-111', 'M-112', 'M-113']),
+  cat('c02', 'منتجات البان و زبادي', ['M-201', 'M-202', 'M-203', 'M-204', 'M-205', 'M-206', 'M-207']),
+  cat('c03', 'سمنة وزبدة',          ['M-301', 'M-302', 'M-303', 'M-304']),
+  cat('c04', 'مصنعات',              ['M-401', 'M-402', 'M-403', 'M-404', 'M-405']),
+  cat('c05', 'مخلل',                ['M-501', 'M-502', 'M-503', 'M-504', 'M-505']),
+  cat('c06', 'مربات',               ['M-601', 'M-602', 'M-603', 'M-604', 'M-605']),
+  cat('c07', 'مكرونة و ارز',        ['M-701', 'M-702', 'M-703', 'M-704', 'M-705', 'M-706']),
+  cat('c08', 'شاي و قهوة',          ['M-801', 'M-802', 'M-803', 'M-804']),
+];
+
 /* ---------- Delivery areas — CONFIRMED names; fees are PLACEHOLDERS ----------
  * The four delivery areas. Real fees will be entered from the "المناطق والرسوم" screen. */
 export const areas = [

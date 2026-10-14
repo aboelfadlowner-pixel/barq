@@ -25,6 +25,8 @@ let state = {
   route: 'pos',
   routeParam: null,
   search: '',
+  category: null,   // category opened on the order screen (null = category cards)
+  catalogVersion: 0, // bumped when products/categories are reloaded in the background
   cartOpen: false,
   ...emptyDraft(),
 };
@@ -110,7 +112,7 @@ export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });
 
 export function resetDraft() {
-  setState({ ...emptyDraft(), search: '', cartOpen: false });
+  setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
 }
 
 /* Repeat an old order: current catalog prices are used, missing products are skipped. */
