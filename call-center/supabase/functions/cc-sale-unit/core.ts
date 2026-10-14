@@ -215,12 +215,13 @@ export async function syncCategories(
     }
 
     // Product → category: only changed rows (a product that lost its category gets null, not deleted).
+    // Written in ONE request (= one transaction), so the app never sees half of the products of a category.
     const existing = new Map((await selectAll(sb, "cc_product_categories", "sku, reference"))
       .map((r: any) => [r.sku, r.reference ?? null]));
     const changed = [...links].filter(([sku, ref]) => !existing.has(sku) ? ref !== null : existing.get(sku) !== ref)
       .map(([sku, reference]) => ({ sku, reference, updated_at: ts }));
-    for (let i = 0; i < changed.length; i += 500) {
-      const { error } = await sb.from("cc_product_categories").upsert(changed.slice(i, i + 500), { onConflict: "sku" });
+    if (changed.length) {
+      const { error } = await sb.from("cc_product_categories").upsert(changed, { onConflict: "sku" });
       if (error) throw new Error(error.message);
     }
     const withCategory = [...links.values()].filter((r) => r && known.has(r)).length;
