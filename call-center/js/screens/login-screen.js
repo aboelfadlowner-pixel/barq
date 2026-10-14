@@ -6,7 +6,10 @@ import { ACCOUNT_EMAIL, ALLOW_SIGNUP } from '../config.js';
 import { icon } from '../components/icons.js';
 import { esc } from '../utils/dom.js';
 
-export function mountLogin(view, onSignedIn) {
+export function mountLogin(view, onSignedIn, { codeStep = false, email: pendingEmail = '' } = {}) {
+  // Signed in already but not linked yet (e.g. reopened after creating the account).
+  if (codeStep) { mountCodeStep(view, onSignedIn, pendingEmail); return; }
+
   view.innerHTML = `
     <div class="login-page">
       <form class="login-card card" novalidate>
@@ -27,7 +30,7 @@ export function mountLogin(view, onSignedIn) {
         <div class="field-error" data-err="login" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-lg btn-block" data-submit>${icon('check')}دخول</button>
         <p class="muted login-note">بتدخل مرة واحدة على الجهاز ده، وبعدها البرنامج بيفتح على طول.</p>
-        ${ALLOW_SIGNUP ? '<button type="button" class="link-btn signup-link" data-show-signup>أول مرة؟ إنشاء الأكونت</button>' : ''}
+        ${ALLOW_SIGNUP ? '<button type="button" class="link-btn signup-link" data-show-signup>أول مرة؟ إنشاء أكونت</button>' : ''}
       </form>
       ${ALLOW_SIGNUP ? signupFormHtml() : ''}
     </div>`;
@@ -37,7 +40,7 @@ export function mountLogin(view, onSignedIn) {
   const btn = view.querySelector('[data-submit]');
   (form.querySelector('#lg-email') ?? form.querySelector('#lg-password')).focus();
 
-  if (ALLOW_SIGNUP) wireSignup(view, form);
+  if (ALLOW_SIGNUP) wireSignup(view, form, onSignedIn);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -49,7 +52,8 @@ export function mountLogin(view, onSignedIn) {
     btn.textContent = 'جارٍ الدخول…';
     try {
       const account = await ds.signIn(email, password);
-      onSignedIn(account);
+      if (account.pendingCode) mountCodeStep(view, onSignedIn, account.email || email);
+      else onSignedIn(account);
     } catch (ex) {
       err.textContent = ex.message;
       btn.disabled = false;
@@ -59,12 +63,58 @@ export function mountLogin(view, onSignedIn) {
   });
 }
 
-/* ---------- One-time account creation (config ALLOW_SIGNUP) ---------- */
+/* ---------- Registration code: asked once for a new account ---------- */
+function mountCodeStep(view, onSignedIn, email) {
+  view.innerHTML = `
+    <div class="login-page">
+      <form class="login-card card" data-code-form novalidate>
+        <div class="brand login-brand">
+          <div class="brand-mark" aria-hidden="true">أ</div>
+          <div><div class="brand-name">أبو الفضل</div><div class="muted">مركز الاتصال · طلبات التوصيل</div></div>
+        </div>
+        <h1>كود التسجيل</h1>
+        <p class="muted">${email ? `الأكونت <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}اكتب كود التسجيل اللي خدته من المسؤول — مرة واحدة بس.</p>
+        <div class="field">
+          <label for="cd-code">الكود</label>
+          <input id="cd-code" class="input ltr-center" name="code" autocomplete="off" required>
+        </div>
+        <div class="field-error" data-err="code" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" data-code-submit>${icon('check')}تأكيد</button>
+        <button type="button" class="link-btn signup-link" data-code-signout>خروج والدخول بأكونت تاني</button>
+      </form>
+    </div>`;
+  const form = view.querySelector('[data-code-form]');
+  const err = form.querySelector('[data-err="code"]');
+  const btn = form.querySelector('[data-code-submit]');
+  const input = form.querySelector('#cd-code');
+  input.focus();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!input.value.trim()) { err.textContent = 'اكتب الكود'; input.focus(); return; }
+    err.textContent = '';
+    btn.disabled = true;
+    try {
+      const account = await ds.joinWithCode(input.value.trim());
+      if (!account || account.pendingCode) throw new Error('كود التسجيل غلط');
+      onSignedIn(account);
+    } catch (ex) {
+      err.textContent = ex.message;
+      btn.disabled = false;
+      input.select();
+    }
+  });
+  form.querySelector('[data-code-signout]').addEventListener('click', async () => {
+    await ds.signOut();
+    mountLogin(view, onSignedIn);
+  });
+}
+
+/* ---------- Account creation (config ALLOW_SIGNUP) ---------- */
 function signupFormHtml() {
   return `
       <form class="login-card card" data-signup hidden novalidate>
-        <h1>إنشاء أكونت مركز الاتصال</h1>
-        <p class="muted">مرة واحدة بس. الأكونت مش هيشوف أي بيانات لحد ما يتفعّل لمركز الاتصال.</p>
+        <h1>إنشاء أكونت</h1>
+        <p class="muted">مرة واحدة على الجهاز ده. بعد الأكونت هتكتب كود التسجيل اللي خدته من المسؤول.</p>
         <div class="field">
           <label for="su-email">الإيميل</label>
           <input id="su-email" class="input ltr" name="email" type="email" autocomplete="username" required>
@@ -84,7 +134,7 @@ function signupFormHtml() {
       </form>`;
 }
 
-function wireSignup(view, loginForm) {
+function wireSignup(view, loginForm, onSignedIn) {
   const su = view.querySelector('[data-signup]');
   const err = su.querySelector('[data-err="signup"]');
   const done = su.querySelector('[data-signup-done]');
@@ -109,10 +159,9 @@ function wireSignup(view, loginForm) {
     btn.disabled = true;
     try {
       const { needsConfirmation } = await ds.signUp(email, password);
+      if (!needsConfirmation) { mountCodeStep(view, onSignedIn, email); return; }   // signed in already → code
       done.hidden = false;
-      done.textContent = needsConfirmation
-        ? `الأكونت اتعمل ✔ افتح إيميل ${email} واضغط رابط التأكيد. بعدها ابعت الإيميل ده عشان يتفعّل لمركز الاتصال، وبعدين ادخل بكلمة السر.`
-        : `الأكونت اتعمل ✔ ابعت الإيميل ${email} عشان يتفعّل لمركز الاتصال، وبعدين ادخل بكلمة السر.`;
+      done.textContent = `الأكونت اتعمل ✔ افتح إيميل ${email} واضغط رابط التأكيد اللي في رسالة Supabase. بعدها ارجع هنا وادخل بالإيميل وكلمة السر، وهيطلب منك كود التسجيل مرة واحدة.`;
       su.querySelectorAll('input').forEach((i) => { i.value = ''; i.disabled = true; });
       btn.hidden = true;
     } catch (ex) {

@@ -599,3 +599,84 @@ do $$ begin
   raise notice 'PASS T26b signed-out users cannot read the sync status';
 end $$;
 rollback;
+
+-- T27 — registration code: set by staff only, never stored as text, wrong code counted, right code links the account
+begin;
+insert into auth.users (id, email) values (gen_random_uuid(), 'newbie@cc.test'), (gen_random_uuid(), 'newbie2@cc.test');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'outsider@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_set_signup_code('12345678'); raise exception 'FAIL T27 outsider set the code';
+  exception when insufficient_privilege then null; end;
+  if public.cc_join_with_code('anything') then raise exception 'FAIL T27 joined with no code set'; end if;
+exception when invalid_parameter_value then null;   -- "no code yet" is the expected error
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare st record; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_set_signup_code('1234'); raise exception 'FAIL T27 short code accepted';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_signup_code('Abu-2026x');
+  select * into st from public.cc_signup_code_status();
+  if not st.is_set then raise exception 'FAIL T27 status'; end if;
+  begin perform 1 from public.cc_settings; raise exception 'FAIL T27 settings readable';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$ begin
+  if exists (select 1 from public.cc_settings where value_hash like '%Abu-2026x%' or salt like '%Abu-2026x%') then raise exception 'FAIL T27 code stored as text'; end if;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'newbie@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if public.cc_is_staff() then raise exception 'FAIL T27 newbie is staff before joining'; end if;
+  if (select count(*) from public.cc_orders) <> 0 or (select count(*) from public.cc_customers) <> 0 then raise exception 'FAIL T27 newbie reads data before joining'; end if;
+  if public.cc_join_with_code('wrong-code') then raise exception 'FAIL T27 wrong code accepted'; end if;
+  if not public.cc_join_with_code('  Abu-2026x ') then raise exception 'FAIL T27 right code refused'; end if;
+  if not public.cc_is_staff() then raise exception 'FAIL T27 not linked after the right code'; end if;
+  if not public.cc_join_with_code('anything') then raise exception 'FAIL T27 already-linked should return true'; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select count(*) from public.cc_join_attempts where not ok) <> 1 then raise exception 'FAIL T27 wrong try not recorded'; end if;
+  raise notice 'PASS T27 code: staff-only, hashed, wrong try recorded, right code links the account';
+end $$;
+-- 5 wrong tries in an hour lock that account
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'newbie2@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare i int; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  for i in 1..5 loop perform public.cc_join_with_code('nope'); end loop;
+  begin perform public.cc_join_with_code('Abu-2026x'); raise exception 'FAIL T27 lock not applied';
+  exception when program_limit_exceeded then null; end;
+  if public.cc_is_staff() then raise exception 'FAIL T27 locked account got in'; end if;
+  raise notice 'PASS T27b 5 wrong tries lock the account for an hour';
+end $$;
+rollback;
+
+-- T28 — a stopped (inactive) account cannot rejoin with the code; signed-out cannot call the functions
+begin;
+update public.cc_staff set active = false where user_id = (select id from auth.users where email = 'staff@cc.test');
+insert into public.cc_settings (key, salt, value_hash) values ('signup_code', 's', public.cc_code_hash('s', 'Abu-2026x'));
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_join_with_code('Abu-2026x'); raise exception 'FAIL T28 stopped account rejoined';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T28 a stopped account stays stopped';
+end $$;
+rollback;
+begin;
+set local role anon;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_join_with_code('x'); raise exception 'FAIL T28b anon joined';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T28b signed-out users cannot use the code';
+end $$;
+rollback;

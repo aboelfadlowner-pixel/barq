@@ -49,6 +49,12 @@ export const getAccount = () => resolve(mock.account);
 export const signIn = () => resolve(mock.account);
 export const signOut = () => Promise.resolve();
 export const signUp = () => Promise.resolve({ needsConfirmation: false });
+export const joinWithCode = () => resolve(mock.account);
+let demoCodeAt = new Date().toISOString();
+export const setSignupCode = (code) => (String(code || '').trim().length < 8
+  ? Promise.reject(new Error('الكود لازم يكون من 8 لـ 40 حرف/رقم'))
+  : Promise.resolve((demoCodeAt = new Date().toISOString())));
+export const getSignupCodeStatus = () => Promise.resolve({ isSet: true, updatedAt: demoCodeAt });
 
 /* ---------- Customers ---------- */
 function lastOrderAt(customerId) {

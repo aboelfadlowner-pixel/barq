@@ -73,8 +73,8 @@ async function start() {
     showError('تعذر الاتصال', err);
     return;
   }
-  if (user) startSignedIn(user);
-  else mountLogin(view, startSignedIn);
+  if (user && !user.pendingCode) startSignedIn(user);
+  else mountLogin(view, startSignedIn, { codeStep: !!user?.pendingCode, email: user?.email });
 }
 
 start();

@@ -134,15 +134,19 @@ export function toCreateOrderArgs({ requestId, cart, customer, address, orderNot
 const digits = (v) => normalizePhone(v).replace(/\D/g, '');
 
 /* ---------- Account ---------- */
+/* null = signed out (or a stopped account);
+   { pendingCode: true, email } = signed in but not linked yet → must enter the registration code;
+   otherwise the call-center account. */
 export async function getAccount() {
   const c = await sb();
   const { data: { session } } = await c.auth.getSession();
   if (!session) return null;
   const row = ok(await c.from('cc_staff').select('display_name, active').eq('user_id', session.user.id).maybeSingle());
-  if (!row || !row.active) {            // signed in, but not the call-center account
+  if (row && !row.active) {             // stopped account
     await c.auth.signOut();
     return null;
   }
+  if (!row) return { pendingCode: true, email: session.user.email || '' };
   return { id: session.user.id, name: row.display_name };
 }
 
@@ -156,12 +160,32 @@ export async function signIn(email, password) {
     throw new Error(error.status === 400 ? 'كلمة السر أو البريد غير صحيح' : 'تعذر تسجيل الدخول — تأكد من الإنترنت وحاول تاني');
   }
   const account = await getAccount();
-  if (!account) throw new Error('الحساب ده مش مسموح له يدخل مركز الاتصال');
-  return account;
+  if (!account) throw new Error('الأكونت ده متوقف — كلّم المسؤول');
+  return account;   // may be { pendingCode: true } → the screen asks for the registration code
 }
 
-/* One-time account creation (ALLOW_SIGNUP). The account can read nothing until
-   it is linked in cc_staff. Returns whether an email confirmation is pending. */
+/* Registration code: links this signed-in account as the call-center account. */
+export async function joinWithCode(code) {
+  const c = await sb();
+  const linked = ok(await c.rpc('cc_join_with_code', { p_code: String(code || '') }));
+  if (!linked) throw new Error('كود التسجيل غلط');
+  return getAccount();
+}
+
+export async function setSignupCode(code) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_signup_code', { p_code: String(code || '') }));
+}
+
+export async function getSignupCodeStatus() {
+  const c = await sb();
+  const [row] = ok(await c.rpc('cc_signup_code_status'));
+  return { isSet: !!row?.is_set, updatedAt: row?.updated_at || null };
+}
+
+/* Account creation (ALLOW_SIGNUP). The new account can read nothing until it
+   enters the registration code. Returns whether an email confirmation is pending;
+   if not, the session is kept so the screen can ask for the code right away. */
 export async function signUp(email, password) {
   const c = await sb();
   const { data, error } = await c.auth.signUp({
@@ -175,7 +199,6 @@ export async function signUp(email, password) {
     if (m.includes('password')) throw new Error('كلمة السر ضعيفة — خليها 8 حروف/أرقام على الأقل');
     throw new Error('تعذر إنشاء الأكونت — تأكد من الإنترنت وحاول تاني');
   }
-  if (data.session) await c.auth.signOut();   // not linked yet: don't keep a session
   return { needsConfirmation: !data.session };
 }
 

@@ -45,6 +45,17 @@ export function mountAreas(view) {
         </table>
       </div>
 
+      <h2 class="section-title">${icon('user')}كود التسجيل للأجهزة الجديدة</h2>
+      <p class="muted section-sub">أي حد يعمل أكونت جديد من شاشة الدخول لازم يكتب الكود ده مرة واحدة عشان يدخل. ادّيه للموظفين بس، وغيّره لو اتسرّب — الأكونتات اللي دخلت قبل كده مش هتتأثر.</p>
+      <form class="card card-pad add-area" data-signup-code novalidate>
+        <div class="field grow">
+          <label for="signupCode">كود جديد <span class="muted" data-code-status></span></label>
+          <input id="signupCode" class="input ltr" name="code" minlength="8" maxlength="40" autocomplete="off" placeholder="8 حروف/أرقام على الأقل">
+        </div>
+        <button type="submit" class="btn btn-primary">${icon('check')}حفظ الكود</button>
+        <div class="field-error" data-err="code"></div>
+      </form>
+
       <h2 class="section-title">${icon('headset')}أسماء الموظفين</h2>
       <p class="muted section-sub">دي القايمة اللي الموظف بيختار منها اسمه أول ما يفتح البرنامج. الاسم الموقوف مش بيظهر في القايمة، والطلبات القديمة بتفضل باسمه.</p>
       <form class="card card-pad add-area" data-add-agent novalidate>
@@ -88,7 +99,30 @@ export function mountAreas(view) {
   };
   renderAgents();
 
+  const codeStatus = view.querySelector('[data-code-status]');
+  const showCodeStatus = () => ds.getSignupCodeStatus()
+    .then(({ isSet, updatedAt }) => {
+      codeStatus.textContent = isSet
+        ? `(فيه كود شغال${updatedAt ? ` من ${new Date(updatedAt).toLocaleDateString('ar-EG')}` : ''})`
+        : '(لسه مفيش كود — محدش جديد هيقدر يدخل)';
+    })
+    .catch(() => { codeStatus.textContent = ''; });
+  showCodeStatus();
+
   const offs = [
+    on(view, 'submit', '[data-signup-code]', async (e, form) => {
+      e.preventDefault();
+      const err = form.querySelector('[data-err="code"]');
+      const code = form.code.value.trim();
+      if (code.length < 8) { err.textContent = 'الكود لازم يكون 8 حروف/أرقام على الأقل'; form.code.focus(); return; }
+      try {
+        await ds.setSignupCode(code);
+        err.textContent = '';
+        form.reset();
+        showCodeStatus();
+        showToast('تم حفظ كود التسجيل — ادّيه للموظفين الجداد');
+      } catch (ex) { err.textContent = ex.message; }
+    }),
     on(view, 'submit', '[data-add-agent]', async (e, form) => {
       e.preventDefault();
       const err = form.querySelector('[data-err="agent"]');

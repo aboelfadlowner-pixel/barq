@@ -17,6 +17,10 @@ export const getAccount = () => impl.getAccount();
 export const signIn     = (email, password) => impl.signIn(email, password);
 export const signOut    = () => impl.signOut();
 export const signUp     = (email, password) => impl.signUp(email, password);
+/* Registration code: a new account types it once to become the call-center account. */
+export const joinWithCode        = (code) => impl.joinWithCode(code);
+export const setSignupCode       = (code) => impl.setSignupCode(code);
+export const getSignupCodeStatus = () => impl.getSignupCodeStatus();
 
 /* Catalog */
 // Refresh "by weight / by unit" from the products sheet (Supabase only; at most every 10 min).
