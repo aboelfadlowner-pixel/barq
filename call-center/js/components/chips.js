@@ -3,10 +3,18 @@ import { catalog } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney } from '../utils/format.js';
 import { icon } from './icons.js';
+import { STAGES } from '../constants.js';
 
 export function statusChip(statusId) {
   const s = catalog.statusesById.get(statusId);
   return `<span class="status tone-${s?.tone ?? 'gray'}">${esc(s?.label ?? statusId)}</span>`;
+}
+
+/* One chip for where an order is: cancelled, or its preparation stage. */
+export function orderStateChip(o) {
+  if (o.status === 'cancelled') return statusChip('cancelled');
+  const st = STAGES.find((s) => s.id === (o.stage || 'new')) ?? STAGES[0];
+  return `<span class="status tone-${st.tone}">${esc(st.label)}</span>`;
 }
 
 export const money = (n) => `<span class="num">${formatMoney(n)}</span>`;

@@ -6,8 +6,8 @@ begin;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
 end $$;
-insert into public.cc_staff (user_id, display_name)
-select id, 'مركز الاتصال' from auth.users where email = 'staff@cc.test'
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'مركز الاتصال', 'admin' from auth.users where email = 'staff@cc.test'
 on conflict (user_id) do nothing;
 
 insert into public.cc_delivery_areas (name, fee, active) values

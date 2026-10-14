@@ -120,6 +120,28 @@ export function phoneBelongsToCustomer(phone) {
 export const listOrders = () =>
   resolve([...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
 
+/* Preparation (branch): today's orders + older ones not out yet; one step at a time. */
+const STAGE_IDS = ['new', 'preparing', 'at_cashier', 'out'];
+export const listPrepOrders = () => resolve(orders
+  .filter((o) => isSameDay(o.createdAt, new Date()) || (o.status !== 'cancelled' && o.stage !== 'out'))
+  .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  .map((o) => ({ ...o, cancelledAt: o.statusHistory.find((h) => h.status === 'cancelled')?.at ?? null })));
+export function setStage(orderId, stage) {
+  const o = orders.find((x) => x.id === orderId);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى — متكملش تجهيزه'));
+  const from = STAGE_IDS.indexOf(o.stage || 'new');
+  const to = STAGE_IDS.indexOf(stage);
+  if (to < 0) return Promise.reject(new Error('حالة غير معروفة'));
+  if (to === from) return resolve({ id: o.id, stage: o.stage });
+  if (Math.abs(to - from) !== 1) return Promise.reject(new Error('الطلب اتغيرت حالته من جهاز تاني — اعمل تحديث'));
+  const now = new Date().toISOString();
+  o.stage = stage;
+  if (to > from) o[['', 'preparingAt', 'atCashierAt', 'outAt'][to]] = now;
+  else o[['', 'preparingAt', 'atCashierAt', 'outAt'][from]] = null;
+  return resolve({ id: o.id, stage: o.stage });
+}
+
 export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null);
 
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
@@ -164,6 +186,7 @@ export function createOrder(draft) {
     items: cart.map(({ lineId, ...item }) => item),
     note: orderNote || '',
     status: mock.orderStatuses[0].id,
+    stage: 'new', preparingAt: null, atCashierAt: null, outAt: null,
     statusHistory: [{ status: mock.orderStatuses[0].id, at: now, by: agent.name }],
     agentId: agent.id,
     employee: agent.name,

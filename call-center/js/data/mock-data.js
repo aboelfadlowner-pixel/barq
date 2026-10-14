@@ -211,7 +211,16 @@ export function buildSampleOrders(now = new Date()) {
         by: canceller.name, reason: 'العميل لغى الطلب بالتليفون' });
     }
 
+    // Demo preparation stages for today's orders (new → preparing → at_cashier → out).
+    const stage = t.st === 'cancelled' || t.day !== 0 ? (t.day !== 0 && t.st !== 'cancelled' ? 'out' : 'new')
+      : ['new', 'preparing', 'at_cashier', 'out'][(todayCount - todayIndex) % 4];   // the newest order is «جديد»
+    const step = (n) => new Date(created.getTime() + n * 5 * 60000).toISOString();
+    const reached = ['new', 'preparing', 'at_cashier', 'out'].indexOf(stage);
     return {
+      stage,
+      preparingAt: reached >= 1 ? step(1) : null,
+      atCashierAt: reached >= 2 ? step(2) : null,
+      outAt: reached >= 3 ? step(3) : null,
       id: `o-${1001 + i}`,
       number: `DEMO-${1001 + i}`,
       createdAt: created.toISOString(),

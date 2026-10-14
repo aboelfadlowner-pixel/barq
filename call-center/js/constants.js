@@ -46,6 +46,15 @@ export const WEIGHT_MAX_GRAMS = 20000;
 export const MAX_PIECE_QTY = 999;
 
 /* CONFIRMED: order statuses are new and cancelled only (same values as the database). */
+/* CONFIRMED: preparation stages, moved on by the branch (prep account) one tap at a time. */
+export const STAGES = [
+  { id: 'new',        label: 'جديد',          tone: 'blue',   next: 'استلمت وبدأت التجهيز' },
+  { id: 'preparing',  label: 'بيتجهز',        tone: 'amber',  next: 'وصل الكاشير' },
+  { id: 'at_cashier', label: 'على الكاشير',   tone: 'purple', next: 'خرج مع الطيار' },
+  { id: 'out',        label: 'خرج مع الطيار', tone: 'green',  next: null },
+];
+export const PREP_REFRESH_MS = 8000;    // how often the preparation screen and the board check for changes
+
 export const ORDER_STATUSES = [
   { id: 'new',       label: 'جديد', tone: 'blue' },
   { id: 'cancelled', label: 'ملغي', tone: 'red' },

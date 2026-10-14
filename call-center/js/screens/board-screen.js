@@ -1,5 +1,6 @@
-/* Call-center home (Foodics-style board): today's orders in columns —
-   draft in progress, new, cancelled — plus "طلب جديد لمركز الاتصال". */
+/* Call-center home (Foodics-style board): today's orders in columns — draft in progress,
+   then the preparation stages set by the branch (جديد / بيتجهز / على الكاشير / خرج مع الطيار),
+   then cancelled — plus "طلب جديد لمركز الاتصال". Checks for changes every few seconds. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
@@ -7,7 +8,8 @@ import { esc, on } from '../utils/dom.js';
 import { formatRelative, isSameDay, normalizeArabic, normalizePhone } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
-import { money, statusChip } from '../components/chips.js';
+import { money, orderStateChip } from '../components/chips.js';
+import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
@@ -53,15 +55,22 @@ function orderCard(o) {
     <button type="button" class="o-card" data-id="${esc(o.id)}">
       <div class="o-head">
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
-        ${statusChip(o.status)}
+        ${orderStateChip(o)}
       </div>
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
-      <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}</span></div>
+      <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}${stageSince(o)}</span></div>
       <div class="o-row">${icon('pin')}<span>${esc(o.address.areaName)}</span></div>
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
     </button>`;
+}
+
+/* "· على الكاشير من 3 دقايق" — how long the order has been in its stage. */
+function stageSince(o) {
+  if (o.status === 'cancelled') return '';
+  const at = { preparing: o.preparingAt, at_cashier: o.atCashierAt, out: o.outAt }[o.stage];
+  return at ? ` · <span class="o-stage-since">${o.stage === 'out' ? 'خرج' : 'من'} ${formatRelative(at)}</span>` : '';
 }
 
 function draftCard() {
@@ -121,12 +130,16 @@ export function mountBoard(view) {
   let orders = [];
   const render = () => {
     const today = orders.filter((o) => isSameDay(o.createdAt, new Date()) && matches(o));
-    const fresh = today.filter((o) => o.status === 'new');
+    const active = today.filter((o) => o.status !== 'cancelled');
     const cancelled = today.filter((o) => o.status === 'cancelled');
     const draft = draftCard();
+    const empty = { new: 'مفيش طلبات جديدة', preparing: 'مفيش طلبات بتتجهز', at_cashier: 'مفيش طلبات على الكاشير', out: 'لسه مفيش طلبات خرجت' };
     cols.innerHTML =
       column('مسودة', draft ? 1 : 0, draft, 'مفيش طلب قيد الإنشاء') +
-      column('جديد', fresh.length, fresh.map(orderCard).join(''), 'مفيش طلبات جديدة النهارده', 'is-new') +
+      STAGES.map((st) => {
+        const list = active.filter((o) => (o.stage || 'new') === st.id);
+        return column(st.label, list.length, list.map(orderCard).join(''), empty[st.id], `is-${st.id}`);
+      }).join('') +
       column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'مفيش طلبات ملغية النهارده', 'is-cancelled');
   };
 
@@ -146,6 +159,11 @@ export function mountBoard(view) {
   offs.push(nameList.destroy);
   if (openNameListOnBoard) { openNameListOnBoard = false; nameList.open(); }
 
-  ds.listOrders().then((list) => { orders = list; render(); });
-  return () => offs.forEach((f) => f());
+  // The branch moves orders on: check every few seconds (only while this screen is visible).
+  let stopped = false;
+  let timer = null;
+  const load = () => ds.listOrders().then((list) => { if (!stopped) { orders = list; render(); } }).catch(() => {});
+  const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
+  load().then(schedule);
+  return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };
 }

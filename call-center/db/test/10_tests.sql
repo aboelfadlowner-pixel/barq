@@ -779,3 +779,61 @@ do $$ begin
   raise notice 'PASS T30d first run makes the current accounts admin; re-running changes nothing';
 end $$;
 rollback;
+
+-- T31 — preparation: prep sees today's orders (no prices) and moves them one step; call center sees the stage
+begin;
+insert into auth.users (id, email) values (gen_random_uuid(), 'prep2@cc.test'), (gen_random_uuid(), 'cc2@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'prep2@cc.test' then 'prep' else 'call_center' end from auth.users where email in ('prep2@cc.test', 'cc2@cc.test');
+select set_config('cc.oid', (select id::text from public.cc_orders where status = 'new' order by created_at limit 1), true);
+select set_config('cc.cancelled', coalesce((select id::text from public.cc_orders where status = 'cancelled' limit 1), ''), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep2@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare oid uuid := current_setting('cc.oid')::uuid; r jsonb; o jsonb; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select x into o from public.cc_prep_orders() x where x->>'id' = oid::text;
+  if o is null then raise exception 'FAIL T31 order not in the prep list'; end if;
+  if jsonb_array_length(o->'items') = 0 or o ? 'total' or (o->'items'->0) ? 'unit_price' then raise exception 'FAIL T31 items/prices %', o; end if;
+  if o->>'stage' <> 'new' then raise exception 'FAIL T31 starts at %', o->>'stage'; end if;
+  begin perform public.cc_set_stage(oid, 'at_cashier'); raise exception 'FAIL T31 skipped a step';
+  exception when invalid_parameter_value then null; end;
+  r := public.cc_set_stage(oid, 'preparing');
+  if r->>'stage' <> 'preparing' or r->>'preparing_at' is null then raise exception 'FAIL T31 preparing %', r; end if;
+  r := public.cc_set_stage(oid, 'preparing');   -- double tap: no error, no change
+  r := public.cc_set_stage(oid, 'new');         -- wrong tap: one step back
+  if r->>'stage' <> 'new' or r->>'preparing_at' is not null then raise exception 'FAIL T31 back %', r; end if;
+  perform public.cc_set_stage(oid, 'preparing');
+  perform public.cc_set_stage(oid, 'at_cashier');
+  r := public.cc_set_stage(oid, 'out');
+  if r->>'out_at' is null or r->>'at_cashier_at' is null or r->>'preparing_at' is null then raise exception 'FAIL T31 times %', r; end if;
+  r := public.cc_set_stage(oid, 'at_cashier');
+  if r->>'out_at' is not null or r->>'at_cashier_at' is null then raise exception 'FAIL T31 back from out %', r; end if;
+  perform public.cc_set_stage(oid, 'out');
+  if current_setting('cc.cancelled') <> '' then
+    begin perform public.cc_set_stage(current_setting('cc.cancelled')::uuid, 'preparing'); raise exception 'FAIL T31 cancelled order moved';
+    exception when invalid_parameter_value then null; end;
+  end if;
+  begin perform public.cc_set_stage(oid, 'boss'); raise exception 'FAIL T31 unknown stage';
+  exception when invalid_parameter_value then null; end;
+  begin perform * from public.cc_order_stage_events; raise exception 'FAIL T31 log readable';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T31 prep: list without prices, one step at a time, double tap safe, one step back, cancelled blocked';
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc2@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare oid uuid := current_setting('cc.oid')::uuid; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if (select stage from public.cc_orders where id = oid) <> 'out' or (select out_at from public.cc_orders where id = oid) is null then raise exception 'FAIL T31b call center does not see the stage'; end if;
+  begin perform public.cc_set_stage(oid, 'at_cashier'); raise exception 'FAIL T31b call center moved a stage';
+  exception when insufficient_privilege then null; end;
+  begin perform * from public.cc_prep_orders(); raise exception 'FAIL T31b call center opened the prep list';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T31b call center sees stage and times, cannot change them';
+end $$;
+reset role;
+do $$ begin
+  if (select count(*) from public.cc_order_stage_events where order_id = current_setting('cc.oid')::uuid) <> 7 then raise exception 'FAIL T31c log count'; end if;
+  raise notice 'PASS T31c every tap is logged with who and when';
+end $$;
+rollback;

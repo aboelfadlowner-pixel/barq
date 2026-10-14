@@ -100,6 +100,10 @@ export function toOrder(r) {
     note: r.note || '',
     status: r.status,
     statusHistory,
+    stage: r.stage || 'new',                  // preparation stage (09_prep.sql); 'new' before it is installed
+    preparingAt: r.preparing_at || null,
+    atCashierAt: r.at_cashier_at || null,
+    outAt: r.out_at || null,
     agentId: r.agent_id || null,
     employee: r.agent_name || r.created_by_name,     // older orders have no employee name
     cancelReason: r.cancel_reason || '',
@@ -152,6 +156,31 @@ export async function getAccount() {
 }
 
 /* Accounts and roles (admin). null = not installed on the database yet. */
+/* ---------- Preparation (branch) ---------- */
+const toPrepOrder = (r) => ({
+  id: r.id, number: r.order_no, createdAt: r.created_at, status: r.status,
+  cancelReason: r.cancel_reason || '', cancelledAt: r.cancelled_at || null,
+  stage: r.stage, preparingAt: r.preparing_at, atCashierAt: r.at_cashier_at, outAt: r.out_at,
+  customer: { name: r.customer_name, phone: r.customer_phone, phone2: r.customer_phone2 || '' },
+  address: { areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' },
+  note: r.note || '', employee: r.agent_name || '',
+  items: (r.items || []).map((it) => (it.weight_grams != null
+    ? { name: it.name, unitType: 'weight', grams: it.weight_grams, note: it.note || '' }
+    : { name: it.name, unitType: 'piece', qty: it.qty, note: it.note || '' })),
+});
+
+export async function listPrepOrders() {
+  const c = await sb();
+  const res = await c.rpc('cc_prep_orders');
+  if (res.error?.code === NOT_INSTALLED) throw new Error('شاشة التجهيز لسه مش متفعّلة على قاعدة البيانات');
+  return ok(res).map(toPrepOrder);
+}
+
+export async function setStage(orderId, stage) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_stage', { p_order_id: orderId, p_stage: stage }));
+}
+
 export async function listStaff() {
   const c = await sb();
   const res = await c.rpc('cc_list_staff');

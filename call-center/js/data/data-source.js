@@ -28,6 +28,8 @@ export const syncSaleUnits    = () => impl.syncSaleUnits();
 export const getProducts      = () => impl.getProducts();
 export const getCategories    = () => impl.getCategories();
 export const listStaff        = () => impl.listStaff();
+export const listPrepOrders   = () => impl.listPrepOrders();
+export const setStage         = (id, stage) => impl.setStage(id, stage);
 export const setStaff         = (a) => impl.setStaff(a);
 export const getAreas         = () => impl.getAreas();          // includes inactive areas
 export const getOrderStatuses = () => impl.getOrderStatuses();

@@ -8,11 +8,19 @@ import { formatAddress, formatDateTime, formatTime, dayLabel } from '../utils/fo
 import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/pricing.js';
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
-import { money, statusChip, totalsRows, estimateNote } from '../components/chips.js';
+import { money, statusChip, orderStateChip, totalsRows, estimateNote } from '../components/chips.js';
+import { STAGES } from '../constants.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { can } from '../permissions.js';
 import { openPrintPreview } from '../components/print-ticket.js';
 import { PAYMENT_METHOD } from '../constants.js';
+
+/* Created / cancelled (call center) and the preparation stages (branch), in time order. */
+function timeline(order) {
+  const stages = [['preparing', order.preparingAt], ['at_cashier', order.atCashierAt], ['out', order.outAt]]
+    .filter(([, at]) => at).map(([id, at]) => ({ stage: STAGES.find((s) => s.id === id), at, by: 'الفرع' }));
+  return [...order.statusHistory, ...stages].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
 
 export function mountOrderDetails(view, orderId) {
   view.innerHTML = '<div class="page"><div class="page-inner"><p class="muted">جارٍ التحميل…</p></div></div>';
@@ -40,7 +48,7 @@ export function mountOrderDetails(view, orderId) {
           <div>
             <h1>طلب <span class="ltr-inline">${esc(order.number)}</span></h1>
             <div class="meta-row">
-              ${statusChip(order.status)}
+              ${orderStateChip(order)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
               <span>${icon('headset')} أخد الطلب: <strong>${esc(order.employee)}</strong></span>
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
@@ -102,9 +110,9 @@ export function mountOrderDetails(view, orderId) {
             <div class="card card-pad">
               <h4 class="block-title" style="margin:0 0 10px">${icon('clock')}سجل الحالة</h4>
               <ul class="timeline">
-                ${order.statusHistory.map((h) => `
+                ${timeline(order).map((h) => `
                   <li>
-                    <div>${statusChip(h.status)}
+                    <div>${h.stage ? `<span class="status tone-${h.stage.tone}">${h.stage.label}</span>` : statusChip(h.status)}
                       ${h.reason ? `<div class="addr-extra">السبب: ${esc(h.reason)}</div>` : ''}</div>
                     <span class="muted num">${h.by ? `${esc(h.by)} · ` : ''}${dayLabel(h.at)} · ${formatTime(h.at)}</span>
                   </li>`).join('')}
