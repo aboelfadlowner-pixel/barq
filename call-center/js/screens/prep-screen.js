@@ -8,7 +8,7 @@ import * as ds from '../data/data-source.js';
 import { getState } from '../store.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
-import { formatRelative, formatTime, formatWeight, isSameDay } from '../utils/format.js';
+import { formatRelative, formatTime, formatWeight, housingLabel, isSameDay } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { confirmDialog, showToast } from '../components/modal.js';
 
@@ -79,7 +79,7 @@ function prepCard(o, busy) {
       <ul class="po-items">${o.items.map(itemLine).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
-        ${a.housingType ? ` · ${esc(a.housingType)}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
+        ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} من ${formatRelative(since)}</div>` : ''}
