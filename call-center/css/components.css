@@ -464,6 +464,12 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .chip { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-weight: 700; cursor: pointer; }
 .chip:hover { border-color: var(--green-500); }
 .chip.active { border-color: var(--green-600); background: var(--green-50); color: var(--green-700); }
+.role-pill { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 999px;
+  background: var(--green-50); color: var(--green-700); font-size: 12.5px; font-weight: 800; white-space: nowrap; }
+.role-pill .svg-icon { width: 14px; height: 14px; }
+.center-note { text-align: center; padding: 40px 20px; }
+.center-note .svg-icon { width: 40px; height: 40px; color: var(--green-600); margin-bottom: 10px; }
+.center-note h3 { margin-bottom: 6px; }
 .chip-num { direction: ltr; unicode-bidi: isolate; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-inline-start: 4px; }
 .chip.active .chip-num { color: var(--green-700); }
 .item-calc { margin-top: 8px; font-size: 14px; color: var(--ink-2); min-height: 20px; }
@@ -535,3 +541,5 @@ button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow);
 .agent-select .combo-btn.needs-value { border-color: var(--warn); color: var(--warn); background-color: var(--warn-50); }
 a.agent-chip { text-decoration: none; color: inherit; padding: 0 12px; }
 a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
+.ltr-cell { direction: ltr; unicode-bidi: isolate; text-align: right; font-size: 14px; }
+@media (max-width: 600px) { .role-pill-admin { display: none; } }

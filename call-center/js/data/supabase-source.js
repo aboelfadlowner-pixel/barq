@@ -141,13 +141,27 @@ export async function getAccount() {
   const c = await sb();
   const { data: { session } } = await c.auth.getSession();
   if (!session) return null;
-  const row = ok(await c.from('cc_staff').select('display_name, active').eq('user_id', session.user.id).maybeSingle());
+  // '*' so this keeps working before the role column exists (then the one account can do everything).
+  const row = ok(await c.from('cc_staff').select('*').eq('user_id', session.user.id).maybeSingle());
   if (row && !row.active) {             // stopped account
     await c.auth.signOut();
     return null;
   }
   if (!row) return { pendingCode: true, email: session.user.email || '' };
-  return { id: session.user.id, name: row.display_name };
+  return { id: session.user.id, name: row.display_name, role: row.role || 'admin', email: session.user.email || '' };
+}
+
+/* Accounts and roles (admin). null = not installed on the database yet. */
+export async function listStaff() {
+  const c = await sb();
+  const res = await c.rpc('cc_list_staff');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({ id: r.user_id, email: r.email, role: r.role, active: !!r.active, createdAt: r.created_at }));
+}
+
+export async function setStaff({ id, role, active }) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_staff', { p_user_id: id, p_role: role, p_active: active }));
 }
 
 export async function signIn(email, password) {

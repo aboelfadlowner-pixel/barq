@@ -5,6 +5,8 @@
 --  Run only with explicit approval.
 -- =====================================================================
 begin;
+drop function if exists public.cc_set_staff(uuid, text, boolean);
+drop function if exists public.cc_list_staff();
 drop function if exists public.cc_list_categories();
 drop function if exists public.cc_join_with_code(text);
 drop function if exists public.cc_signup_code_status();
@@ -27,6 +29,7 @@ drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, publ
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it
+drop function if exists public.cc_is_admin();
 drop function if exists public.cc_my_role();   -- earlier draft
 drop table    if exists public.cc_staff;
 drop sequence if exists public.cc_order_no_seq;

@@ -46,11 +46,23 @@ export function saveAgent({ id = null, name, active = true }) {
 }
 
 /* ---------- Account (the demo is always signed in) ---------- */
-export const getAccount = () => resolve(mock.account);
-export const signIn = () => resolve(mock.account);
+const demoRole = new URLSearchParams(location.search).get('role');
+const demoAccount = { ...mock.account, role: ['admin', 'call_center', 'prep'].includes(demoRole) ? demoRole : 'admin' };
+export const getAccount = () => resolve(demoAccount);
+export const signIn = () => resolve(demoAccount);
+
+const staff = clone(mock.staff);
+export const listStaff = () => resolve(staff);
+export function setStaff({ id, role, active }) {
+  if (id === demoAccount.id) return Promise.reject(new Error('مش هتقدر تغيّر صلاحية أكونتك إنت'));
+  const s = staff.find((x) => x.id === id);
+  if (!s) return Promise.reject(new Error('الأكونت غير موجود'));
+  Object.assign(s, { role, active });
+  return Promise.resolve(true);
+}
 export const signOut = () => Promise.resolve();
 export const signUp = () => Promise.resolve({ needsConfirmation: false });
-export const joinWithCode = () => resolve(mock.account);
+export const joinWithCode = () => resolve(demoAccount);
 let demoCodeAt = new Date().toISOString();
 export const setSignupCode = (code) => (String(code || '').trim().length < 8
   ? Promise.reject(new Error('الكود لازم يكون من 8 لـ 40 حرف/رقم'))

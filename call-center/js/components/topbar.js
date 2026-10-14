@@ -3,7 +3,7 @@ import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
 import { clearCatalogCache } from '../catalog.js';
 import { confirmDialog } from './modal.js';
-import { can } from '../permissions.js';
+import { can, isPrepOnly, ROLES } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
 
@@ -38,6 +38,20 @@ export function mountTopbar(el) {
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
       return;
     }
+    const logout = ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`;
+    if (isPrepOnly(user)) {               // branch preparation account: its screen only
+      el.innerHTML = `${brand}
+        <nav class="topnav" aria-label="التنقل الرئيسي">
+          <a href="#/prep" class="active">${icon('clipboard')}<span>شاشة التجهيز</span></a>
+        </nav>
+        <div class="spacer"></div>
+        <div class="top-meta">
+          <span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
+          <span class="role-pill">${icon('user')}${ROLES.find((r) => r.id === user.role)?.label ?? ''}</span>
+          ${logout}
+        </div>`;
+      return;
+    }
     const isPos = route === 'pos';
     el.innerHTML = `
       ${brand}
@@ -51,7 +65,8 @@ export function mountTopbar(el) {
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
         <a href="#/board" class="agent-chip ${agent ? '' : 'needs-value'}" title="الطلبات بتتسجل باسم الموظف ده — تغيّره من «اختار اسمك» في شاشة مركز الاتصال">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختار اسمك')}</span></a>
-        ${ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`}
+        ${user.role === 'admin' ? `<span class="role-pill role-pill-admin" title="الأدمن بيشوف الإعدادات والحسابات">${icon('user')}أدمن</span>` : ''}
+        ${logout}
       </div>`;
   });
 }

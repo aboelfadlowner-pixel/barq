@@ -711,3 +711,71 @@ do $$ begin
   raise notice 'PASS T29b stopped account cannot list categories';
 end $$;
 rollback;
+
+-- T30 — roles: admin manages settings and accounts; call_center works orders but no settings; prep sees nothing yet
+begin;
+insert into auth.users (id, email) values (gen_random_uuid(), 'cc@cc.test'), (gen_random_uuid(), 'prep@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'cc@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('cc@cc.test', 'prep@cc.test');
+insert into public.cc_settings (key, salt, value_hash) values ('signup_code', 's', public.cc_code_hash('s', 'Abu-2026x'))
+on conflict (key) do nothing;
+-- call_center
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if public.cc_my_role() <> 'call_center' or not public.cc_is_staff() or public.cc_is_admin() then raise exception 'FAIL T30 call_center role'; end if;
+  if (select count(*) from public.cc_delivery_areas) = 0 then raise exception 'FAIL T30 call_center cannot read areas'; end if;
+  begin perform public.cc_save_area(null, 'منطقة كول سنتر', 10, true); raise exception 'FAIL T30 call_center saved an area';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_save_agent(null, 'اسم', true); raise exception 'FAIL T30 call_center saved a name';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_set_signup_code('12345678x'); raise exception 'FAIL T30 call_center set the code';
+  exception when insufficient_privilege then null; end;
+  begin perform * from public.cc_list_staff(); raise exception 'FAIL T30 call_center listed accounts';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T30 call_center: reads orders/areas, no settings, no accounts';
+end $$;
+reset role;
+-- prep
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if public.cc_my_role() <> 'prep' or public.cc_is_staff() then raise exception 'FAIL T30 prep role'; end if;
+  if (select count(*) from public.cc_delivery_areas) + (select count(*) from public.cc_customers) + (select count(*) from public.cc_orders) <> 0 then raise exception 'FAIL T30 prep reads data'; end if;
+  begin perform * from public.cc_list_products(null, 10); raise exception 'FAIL T30 prep lists products';
+  exception when insufficient_privilege then null; end;
+  if public.cc_join_with_code('Abu-2026x') is not true then raise exception 'FAIL T30 prep join'; end if;
+  if public.cc_my_role() <> 'prep' then raise exception 'FAIL T30 code changed the prep role'; end if;
+  raise notice 'PASS T30b prep: sees no customers/orders/products, cannot order, the code does not change the role';
+end $$;
+reset role;
+-- admin
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare n int; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  select count(*) into n from public.cc_list_staff() where email in ('staff@cc.test', 'cc@cc.test', 'prep@cc.test');
+  if n <> 3 then raise exception 'FAIL T30 admin list %', n; end if;
+  perform public.cc_save_area(null, 'منطقة أدمن', 10, true);
+  perform public.cc_set_staff((select user_id from public.cc_list_staff() where email = 'cc@cc.test'), 'prep', false);
+  if (select role || '/' || active from public.cc_list_staff() where email = 'cc@cc.test') <> 'prep/false' then raise exception 'FAIL T30 set_staff'; end if;
+  begin perform public.cc_set_staff(auth.uid(), 'call_center', true); raise exception 'FAIL T30 admin changed own role';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_set_staff((select user_id from public.cc_list_staff() where email = 'prep@cc.test'), 'boss', true); raise exception 'FAIL T30 unknown role accepted';
+  exception when invalid_parameter_value then null; end;
+  raise notice 'PASS T30c admin: settings, list accounts, change role/stop others, not own account, unknown role refused';
+end $$;
+reset role;
+-- first run: the accounts in use become admin only while there is no admin
+do $$ begin
+  update public.cc_staff set role = 'call_center';
+  update public.cc_staff set role = 'admin' where active and not exists (select 1 from public.cc_staff where role = 'admin');
+  if (select count(*) from public.cc_staff where role = 'admin') <> (select count(*) from public.cc_staff where active) then raise exception 'FAIL T30 first run'; end if;
+  update public.cc_staff set role = 'prep' where user_id = (select id from auth.users where email = 'prep@cc.test');
+  update public.cc_staff set role = 'admin' where active and not exists (select 1 from public.cc_staff where role = 'admin');
+  if (select role from public.cc_staff where user_id = (select id from auth.users where email = 'prep@cc.test')) <> 'prep' then raise exception 'FAIL T30 re-run promoted again'; end if;
+  raise notice 'PASS T30d first run makes the current accounts admin; re-running changes nothing';
+end $$;
+rollback;

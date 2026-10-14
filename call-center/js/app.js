@@ -1,11 +1,12 @@
 /* App bootstrap + hash router.
-   Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas.
-   One shared account. Demo: always signed in. Supabase: the password is asked
-   once per device (login screen), then the session is remembered. */
+   Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas, #/prep.
+   Three roles (permissions.js): the prep account always lands on #/prep and sees nothing else.
+   Demo: always signed in. Supabase: the password is asked once per device (login screen),
+   then the session is remembered. */
 import { loadCatalog, reloadProducts } from './catalog.js';
 import { getState, setState, setUser } from './store.js';
 import * as ds from './data/data-source.js';
-import { can } from './permissions.js';
+import { can, isPrepOnly } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
 import { restoreAgent } from './components/agent-select.js';
 import { mountLogin } from './screens/login-screen.js';
@@ -14,6 +15,7 @@ import { mountPos } from './screens/pos-screen.js';
 import { mountOrders } from './screens/orders-screen.js';
 import { mountOrderDetails } from './screens/order-details-screen.js';
 import { mountAreas } from './screens/areas-screen.js';
+import { mountPrep } from './screens/prep-screen.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -24,12 +26,16 @@ function parseRoute() {
   if (section === 'orders') return { route: 'orders', param: null };
   if (section === 'areas') return { route: 'areas', param: null };
   if (section === 'pos') return { route: 'pos', param: null };
+  if (section === 'prep') return { route: 'prep', param: null };
   return { route: 'board', param: null };
 }
 
 function render() {
   let { route, param } = parseRoute();
-  if (route === 'areas' && !can(getState().user, 'manageAreas')) route = 'board';
+  const { user } = getState();
+  if (isPrepOnly(user)) route = 'prep';
+  else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
+  else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
 
   if (unmount) unmount();
   view.innerHTML = '';
@@ -38,6 +44,7 @@ function render() {
   else if (route === 'order') unmount = mountOrderDetails(view, param);
   else if (route === 'areas') unmount = mountAreas(view);
   else if (route === 'pos') unmount = mountPos(view);
+  else if (route === 'prep') unmount = mountPrep(view);
   else unmount = mountBoard(view);
 }
 
@@ -47,6 +54,11 @@ function showError(title, err) {
 
 async function startSignedIn(user) {
   setUser(user);
+  if (isPrepOnly(user)) {               // the preparation account loads no products, customers or settings
+    window.addEventListener('hashchange', render);
+    render();
+    return;
+  }
   let refreshing = null;
   try {
     ({ refresh: refreshing } = await loadCatalog());   // products and areas need a signed-in account
