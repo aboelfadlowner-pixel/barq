@@ -39,7 +39,13 @@ const writeCache = (products, categories) => {
 };
 export const clearCatalogCache = () => { try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ } };
 
+/* CONFIRMED: like Foodics, the newest product first (higher code number = added later: sk-8588 before sk-8540).
+   Applies to search results and to the products inside a category. */
+const codeNumber = (p) => Number(String(p.code ?? p.id).match(/(\d+)\D*$/)?.[1] ?? -1);
+const newestFirst = (a, b) => codeNumber(b) - codeNumber(a);
+
 function setProducts(products) {
+  products.sort(newestFirst);
   for (const p of products) p.searchKey = normalizeArabic(`${p.name} ${p.code ?? ''} ${p.barcode ?? ''}`);
   Object.assign(catalog, { products, productsById: new Map(products.map((p) => [p.id, p])) });
 }
@@ -49,7 +55,8 @@ const fetchCategories = () => ds.getCategories().catch(() => []);
 
 function setCategories(list) {
   const categories = list
-    .map((c) => ({ ...c, productIds: c.productIds.filter((id) => catalog.productsById.has(id)) }))
+    .map((c) => ({ ...c, productIds: c.productIds.filter((id) => catalog.productsById.has(id))
+      .sort((a, b) => newestFirst(catalog.productsById.get(a), catalog.productsById.get(b))) }))
     .filter((c) => c.productIds.length)
     .sort((a, b) => a.name.localeCompare(b.name, 'ar'));   // CONFIRMED: alphabetical
   Object.assign(catalog, { categories, categoriesById: new Map(categories.map((c) => [c.id, c])) });
