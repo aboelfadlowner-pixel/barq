@@ -45,14 +45,13 @@ function card(p, inCart) {
     : inCart.qty > 0
       ? `<span class="p-badge num">${inCart.qty}${inCart.grams ? ` + ${formatWeight(inCart.grams)}` : ''}</span>`
       : `<span class="p-badge">${icon('scale')}${formatWeight(inCart.grams)}</span>`;
-  const thumb = p.image
-    ? `<img src="${esc(p.image)}" alt="" loading="lazy">`
-    : icon('package');
+  // CONFIRMED: no picture area on the card (there are no product images); the name is larger instead.
+  const thumb = p.image ? `<div class="p-thumb"><img src="${esc(p.image)}" alt="" loading="lazy"></div>` : '';
   return `
     <button type="button" class="p-card ${inCart ? 'in-cart' : ''}" data-pid="${esc(p.id)}" role="listitem"
       aria-label="${esc(p.name)}">
       ${badge}
-      <div class="p-thumb">${thumb}</div>
+      ${thumb}
       <div class="p-name">${esc(p.name)}</div>
       <div class="p-unit">
         ${p.unitType === 'weight' ? `<span class="tag tag-warn">${icon('scale')}بالوزن</span>` : esc(p.unitLabel)}

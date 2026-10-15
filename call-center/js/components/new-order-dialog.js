@@ -50,10 +50,11 @@ export function openNewOrderDialog({ edit = false } = {}) {
     size: 'md',
     body: `
       <div class="no-form">
-        <div class="field">
+        <div class="field has-suggest">
           <label for="no-phone">هاتف العميل<span class="req">*</span></label>
           <input id="no-phone" class="input input-lg ltr" name="phone" type="tel" inputmode="tel" autocomplete="off"
-            placeholder="01xxxxxxxxx">
+            placeholder="01xxxxxxxxx" role="combobox" aria-autocomplete="list" aria-controls="no-suggest">
+          <div class="phone-suggest" id="no-suggest" data-suggest role="listbox" hidden></div>
           <div class="field-error" data-err="phone"></div>
         </div>
         <div data-phone2></div>
@@ -108,7 +109,7 @@ export function openNewOrderDialog({ edit = false } = {}) {
   function renderDetails() {
     const box = $('[data-details]');
     if (st.status === 'idle') {
-      box.innerHTML = `<p class="hint">اكتب رقم الموبايل كامل — لو العميل مسجل، بياناته وعناوينه هتظهر لوحدها.</p>`;
+      box.innerHTML = `<p class="hint">ابدأ اكتب رقم الموبايل — من أول 3 أرقام هتظهر العملاء المسجلين، اختار منهم أو كمّل الرقم لعميل جديد.</p>`;
       return;
     }
     if (st.status === 'searching') { box.innerHTML = '<p class="hint">جارٍ البحث…</p>'; return; }
@@ -164,6 +165,45 @@ export function openNewOrderDialog({ edit = false } = {}) {
   }
 
   const render = () => { renderPhone2(); renderDetails(); };
+
+  /* ---------- Suggestions while typing (CONFIRMED): from 3 digits, «الاسم (الرقم)» in one line ---------- */
+  const suggestBox = $('[data-suggest]');
+  let suggestions = [];
+  let active = -1;
+  let suggestSeq = 0;
+  const shownPhone = (c, q) => c.phones.find((ph) => normalizePhone(ph).startsWith(q)) ?? c.phones[0];
+  function hideSuggest() { suggestBox.hidden = true; suggestions = []; active = -1; }
+  function paintSuggest(q) {
+    if (!suggestions.length) { hideSuggest(); return; }
+    suggestBox.innerHTML = suggestions.map((c, i) => `
+      <button type="button" class="suggest-row ${i === active ? 'is-active' : ''}" role="option" data-sug="${i}" tabindex="-1">
+        <strong>${esc(c.name)}</strong> <span class="ltr-inline">(${esc(shownPhone(c, q))})</span></button>`).join('');
+    suggestBox.hidden = false;
+  }
+  async function suggest() {
+    const q = normalizePhone(st.phone);
+    if (q.length < 3 || isValidPhone(q)) { hideSuggest(); return; }   // full number → the exact lookup takes over
+    const seq = ++suggestSeq;
+    const list = await ds.suggestCustomersByPhone(q).catch(() => []);
+    if (seq !== suggestSeq) return;
+    suggestions = list; active = -1;
+    paintSuggest(q);
+  }
+  async function pickSuggestion(i) {
+    const c = suggestions[i];
+    if (!c) return;
+    const q = normalizePhone(st.phone);
+    st.phone = normalizePhone(shownPhone(c, q));
+    phoneInput.value = st.phone;
+    hideSuggest();
+    clearTimeout(timer);
+    ++lookupSeq; ++suggestSeq;
+    st.matches = [c];
+    await choose(c);
+  }
+  suggestBox.addEventListener('mousedown', (e) => e.preventDefault());   // keep the focus in the phone field
+  suggestBox.addEventListener('click', (e) => { const b = e.target.closest('[data-sug]'); if (b) pickSuggestion(Number(b.dataset.sug)); });
+  phoneInput.addEventListener('blur', () => setTimeout(hideSuggest, 150));
 
   /* ---------- Lookup ---------- */
   let lookupSeq = 0;
@@ -237,12 +277,28 @@ export function openNewOrderDialog({ edit = false } = {}) {
 
   /* ---------- Events ---------- */
   let timer;
+  let suggestTimer;
   phoneInput.addEventListener('input', () => {
     st.phone = phoneInput.value;
     clearTimeout(timer);
     timer = setTimeout(lookup, 200);
+    clearTimeout(suggestTimer);
+    suggestTimer = setTimeout(suggest, 150);
   });
-  phoneInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); lookup(); } });
+  phoneInput.addEventListener('keydown', (e) => {
+    if (!suggestBox.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+      paintSuggest(normalizePhone(st.phone));
+      return;
+    }
+    if (e.key === 'Escape' && !suggestBox.hidden) { e.preventDefault(); e.stopPropagation(); hideSuggest(); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!suggestBox.hidden && active >= 0) { pickSuggestion(active); return; }
+      clearTimeout(timer); lookup();
+    }
+  });
 
   m.el.addEventListener('input', (e) => {
     if (e.target.name === 'phone2') st.phone2 = e.target.value;

@@ -35,6 +35,7 @@ export const CUSTOMER_NAME_MAX = 120;
 export const WEIGHT_PRESETS = [
   { grams: 125,  label: 'تُمن كيلو' },
   { grams: 250,  label: 'ربع كيلو' },
+  { grams: 375,  label: '375 جم' },
   { grams: 500,  label: 'نص كيلو' },
   { grams: 750,  label: 'تلت أرباع' },
   { grams: 1000, label: '1 كيلو' },

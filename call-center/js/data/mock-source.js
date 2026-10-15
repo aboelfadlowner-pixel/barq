@@ -87,6 +87,15 @@ export function findCustomersByPhone(query) {
   return resolve(found);
 }
 
+export function suggestCustomersByPhone(prefix) {
+  const q = normalizePhone(prefix);
+  if (q.length < 3) return resolve([]);
+  return resolve(customers
+    .filter((c) => c.phones.some((ph) => normalizePhone(ph).startsWith(q)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar')).slice(0, 8)
+    .map((c) => ({ ...c, lastOrderAt: lastOrderAt(c.id) })));
+}
+
 /* Customers whose main or extra number equals this full number (new-order dialog). */
 export function findCustomersByExactPhone(phone) {
   const q = normalizePhone(phone);

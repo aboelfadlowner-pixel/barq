@@ -41,6 +41,7 @@ export const getOrderStatuses = () => impl.getOrderStatuses();
 /* Customers */
 export const findCustomersByPhone      = (query) => impl.findCustomersByPhone(query);
 export const findCustomersByExactPhone = (phone) => impl.findCustomersByExactPhone(phone);
+export const suggestCustomersByPhone = (p) => impl.suggestCustomersByPhone(p);
 export const listCustomerOrders        = (customerId, limit = 5) => impl.listCustomerOrders(customerId, limit);
 export const findTodayOrdersByPhone    = (phone) => impl.findTodayOrdersByPhone(phone);
 export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(phone);

@@ -361,6 +361,16 @@ export async function findCustomersByPhone(query) {
   return withLastOrder(c, rows);
 }
 
+/* Suggestions while typing (CONFIRMED: from 3 digits, numbers that START with them, 8 at most). */
+export async function suggestCustomersByPhone(prefix) {
+  const q = digits(prefix);
+  if (q.length < 3) return [];
+  const c = await sb();
+  const rows = ok(await c.from('cc_customers').select(CUSTOMER_SELECT)
+    .or(`phone.like.${q}*,phone2.like.${q}*`).order('name').limit(8));
+  return withLastOrder(c, rows);
+}
+
 /* Customers whose main or second number equals this number (phone2 is not unique — L6). */
 export async function findCustomersByExactPhone(phone) {
   const q = digits(phone);
