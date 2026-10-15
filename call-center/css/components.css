@@ -377,7 +377,10 @@
   display: flex; flex-direction: column; gap: 9px; width: 100%; text-align: start; cursor: pointer;
   padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm);
 }
-button.o-card:hover { border-color: var(--green-500); box-shadow: var(--shadow); }
+.o-card[data-id]:hover, .o-card[data-id]:focus-visible { border-color: var(--green-500); box-shadow: var(--shadow); }
+.o-head-end { display: inline-flex; align-items: center; gap: 4px; }
+.o-print { color: var(--ink-2); }
+.o-print .svg-icon { width: 17px; height: 17px; }
 .o-draft { cursor: default; border-style: dashed; border-color: var(--warn-line); }
 .o-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .o-no { font-size: 17px; font-weight: 900; }
@@ -611,3 +614,4 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .suggest-row:last-child { border-bottom: 0; }
 .suggest-row:hover, .suggest-row.is-active { background: var(--green-50); }
 .suggest-row .ltr-inline { color: var(--ink-2); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

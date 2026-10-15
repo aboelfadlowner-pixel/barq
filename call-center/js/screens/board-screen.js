@@ -13,6 +13,7 @@ import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
+import { openPrintPreview } from '../components/print-ticket.js';
 
 const filters = { q: '' };
 let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
@@ -52,10 +53,11 @@ function matches(o) {
 function orderCard(o) {
   const t = computeTotals(o.items, o.deliveryFee);
   return `
-    <button type="button" class="o-card" data-id="${esc(o.id)}">
+    <div class="o-card" role="button" tabindex="0" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
       <div class="o-head">
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
-        ${orderStateChip(o)}
+        <span class="o-head-end">${orderStateChip(o)}
+          <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="طباعة الطلب تاني" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
       ${o.editCount ? `<div class="o-edited">${icon('edit')}اتعدّل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · الفرع شافه' : ' · لسه الفرع ما شافوش'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
@@ -65,7 +67,7 @@ function orderCard(o) {
       ${o.stage === 'out' && o.driver ? `<div class="o-row o-driver">${icon('user')}<span>الطيار: <strong>${esc(o.driver)}</strong></span></div>` : ''}
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
-    </button>`;
+    </div>`;
 }
 
 /* "· على الكاشير من 3 دقايق" — how long the order has been in its stage. */
@@ -148,7 +150,19 @@ export function mountBoard(view) {
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
   const offs = [
     on(view, 'click', '[data-new-order]', () => startNewOrder()),
-    on(view, 'click', '.o-card[data-id]', (e, el) => { location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`; }),
+    // Print again straight from the card (in case the first ticket got lost).
+    on(view, 'click', '[data-print-order]', (e, btn) => {
+      e.stopPropagation();
+      const o = orders.find((x) => x.id === btn.dataset.printOrder);
+      if (o) openPrintPreview(o);
+    }),
+    on(view, 'click', '.o-card[data-id]', (e, el) => {
+      if (e.target.closest('[data-print-order]')) return;
+      location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`;
+    }),
+    on(view, 'keydown', '.o-card[data-id]', (e, el) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`; }
+    }),
     on(view, 'click', '[data-discard]', async () => {
       if (await confirmDialog({ title: 'إلغاء المسودة', message: 'هيتمسح العميل والأصناف اللي في الطلب اللي لسه ما اتأكدش.', confirmLabel: 'إلغاء المسودة', danger: true })) {
         resetDraft();

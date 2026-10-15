@@ -9,6 +9,7 @@ import { money, orderStateChip } from '../components/chips.js';
 import { getState } from '../store.js';
 import { can } from '../permissions.js';
 import { startNewOrder } from './board-screen.js';
+import { openPrintPreview } from '../components/print-ticket.js';
 import { agentFilterHtml, initAgentFilter, matchesAgent } from '../components/agent-filter.js';
 
 // Filters survive navigating to an order and back.
@@ -69,9 +70,9 @@ export function mountOrders(view) {
         <table class="table orders-table">
           <thead><tr>
             <th>رقم الطلب</th><th>الوقت</th><th>العميل</th><th class="col-opt">الموبايل</th>
-            <th class="col-opt">المنطقة</th><th class="col-opt">الموظف</th><th>الإجمالي</th><th>الحالة</th>
+            <th class="col-opt">المنطقة</th><th class="col-opt">الموظف</th><th>الإجمالي</th><th>الحالة</th><th><span class="sr-only">طباعة</span></th>
           </tr></thead>
-          <tbody data-body><tr><td colspan="8" class="table-empty">جارٍ التحميل…</td></tr></tbody>
+          <tbody data-body><tr><td colspan="9" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
     </div></div>`;
@@ -103,8 +104,9 @@ export function mountOrders(view) {
           <td class="col-opt">${esc(o.employee)}</td>
           <td class="nowrap"><strong>${money(t.total)}</strong>${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</td>
           <td>${orderStateChip(o)}</td>
+          <td><button type="button" class="btn btn-ghost btn-icon btn-sm" data-print-order="${esc(o.id)}" title="طباعة الطلب تاني" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></td>
         </tr>`;
-    }).join('') : `<tr><td colspan="8" class="table-empty">لا توجد طلبات مطابقة.
+    }).join('') : `<tr><td colspan="9" class="table-empty">لا توجد طلبات مطابقة.
         ${filters.date !== 'all' ? '<button type="button" class="btn btn-soft btn-sm" data-all-dates>عرض كل التواريخ</button>' : ''}</td></tr>`;
   }
 
@@ -126,9 +128,17 @@ export function mountOrders(view) {
       renderList();
     }),
     on(view, 'click', '[data-all-dates]', () => { $('#ordDate').value = 'all'; setFilter({ date: 'all' }); }),
-    on(view, 'click', 'tr[data-id]', (e, tr) => { location.hash = `#/orders/${encodeURIComponent(tr.dataset.id)}`; }),
+    on(view, 'click', '[data-print-order]', (e, btn) => {
+      e.stopPropagation();
+      const o = orders.find((x) => x.id === btn.dataset.printOrder);
+      if (o) openPrintPreview(o);
+    }),
+    on(view, 'click', 'tr[data-id]', (e, tr) => {
+      if (e.target.closest('[data-print-order]')) return;
+      location.hash = `#/orders/${encodeURIComponent(tr.dataset.id)}`;
+    }),
     on(view, 'keydown', 'tr[data-id]', (e, tr) => {
-      if (e.key === 'Enter') location.hash = `#/orders/${encodeURIComponent(tr.dataset.id)}`;
+      if (e.key === 'Enter' && e.target === tr) location.hash = `#/orders/${encodeURIComponent(tr.dataset.id)}`;
     }),
   ];
 
