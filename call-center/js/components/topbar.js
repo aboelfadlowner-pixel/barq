@@ -2,7 +2,7 @@
 import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
 import { clearCatalogCache } from '../catalog.js';
-import { confirmDialog } from './modal.js';
+import { confirmDialog, openModal, showToast } from './modal.js';
 import { can, isPrepOnly, ROLES } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
@@ -17,6 +17,7 @@ const brand = `
   </div>`;
 
 export function mountTopbar(el) {
+  on(el, 'click', '[data-change-password]', () => openChangePassword());
   on(el, 'click', '[data-logout]', async () => {
     const s = getState();
     const unsent = s.cart.length || s.customer;
@@ -38,7 +39,9 @@ export function mountTopbar(el) {
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
       return;
     }
-    const logout = ds.IS_MOCK ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`;
+    const logout = ds.IS_MOCK ? '' : `
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-change-password title="تغيير كلمة السر" aria-label="تغيير كلمة السر">${icon('key')}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`;
     if (isPrepOnly(user)) {               // branch preparation account: its screen only
       el.innerHTML = `${brand}
         <nav class="topnav" aria-label="التنقل الرئيسي">
@@ -69,4 +72,48 @@ export function mountTopbar(el) {
         ${logout}
       </div>`;
   });
+}
+
+/* Change the password of the account signed in on this device. */
+function openChangePassword() {
+  const m = openModal({
+    title: `${icon('key')} تغيير كلمة السر`,
+    size: 'sm',
+    body: `
+      <form data-pw novalidate>
+        <div class="field">
+          <label for="pw-new">كلمة السر الجديدة (8 على الأقل)</label>
+          <input id="pw-new" class="input ltr" type="password" autocomplete="new-password" minlength="8">
+        </div>
+        <div class="field">
+          <label for="pw-new2">تأكيد كلمة السر</label>
+          <input id="pw-new2" class="input ltr" type="password" autocomplete="new-password">
+        </div>
+        <p class="muted">الجهاز ده هيفضل داخل. الأجهزة التانية اللي داخلة بنفس الأكونت هتحتاج كلمة السر الجديدة لما تدخل تاني.</p>
+        <div class="field-error" data-err="pw" role="alert"></div>
+      </form>`,
+    footer: `
+      <button type="button" class="btn btn-primary btn-lg" data-save>${icon('check')}حفظ كلمة السر</button>
+      <button type="button" class="btn btn-secondary btn-lg" data-close>إلغاء</button>`,
+  });
+  const err = m.body.querySelector('[data-err="pw"]');
+  const save = async () => {
+    const a = m.body.querySelector('#pw-new').value;
+    const b = m.body.querySelector('#pw-new2').value;
+    if (a.length < 8) { err.textContent = 'كلمة السر لازم تكون 8 حروف/أرقام على الأقل'; return; }
+    if (a !== b) { err.textContent = 'كلمتين السر مش زي بعض'; return; }
+    const btn = m.foot.querySelector('[data-save]');
+    btn.disabled = true;
+    try {
+      await ds.changePassword(a);
+      m.close();
+      showToast('تم تغيير كلمة السر');
+    } catch (ex) {
+      err.textContent = ex.message;
+      btn.disabled = false;
+    }
+  };
+  m.foot.querySelector('[data-save]').addEventListener('click', save);
+  m.body.querySelector('[data-pw]').addEventListener('submit', (e) => { e.preventDefault(); save(); });
+  m.body.querySelector('#pw-new').focus();
 }

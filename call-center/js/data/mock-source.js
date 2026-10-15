@@ -61,6 +61,7 @@ export function setStaff({ id, role, active }) {
   return Promise.resolve(true);
 }
 export const signOut = () => Promise.resolve();
+export const changePassword = () => Promise.resolve(true);
 export const signUp = () => Promise.resolve({ needsConfirmation: false });
 export const joinWithCode = () => resolve(demoAccount);
 let demoCodeAt = new Date().toISOString();

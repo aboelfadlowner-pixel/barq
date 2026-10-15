@@ -274,6 +274,18 @@ export async function signUp(email, password) {
   return { needsConfirmation: !data.session };
 }
 
+/* The signed-in account changes its own password (stays signed in on this device). */
+export async function changePassword(password) {
+  const c = await sb();
+  const { error } = await c.auth.updateUser({ password });
+  if (error) {
+    if (/different from the old|same/i.test(error.message)) throw new Error('كلمة السر الجديدة لازم تكون مختلفة عن القديمة');
+    if (/weak|short|at least/i.test(error.message)) throw new Error('كلمة السر ضعيفة — خليها 8 حروف/أرقام على الأقل');
+    throw fail(error, 'تعذر تغيير كلمة السر');
+  }
+  return true;
+}
+
 export async function signOut() {
   const c = await sb();
   await c.auth.signOut();

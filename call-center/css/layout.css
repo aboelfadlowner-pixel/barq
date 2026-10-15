@@ -136,7 +136,11 @@
 /* Employee chip stays visible on every width; it gets compact on phones. */
 @media (max-width: 600px) {
   .topbar .demo-pill { display: none; }
-  .agent-chip { gap: 4px; padding: 0 3px 0 8px; font-size: 13px; max-width: 46vw; }
+  .agent-chip { gap: 4px; padding: 0 3px 0 8px; font-size: 13px; max-width: 34vw; }
+  .topbar [data-change-password] { width: 32px; padding: 0; }
+  .topbar { gap: 4px; }
+  .topnav { gap: 0; }
+  .topnav a { padding-inline: 8px; }
   .agent-chip > .svg-icon { display: none; }
   .agent-chip [data-agent-name] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .agent-chip .btn { padding: 0 8px; }
