@@ -918,3 +918,35 @@ do $$ declare oid uuid := current_setting('cc.edited')::uuid; begin
   raise notice 'PASS T32 edit: kept lines keep their price, new lines today''s price, totals recomputed, changes listed, saved address untouched, branch mark + ack, blocked at the cashier, old lines logged, core create/cancel closed';
 end $$;
 rollback;
+
+-- T33 — «خرج مع الطيار» needs the driver «الاسم (الرقم)» in one field; only from «على الكاشير»; call center sees it
+begin;
+insert into auth.users (id, email) values (gen_random_uuid(), 'prep4@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'prep4@cc.test';
+select set_config('cc.oid', (select id::text from public.cc_orders where status = 'new' order by created_at limit 1), true);
+update public.cc_orders set stage = 'preparing' where id = current_setting('cc.oid')::uuid;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep4@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare oid uuid := current_setting('cc.oid')::uuid; r jsonb; x jsonb; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  begin perform public.cc_send_out(oid, 'محمد (01012345678)'); raise exception 'FAIL T33 out from «بيتجهز»';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_stage(oid, 'at_cashier');
+  begin perform public.cc_send_out(oid, '  '); raise exception 'FAIL T33 empty driver';
+  exception when invalid_parameter_value then null; end;
+  r := public.cc_send_out(oid, '  محمد   (01012345678) ');
+  if r->>'stage' <> 'out' or r->>'driver' <> 'محمد (01012345678)' or r->>'out_at' is null then raise exception 'FAIL T33 %', r; end if;
+  begin perform public.cc_send_out(oid, 'تاني (0100)'); raise exception 'FAIL T33 sent out twice';
+  exception when invalid_parameter_value then null; end;
+  select y into x from public.cc_prep_orders() y where y->>'id' = oid::text;
+  if x->>'driver' <> 'محمد (01012345678)' then raise exception 'FAIL T33 prep list driver'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+  if (select driver from public.cc_orders where id = current_setting('cc.oid')::uuid) <> 'محمد (01012345678)' then raise exception 'FAIL T33 call center does not see the driver'; end if;
+  raise notice 'PASS T33 driver «الاسم (الرقم)» required for «خرج مع الطيار», only from the cashier, once; shown to prep and call center';
+end $$;
+rollback;

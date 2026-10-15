@@ -143,6 +143,16 @@ export function setStage(orderId, stage) {
   return resolve({ id: o.id, stage: o.stage });
 }
 
+export async function sendOut(orderId, driver) {
+  const d = String(driver || '').replace(/\s+/g, ' ').trim();
+  if (d.length < 2 || d.length > 80) throw new Error('اكتب اسم الطيار ورقمه — مثال: محمد (01012345678)');
+  const o = orders.find((x) => x.id === orderId);
+  if (o?.stage === 'out') throw new Error('الطلب خرج بالفعل');
+  const r = await setStage(orderId, 'out');
+  o.driver = d;
+  return { ...r, driver: d };
+}
+
 export function ackEdit(orderId) {
   const o = orders.find((x) => x.id === orderId);
   if (o) o.editSeenAt = new Date().toISOString();

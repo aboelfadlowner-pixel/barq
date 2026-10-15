@@ -10,9 +10,49 @@ import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, formatWeight, housingLabel, isSameDay } from '../utils/format.js';
 import { icon } from '../components/icons.js';
-import { confirmDialog, showToast } from '../components/modal.js';
+import { confirmDialog, openModal, showToast } from '../components/modal.js';
 
 const SOUND_KEY = 'cc-prep-sound';
+const DRIVERS_KEY = 'cc-recent-drivers';   // the last drivers typed on this device (quick pick)
+const recentDrivers = () => { try { return JSON.parse(localStorage.getItem(DRIVERS_KEY) || '[]'); } catch { return []; } };
+const rememberDriver = (d) => {
+  try { localStorage.setItem(DRIVERS_KEY, JSON.stringify([d, ...recentDrivers().filter((x) => x !== d)].slice(0, 6))); } catch { /* ignore */ }
+};
+
+/* «خرج مع الطيار»: the driver in ONE field — «الاسم (الرقم)». Resolves with the text, or null. */
+function askDriver(order) {
+  return new Promise((done) => {
+    const recent = recentDrivers();
+    const m = openModal({
+      title: `${icon('check')} خرج مع الطيار — طلب <span class="ltr-inline">#${esc(order.number)}</span>`,
+      size: 'sm',
+      body: `
+        <div class="field">
+          <label for="driver">اسم الطيار ورقمه</label>
+          <input id="driver" class="input" maxlength="80" autocomplete="off" placeholder="مثال: محمد (01012345678)" value="${esc(order.driver || '')}">
+        </div>
+        ${recent.length ? `<div class="chips driver-chips">${recent.map((d) => `<button type="button" class="chip" data-driver="${esc(d)}">${esc(d)}</button>`).join('')}</div>` : ''}
+        <div class="field-error" data-err="driver" role="alert"></div>`,
+      footer: `
+        <button type="button" class="btn btn-primary btn-lg" data-save>${icon('check')}خرج</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-close>إلغاء</button>`,
+    });
+    let result = null;
+    const input = m.body.querySelector('#driver');
+    const save = () => {
+      const v = input.value.replace(/\s+/g, ' ').trim();
+      if (v.length < 2) { m.body.querySelector('[data-err="driver"]').textContent = 'اكتب اسم الطيار ورقمه — مثال: محمد (01012345678)'; input.focus(); return; }
+      result = v;
+      m.close();
+    };
+    m.body.addEventListener('click', (e) => { const c = e.target.closest('[data-driver]'); if (c) { input.value = c.dataset.driver; save(); } });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    input.addEventListener('input', () => { m.body.querySelector('[data-err="driver"]').textContent = ''; });
+    m.foot.querySelector('[data-save]').addEventListener('click', save);
+    m.onClose(() => done(result));
+    input.focus();
+  });
+}
 const stageOf = (id) => STAGES.find((s) => s.id === id) ?? STAGES[0];
 const nextOf = (id) => STAGES[STAGES.findIndex((s) => s.id === id) + 1] ?? null;
 const prevOf = (id) => STAGES[STAGES.findIndex((s) => s.id === id) - 1] ?? null;
@@ -145,7 +185,7 @@ export function mountPrep(view) {
     view.querySelector('[data-out] summary').innerHTML = `${icon('check')}خرج مع الطيار النهارده <span class="b-count num">${out.length}</span>`;
     view.querySelector('[data-out-list]').innerHTML = out.length
       ? `<ul class="out-list">${out.map((o) => `<li><strong class="num">#${esc(o.number)}</strong> · ${esc(o.customer.name)} · ${esc(o.address.areaName)}
-          <span class="muted num">خرج ${formatTime(o.outAt)}</span>
+          <span class="muted num">خرج ${formatTime(o.outAt)}</span>${o.driver ? ` · ${icon('user')}<strong>${esc(o.driver)}</strong>` : ''}
           <button type="button" class="link-btn" data-oid="${esc(o.id)}" data-back="at_cashier">رجوع لـ «على الكاشير»</button></li>`).join('')}</ul>`
       : '<p class="muted">لسه مفيش طلبات خرجت النهارده</p>';
   };
@@ -178,9 +218,15 @@ export function mountPrep(view) {
   };
 
   const move = async (orderId, stage) => {
+    let driver = null;
+    if (stage === 'out') {                   // ask for the driver first; cancelling changes nothing
+      driver = await askDriver(orders.find((x) => x.id === orderId) ?? { number: '' });
+      if (!driver) return;
+    }
     busyId = orderId; render();
     try {
-      await ds.setStage(orderId, stage);
+      if (driver) { await ds.sendOut(orderId, driver); rememberDriver(driver); }
+      else await ds.setStage(orderId, stage);
       const o = orders.find((x) => x.id === orderId);
       if (o) { o.stage = stage; }
     } catch (err) {

@@ -32,6 +32,7 @@ export const listStaff        = () => impl.listStaff();
 export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);
 export const ackEdit          = (id) => impl.ackEdit(id);
+export const sendOut          = (id, driver) => impl.sendOut(id, driver);
 export const editOrder        = (a) => impl.editOrder(a);
 export const setStaff         = (a) => impl.setStaff(a);
 export const getAreas         = () => impl.getAreas();          // includes inactive areas

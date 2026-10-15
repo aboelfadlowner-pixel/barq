@@ -104,6 +104,7 @@ export function toOrder(r) {
     preparingAt: r.preparing_at || null,
     atCashierAt: r.at_cashier_at || null,
     outAt: r.out_at || null,
+    driver: r.driver || '',                   // «الاسم (الرقم)» typed by the branch (11_driver.sql)
     editCount: r.edit_count || 0,             // edits (10_edit_order.sql)
     editedAt: r.edited_at || null,
     editedBy: r.edited_by_name || '',
@@ -165,7 +166,7 @@ export async function getAccount() {
 const toPrepOrder = (r) => ({
   id: r.id, number: r.order_no, createdAt: r.created_at, status: r.status,
   cancelReason: r.cancel_reason || '', cancelledAt: r.cancelled_at || null,
-  stage: r.stage, preparingAt: r.preparing_at, atCashierAt: r.at_cashier_at, outAt: r.out_at,
+  stage: r.stage, preparingAt: r.preparing_at, atCashierAt: r.at_cashier_at, outAt: r.out_at, driver: r.driver || '',
   customer: { name: r.customer_name, phone: r.customer_phone, phone2: r.customer_phone2 || '' },
   address: { areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' },
   note: r.note || '', employee: r.agent_name || '',
@@ -180,6 +181,14 @@ export async function listPrepOrders() {
   const res = await c.rpc('cc_prep_orders');
   if (res.error?.code === NOT_INSTALLED) throw new Error('شاشة التجهيز لسه مش متفعّلة على قاعدة البيانات');
   return ok(res).map(toPrepOrder);
+}
+
+/* «خرج مع الطيار» with the driver «الاسم (الرقم)». */
+export async function sendOut(orderId, driver) {
+  const c = await sb();
+  const res = await c.rpc('cc_send_out', { p_order_id: orderId, p_driver: driver });
+  if (res.error?.code === NOT_INSTALLED) throw new Error('خانة الطيار لسه مش متفعّلة على قاعدة البيانات');
+  return ok(res);
 }
 
 export async function ackEdit(orderId) {

@@ -62,6 +62,7 @@ function orderCard(o) {
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
       <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}${stageSince(o)}</span></div>
       <div class="o-row">${icon('pin')}<span>${esc(o.address.areaName)}</span></div>
+      ${o.stage === 'out' && o.driver ? `<div class="o-row o-driver">${icon('user')}<span>الطيار: <strong>${esc(o.driver)}</strong></span></div>` : ''}
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
     </button>`;

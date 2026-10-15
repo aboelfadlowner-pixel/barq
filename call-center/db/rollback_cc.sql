@@ -5,6 +5,7 @@
 --  Run only with explicit approval.
 -- =====================================================================
 begin;
+drop function if exists public.cc_send_out(uuid, text);
 drop function if exists public.cc_ack_edit(uuid);
 drop function if exists public.cc_edit_order(uuid, uuid, jsonb, jsonb, text);
 drop function if exists public.cc_set_stage(uuid, text);

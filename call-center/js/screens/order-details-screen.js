@@ -18,7 +18,8 @@ import { PAYMENT_METHOD } from '../constants.js';
 /* Created / cancelled (call center) and the preparation stages (branch), in time order. */
 function timeline(order) {
   const stages = [['preparing', order.preparingAt], ['at_cashier', order.atCashierAt], ['out', order.outAt]]
-    .filter(([, at]) => at).map(([id, at]) => ({ stage: STAGES.find((s) => s.id === id), at, by: 'الفرع' }));
+    .filter(([, at]) => at).map(([id, at]) => ({ stage: STAGES.find((s) => s.id === id), at,
+      by: id === 'out' && order.driver ? `الطيار: ${order.driver}` : 'الفرع' }));
   return [...order.statusHistory, ...stages].sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 

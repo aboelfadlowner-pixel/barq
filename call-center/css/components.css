@@ -600,3 +600,5 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .edit-locked { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
 .edit-locked .svg-icon { width: 15px; height: 15px; }
 .tk-edited { text-align: center; font-weight: 900; font-size: 14px; border: 2px solid #000; margin-top: 4px; padding: 2px; }
+.driver-chips { margin-top: 8px; }
+.o-driver { color: var(--green-700); }
