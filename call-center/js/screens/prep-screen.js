@@ -135,8 +135,10 @@ export function mountPrep(view) {
   const render = () => {
     // A cancelled order stays in its column (red, no button) for an hour, so nobody keeps preparing it.
     const recent = (iso) => !iso || Date.now() - new Date(iso).getTime() < 60 * 60000;
+    // CONFIRMED: the newest order is on top in every column.
     const by = (stage) => orders.filter((o) => (o.stage || 'new') === stage && stage !== 'out'
-      && (o.status !== 'cancelled' || recent(o.cancelledAt)));
+      && (o.status !== 'cancelled' || recent(o.cancelledAt)))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId) + column('at_cashier', by('at_cashier'), busyId);
     const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && isSameDay(o.outAt || o.createdAt, new Date()))
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
