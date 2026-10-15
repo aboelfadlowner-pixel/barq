@@ -7,9 +7,11 @@ import { money, statusChip } from './chips.js';
 import { openModal, showToast } from './modal.js';
 import { openPrintPreview } from './print-ticket.js';
 import { openNewOrderDialog } from './new-order-dialog.js';
+import { orderWaLink } from './whatsapp-dialog.js';
 
 export function openSuccessDialog(order, { edited = false } = {}) {
   const t = computeTotals(order.items, order.deliveryFee);
+  const wa = orderWaLink(order, { edited });
   const m = openModal({
     title: `${icon('check')} ${edited ? 'تم حفظ التعديل' : 'تم إنشاء الطلب'}`,
     size: 'sm',
@@ -21,6 +23,10 @@ export function openSuccessDialog(order, { edited = false } = {}) {
         <div class="order-no ltr-inline">${esc(order.number)}</div>
         <div>الحالة: ${statusChip(order.status)}</div>
         <div class="muted">${esc(order.customer.name)} · ${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'} ${money(t.total)}</div>
+        ${wa
+          ? `<a class="btn btn-whatsapp btn-lg success-wa" href="${esc(wa)}" target="_blank" rel="noopener" data-wa-send>${icon('whatsapp')}${edited ? 'ابعت التعديل للعميل على واتساب' : 'ابعت الطلب للعميل على واتساب'}</a>
+             <div class="hint">عشان يراجعه ولو عايز يعدّل حاجة يلحق قبل ما يتجهز — اضغط «إرسال» جوه الواتساب.</div>`
+          : `<div class="muted">${icon('info')}رقم العميل مش موبايل — مينفعش واتساب.</div>`}
         <div class="alert alert-warn demo-only">${icon('info')}<span>طلب تجريبي محفوظ في ذاكرة المتصفح فقط. لم يُرسل إلى أي نظام، ويُحذف عند تحديث الصفحة.</span></div>
       </div>`,
     footer: `
@@ -34,6 +40,10 @@ export function openSuccessDialog(order, { edited = false } = {}) {
     showToast((await copyText(buildOrderSummary(order))) ? 'تم نسخ ملخص الطلب' : 'تعذر النسخ');
   });
   m.foot.querySelector('[data-print]').addEventListener('click', () => openPrintPreview(order));
+  m.body.querySelector('[data-wa-send]')?.addEventListener('click', (e) => {
+    e.currentTarget.classList.add('is-sent');
+    e.currentTarget.lastChild.textContent = 'اتفتح الواتساب ✓ — ابعت تاني';
+  });
   m.foot.querySelector('[data-view]').addEventListener('click', () => m.close());
   m.foot.querySelector('[data-new]').addEventListener('click', () => {
     m.close();
@@ -41,5 +51,5 @@ export function openSuccessDialog(order, { edited = false } = {}) {
     setTimeout(() => openNewOrderDialog(), 0);
   });
   m.onClose(() => { if (location.hash === '#/pos') location.hash = '#/board'; });
-  (edited ? m.foot.querySelector('[data-print]') : m.foot.querySelector('[data-new]')).focus();
+  (m.body.querySelector('[data-wa-send]') || (edited ? m.foot.querySelector('[data-print]') : m.foot.querySelector('[data-new]'))).focus();
 }

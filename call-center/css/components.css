@@ -634,3 +634,5 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .btn-whatsapp:hover { background: #187a41; border-color: #187a41; }
 .o-wa { color: #1f8f4e; }
 .o-wa .svg-icon { width: 17px; height: 17px; }
+.success-wa { margin-top: 6px; width: 100%; justify-content: center; }
+.success-wa.is-sent { background: var(--green-50); color: var(--green-700); border-color: var(--green-100); }

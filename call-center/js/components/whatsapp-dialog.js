@@ -4,7 +4,7 @@
    in the database. The message goes out from whatever WhatsApp is signed in on
    this device (the branch number). */
 import { esc } from '../utils/dom.js';
-import { formatMoney, normalizePhone } from '../utils/format.js';
+import { formatAddress, formatMoney, normalizePhone } from '../utils/format.js';
 import { computeTotals, quantityLabel } from '../utils/pricing.js';
 import { PAYMENT_METHOD } from '../constants.js';
 import { icon } from './icons.js';
@@ -24,25 +24,35 @@ export function waPhones(order) {
     .filter((p, i, all) => waNumber(p) && all.findIndex((x) => waNumber(x) === waNumber(p)) === i);
 }
 
-/* The ready message — changes with where the order is. */
-export function buildWhatsAppMessage(order) {
+/* The ready message — one message, sent when the order goes to the branch, so the
+   customer can check it and ask for a change before it is prepared. */
+export function buildWhatsAppMessage(order, { edited = false } = {}) {
   const t = computeTotals(order.items, order.deliveryFee);
-  const out = order.stage === 'out';
+  const a = order.address || {};
+  const where = [a.areaName, formatAddress(a)].filter(Boolean).join(' — ');
   const lines = [
     `أهلًا ${order.customer.name} 👋`,
-    out
-      ? `طلبك رقم ${order.number} من أبو الفضل خرج مع الطيار${order.driver ? ` ${order.driver}` : ''} وفي الطريق ليك 🛵`
-      : `طلبك رقم ${order.number} من أبو الفضل اتسجّل وبيتجهز دلوقتي ✅`,
+    edited || order.editCount
+      ? `طلبك رقم ${order.number} من أبو الفضل اتعدّل — ودي تفاصيله بعد التعديل:`
+      : `ده طلبك من أبو الفضل رقم ${order.number}، وبيتجهز دلوقتي ✅`,
     '',
     'الأصناف:',
     ...order.items.map((it) => `• ${it.name} — ${quantityLabel(it)}${it.note ? ` (${it.note})` : ''}`),
     '',
+    where ? `التوصيل: ${where}` : null,
     `${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}: ${formatMoney(t.total)} شامل التوصيل — ${PAYMENT_METHOD.label}`,
     t.estimated ? '* السعر النهائي حسب الوزن الفعلي' : null,
     '',
+    'لو عايز تعدّل أي حاجة ابعتلنا هنا على طول قبل ما الطلب يخرج 🙏',
     'شكرًا لاختيارك أبو الفضل 🌿',
   ];
   return lines.filter((l) => l !== null).join('\n');
+}
+
+/* Direct link for the first mobile of the order (null when there is none). */
+export function orderWaLink(order, opts) {
+  const p = waPhones(order)[0];
+  return p ? waLink(waNumber(p), buildWhatsAppMessage(order, opts)) : null;
 }
 
 export function openWhatsAppDialog(order) {
