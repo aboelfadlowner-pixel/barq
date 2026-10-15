@@ -14,6 +14,7 @@ import { confirmDialog } from '../components/modal.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
 import { openPrintPreview } from '../components/print-ticket.js';
+import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
 
 const filters = { q: '' };
 let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
@@ -57,6 +58,7 @@ function orderCard(o) {
       <div class="o-head">
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
         <span class="o-head-end">${orderStateChip(o)}
+          ${o.status !== 'cancelled' ? `<button type="button" class="btn btn-ghost btn-icon btn-sm o-wa" data-wa-order="${esc(o.id)}" title="واتساب للعميل" aria-label="واتساب للعميل — طلب ${esc(o.number)}">${icon('whatsapp')}</button>` : ''}
           <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="طباعة الطلب تاني" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
       ${o.editCount ? `<div class="o-edited">${icon('edit')}اتعدّل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · الفرع شافه' : ' · لسه الفرع ما شافوش'}</div>` : ''}
@@ -156,8 +158,14 @@ export function mountBoard(view) {
       const o = orders.find((x) => x.id === btn.dataset.printOrder);
       if (o) openPrintPreview(o);
     }),
+    // Ready WhatsApp message to the customer (the employee presses «إرسال» in WhatsApp).
+    on(view, 'click', '[data-wa-order]', (e, btn) => {
+      e.stopPropagation();
+      const o = orders.find((x) => x.id === btn.dataset.waOrder);
+      if (o) openWhatsAppDialog(o);
+    }),
     on(view, 'click', '.o-card[data-id]', (e, el) => {
-      if (e.target.closest('[data-print-order]')) return;
+      if (e.target.closest('[data-print-order], [data-wa-order]')) return;
       location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`;
     }),
     on(view, 'keydown', '.o-card[data-id]', (e, el) => {

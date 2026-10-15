@@ -625,3 +625,12 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .po-items li.is-done .pi-name, .po-items li.is-done .pi-amount { text-decoration: line-through; opacity: .6; }
 .po-progress { font-size: 13px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--surface); color: var(--ink-2); }
 .po-progress.is-full { background: var(--green-600); color: #fff; }
+
+/* «واتساب للعميل» */
+.wa-form { display: flex; flex-direction: column; gap: 12px; }
+.wa-to { font-size: 17px; font-weight: 800; padding: 8px 12px; border-radius: 10px; background: var(--green-50); border: 1px solid var(--green-100); align-self: flex-start; }
+.wa-text { min-height: 230px; line-height: 1.7; resize: vertical; font-size: 15px; }
+.btn-whatsapp { background: #1f8f4e; border-color: #1f8f4e; color: #fff; text-decoration: none; }
+.btn-whatsapp:hover { background: #187a41; border-color: #187a41; }
+.o-wa { color: #1f8f4e; }
+.o-wa .svg-icon { width: 17px; height: 17px; }

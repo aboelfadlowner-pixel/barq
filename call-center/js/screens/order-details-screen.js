@@ -13,6 +13,7 @@ import { STAGES } from '../constants.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { can } from '../permissions.js';
 import { openPrintPreview } from '../components/print-ticket.js';
+import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
 import { PAYMENT_METHOD } from '../constants.js';
 
 /* Created / cancelled (call center) and the preparation stages (branch), in time order. */
@@ -59,6 +60,7 @@ export function mountOrderDetails(view, orderId) {
           </div>
           <div class="page-actions">
             <button type="button" class="btn btn-primary" data-print>${icon('note')}طباعة</button>
+            ${order.status !== 'cancelled' ? `<button type="button" class="btn btn-whatsapp" data-wa>${icon('whatsapp')}واتساب للعميل</button>` : ''}
             ${order.status !== 'cancelled' && can(getState().user, 'createOrder')
               ? (['new', 'preparing'].includes(order.stage || 'new')
                 ? `<button type="button" class="btn btn-soft" data-edit-order>${icon('edit')}تعديل الطلب</button>`
@@ -131,6 +133,7 @@ export function mountOrderDetails(view, orderId) {
 
     offs = [
       on(view, 'click', '[data-print]', () => openPrintPreview(order)),
+      on(view, 'click', '[data-wa]', () => openWhatsAppDialog(order)),
       on(view, 'click', '[data-cancel]', () => openCancelDialog(order)),
       on(view, 'click', '[data-copy]', async () => {
         showToast((await copyText(buildOrderSummary(order))) ? 'تم نسخ ملخص الطلب' : 'تعذر النسخ');
