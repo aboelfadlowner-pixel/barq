@@ -75,11 +75,22 @@ function ring() {
 const soundOn = () => { try { return localStorage.getItem(SOUND_KEY) === '1'; } catch { return false; } };
 const setSound = (v) => { try { localStorage.setItem(SOUND_KEY, v ? '1' : '0'); } catch { /* ignore */ } };
 
-function itemLine(it) {
+/* CONFIRMED: the person preparing ticks each item when it is ready — kept on THIS device only.
+   The key holds the line's name and amount, so an item changed by an edit comes back unticked. */
+const CHECKS_KEY = 'cc-prep-checks';
+const readChecks = () => { try { return JSON.parse(localStorage.getItem(CHECKS_KEY) || '{}'); } catch { return {}; } };
+const writeChecks = (c) => { try { localStorage.setItem(CHECKS_KEY, JSON.stringify(c)); } catch { /* ignore */ } };
+const itemKey = (it, i) => `${i}|${it.name}|${it.unitType === 'weight' ? `${it.grams}g` : it.qty}`;
+const checkedCount = (o, checks) => o.items.filter((it, i) => checks[o.id]?.[itemKey(it, i)]).length;
+
+function itemLine(it, i, o, checks, canTick) {
   const amount = it.unitType === 'weight'
     ? `<strong class="num">${esc(formatWeight(it.grams))}</strong>`
     : `<strong class="num">${esc(String(it.qty))}</strong> ×`;
-  return `<li><span class="pi-amount">${amount}</span><span class="pi-name">${esc(it.name)}</span>
+  const done = !!checks[o.id]?.[itemKey(it, i)];
+  return `<li class="${done ? 'is-done' : ''} ${canTick ? 'can-tick' : ''}" ${canTick ? `data-tick="${esc(itemKey(it, i))}" role="checkbox" aria-checked="${done}" tabindex="0"` : ''}>
+    ${canTick ? `<span class="pi-check" aria-hidden="true">${done ? icon('check') : ''}</span>` : ''}
+    <span class="pi-amount">${amount}</span><span class="pi-name">${esc(it.name)}</span>
     ${it.note ? `<div class="pi-note">${icon('note')}${esc(it.note)}</div>` : ''}</li>`;
 }
 
@@ -97,7 +108,7 @@ function changeLine(c) {
 }
 const editUnseen = (o) => o.editedAt && o.status !== 'cancelled' && (!o.editSeenAt || o.editSeenAt < o.editedAt);
 
-function prepCard(o, busy) {
+function prepCard(o, busy, checks = {}) {
   const cancelled = o.status === 'cancelled';
   const next = cancelled ? null : nextOf(o.stage);
   const prev = cancelled ? null : prevOf(o.stage);
@@ -107,6 +118,7 @@ function prepCard(o, busy) {
     <article class="p-order ${cancelled ? 'is-cancelled' : ''} ${editUnseen(o) ? 'is-edited' : ''}" data-oid="${esc(o.id)}">
       <header class="po-head">
         <strong class="po-no num">#${esc(o.number)}</strong>
+        ${!cancelled && o.items.length ? `<span class="po-progress ${checkedCount(o, checks) === o.items.length ? 'is-full' : ''}">تم <span class="num">${checkedCount(o, checks)}</span> من <span class="num">${o.items.length}</span></span>` : ''}
         <span class="po-time">${icon('clock')}<span class="num">${formatTime(o.createdAt)}</span> · ${formatRelative(o.createdAt)}</span>
       </header>
       ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>الطلب ده اتلغى — متكملش تجهيزه</strong>
@@ -116,7 +128,7 @@ function prepCard(o, busy) {
         <ul>${(o.editChanges || []).map(changeLine).join('')}</ul>
         <button type="button" class="btn btn-soft po-ack" data-ack ${busy ? 'disabled' : ''}>${icon('check')}شُفت التعديل</button>
       </div>` : ''}
-      <ul class="po-items">${o.items.map(itemLine).join('')}</ul>
+      <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, !cancelled)).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
         ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
@@ -134,7 +146,7 @@ function column(stage, list, busyId) {
   return `
     <section class="p-col">
       <header class="b-col-head p-col-head tone-head-${st.id}"><h2>${st.label}</h2><span class="b-count num">${list.length}</span></header>
-      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId)).join('') : '<div class="b-empty">مفيش طلبات</div>'}</div>
+      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks())).join('') : '<div class="b-empty">مفيش طلبات</div>'}</div>
     </section>`;
 }
 
@@ -197,6 +209,11 @@ export function mountPrep(view) {
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
       const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);
       known = new Set(list.map((o) => o.id));
+      // Forget the ticks of orders that are no longer on this screen.
+      const checks = readChecks();
+      if (Object.keys(checks).some((id) => !known.has(id))) {
+        writeChecks(Object.fromEntries(Object.entries(checks).filter(([id]) => known.has(id))));
+      }
       list.forEach((o) => editsSeen.set(o.id, o.editedAt || null));
       orders = list;
       render();
@@ -236,8 +253,30 @@ export function mountPrep(view) {
     await load();
   };
 
+  const toggleTick = (li) => {
+    const id = li.closest('[data-oid]').dataset.oid;
+    const checks = readChecks();
+    const mine = checks[id] ?? (checks[id] = {});
+    if (mine[li.dataset.tick]) delete mine[li.dataset.tick]; else mine[li.dataset.tick] = true;
+    writeChecks(checks);
+    render();
+  };
+
   const offs = [
-    on(view, 'click', '[data-next]', (e, btn) => move(btn.closest('[data-oid]').dataset.oid, btn.dataset.next)),
+    on(view, 'click', '[data-next]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      const o = orders.find((x) => x.id === id);
+      // Before «وصل الكاشير»: a reminder if some items are not ticked (a reminder only, not a block).
+      const left = o ? o.items.length - checkedCount(o, readChecks()) : 0;
+      if (btn.dataset.next === 'at_cashier' && left > 0 && !(await confirmDialog({
+        title: 'فيه أصناف لسه ما اتعلّمش عليها',
+        message: `${left === 1 ? 'صنف واحد' : `${left} أصناف`} لسه ما اتعلّمش عليه. متأكد إن الطلب كله اتجهز؟`,
+        confirmLabel: 'أيوه، وصل الكاشير', cancelLabel: 'رجوع',
+      }))) return;
+      move(id, btn.dataset.next);
+    }),
+    on(view, 'click', '[data-tick]', (e, li) => toggleTick(li)),
+    on(view, 'keydown', '[data-tick]', (e, li) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleTick(li); } }),
     on(view, 'click', '[data-back]', async (e, btn) => {
       const st = stageOf(btn.dataset.back);
       if (!(await confirmDialog({ title: 'رجوع خطوة', message: `الطلب هيرجع لـ «${st.label}». ده لو دوست غلط بس.`, confirmLabel: 'رجّعه' }))) return;
