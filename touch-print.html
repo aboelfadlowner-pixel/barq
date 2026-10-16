@@ -764,6 +764,14 @@ function guessScanCode(p){
   if (m[key]) return m[key];
   return String(p.barcode || p.sku || '').replace(/\D/g, '');
 }
+// لو كود اتحفظ غلط قبل كده (زي رقم ناقص)، الزرار ده بيرجّع باركود الصنف زي ما هو مسجل في قاعدة البيانات بالظبط
+function resetBagPluToOriginal(idx){
+  var p = PRODUCTS[idx];
+  if (!p) return;
+  var original = String(p.barcode || p.sku || '').replace(/\D/g, '');
+  var input = document.getElementById('bagPluInput');
+  if (input) input.value = original;
+}
 
 function openBagQtyModal(idx){
   QTY_TARGET = idx;
@@ -787,6 +795,8 @@ function openBagQtyModal(idx){
       '<div style="text-align:right;margin-bottom:14px">' +
         '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">🔁 باركود الصنف في فوديكس (زي ما هو بالظبط — هيترمز فيه العدد تلقائي عشان السكان يحسب الإجمالي)</div>' +
         '<input type="text" id="bagPluInput" placeholder="باركود الصنف في فوديكس" inputmode="numeric" value="' + escapeHtml(guessScanCode(p)) + '" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit">' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:5px">⚠️ لازم يكون نفس باركود الصنف المسجل في فوديكس بالظبط رقم برقم — أي فرق (حتى صفر ناقص) هيخلي السكان يطلّع صنف تاني غلط</div>' +
+        '<button type="button" onclick="resetBagPluToOriginal(' + idx + ')" style="margin-top:6px;background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--muted);cursor:pointer">↺ استرجاع الباركود الأصلي للصنف</button>' +
       '</div>' +
       '<div class="modal-actions">' +
         '<button class="modal-cancel" onclick="closeQtyModal()">إلغاء</button>' +
