@@ -1,0 +1,58 @@
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drTitle" inert>
+  <div class="dr-h"><h2 id="drTitle">سلة الطلبات</h2><button class="circ" type="button" id="drClose" aria-label="إغلاق السلة"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+  <div class="dr-min"><p id="minMsg"></p><div class="track"><div class="fill" id="fill"></div></div></div>
+  <ul class="dr-list" id="drList"></ul>
+  <div class="dr-f">
+    <div class="sum"><span>الإجمالي</span><strong id="total">0 ج.م</strong></div>
+    <button class="btn btn-primary" type="button" id="checkout" disabled>إتمام الطلب</button>
+  </div>
+</aside>
+<aside class="sheet" id="pd" role="dialog" aria-modal="true" aria-labelledby="pdName" inert>
+  <button class="circ sh-x" type="button" id="pdClose" aria-label="إغلاق"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <div class="sh-img" id="pdImg"></div>
+  <small class="pdcat" id="pdCat"></small>
+  <h2 id="pdName"></h2>
+  <div class="pp" id="pdPrice"></div>
+  <div class="av" id="pdAv"></div>
+  <p class="desc">يُحضَّر ويُحفظ بعناية ليصلك طازجًا. التفاصيل الكاملة (الوزن والمكوّنات) تُضاف من بيانات المتجر.</p>
+  <div class="wpick" id="pdW" hidden><p>اختر الوزن</p><div class="wchips" id="pdWc"></div></div>
+  <div class="sh-row"><div class="qty"><button type="button" id="pdMinus" aria-label="تقليل"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button><output id="pdQty">1</output><button type="button" id="pdPlus" aria-label="زيادة"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button></div><button class="btn btn-primary" type="button" id="pdAdd">أضف إلى السلة</button></div>
+</aside>
+<aside class="sheet cs" id="cs" role="dialog" aria-modal="true" aria-labelledby="csTitle" inert>
+  <button class="circ sh-x" type="button" id="csClose" aria-label="إغلاق"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <h2 id="csTitle" style="margin-top:34px">الأقسام</h2>
+  <p class="co-sub">اختر القسم وانتقل له مباشرة.</p>
+  <div class="cs-grid" id="csGrid"></div>
+</aside>
+<aside class="sheet co" id="co" role="dialog" aria-modal="true" aria-labelledby="coTitle" inert>
+  <button class="circ sh-x" type="button" id="coClose" aria-label="إغلاق"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <h2 id="coTitle" style="margin-top:34px">بيانات التوصيل</h2>
+  <p class="co-sub" id="coSub"></p>
+  <form id="coForm" novalidate>
+    <div class="fld"><label for="coName">الاسم</label><input id="coName" name="name" autocomplete="name" placeholder="اسمك الكامل"><small class="err" id="eName"></small></div>
+    <div class="fld"><label for="coPhone">رقم الموبايل</label><input id="coPhone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" dir="ltr" placeholder="01XXXXXXXXX" style="text-align:right"><small class="err" id="ePhone"></small></div>
+    <div class="fld"><label for="coAddr">العنوان</label><textarea id="coAddr" name="addr" rows="2" autocomplete="street-address" placeholder="الشارع، رقم العمارة، الدور، الشقة"></textarea><small class="err" id="eAddr"></small></div>
+    <div class="fld"><label for="coNote">ملاحظات للطلب <span>(اختياري)</span></label><input id="coNote" name="note" placeholder="علامة مميزة أو أي تعليمات"></div>
+    <fieldset class="pay"><legend>طريقة الدفع</legend>
+      <label class="po on"><input type="radio" name="pay" value="cash" checked><span class="pd">كاش عند الاستلام</span><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></label>
+      <label class="po off"><input type="radio" name="pay" value="card" disabled><span class="pd">بطاقة بنكية <small>قريبًا</small></span></label>
+    </fieldset>
+    <div class="co-sum"><span>الإجمالي</span><strong id="coTotal"></strong></div>
+    <button class="btn btn-primary" type="button" id="coSubmit" style="width:100%">تأكيد الطلب</button>
+  </form>
+</aside>
+<div class="done" id="done" role="dialog" aria-modal="true" aria-labelledby="doneTitle" hidden inert>
+  <div class="done-in">
+    <div class="stage2" id="stage2" aria-hidden="true"><div class="cart3" id="cart3"><svg class="ico" style="stroke-width:1.1" aria-hidden="true"><use href="#i-cart"/></svg><span class="clogo" role="img" aria-label="شعار أبو الفضل"></span></div><div id="drops"></div></div>
+    <div class="dmsg" id="dmsg">
+      <div class="tick" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none" stroke="currentColor" stroke-width="3"/><path pathLength="1" d="M15 27l8 8 14-16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h2 id="doneTitle">تم استلام طلبك</h2>
+      <p class="onum" id="onum"></p>
+      <div class="osum" id="osum"></div>
+      <p class="onote" id="onote"></p>
+      <button class="btn btn-primary" type="button" id="doneBtn">متابعة التسوق</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>

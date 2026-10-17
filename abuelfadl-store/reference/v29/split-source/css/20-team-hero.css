@@ -1,0 +1,32 @@
+/* v20: team photo hero */
+.hero3 .wrap{display:grid;gap:22px}
+.tm-wrap{perspective:1400px;padding-block:6px 14px;overflow:visible}
+.tm{--team:url("../assets/img/team.jpg");position:relative;aspect-ratio:1536/520;border-radius:26px;transform-style:preserve-3d;will-change:transform;box-shadow:0 30px 50px -28px rgba(20,40,28,.55),0 2px 0 rgba(0,0,0,.03);--gx:50%;--gy:50%;--sx:0px;--sy:22px;background:#d9cdb8;overflow:hidden}
+.tm::before{content:"";position:absolute;inset:0;z-index:0;background:#d9cdb8}
+.tm-half{position:absolute;top:0;bottom:0;width:50.3%;background-image:var(--team);background-repeat:no-repeat;background-size:auto 100%;will-change:transform,opacity;transition:transform 1.25s cubic-bezier(.16,.84,.24,1),opacity .6s ease}
+.tm-half.l{left:0;background-position:0 0;transform-origin:0 50%;transform:translateX(-105%) rotateY(62deg);opacity:0}
+.tm-half.r{right:0;background-position:100% 0;transform-origin:100% 50%;transform:translateX(105%) rotateY(-62deg);opacity:0}
+.tm.in .tm-half{transform:none;opacity:1}
+.tm-glare{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(60% 90% at var(--gx) var(--gy),rgba(255,255,255,.22),rgba(255,255,255,0) 60%);opacity:0;transition:opacity .6s}
+.tm.live .tm-glare{opacity:1}
+.tm.live .tm-half{transition:none}
+@media(max-width:899px){
+  .tm{aspect-ratio:1.75;border-radius:22px}
+  .tm-half{background-size:auto 100%}
+  .tm-half.l{background-position:28.96% 0}
+  .tm-half.r{background-position:71.04% 0}
+}
+.hero3-txt{display:grid;justify-items:start;max-width:760px}
+@media(prefers-reduced-motion:reduce){.tm-half{transition-duration:.9s}}
+.hero3-head{display:grid;justify-items:start;gap:0}
+.hero3-head .eyebrow{margin-bottom:10px}
+.hero3-head h1{margin-block:0 6px;font-size:clamp(2rem,5.6vw,3.6rem)}
+.hero3-txt .lead{margin-top:2px}
+#catSub,#count{display:none}
+
+.phl{display:block;width:34%;aspect-ratio:46/49;background:var(--logo-icon) center/contain no-repeat;opacity:.16}
+.th .phl,.sug .phl{width:60%}
+.sug button .phl{width:40px;flex:none}
+.pi>.phl{position:absolute;inset:0;margin:auto}
+.sheet .sh-img .phl{width:22%}
+.pi img,.sh-img img{transition:opacity .3s}

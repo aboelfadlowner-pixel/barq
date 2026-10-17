@@ -1,0 +1,18 @@
+/* Product photos that fall into their card (sandwiches and salads category only, class `drop` on the grid).
+   The photo starts hidden; when the card scrolls into view (class `in`) it drops, lands softly and settles,
+   with a small ground shadow appearing as it lands. --dd is the per-card delay set from the script. */
+.grid.drop .pi img{opacity:0}
+.grid.drop .p.in .pi img{animation:pDrop .85s var(--dd,0s) both}
+.grid.drop .pi::after{content:"";position:absolute;left:24%;right:24%;bottom:16px;height:12px;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.2),transparent);opacity:0;pointer-events:none}
+.grid.drop .p.in .pi::after{animation:pDropShadow .6s calc(var(--dd,0s) + .45s) both}
+.grid.drop .p.st .pi img{opacity:1;animation:none}
+.grid.drop .p.st .pi::after{opacity:1;animation:none}
+@keyframes pDrop{
+  0%{opacity:0;transform:translateY(-70%);animation-timing-function:cubic-bezier(.3,0,.2,1)}
+  18%{opacity:1}
+  68%{opacity:1;transform:translateY(2.5%);animation-timing-function:ease-out}
+  84%{transform:translateY(-1%)}
+  100%{opacity:1;transform:none}
+}
+@keyframes pDropShadow{from{opacity:0;transform:scaleX(.4)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.grid.drop .pi img{opacity:1}.grid.drop .p.in .pi img,.grid.drop .p.in .pi::after{animation-duration:.01s;animation-delay:0s}}

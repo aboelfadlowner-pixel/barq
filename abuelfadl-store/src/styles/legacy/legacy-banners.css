@@ -1,0 +1,16 @@
+/* banners (soft) */
+.banners{display:grid;gap:14px}
+@media(min-width:800px){.banners{grid-template-columns:1.25fr 1fr 1fr}}
+.banner{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-height:240px;padding:26px;border-radius:28px;overflow:hidden;text-align:start;border:0;transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.banner:hover{transform:translateY(-4px)}
+.banner h3{font-size:1.6rem;font-weight:700}
+.banner p{max-width:24ch;color:var(--muted)}
+.banner .go{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-weight:600;color:var(--brand-ink)}
+.banner .go .ico{transition:translate .25s}
+.banner:hover .go .ico{translate:-6px 0}
+.banner .big{position:absolute;inset-inline-end:14px;top:12px;width:112px;height:112px;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+.banner:hover .big{transform:rotate(-6deg) scale(1.08)}
+.b1{background:#E4F2E7}
+.b2{background:#FFF0DC}
+.b3{background:#FBEBD3;min-height:300px}
+.b3 .go{color:#8A5A12}

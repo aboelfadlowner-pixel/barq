@@ -1,0 +1,3 @@
+/* Adaptations for the Next.js port (not in v29).
+   v29 used <button> for category tiles; they are <a> links now, so the browser's default link underline is removed. */
+a.cs-tile{text-decoration:none}

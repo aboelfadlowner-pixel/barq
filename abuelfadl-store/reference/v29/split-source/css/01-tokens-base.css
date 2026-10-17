@@ -1,0 +1,30 @@
+/* Layout: white, quiet pages. Colour comes from the flat product illustrations; green is only on actions,
+   active states, links and one headline word. Home = hero with a basket, pill category tiles, soft banners,
+   product row. Tapping a category opens an app-style product page. Light theme only, by design. */
+:root{
+  color-scheme:light;
+  --logo-icon:url("../assets/img/logo-icon.png");
+  --logo-green:#105028;
+  --bg:#FFFFFF; --bg-soft:#F5F6F5; --bg-tint:#EAF3EC; --line:#E7EAE7;
+  --fg:#1A211C; --muted:#67726A; --sale:#C62828;
+  --brand:#1F5E37; --brand-hi:#2B7A4B; --brand-press:#174A2B; --brand-ink:#174A2B; --brand-fg:#FFFFFF;
+  --gold-soft:#FFF4DC; --ring:#1F5E37;
+  --shadow-sm:0 1px 2px rgba(20,30,22,.06),0 4px 14px rgba(20,30,22,.07);
+  --shadow:0 2px 4px rgba(20,30,22,.05),0 14px 34px rgba(20,30,22,.10);
+  --f-display:'Cairo','IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;
+  --f-body:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:90px}
+body{background:var(--bg);color:var(--fg);font:400 1rem/1.75 var(--f-body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.3}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit}
+.ico{width:1.4em;height:1.4em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.art{display:block;width:100%;height:100%;overflow:visible;flex:none}
+:focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:10px}
+.wrap{width:min(1200px,calc(100% - 32px));margin-inline:auto}
+@media(max-width:899px){.app{padding-bottom:104px}}

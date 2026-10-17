@@ -1,0 +1,19 @@
+/* trust */
+.trust{background:var(--bg-soft)}
+.trust-grid{display:grid;gap:28px}
+@media(min-width:800px){.trust-grid{grid-template-columns:repeat(3,1fr);gap:40px}}
+.tcard{display:flex;gap:16px}
+.tcard .ci{display:grid;place-items:center;flex:none;width:52px;height:52px;border-radius:16px;background:var(--bg);box-shadow:var(--shadow-sm);color:var(--brand-ink)}
+.tcard h3{font-size:1.2rem;margin-bottom:4px}
+.tcard p{color:var(--muted)}
+
+
+.hdr-act{grid-column:3;display:flex;align-items:center;gap:8px}
+.acct{width:50px;height:50px;display:none}
+@media(min-width:640px){.acct{display:grid}}
+.catnav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-block:0 6px}
+.catnav::-webkit-scrollbar{display:none}
+.catnav button{flex:none;position:relative;min-height:40px;padding:0 14px;border:0;background:none;font-weight:500;color:var(--muted);white-space:nowrap;transition:color .2s}
+.catnav button::after{content:"";position:absolute;inset-inline:14px;bottom:2px;height:2px;border-radius:2px;background:var(--brand);scale:0 1;transition:scale .3s cubic-bezier(.2,.7,.2,1)}
+.catnav button:hover{color:var(--brand-ink)}.catnav button:hover::after,.catnav button.on::after{scale:1 1}
+.catnav button.on{color:var(--brand-ink);font-weight:600}

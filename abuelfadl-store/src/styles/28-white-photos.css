@@ -1,0 +1,10 @@
+/* Pure-white photo backdrops (loaded last, so it overrides the category tints).
+   Product photos are pre-processed to exact #FFFFFF; a hairline border keeps the white cards readable on the white page. */
+.pi,.sheet .sh-img,.th,.cs-th{background:#fff}
+.pi{border:1px solid var(--line)}
+.sheet .sh-img{border:1px solid var(--line)}
+.th{border:1px solid var(--line)}
+.cs-th{border:1px solid var(--line)}
+.cbanner.has-cover{background:#fff;border:1px solid var(--line)}
+.pc.pc-light{background:#fff;border:1px solid var(--line)}
+.pc.pc-light::after{background:linear-gradient(to top,rgba(255,255,255,.98) 0,rgba(255,255,255,.6) 22%,transparent 40%)}

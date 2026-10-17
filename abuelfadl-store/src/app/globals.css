@@ -1,0 +1,35 @@
+/* Global stylesheet. Imports the ported v29 CSS in the original cascade order (order matters).
+   css/legacy/* files are unused leftovers kept on purpose; they are imported at their original position so rendering stays identical. */
+@import "../styles/01-tokens-base.css";
+@import "../styles/02-buttons-notice.css";
+@import "../styles/03-header.css";
+@import "../styles/legacy/legacy-hero-v1.css";
+@import "../styles/04-photo-cards.css";
+@import "../styles/05-sections.css";
+@import "../styles/legacy/legacy-category-pills.css";
+@import "../styles/legacy/legacy-banners.css";
+@import "../styles/06-product-cards.css";
+@import "../styles/legacy/legacy-category-page-v1.css";
+@import "../styles/07-trust.css";
+@import "../styles/08-hero3.css";
+@import "../styles/09-featured-tabs.css";
+@import "../styles/10-editorial.css";
+@import "../styles/11-sheet-product.css";
+@import "../styles/12-category-page.css";
+@import "../styles/13-checkout.css";
+@import "../styles/14-done.css";
+@import "../styles/15-category-switcher.css";
+@import "../styles/16-footer.css";
+@import "../styles/17-bottom-nav.css";
+@import "../styles/18-drawer-cart.css";
+@import "../styles/legacy/legacy-hero-scene-v17.css";
+@import "../styles/19-fonts-cairo-plex.css";
+@import "../styles/20-team-hero.css";
+@import "../styles/21-wordmark.css";
+@import "../styles/22-product-hover.css";
+@import "../styles/23-next-adapters.css";
+@import "../styles/24-category-covers.css";
+@import "../styles/25-checkout-basket.css";
+@import "../styles/26-product-drop.css";
+@import "../styles/27-weight-picker.css";
+@import "../styles/28-white-photos.css";

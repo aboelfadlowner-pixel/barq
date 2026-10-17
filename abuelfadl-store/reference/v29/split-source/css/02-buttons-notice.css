@@ -1,0 +1,18 @@
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 24px;border-radius:999px;border:1.5px solid transparent;font-weight:600;text-decoration:none;transition:background .2s,transform .2s,border-color .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn-primary{background:var(--brand);color:var(--brand-fg)}
+.btn-primary:hover{background:var(--brand-press)}
+.btn-ghost{border-color:var(--line);background:var(--bg);color:var(--fg)}
+.btn-ghost:hover{background:var(--bg-soft)}
+.circ{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--brand-ink);box-shadow:var(--shadow-sm);transition:background .2s,transform .2s}
+.circ:hover{background:var(--bg-soft);transform:translateY(-1px)}
+.link{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--brand-ink);font-weight:600;padding:8px 0}
+.link .ico{width:1.1em;height:1.1em;transition:translate .2s}
+.link:hover .ico{translate:-4px 0}
+
+/* notice */
+.notice{background:var(--bg-tint);font-size:.875rem}
+.notice .wrap{display:flex;align-items:center;justify-content:center;gap:10px;padding-block:8px;text-align:center}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--brand-hi);flex:none;animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(53,140,66,.5)}70%,100%{box-shadow:0 0 0 9px rgba(53,140,66,0)}}

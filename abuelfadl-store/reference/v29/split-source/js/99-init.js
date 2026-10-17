@@ -1,0 +1,1 @@
+  renderFav(); renderCart(); setNav();

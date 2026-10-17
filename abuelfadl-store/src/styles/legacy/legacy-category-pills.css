@@ -1,0 +1,7 @@
+/* category pills (home) */
+.cats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media(min-width:720px){.cats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}}
+.cat{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:92px;padding:8px 18px 8px 8px;border:0;border-radius:999px;background:var(--bg-soft);text-align:start;font-weight:600;line-height:1.4;font-size:.95rem;transition:transform .25s,background .25s,box-shadow .25s}
+.cat .ci{display:block;flex:none;width:72px;height:72px;transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.cat:hover{transform:translateY(-3px);background:var(--bg-tint);box-shadow:var(--shadow-sm)}
+.cat:hover .ci{transform:scale(1.1) rotate(-5deg)}

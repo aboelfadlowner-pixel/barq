@@ -1,0 +1,5 @@
+/* product card hover: crisp lift + soft shadow (no scaling or 3D, so the photo never blurs) */
+.p .pi{transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s}
+@media(hover:hover) and (pointer:fine){.p:hover .pi{transform:translateY(-4px);box-shadow:0 16px 26px -16px rgba(20,40,28,.38)}}
+.p:active .pi{transform:translateY(-1px)}
+.p .pi img,.p:hover .pi>.art{transform:none}

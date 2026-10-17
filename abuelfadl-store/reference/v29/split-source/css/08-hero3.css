@@ -1,0 +1,25 @@
+/* hero 3 */
+.hero3{padding-block:clamp(16px,3vw,40px) clamp(24px,4vw,48px)}
+.hero3-grid{display:grid;gap:26px;align-items:center}
+@media(min-width:900px){.hero3-grid{grid-template-columns:1fr 1.05fr;gap:56px}}
+.hero3 h1{font-size:clamp(2.1rem,5.4vw,3.8rem);font-weight:700;margin-block:16px 14px;line-height:1.25}
+.hero3 p.lead{font-size:1.1rem;color:var(--muted);max-width:46ch}
+.hero3 .facts{margin-top:26px;padding-top:20px}
+.hero3-photo{position:relative;border-radius:32px;overflow:hidden;aspect-ratio:6/5;background:linear-gradient(150deg,#EAF3EC,#BFD6C5 60%,#8FB09A);display:grid;place-items:center;box-shadow:var(--shadow-sm)}
+@media(max-width:899px){.hero3-photo{aspect-ratio:4/3.4}}
+.hero3-photo .slot{margin:0;color:rgba(23,74,43,.55)}
+.hero3-photo .slot .ico{width:44px;height:44px}
+.hbadge{position:absolute;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:18px;background:rgba(255,255,255,.94);box-shadow:var(--shadow);font-weight:600;font-size:.88rem;animation:pop .8s both,floaty 6s ease-in-out infinite}
+.hbadge .ico{width:34px;height:34px;padding:7px;border-radius:12px;background:var(--bg-tint);color:var(--brand-ink)}
+.hbadge small{display:block;color:var(--muted);font-weight:500;font-size:.74rem;line-height:1.2}
+.hb1{top:7%;inset-inline-start:5%;animation-delay:.5s,0s}.hb2{bottom:7%;inset-inline-end:5%;animation-delay:.8s,1.5s}
+
+#cheese3d{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}
+#cheese3d:active{cursor:grabbing}
+.drag-hint{position:absolute;bottom:14px;left:50%;translate:-50% 0;display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:rgba(255,255,255,.85);color:var(--brand-ink);font-size:.8rem;font-weight:600;pointer-events:none;transition:opacity .5s}
+.drag-hint .ico{width:16px;height:16px}
+.drag-hint.off{opacity:0}
+.hero3-photo{background:radial-gradient(circle at 50% 46%,#FFFFFF 0,#EAF3EC 42%,#B9D1C0 100%)}
+.hbadge{z-index:2}
+@media(max-width:560px){.hbadge{display:none}.drag-hint{bottom:12px}}
+@media(hover:hover){.pc{transform-style:preserve-3d}.pc.tilt:hover{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(-4px);transition:transform .12s linear}}

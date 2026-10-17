@@ -1,0 +1,26 @@
+<!-- ================= CATEGORY PAGE ================= -->
+<div id="viewCat" hidden>
+  <div class="wrap" style="padding-bottom:40px">
+    <div class="cbar">
+      <button class="circ" type="button" id="back" aria-label="رجوع إلى الرئيسية"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
+      <button class="cswitch" type="button" id="csBtn" aria-haspopup="dialog" aria-label="تغيير القسم"><span class="cs-th" id="csTh"></span><span class="cs-name" id="csName">كل المنتجات</span><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></button>
+      <span class="count" id="count" aria-live="polite" hidden></span>
+      <div class="vt" role="group" aria-label="طريقة العرض">
+        <button type="button" data-layout="grid" aria-pressed="true" aria-label="عرض شبكي"><svg class="ico" aria-hidden="true"><use href="#i-all"/></svg></button>
+        <button type="button" data-layout="list" aria-pressed="false" aria-label="عرض قائمة"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg></button>
+      </div>
+    </div>
+    <div class="cbanner" id="cbanner">
+      <span class="slot"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg>مكان صورة القسم</span>
+      <div class="ct"><h1 id="catTitle">كل المنتجات</h1><p id="catSub"></p></div>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="الأصناف"></div>
+    <div class="qtag" id="qtag" hidden><span>نتائج البحث عن</span><button type="button" id="qclear"><span id="qtext"></span><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden>
+      <svg class="art" viewBox="0 0 120 110" aria-hidden="true"><use href="#a-basket"/></svg>
+      <p>لا توجد منتجات مطابقة.</p>
+      <button class="btn btn-ghost" type="button" id="reset">عرض كل المنتجات</button>
+    </div>
+  </div>
+</div>

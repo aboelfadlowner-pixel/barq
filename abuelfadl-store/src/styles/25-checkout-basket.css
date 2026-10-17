@@ -1,0 +1,7 @@
+/* Basket of the "order received" animation (replaces the v29 shopping-trolley drawing).
+   .bsk-back sits behind the falling product tiles, .cart3 (front of the basket + logo badge) in front of them,
+   so the tiles drop into the basket. Both are the same 150x150 box. */
+.bsk-back{position:absolute;left:10px;bottom:0;width:150px;height:150px;z-index:0}
+.bsk-back svg,.cart3 .bsk{display:block;width:150px;height:150px;overflow:visible}
+.cart3::before{display:none}
+.clogo{left:56px;top:89px;width:38px;height:38px}

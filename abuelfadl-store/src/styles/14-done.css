@@ -1,0 +1,19 @@
+/* done */
+.done{position:fixed;inset:0;z-index:400;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%231F5E37' opacity='.035' transform='rotate(-20 60 60)'%3E%3Cpath d='M14 50c0-17 11-30 32-30 0 20-11 31-32 30z'/%3E%3Cpath d='M78 112c0-17 11-30 32-30 0 20-11 31-32 30z'/%3E%3C/g%3E%3C/svg%3E") 0 0/150px 150px,radial-gradient(ellipse 80% 60% at 50% 42%,#FFFFFF 0,#F1F7F2 48%,#DCEADF 100%);display:grid;place-items:center;padding:24px;overflow:auto}
+.done-in{position:relative;width:min(440px,100%);min-height:420px;display:grid;place-items:center}
+.stage2{position:absolute;left:50%;top:50%;width:170px;height:230px;translate:-50% -50%;scale:1.55}
+.stage2::before{content:"";position:absolute;left:50%;bottom:-14px;width:150px;height:18px;translate:-50% 0;border-radius:50%;background:radial-gradient(closest-side,rgba(31,94,55,.22),transparent);z-index:0}
+.cart3{position:absolute;left:10px;bottom:0;width:150px;height:150px;color:var(--brand-ink);z-index:2}
+.cart3 .ico{position:relative;width:150px;height:150px}
+.cart3::before{content:"";position:absolute;inset:0;background:linear-gradient(#fff,#EAF3EC);clip-path:polygon(24.8% 29.2%,81.7% 29.2%,73.3% 62.5%,30.8% 62.5%)}
+.clogo{position:absolute;left:57px;top:46px;width:44px;height:44px;background:var(--logo-icon) center/contain no-repeat}
+.dtile{position:absolute;z-index:1;width:46px;height:46px;border-radius:12px;background:#fff;box-shadow:0 4px 12px rgba(20,30,22,.18);padding:3px;opacity:0}
+.dtile img,.dtile svg{width:100%;height:100%;object-fit:contain;display:block}
+.dmsg{display:grid;justify-items:center;gap:8px;text-align:center;opacity:0;visibility:hidden}
+.dmsg.show{visibility:visible}
+.tick{width:84px;height:84px;color:var(--brand);margin-bottom:6px}.tick svg{width:100%;height:100%}
+.dmsg h2{font-size:1.9rem;font-weight:700}
+.onum{color:var(--muted)}.onum b{color:var(--brand-ink);font-variant-numeric:tabular-nums}
+.osum{width:100%;margin-top:10px;padding:14px 16px;border-radius:18px;background:var(--bg-soft);display:grid;gap:6px;text-align:start;font-size:.92rem}
+.osum div{display:flex;justify-content:space-between;gap:12px}.osum span{color:var(--muted)}.osum b{font-weight:600;text-align:end}
+.onote{color:var(--muted);font-size:.88rem;max-width:36ch;margin-block:4px 10px}

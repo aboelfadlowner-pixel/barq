@@ -1,0 +1,28 @@
+{
+  "name": "abuelfadl-store",
+  "version": "0.1.0",
+  "description": "Abu El-Fadl Store frontend (Next.js + TypeScript)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "verify:data": "node scripts/verify-data.mjs",
+    "dev:lan": "next dev -H 0.0.0.0"
+  },
+  "dependencies": {
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20.9"
+  }
+}

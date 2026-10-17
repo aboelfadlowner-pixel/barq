@@ -1,0 +1,16 @@
+/* Weighed products: big readout with round +/- and quick-pick chips under it (replaces the plain chip grid). */
+#pdW .qty{display:flex;align-items:center;justify-content:center;gap:18px;border:0;border-radius:0;padding:8px 0 14px}
+#pdW .qty button{width:52px;height:52px;border:1.5px solid var(--line);background:var(--bg);color:var(--brand-ink);transition:background .2s,opacity .2s}
+#pdW .qty button:hover{background:var(--bg-soft)}
+#pdW .qty button:disabled{opacity:.35;cursor:not-allowed}
+#pdW .qty button .ico{width:22px;height:22px;stroke-width:2}
+#pdW .qty .read{min-width:150px;text-align:center}
+#pdW .qty output{display:block;min-width:0;font:700 1.7rem/1.2 var(--f-display);font-variant-numeric:tabular-nums}
+#pdW .qty .rg{display:block;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+#pdW .wchips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+#pdW .wchips button{display:block;min-height:38px;padding:0 11px;border-radius:999px;line-height:1.5}
+#pdW .wchips button b{font-size:.82rem;font-weight:500}
+#pdW .wchips button small{display:none}
+#pdW .wchips button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
+#pdW .wchips button[aria-pressed="true"] b{font-weight:600}
+#pdW p{text-align:start}

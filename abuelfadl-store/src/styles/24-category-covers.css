@@ -1,0 +1,62 @@
+/* Animated category covers (added in the Next.js port, not in v29).
+   Light studio backdrop. The scene is one flex row (deli salad, two sandwiches, chicken salad) that is always
+   centred and never overlaps by accident: every size comes from --ch (scene height), which shrinks with the
+   banner width (container query units). --cb = space kept free for the title under the scene. */
+.cbanner.has-cover{display:block;container-type:inline-size;min-height:232px;--cb:64px;background:radial-gradient(ellipse 75% 95% at 50% 36%,#fff 0,#F2F6F2 52%,#DCE6DD 100%)}
+.cbanner.has-cover::after{display:none}
+.cbanner.has-cover .ct{color:#14261B}
+.cbanner.has-cover .ct h1{text-shadow:none}
+@media(min-width:800px){.cbanner.has-cover{min-height:330px;--cb:92px}}
+.cv{--ch:min(158px,44cqw);--gap:calc(var(--ch)*.06);--ov:calc(var(--ch)*-.3);position:absolute;inset:0 0 var(--cb) 0;pointer-events:none;display:flex;align-items:flex-end;justify-content:center;direction:ltr;gap:var(--gap)}
+@media(min-width:800px){.cv{--ch:min(236px,27cqw);--gap:calc(var(--ch)*.05);--ov:calc(var(--ch)*-.02)}}
+.cv-sw,.cv-sd{position:relative;flex:none;aspect-ratio:var(--ar);height:calc(var(--ch)*var(--k))}
+.cv-sd{z-index:3;margin-bottom:-4px}
+.cv-sd:first-child{margin-inline-end:var(--ov)}
+.cv-sd:last-child{margin-inline-start:var(--ov)}
+@media(min-width:800px){.cv-sw,.cv-sd{height:calc(var(--ch)*var(--kd,var(--k)))}}
+.cv-sd img{position:absolute;inset:0;width:100%;height:100%;display:block;animation:cvDrop .85s both;animation-delay:var(--d,0s)}
+.cv-sl{position:absolute;left:0;right:0;top:var(--t);height:var(--h);overflow:hidden;animation:cvDrop .85s both;animation-delay:var(--d,0s)}
+.cv-sl img{position:absolute;left:0;width:100%;display:block}
+.cv-sh{position:absolute;left:4%;right:4%;bottom:-6px;height:14px;background:radial-gradient(closest-side,rgba(16,40,24,.38),transparent);animation:cvShadow .8s both;animation-delay:var(--d,0s)}
+/* every layer falls on its own, lands softly and settles */
+@keyframes cvDrop{
+  0%{opacity:0;transform:translateY(-75%);animation-timing-function:cubic-bezier(.3,0,.2,1)}
+  18%{opacity:1}
+  70%{opacity:1;transform:translateY(2%);animation-timing-function:ease-out}
+  86%{transform:translateY(-.8%)}
+  100%{opacity:1;transform:none}
+}
+@keyframes cvShadow{from{opacity:0;transform:scaleX(.4)}to{opacity:1;transform:none}}
+/* Home category card whose photo is light: dark title on a pale fade instead of the white-on-dark overlay */
+.pc.pc-light::after{background:linear-gradient(to top,rgba(236,242,237,.97) 0,rgba(236,242,237,.55) 22%,transparent 40%)}
+.pc.pc-light{color:#14261B}
+
+
+/* Fresh juices cover: one square scene (height = banner height minus the title space), centred.
+   The orange bottle comes in from the left edge of the banner, then four bottles drop in and stand side by side. */
+.cvj{position:absolute;inset:0 0 var(--cb) 0;pointer-events:none;display:flex;justify-content:center;align-items:flex-end}
+.cvj-s{position:relative;height:100%;aspect-ratio:1/1}
+.cvj-s img{position:absolute;display:block;opacity:0}
+.cvj-gs{position:absolute;left:14%;width:72%;bottom:6.5%;height:5%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.30),transparent);opacity:0;animation:cvShadow .7s .5s both}
+.cvj-o{left:15%;width:66%;height:auto;bottom:7%;z-index:5;animation:cvjSlide 1.15s .1s cubic-bezier(.2,.75,.25,1) both}
+.cvj-b{width:auto;animation:cvjDrop .95s var(--dl,0s) cubic-bezier(.3,.1,.4,1) both}
+.cvj-mango{left:14%;height:48%;bottom:24%;z-index:2;--from:-175%;--tilt:-3deg;--dl:1.2s}
+.cvj-rose{left:30%;height:50%;bottom:23.5%;z-index:2;--from:-175%;--tilt:2deg;--dl:1.45s}
+.cvj-choc{left:47.5%;height:49%;bottom:23.5%;z-index:2;--from:-180%;--tilt:-2deg;--dl:1.7s}
+.cvj-sobia{left:63.7%;height:64%;bottom:18%;z-index:3;--from:-155%;--tilt:3deg;--dl:1.95s}
+@keyframes cvjSlide{
+  0%{opacity:0;transform:translateX(calc(-50cqw - 110%)) rotate(0)}
+  6%{opacity:1}
+  72%{opacity:1;transform:translateX(2.5%) rotate(-5.5deg)}
+  100%{opacity:1;transform:translateX(0) rotate(-4deg)}
+}
+@keyframes cvjDrop{
+  0%{opacity:0;transform:translateY(var(--from)) rotate(var(--tilt))}
+  6%{opacity:1}
+  52%{opacity:1;transform:translateY(0) rotate(0)}
+  66%{transform:translateY(-7%) rotate(calc(var(--tilt)*-.25))}
+  80%{transform:translateY(0) rotate(0)}
+  90%{transform:translateY(-1.6%)}
+  100%{opacity:1;transform:translateY(0) rotate(0)}
+}
+@media(prefers-reduced-motion:reduce){.cv-sl,.cv-sd img,.cv-sh,.cvj-s img,.cvj-gs{animation-duration:.01s;animation-delay:0s}}

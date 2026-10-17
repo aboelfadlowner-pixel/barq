@@ -1,0 +1,7 @@
+/* sections */
+.sec{padding-block:clamp(28px,4.5vw,56px)}
+.sec-h{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:4px 24px;margin-bottom:22px}
+.sec-h h2{font-size:clamp(1.5rem,3vw,2.2rem);font-weight:700}
+.sec-h p{color:var(--muted)}
+.rv{transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
+.js .rv:not(.in){opacity:0;transform:translateY(22px)}
