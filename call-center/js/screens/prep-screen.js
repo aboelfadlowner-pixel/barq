@@ -8,7 +8,7 @@ import * as ds from '../data/data-source.js';
 import { getState } from '../store.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
-import { formatRelative, formatTime, formatWeight, housingLabel, isSameDay } from '../utils/format.js';
+import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 
@@ -192,7 +192,7 @@ export function mountPrep(view) {
       && (o.status !== 'cancelled' || recent(o.cancelledAt)))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId) + column('at_cashier', by('at_cashier'), busyId);
-    const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && isSameDay(o.outAt || o.createdAt, new Date()))
+    const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled')
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
     view.querySelector('[data-out] summary').innerHTML = `${icon('check')}خرج مع الطيار النهارده <span class="b-count num">${out.length}</span>`;
     view.querySelector('[data-out-list]').innerHTML = out.length
@@ -204,7 +204,9 @@ export function mountPrep(view) {
 
   const load = async () => {
     try {
-      const list = await ds.listPrepOrders();
+      // CONFIRMED: only this working day's orders (it ends at 2 AM) — the screen starts empty after 2 AM,
+      // older orders are not shown even if nobody moved them on.
+      const list = (await ds.listPrepOrders()).filter((o) => inWorkDay(o.createdAt));
       if (stopped) return;
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
       const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);

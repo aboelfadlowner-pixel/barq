@@ -5,7 +5,8 @@ import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
 import { esc, on } from '../utils/dom.js';
-import { formatRelative, isSameDay, normalizeArabic, normalizePhone } from '../utils/format.js';
+import { formatRelative, inWorkDay, normalizeArabic, normalizePhone } from '../utils/format.js';
+import { can } from '../permissions.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
@@ -127,7 +128,7 @@ export function mountBoard(view) {
       </div>
       <nav class="tabs" aria-label="عرض الطلبات">
         <a href="#/board" class="active">طلبات اليوم</a>
-        <a href="#/orders">كل الطلبات</a>
+        ${can(getState().user, 'ordersLog') ? '<a href="#/orders">كل الطلبات</a>' : ''}
       </nav>
       <div class="board-cols" data-cols><p class="muted">جارٍ التحميل…</p></div>
     </div></div>`;
@@ -135,7 +136,7 @@ export function mountBoard(view) {
   const cols = view.querySelector('[data-cols]');
   let orders = [];
   const render = () => {
-    const today = orders.filter((o) => isSameDay(o.createdAt, new Date()) && matches(o));
+    const today = orders.filter((o) => inWorkDay(o.createdAt) && matches(o));   // until 2 AM
     const active = today.filter((o) => o.status !== 'cancelled');
     const cancelled = today.filter((o) => o.status === 'cancelled');
     const draft = draftCard();

@@ -36,6 +36,7 @@ function render() {
   if (isPrepOnly(user)) route = 'prep';
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
+  else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
 
   if (unmount) unmount();
   view.innerHTML = '';

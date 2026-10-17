@@ -2,9 +2,10 @@
    admin       — everything, plus areas/fees, employee names, the registration code and accounts.
    call_center — creates, follows and cancels orders. No settings.
    prep        — the person preparing orders at the branch: the preparation screen only.
+   «سجل الطلبات» (orders of past days) is for the admin only.
    The database enforces the same rules; this only decides what is shown. */
 const ALLOWED = {
-  admin:       ['orders', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen'],
+  admin:       ['orders', 'ordersLog', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen'],
   call_center: ['orders', 'createOrder', 'cancelOrder', 'viewDailySummary'],
   prep:        ['prepScreen'],
 };

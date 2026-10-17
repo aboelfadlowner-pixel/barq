@@ -33,6 +33,23 @@ export function isSameDay(a, b) {
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
 
+/* Working day: from 2 AM to 2 AM, Cairo time (orders after midnight still belong to
+   the evening before). Screens that show "today" start empty again at 2 AM. */
+export const DAY_START_HOUR = 2;
+const cairoFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit',
+  day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+const cairoOffset = (ms) => {       // Cairo wall clock minus UTC, in ms (handles summer time)
+  const p = Object.fromEntries(cairoFmt.formatToParts(new Date(ms)).map((x) => [x.type, Number(x.value)]));
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
+};
+export function workDayStart(now = new Date()) {
+  const ms = new Date(now).getTime();
+  const p = Object.fromEntries(cairoFmt.formatToParts(new Date(ms - DAY_START_HOUR * 3600e3)).map((x) => [x.type, Number(x.value)]));
+  const local = Date.UTC(p.year, p.month - 1, p.day, DAY_START_HOUR);
+  return new Date(local - cairoOffset(local - cairoOffset(ms)));
+}
+export const inWorkDay = (iso, now = new Date()) => !!iso && new Date(iso) >= workDayStart(now);
+
 export function dayLabel(iso, now = new Date()) {
   if (isSameDay(iso, now)) return 'اليوم';
   const y = new Date(now); y.setDate(y.getDate() - 1);
