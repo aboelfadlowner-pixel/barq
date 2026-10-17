@@ -378,12 +378,14 @@
   padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm);
 }
 .o-card[data-id]:hover, .o-card[data-id]:focus-visible { border-color: var(--green-500); box-shadow: var(--shadow); }
-.o-head-end { display: inline-flex; align-items: center; gap: 4px; }
+/* Narrow columns (6 on a wide screen): the number keeps one line and the status + buttons move under it. */
+.o-head-end { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: auto; min-width: 0; }
+.o-head-end .btn-icon { width: 32px; height: 32px; min-width: 32px; padding: 0; }
 .o-print { color: var(--ink-2); }
 .o-print .svg-icon { width: 17px; height: 17px; }
 .o-draft { cursor: default; border-style: dashed; border-color: var(--warn-line); }
-.o-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.o-no { font-size: 17px; font-weight: 900; }
+.o-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 8px; }
+.o-no { font-size: 17px; font-weight: 900; white-space: nowrap; }
 .o-row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--ink-2); }
 .o-row > .svg-icon { color: var(--ink-2); margin-top: 3px; }
 .o-strong { font-weight: 800; color: var(--ink); }
