@@ -1,0 +1,43 @@
+/* Design tokens — Abu El Fadl Call Center
+   Calm muted green + IBM Plex Sans Arabic: made for long hours in front of the screen. */
+:root {
+  /* Brand — a calm, muted green (easy on the eyes for long shifts in front of the screen) */
+  --green-800: #1f4537;
+  --green-700: #2a5a47;
+  --green-600: #33694f;
+  --green-500: #4a8467;
+  --green-100: #dbe8e0;
+  --green-50:  #eff5f1;
+
+  /* Neutrals — soft off-white page, no harsh pure black/white contrast */
+  --ink:     #1f2b25;
+  --ink-2:   #45534b;
+  --muted:   #63716a;
+  --line:    #dde4df;
+  --line-2:  #e9eeea;
+  --surface: #f1f4f1;
+  --bg:      #f8faf8;
+
+  /* Feedback (softened) */
+  --danger:    #b4483c;
+  --danger-50: #fbf0ee;
+  --warn:      #8f5d14;
+  --warn-50:   #fdf6e8;
+  --warn-line: #ecd4a0;
+  --info:      #33669a;
+  --info-50:   #edf3fa;
+  --purple:    #6a52a3;
+  --purple-50: #f3f0fa;
+
+  /* Shape */
+  --radius-lg: 16px;
+  --radius:    12px;
+  --radius-sm: 8px;
+
+  --shadow-sm: 0 1px 2px rgba(31, 69, 55, .05);
+  --shadow:    0 3px 12px rgba(31, 69, 55, .06);
+  --shadow-lg: 0 20px 50px rgba(31, 69, 55, .18);
+
+  --font: 'IBM Plex Sans Arabic', 'Cairo', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --topbar-h: 62px;
+}

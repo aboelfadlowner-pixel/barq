@@ -1,0 +1,164 @@
+/* App state: a tiny observable store plus the order-draft actions. */
+import { catalog } from './catalog.js';
+import { MAX_PIECE_QTY } from './constants.js';
+
+/* One id per draft: sending the same draft again (double click, retry after a
+   network error) returns the same order instead of creating a second one. */
+const newRequestId = () => (globalThis.crypto?.randomUUID
+  ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  }));
+
+const emptyDraft = () => ({
+  requestId: newRequestId(),
+  cart: [],         // { lineId, productId, name, unitType, unitLabel, price, qty|grams, note }
+  customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
+  address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
+  orderNote: '',
+  editing: null,    // editing a sent order: { orderId, number } (until «على الكاشير»)
+});
+
+let state = {
+  user: null,       // the one call-center account: { id, name }
+  agent: null,      // the person working now, picked after opening: { id, name }
+  route: 'pos',
+  routeParam: null,
+  search: '',
+  category: null,   // category opened on the order screen (null = category cards)
+  catalogVersion: 0, // bumped when products/categories are reloaded in the background
+  catalogSync: { busy: false, at: null, pulledAt: null },   // products & prices refresh (catalog-sync.js)
+  cartOpen: false,
+  ...emptyDraft(),
+};
+
+const listeners = new Set();
+
+export const getState = () => state;
+
+export function setState(patch) {
+  const next = typeof patch === 'function' ? patch(state) : patch;
+  state = { ...state, ...next };
+  [...listeners].forEach((fn) => fn(state));
+}
+
+export function subscribe(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/* Re-render only when the selected slice actually changes. Returns unsubscribe. */
+export function bind(selector, render) {
+  let last;
+  const run = (s) => {
+    const slice = selector(s);
+    const key = JSON.stringify(slice);
+    if (key === last) return;
+    last = key;
+    render(slice, s);
+  };
+  run(state);
+  return subscribe(run);
+}
+
+/* ---------- Derived ---------- */
+export function currentDeliveryFee(s = state) {
+  if (!s.address?.areaId) return null;
+  return catalog.areasById.get(s.address.areaId)?.fee ?? null;
+}
+
+/* ---------- Cart actions ---------- */
+let seq = 0;
+const newLineId = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
+
+/* Adds a product. Unit products: whole qty (merged with the same product + same note).
+   Weight products: grams, always a separate line (each cut can have its own note). */
+export function addProduct(product, { qty = 1, grams = null, note = '' } = {}) {
+  const base = {
+    productId: product.id, name: product.name, unitType: product.unitType,
+    unitLabel: product.unitLabel, price: product.price, note,
+  };
+  setState((s) => {
+    if (product.unitType === 'weight') {
+      return { cart: [...s.cart, { ...base, lineId: newLineId(), grams }] };
+    }
+    const existing = s.cart.find((l) => l.productId === product.id && l.unitType !== 'weight' && (l.note || '') === note);
+    if (existing) {
+      return { cart: s.cart.map((l) => (l === existing ? { ...l, qty: Math.min(l.qty + qty, MAX_PIECE_QTY) } : l)) };
+    }
+    return { cart: [...s.cart, { ...base, lineId: newLineId(), qty: Math.min(qty, MAX_PIECE_QTY) }] };
+  });
+}
+
+export function updateLine(lineId, patch) {
+  setState((s) => ({ cart: s.cart.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)) }));
+}
+
+export function changeQty(lineId, delta) {
+  setState((s) => ({
+    cart: s.cart
+      .map((l) => (l.lineId === lineId ? { ...l, qty: Math.min(l.qty + delta, MAX_PIECE_QTY) } : l))
+      .filter((l) => l.unitType === 'weight' || l.qty > 0),
+  }));
+}
+
+export const removeLine = (lineId) => setState((s) => ({ cart: s.cart.filter((l) => l.lineId !== lineId) }));
+export const clearCart = () => setState({ cart: [] });
+
+/* ---------- Draft actions ---------- */
+export const setUser = (user) => setState({ user });
+export const setAgent = (agent) => setState({ agent });
+export const setCustomer = (customer, address) => setState({ customer, address });
+export const clearCustomer = () => setState({ customer: null, address: null });
+export const setOrderNote = (orderNote) => setState({ orderNote });
+
+export function resetDraft() {
+  setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
+}
+
+/* Edit a sent order: same lines with their original prices, its address and note; customer fixed. */
+export function loadDraftForEdit(order) {
+  const cart = order.items.map((it) => {
+    const prod = catalog.productsById.get(it.productId);
+    const base = {
+      lineId: newLineId(), productId: it.productId, name: it.name, unitType: it.unitType,
+      unitLabel: prod?.unitLabel ?? it.unitLabel, price: it.price, note: it.note || '',
+    };
+    return it.unitType === 'weight' ? { ...base, grams: it.grams } : { ...base, qty: it.qty };
+  });
+  const { areaName, ...address } = order.address;
+  setState({
+    ...emptyDraft(),
+    cart,
+    customer: { id: order.customer.id, name: order.customer.name, phone: order.customer.phone, phone2: order.customer.phone2 || '', isNew: false, todayOrders: [] },
+    address: { ...address, isNew: false },
+    orderNote: order.note || '',
+    editing: { orderId: order.id, number: order.number },
+  });
+}
+
+/* Repeat an old order: current catalog prices are used, missing products are skipped. */
+export function loadDraftFromOrder(order, todayOrders = []) {
+  const skipped = [];
+  const cart = [];
+  for (const it of order.items) {
+    const prod = catalog.productsById.get(it.productId);
+    if (!prod) { skipped.push(it.name); continue; }
+    const base = {
+      lineId: newLineId(), productId: prod.id, name: prod.name, unitType: prod.unitType,
+      unitLabel: prod.unitLabel, price: prod.price, note: it.note || '',
+    };
+    cart.push(prod.unitType === 'weight'
+      ? { ...base, grams: it.grams ?? Math.round((it.qty ?? 1) * 1000) }
+      : { ...base, qty: it.qty ?? 1 });
+  }
+  const { areaName, ...address } = order.address;
+  setState({
+    ...emptyDraft(),
+    cart,
+    customer: { id: order.customer.id, name: order.customer.name, phone: order.customer.phone, phone2: '', isNew: false, todayOrders },
+    address: { ...address, isNew: false },
+  });
+  return { skipped };
+}
