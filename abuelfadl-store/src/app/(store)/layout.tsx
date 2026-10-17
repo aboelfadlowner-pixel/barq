@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
+import "../globals.css";
 import { RevealObserver } from "@/components/layout/RevealObserver";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ChromeProvider } from "@/components/layout/ChromeProvider";

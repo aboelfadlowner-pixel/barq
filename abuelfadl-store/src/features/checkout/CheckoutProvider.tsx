@@ -27,7 +27,7 @@ export const DONE_SCREEN_ID = "done";
 
 /**
  * Checkout flow: cart drawer -> delivery details sheet -> "order received" animation (v29 `openCO`, `submitOrder`, `runDone`).
- * The order is simulated: `orderService` (src/services) returns an order number and nothing is sent anywhere yet.
+ * The order is sent to `POST /api/orders` through `orderService` (`src/services/client.ts`), which returns the order number.
  */
 export function CheckoutProvider({ children }: { children: React.ReactNode }) {
   const { total } = useCart();

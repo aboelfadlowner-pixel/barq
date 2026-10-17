@@ -1,4 +1,5 @@
 import type { CartItem } from "./cart";
+import type { ProductId } from "./product";
 
 /** "card" exists in the v29 checkout as a disabled option; only "cash" can be selected. */
 export type PaymentMethod = "cash" | "card";
@@ -16,7 +17,7 @@ export interface CustomerDetails {
 export interface OrderDraft {
   customer: CustomerDetails;
   items: CartItem[];
-  /** Total in EGP. */
+  /** Total in EGP, as shown in the browser. The server recomputes it from its own prices. */
   total: number;
   paymentMethod: PaymentMethod;
 }
@@ -25,4 +26,48 @@ export interface OrderDraft {
 export interface Order extends OrderDraft {
   /** Display number such as "AF-01234". */
   number: string;
+}
+
+/** Order lifecycle, managed from the admin dashboard. */
+export type OrderStatus = "new" | "preparing" | "out_for_delivery" | "delivered" | "cancelled";
+
+export const ORDER_STATUSES: OrderStatus[] = ["new", "preparing", "out_for_delivery", "delivered", "cancelled"];
+
+/** Arabic labels for the admin dashboard. */
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  new: "جديد",
+  preparing: "بيتحضّر",
+  out_for_delivery: "خرج للتوصيل",
+  delivered: "اتسلّم",
+  cancelled: "ملغي",
+};
+
+/** One order line as saved by the server: name and price are copied so later catalog edits do not change old orders. */
+export interface OrderLine {
+  productId: ProductId;
+  name: string;
+  /** Unit price in EGP at order time (per kg for weighed products). */
+  price: number;
+  weighed: boolean;
+  quantity: number;
+  /** price × quantity, rounded to 2 decimals. */
+  lineTotal: number;
+}
+
+/** An order as stored by the backend and shown in the admin dashboard. */
+export interface StoredOrder {
+  /** Internal id (sequence number). */
+  id: number;
+  number: string;
+  customer: CustomerDetails;
+  lines: OrderLine[];
+  /** Server-computed total in EGP. */
+  total: number;
+  paymentMethod: PaymentMethod;
+  status: OrderStatus;
+  /** ISO timestamps. */
+  createdAt: string;
+  updatedAt: string;
+  /** Internal note written by the staff (not shown to the customer). */
+  staffNote: string;
 }

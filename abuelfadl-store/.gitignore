@@ -28,3 +28,4 @@ yarn-error.log*
 # verification temp output
 .verify-tmp/
 tsconfig.verify.json
+.data/

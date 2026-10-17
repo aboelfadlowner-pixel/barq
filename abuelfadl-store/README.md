@@ -16,6 +16,7 @@ The original is the source of truth for look and behavior: `reference/v29/abuelf
 | 6 | Hero (team photo) + motion | done |
 | 7 | Checkout (simulated, same as v29) | done (this delivery) |
 | 8 | Side-by-side visual comparison with v29, final checks | |
+| B1 | Backend API + admin dashboard on a temporary JSON store (no database yet) | done (this delivery) |
 
 
 ## Run locally
@@ -50,7 +51,7 @@ src/hooks   filled in the next stages
 reference/v29     original site for comparison (excluded from tsconfig)
 ```
 Arabic and English fonts (Cairo, IBM Plex Sans Arabic) load from Google Fonts exactly as in v29.
-No environment variables are needed yet, so there is no `.env.example`.
+Environment variables: see `.env.example` (only needed for the admin dashboard in production).
 
 ## Git
 ```bash
@@ -72,7 +73,8 @@ git push -u origin main
 
 ## Data layer rules
 - UI code imports only `src/services` (never `src/data`). Swapping the mock for an API or database means changing `src/services/index.ts` and adding an implementation of `CatalogService` / `OrderService`; no UI changes.
-- No API exists yet and none is assumed. `submitOrder` is simulated exactly like v29: nothing is sent.
+- Server pages read the catalog through `src/services/index.ts` (server only). Client components use `src/services/client.ts`
+  (the checkout sends `POST /api/orders`). `src/services/mock/` is the old static implementation, kept for `npm run verify:data`.
 - Non-UI layers (types, data, services, lib) use relative imports; the `@/` alias is for UI code.
 
 ## Stage 5 notes
@@ -103,3 +105,70 @@ git push -u origin main
 - `RevealObserver` adds `in` to `.rv` elements and re-arms on route change. `CardTilt` tilts category cards on fine-pointer devices.
 - `lib/motion.ts` keeps `REDUCE_MOTION=false` exactly like v29. The order-done animation and cart fly effect do respect the reduced-motion setting.
 - The checkout sheet focuses the name field twice (60 ms and 380 ms) because the cart drawer restores focus to the header button while closing.
+
+## Backend B1: API + admin dashboard (no database yet)
+
+### Try it
+```bash
+npm run dev
+# store:      http://localhost:3000
+# dashboard:  http://localhost:3000/admin   (password in development: admin)
+```
+Place an order from the store and it shows up in the dashboard (orders, status, note). Change a price, stock, product or category
+in the dashboard and the store shows it right away.
+
+### Where the data lives (temporary)
+- `.data/store.json` (git-ignored) holds categories, products and orders. It is created from `src/data` the first time the server runs.
+  Delete it to start over from the original v29 data.
+- On Vercel the file system is read-only: the site works but dashboard changes and orders only live in memory until the next deploy/restart.
+  So **do not take real orders on Vercel before the database step**.
+
+### Layers
+```
+src/app/api/**          HTTP routes (thin: parse request, check admin, call src/server, return JSON)
+src/server/catalog.ts   catalog rules: validation, create/update/delete products and categories
+src/server/orders.ts    order rules: prices recomputed on the server, stock check, minimum order, AF-00001 numbering, statuses, stats
+src/server/auth.ts      admin password + signed session cookie
+src/server/db.ts        the temporary JSON store  <- the only file that knows how data is stored
+src/app/(store)         the store (unchanged UI; root layout moved into a route group)
+src/app/(admin)/admin   the dashboard (own root layout and admin.css, nothing shared with the store CSS)
+src/features/admin      dashboard screens (client components that call the API)
+```
+Connecting a database = rewrite `src/server/catalog.ts` / `orders.ts` on top of it (same function signatures) and drop `db.ts`.
+API routes, dashboard and store do not change.
+
+### API
+All responses are JSON. Errors are `{ "error": "<Arabic message>", "fields"?: { "<field>": "<message>" } }` with status 400/401/404/409/500.
+
+Public:
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/categories` | display order |
+| GET | `/api/products?category=&search=` | Arabic-normalized search (same rule as the store) |
+| GET | `/api/products/:id` | |
+| POST | `/api/orders` | `{ customer: { name, phone, address, note }, items: [{ productId, quantity }], paymentMethod: "cash" }` → 201 `{ number, total }`. Total is computed by the server; out-of-stock or unknown products → 409; below 300 EGP → 400 |
+
+Admin (needs the session cookie from `/api/admin/login`, otherwise 401):
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/admin/login` / `/api/admin/logout` | `{ password }` |
+| GET | `/api/admin/stats` | today's orders/revenue (Cairo day), counts by status, out of stock, latest 5 orders |
+| GET, POST | `/api/admin/products` | GET filters: `category`, `search`, `stock=in\|out` |
+| GET, PATCH, DELETE | `/api/admin/products/:id` | PATCH is partial, e.g. `{ "price": 120 }` or `{ "inStock": false }` |
+| GET, POST | `/api/admin/categories` | GET includes `productCount` |
+| PATCH, DELETE | `/api/admin/categories/:id` | PATCH `{ name?, art?, tint?, position? }`; the id never changes; DELETE only when the category is empty |
+| GET | `/api/admin/orders?status=&search=` | newest first |
+| GET, PATCH | `/api/admin/orders/:id` | PATCH `{ status?, staffNote? }`; statuses: new, preparing, out_for_delivery, delivered, cancelled |
+
+Orders keep a copy of each product's name and price, so editing the catalog later never changes old orders.
+
+### Admin login
+- Development: password `admin` unless `ADMIN_PASSWORD` is set in `.env.local`.
+- Production: set `ADMIN_PASSWORD` (and optionally `ADMIN_SESSION_SECRET`) in Vercel → Settings → Environment Variables. Without it the login is refused.
+- One shared password for now; per-user accounts and roles come with the database.
+
+### Not done yet (next steps)
+1. Database (Supabase/Postgres) behind `src/server/*`, then real orders on Vercel.
+2. Product photo upload (today the dashboard takes an image path such as `/products/13221.webp`).
+3. New-order notification to the branch (Telegram/WhatsApp/e-mail).
+4. Delivery zones and fees, staff accounts with roles, sales reports.

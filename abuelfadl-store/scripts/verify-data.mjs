@@ -10,7 +10,7 @@ const V29 = "reference/v29/split-source/";
 rmSync(OUT, { recursive: true, force: true });
 writeFileSync("tsconfig.verify.json", JSON.stringify({
   compilerOptions: { target: "ES2022", module: "node16", moduleResolution: "node16", outDir: OUT, rootDir: "src", skipLibCheck: true, strict: true },
-  files: ["src/services/index.ts"],
+  files: ["src/services/mock/catalog.ts"],
 }));
 try { execSync("npx tsc -p tsconfig.verify.json", { stdio: "inherit" }); } finally { rmSync("tsconfig.verify.json", { force: true }); }
 
@@ -25,7 +25,7 @@ const normSrc = read("js/02-utils.js").match(/var norm=(.*);\s*\n/)[1];
 const norm = vm.runInContext("(" + normSrc + ")", vm.createContext({}));
 
 const require = createRequire(import.meta.url);
-const { catalogService } = require("../" + OUT + "/services/index.js");
+const { mockCatalogService: catalogService } = require("../" + OUT + "/services/mock/catalog.js");
 const { normalizeArabic } = require("../" + OUT + "/lib/arabic.js");
 
 let failures = 0, checks = 0;

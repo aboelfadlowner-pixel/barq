@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useCart } from "@/features/cart/CartProvider";
 import { CUSTOMER_STORAGE_KEY } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
-import { orderService } from "@/services";
+import { orderService } from "@/services/client";
 import type { Order } from "@/types/order";
 
 export const CHECKOUT_SHEET_ID = "co";
@@ -88,9 +88,10 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
       });
       clear();
       onPlaced(placed);
-    } catch {
+    } catch (error) {
       setBusy(false);
-      setErrors({ address: "تعذّر إرسال الطلب، حاول مرة أخرى." });
+      // The server explains what went wrong (e.g. a product just went out of stock).
+      setErrors({ address: error instanceof Error && error.message ? error.message : "تعذّر إرسال الطلب، حاول مرة أخرى." });
     }
   };
 

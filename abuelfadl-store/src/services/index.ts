@@ -1,12 +1,11 @@
-import { mockCatalogService } from "./mock/catalog";
-import { mockOrderService } from "./mock/orders";
-import type { CatalogService, OrderService } from "./contracts";
+import { serverCatalogService } from "./server/catalog";
+import type { CatalogService } from "./contracts";
 
 /**
- * The single place that decides which implementation the app uses.
- * Today both are mocks over static data. When a real backend exists, swap the right-hand side here only.
+ * The single place that decides which catalog implementation the server-rendered pages use.
+ * Server-side only: client components import `@/services/client` instead.
+ * `mock/catalog.ts` (static v29 data) is kept for `npm run verify:data`.
  */
-export const catalogService: CatalogService = mockCatalogService;
-export const orderService: OrderService = mockOrderService;
+export const catalogService: CatalogService = serverCatalogService;
 
 export type { CatalogService, OrderService } from "./contracts";
