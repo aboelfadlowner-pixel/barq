@@ -8,7 +8,7 @@ import { ADDRESS_LIMITS, HOUSING_TYPES } from '../constants.js';
 
 /* Area is required for the delivery fee; street for the driver. */
 const REQUIRED = {
-  label: 'اكتب اسم للعنوان (مثال: البيت، الشغل)',
+  label: 'اكتب اسم للعنوان (مثال: البيطاش، الهانوفيل)',
   areaId: 'اختر منطقة التوصيل',
   street: 'اكتب اسم الشارع',
 };
