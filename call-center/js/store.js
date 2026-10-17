@@ -28,6 +28,7 @@ let state = {
   search: '',
   category: null,   // category opened on the order screen (null = category cards)
   catalogVersion: 0, // bumped when products/categories are reloaded in the background
+  catalogSync: { busy: false, at: null, pulledAt: null },   // products & prices refresh (catalog-sync.js)
   cartOpen: false,
   ...emptyDraft(),
 };

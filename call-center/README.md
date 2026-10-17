@@ -55,6 +55,11 @@ sending the same draft twice returns the same order. supabase-js 2.45.4 loads fr
   Drive file as dc-sync; at most every 10 minutes, triggered when the app opens). Products not in that list fall
   back to the storage unit (`كيلو` = weight). Unit products accept whole numbers only.
   ⚠️ Update the products file on Drive with "Upload new version"; deleting and re-uploading changes its id.
+- Products & prices stay current while the screen is open (CONFIRMED, `js/catalog-sync.js`): every 5 minutes and
+  from the «تحديث الأسعار» chip, the app reads `dc_sync_log` (read only) and, only if the products sheet was last
+  pulled 10+ minutes ago, runs the data-center sync exactly as the pricing/inventory/receiving tools do
+  (`dc-sync`, then `sync_catalog_from_dc`, which publishes at most every 10 minutes). Nothing in those tools is
+  changed. A new sheet on Drive shows on every open call-center / admin screen within about 10–15 minutes.
 - No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
   Products with a zero price stay visible as they are in the sheet.
 - Cash on delivery is the only payment method.

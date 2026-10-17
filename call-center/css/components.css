@@ -636,3 +636,9 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .o-wa .svg-icon { width: 17px; height: 17px; }
 .success-wa { margin-top: 6px; width: 100%; justify-content: center; }
 .success-wa.is-sent { background: var(--green-50); color: var(--green-700); border-color: var(--green-100); }
+
+/* «تحديث الأسعار» in the top bar */
+.sync-chip { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.sync-chip.is-busy .svg-icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 760px) { .sync-text { display: none; } }

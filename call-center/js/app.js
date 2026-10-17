@@ -3,7 +3,8 @@
    Three roles (permissions.js): the prep account always lands on #/prep and sees nothing else.
    Demo: always signed in. Supabase: the password is asked once per device (login screen),
    then the session is remembered. */
-import { loadCatalog, reloadProducts } from './catalog.js';
+import { loadCatalog } from './catalog.js';
+import { startCatalogSync } from './catalog-sync.js';
 import { getState, setState, setUser } from './store.js';
 import * as ds from './data/data-source.js';
 import { can, isPrepOnly } from './permissions.js';
@@ -72,13 +73,8 @@ async function startSignedIn(user) {
   render();
   // Opened with the product list saved on this device → bring it up to date quietly.
   refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});
-  // In the background: refresh "by weight / by unit" and the categories from the products
-  // sheet; if anything changed, reload the product list quietly. Never blocks or breaks the app.
-  ds.syncSaleUnits()
-    .then((r) => ((r?.status === 'ok' && r.rows_changed) || (r?.categories?.status === 'ok' && r.categories.rows_changed)
-      ? reloadProducts().then(() => setState({ catalogVersion: Date.now() }))
-      : null))
-    .catch(() => {});
+  // Products & prices stay up to date while open (data-center sync like the other tools, every 5 min).
+  startCatalogSync(refreshing);
 }
 
 async function start() {

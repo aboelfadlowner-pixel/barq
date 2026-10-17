@@ -2,6 +2,8 @@
 import { bind, getState, resetDraft } from '../store.js';
 import * as ds from '../data/data-source.js';
 import { clearCatalogCache } from '../catalog.js';
+import { syncCatalog } from '../catalog-sync.js';
+import { formatTime } from '../utils/format.js';
 import { confirmDialog, openModal, showToast } from './modal.js';
 import { can, isPrepOnly, ROLES } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
@@ -33,7 +35,25 @@ export function mountTopbar(el) {
     location.reload();
   });
 
-  return bind((s) => ({ route: s.route, user: s.user, agent: s.agent }), ({ route, user, agent }) => {
+  // «تحديث»: products & prices now (same steps as the automatic 5-minute refresh).
+  on(el, 'click', '[data-sync]', async (e, btn) => {
+    btn.disabled = true;
+    const r = await syncCatalog({ manual: true });
+    const mins = (ms) => Math.max(1, Math.round(ms / 60000));
+    const what = r.added || r.changed
+      ? `${r.added ? `${r.added} منتج جديد` : ''}${r.added && r.changed ? ' و' : ''}${r.changed ? `${r.changed} منتج اتغيّر سعره أو اسمه` : ''}`
+      : 'مفيش تغيير في المنتجات والأسعار';
+    if (r.failed && !r.pulled) showToast(`تعذّر التحديث — ${r.failed.join('، ')}`);
+    else if (r.pulled) showToast(`اتسحبت الشيتات من الدرايف ✓ — ${what}`);
+    else showToast(`المنتجات اتحدّثت ✓ — ${what}. آخر سحب من الدرايف كان من ${mins(Date.now() - new Date(r.pulledAt).getTime())} دقيقة، والسحب الجاي بعد ${mins(r.nextPullInMs)} دقيقة.`);
+  });
+
+  const syncChip = (sync) => `
+    <button type="button" class="btn btn-ghost btn-sm sync-chip ${sync.busy ? 'is-busy' : ''}" data-sync ${sync.busy ? 'disabled' : ''}
+      title="${sync.pulledAt ? `آخر سحب للشيتات من الدرايف: ${formatTime(sync.pulledAt)}. ` : ''}بيتحدّث لوحده كل 5 دقايق — اضغط للتحديث دلوقتي">
+      ${icon('repeat')}<span class="sync-text">${sync.busy ? 'بيحدّث…' : sync.at ? `الأسعار ${formatTime(sync.at)}` : 'تحديث الأسعار'}</span></button>`;
+
+  return bind((s) => ({ route: s.route, user: s.user, agent: s.agent, sync: s.catalogSync }), ({ route, user, agent, sync }) => {
     if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
@@ -67,6 +87,7 @@ export function mountTopbar(el) {
       <div class="spacer"></div>
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
+        ${syncChip(sync)}
         <a href="#/board" class="agent-chip ${agent ? '' : 'needs-value'}" title="الطلبات بتتسجل باسم الموظف ده — تغيّره من «اختار اسمك» في شاشة مركز الاتصال">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختار اسمك')}</span></a>
         ${user.role === 'admin' ? `<span class="role-pill role-pill-admin" title="الأدمن بيشوف الإعدادات والحسابات">${icon('user')}أدمن</span>` : ''}
         ${logout}

@@ -27,6 +27,10 @@ export const getSignupCodeStatus = () => impl.getSignupCodeStatus();
 // Refresh "by weight / by unit" from the products sheet (Supabase only; at most every 10 min).
 export const syncSaleUnits    = () => impl.syncSaleUnits();
 export const getProducts      = () => impl.getProducts();
+// Data center sync (same as the other tools): last run times, pull from Drive, publish to the product list.
+export const lastDataCenterSync = () => impl.lastDataCenterSync();
+export const pullDataCenter     = () => impl.pullDataCenter();
+export const publishDataCenter  = () => impl.publishDataCenter();
 export const getCategories    = () => impl.getCategories();
 export const listStaff        = () => impl.listStaff();
 export const listPrepOrders   = () => impl.listPrepOrders();

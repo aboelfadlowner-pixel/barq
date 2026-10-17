@@ -336,6 +336,36 @@ export async function syncSaleUnits() {
   return data;
 }
 
+/* Data center (the same sync the pricing / inventory / receiving tools run when they open — used as is,
+   nothing in it is changed): when did it last pull the products sheet from Drive, and when were the
+   products last published to products_master? Read only. */
+export async function lastDataCenterSync() {
+  const c = await sb();
+  const last = async (type) => ok(await c.from('dc_sync_log').select('started_at')
+    .eq('sync_type', type).eq('status', 'ok').order('started_at', { ascending: false }).limit(1))[0]?.started_at ?? null;
+  const [pulledAt, publishedAt] = await Promise.all([last('products'), last('catalog_products_master')]);
+  return { pulledAt, publishedAt };
+}
+
+/* Pull the sheets from Drive (dc-sync), then publish them to products_master (sync_catalog_from_dc —
+   the server publishes at most once every 10 minutes). Exactly what the other tools call. */
+export async function pullDataCenter() {
+  const c = await sb();
+  const { data, error } = await c.functions.invoke('dc-sync', { body: {} });
+  if (error) throw new Error(`تعذّر السحب من الدرايف: ${error.message}`);
+  const products = (data?.results || []).find((r) => r.table === 'dc_products');
+  return { products: products ?? null, failed: (data?.results || []).filter((r) => r.status === 'failed').map((r) => r.table) };
+}
+export async function publishDataCenter() {
+  const c = await sb();
+  for (let attempt = 0; ; attempt += 1) {
+    const { data, error } = await c.rpc('sync_catalog_from_dc');
+    if (!error) return Array.isArray(data) ? data[0] : data;
+    if (attempt || !/timeout|Thread killed/i.test(error.message)) throw new Error(`تعذّر نشر المنتجات: ${error.message}`);
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 export const getOrderStatuses = () => Promise.resolve(ORDER_STATUSES.map((s) => ({ ...s })));
 
 /* ---------- Customers ---------- */

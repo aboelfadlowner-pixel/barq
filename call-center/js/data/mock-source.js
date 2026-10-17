@@ -24,6 +24,11 @@ export const getCategories    = () => resolve(mock.categories);
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
 export const syncSaleUnits = () => Promise.resolve({ status: 'skipped' });
+/* Demo stand-in for the data-center sync (nothing leaves the browser). */
+const dcLog = { pulledAt: null, publishedAt: null };
+export const lastDataCenterSync = () => resolve(dcLog);
+export const pullDataCenter = () => { dcLog.pulledAt = new Date().toISOString(); return resolve({ products: { status: 'ok' }, failed: [] }); };
+export const publishDataCenter = () => { dcLog.publishedAt = new Date().toISOString(); return resolve({ products_upserted: 0 }); };
 
 /* ---------- Employee names ---------- */
 export const getAgents = () => resolve(agents);
