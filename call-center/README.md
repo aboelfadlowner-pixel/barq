@@ -61,7 +61,8 @@ sending the same draft twice returns the same order. supabase-js 2.45.4 loads fr
   (`dc-sync`, then `sync_catalog_from_dc`, which publishes at most every 10 minutes). Nothing in those tools is
   changed. A new sheet on Drive shows on every open call-center / admin screen within about 10–15 minutes.
 - No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
-  Products with a zero price stay visible as they are in the sheet.
+- Like Foodics (CONFIRMED, `db/12_active_products.sql`): only products that are in the current products sheet,
+  active there and priced above zero are listed. Inactive / zero-price / no-longer-in-sheet rows are hidden.
 - Cash on delivery is the only payment method.
 - Order tickets print on an 80mm receipt roll, for the preparation team: customer, phones, address, items with
   quantity or weight and notes. No prices, fees or totals on the ticket.

@@ -51,7 +51,7 @@ declare n1 int; n2 int; n3 int; n4 int; last1 text; last2 text; total int; cols 
 begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   select count(*) into total from public.cc_list_products(null, 1000);
-  if total < 5 then raise exception 'FAIL T03 account sees % products', total; end if;
+  if total < 4 then raise exception 'FAIL T03 account sees % products', total; end if;   -- 5 in the stub, T-900 (price 0) hidden
   select count(*), max(sku) into n1, last1 from public.cc_list_products(null, 2);
   select count(*), max(sku) into n2, last2 from public.cc_list_products(last1, 2);
   select count(*) into n3 from public.cc_list_products(last2, 2);
@@ -62,7 +62,7 @@ begin
   select pg_get_function_result('public.cc_list_products(text,int)'::regprocedure) into cols;
   if cols ~* 'cost|margin' then raise exception 'FAIL T03 cost/margin exposed: %', cols; end if;
   if (select string_agg(sku || '=' || sold_by, ',' order by sku) from public.cc_list_products(null, 1000))
-     <> 'T-101=weight,T-104=weight,T-201=unit,T-203=unit,T-900=unit' then
+     <> 'T-101=weight,T-104=weight,T-201=unit,T-203=unit' then   -- T-900 (price 0) not listed (12_active_products)
     raise exception 'FAIL T03 sold_by: %', (select string_agg(sku || '=' || sold_by, ',' order by sku) from public.cc_list_products(null, 1000));
   end if;
   raise notice 'PASS T03 products: % rows, pages 2+2+%, result columns = %', total, n3, cols;
@@ -580,7 +580,7 @@ begin
   select string_agg(sku || '=' || sold_by, ',' order by sku) into got from public.cc_list_products(null, 1000);
   -- T-101 storage كيلو but sheet No → unit; T-203 storage Unit but sheet Yes → weight;
   -- T-104 not in the sheet list → storage كيلو → weight; T-201 لتر → unit; T-900 nothing → unit
-  if got <> 'T-101=unit,T-104=weight,T-201=unit,T-203=weight,T-900=unit' then raise exception 'FAIL T26 list %', got; end if;
+  if got <> 'T-101=unit,T-104=weight,T-201=unit,T-203=weight' then raise exception 'FAIL T26 list %', got; end if;
   ag := public.cc_save_agent(null, 'اختبار الوزن', true);
   select id into cust from public.cc_customers where phone = '01011112222';
   select id into addr from public.cc_addresses where customer_id = cust limit 1;
@@ -948,5 +948,28 @@ do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
   if (select driver from public.cc_orders where id = current_setting('cc.oid')::uuid) <> 'محمد (01012345678)' then raise exception 'FAIL T33 call center does not see the driver'; end if;
   raise notice 'PASS T33 driver «الاسم (الرقم)» required for «خرج مع الطيار», only from the cashier, once; shown to prep and call center';
+end $$;
+rollback;
+
+-- T34 — like Foodics: only active products from the current sheet, priced above zero (12_active_products.sql)
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+-- a stand-in for the data-center sheet table (inside this transaction only; rolled back below)
+create table public.dc_products (sku text primary key, name text, price numeric, is_active boolean);
+insert into public.dc_products values ('T-101', 'x', 420, true), ('T-201', 'x', 42, false), ('T-203', 'x', 9, null), ('T-900', 'x', 0, true);
+-- T-104 is not in the sheet at all
+grant select on public.dc_products to authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare got text;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  select string_agg(sku, ',' order by sku) into got from public.cc_list_products(null, 1000);
+  -- T-101 active → shown · T-201 inactive → hidden · T-203 active not set → shown · T-900 price 0 → hidden · T-104 not in sheet → hidden
+  if got is distinct from 'T-101,T-203' then raise exception 'FAIL T34 list %', got; end if;
+  raise notice 'PASS T34 only active products from the sheet with a price above zero are listed';
 end $$;
 rollback;
