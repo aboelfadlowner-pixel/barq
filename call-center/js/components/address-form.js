@@ -96,7 +96,7 @@ export function addressFormHtml(v = {}) {
       <div class="field">
         <label for="af-label">الاسم<span class="req">*</span></label>
         <input id="af-label" class="input" name="label" value="${esc(v.label ?? '')}" maxlength="${ADDRESS_LIMITS.label.max}"
-          placeholder="مثال: البيت، الشغل، بيت الوالدة" autocomplete="off">
+          autocomplete="off">
         <div class="field-error" data-err="label"></div>
       </div>
       <div class="field">
