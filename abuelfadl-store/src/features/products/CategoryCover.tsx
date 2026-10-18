@@ -111,9 +111,31 @@ function JuiceCover() {
   );
 }
 
+/**
+ * "dairy" cover: cut-outs of the store's own products (public/covers/dairy/*.webp, made from the product photos).
+ * The two ghee jars rise first, then the milk bottle between them, then butter and yogurt in front; after that every
+ * piece "breathes" very slightly. Positions are percentages of the scene, see the `.cvd` rules in 24-category-covers.css.
+ */
+const DAIRY_PIECES = ["ghee-cow", "ghee-buffalo", "milk", "butter", "yogurt"] as const;
+
+function DairyCover() {
+  return (
+    <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وجاموسي وحليب وزبدة وزبادي">
+      <div className="cvd-s" aria-hidden="true">
+        <i className="cvd-glow" />
+        <i className="cvd-gs" />
+        {DAIRY_PIECES.map((name) => (
+          <img key={name} className={`cvd-p cvd-${name}`} src={`/covers/dairy/${name}.webp`} alt="" decoding="async" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
+  dairy: DairyCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */

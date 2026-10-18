@@ -64,3 +64,31 @@
 /* Banner from the category photo set in the dashboard (categories without an animated cover). */
 .cbanner.has-photo{display:block;background:#fff}
 .cbanner.has-photo .cbanner-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+
+/* ---- dairy cover (.cvd): ghee jars, milk bottle, butter and yogurt rise in, then breathe ---- */
+.cvd{position:absolute;inset:0 0 var(--cb) 0;pointer-events:none;display:flex;justify-content:center;align-items:flex-end}
+.cvd-s{position:relative;height:100%;aspect-ratio:1.3/1;max-width:100%}
+.cvd-glow{position:absolute;left:18%;right:18%;top:6%;bottom:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(255,236,170,.55),rgba(255,255,255,0) 70%);opacity:0;animation:cvdFade 1.2s .1s both}
+.cvd-gs{position:absolute;left:10%;width:80%;bottom:2.5%;height:6%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.26),transparent);opacity:0;animation:cvShadow .8s .35s both}
+.cvd-p{position:absolute;display:block;width:auto;opacity:0;filter:drop-shadow(0 6px 10px rgba(20,40,26,.16));
+  animation:cvdRise .95s var(--dl,0s) cubic-bezier(.22,.8,.3,1) both,cvdBreathe 5.5s calc(var(--dl,0s) + 1s) ease-in-out infinite alternate}
+.cvd-ghee-cow{left:16%;height:55%;bottom:11%;z-index:2;--dl:.15s;--tilt:-2deg}
+.cvd-ghee-buffalo{left:63.5%;height:55%;bottom:11%;z-index:2;--dl:.3s;--tilt:2deg}
+.cvd-milk{left:44.5%;height:76%;bottom:9%;z-index:1;--dl:.5s;--tilt:0deg}
+.cvd-butter{left:4%;height:41%;bottom:3%;z-index:4;--dl:.75s;--tilt:-3deg}
+.cvd-yogurt{left:60%;height:27%;bottom:3%;z-index:4;--dl:.9s;--tilt:2deg}
+@keyframes cvdRise{
+  from{opacity:0;transform:translateY(28%) scale(.94) rotate(var(--tilt))}
+  to{opacity:1;transform:none}
+}
+@keyframes cvdBreathe{
+  from{opacity:1;transform:none}
+  to{opacity:1;transform:translateY(-2.2%) rotate(calc(var(--tilt) * .35))}
+}
+@keyframes cvdFade{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.cvd-p{animation:cvdFade .01s both}.cvd-glow,.cvd-gs{animation-duration:.01s;animation-delay:0s}}
+/* Wide screens: the title sits at the bottom right, so the scene takes the full height on the left/centre. */
+@media(min-width:800px){
+  .cvd{inset:18px 0 0 0;justify-content:center;padding-inline-start:26%}
+  .cvd-s{aspect-ratio:1.45/1}
+}
