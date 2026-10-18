@@ -16,6 +16,9 @@ export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 10
 
 const moneyFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const formatMoney = (n) => `${moneyFmt.format(round2(n))} ${CURRENCY}`;
+/* Short price for product cards (like Foodics): 165 ج.م, 54.5 ج.م — no ".00". */
+const priceFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+export const formatPrice = (n) => `${priceFmt.format(round2(n))} ${CURRENCY}`;
 
 export function formatWeight(grams) {
   const g = Math.round(Number(grams) || 0);

@@ -3,10 +3,8 @@ import { bind, setState } from '../store.js';
 import { openItemDialog } from './item-dialog.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
-import { formatWeight, normalizeArabic } from '../utils/format.js';
-import { perUnitLabel } from '../utils/pricing.js';
+import { formatPrice, formatWeight, normalizeArabic } from '../utils/format.js';
 import { icon } from './icons.js';
-import { money } from './chips.js';
 
 let visible = [];
 export const getVisibleProducts = () => visible;
@@ -53,12 +51,9 @@ function card(p, inCart) {
       ${badge}
       ${thumb}
       <div class="p-name">${esc(p.name)}</div>
-      <div class="p-unit">
-        ${p.unitType === 'weight' ? `<span class="tag tag-warn">${icon('scale')}بالوزن</span>` : esc(p.unitLabel)}
-        · <span class="ltr-inline">${esc(p.code)}</span>
-      </div>
+      ${p.unitType === 'weight' ? `<div class="p-unit"><span class="tag tag-warn">${icon('scale')}بالوزن</span></div>` : ''}
       <div class="p-foot">
-        <div class="p-price">${money(p.price)} <small>/ ${perUnitLabel(p.unitType)}</small></div>
+        <div class="p-price"><span class="num">${formatPrice(p.price)}</span>${p.unitType === 'weight' ? ' <small>للكيلو</small>' : ''}</div>
       </div>
     </button>`;
 }
