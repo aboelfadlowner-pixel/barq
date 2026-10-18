@@ -13,6 +13,8 @@ import * as adminCategories from "../src/app/api/admin/categories/route";
 import * as adminCategory from "../src/app/api/admin/categories/[id]/route";
 import * as adminOrders from "../src/app/api/admin/orders/route";
 import * as adminOrder from "../src/app/api/admin/orders/[id]/route";
+import * as adminSync from "../src/app/api/admin/sync/route";
+import * as adminSyncProducts from "../src/app/api/admin/sync/products/route";
 
 type Handler = (request: Request, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
 type RouteModule = Partial<Record<"GET" | "POST" | "PATCH" | "DELETE", Handler>>;
@@ -31,6 +33,8 @@ const ROUTES: [RegExp, RouteModule][] = [
   [/^\/api\/admin\/categories\/(?<id>[^/]+)$/, adminCategory],
   [/^\/api\/admin\/orders$/, adminOrders],
   [/^\/api\/admin\/orders\/(?<id>[^/]+)$/, adminOrder],
+  [/^\/api\/admin\/sync$/, adminSync],
+  [/^\/api\/admin\/sync\/products$/, adminSyncProducts],
 ] as [RegExp, RouteModule][];
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

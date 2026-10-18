@@ -14,3 +14,14 @@
 #pdW .wchips button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
 #pdW .wchips button[aria-pressed="true"] b{font-weight:600}
 #pdW p{text-align:start}
+
+/* "وزن تاني؟": type a weight in grams; it snaps to the product's allowed weights. */
+#pdW .wcustom{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+#pdW .wcustom label{font-size:.85rem;font-weight:500;color:var(--muted)}
+#pdW .wcustom-row{display:flex;align-items:center;gap:8px}
+#pdW .wcustom-row input{flex:1;min-width:0;height:42px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font:500 1rem var(--f-body);text-align:right;background:var(--bg);color:var(--fg)}
+#pdW .wcustom-row input:focus{outline:none;border-color:var(--brand)}
+#pdW .wcustom-row span{color:var(--muted);font-size:.9rem}
+#pdW .wcustom-row button{height:42px;padding:0 16px;border-radius:999px;border:1.5px solid var(--brand);background:var(--bg);color:var(--brand-ink);font-weight:600}
+#pdW .wcustom-row button:disabled{opacity:.4;cursor:not-allowed}
+#pdW .wcustom small{color:var(--brand-ink);font-size:.85rem;font-variant-numeric:tabular-nums}

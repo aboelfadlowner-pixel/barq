@@ -9,7 +9,7 @@ import { useCatalog } from "@/features/catalog/CatalogProvider";
 import { flyToCart } from "@/lib/cart-effects";
 import { MIN_ORDER } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
-import { quantityLabel, round2, stepOf } from "@/lib/quantity";
+import { decreaseQuantity, increaseQuantity, quantityLabel, round2 } from "@/lib/quantity";
 import { useCheckout } from "@/features/checkout/CheckoutProvider";
 import { useCart } from "./CartProvider";
 import { CART_SHEET_ID } from "./sheetIds";
@@ -112,7 +112,7 @@ export function CartDrawer() {
                   aria-label="زيادة الكمية"
                   onClick={(event) => {
                     flyToCart(event.currentTarget);
-                    setQuantity(product.id, round2(quantityOf(product.id) + stepOf(product)));
+                    setQuantity(product.id, increaseQuantity(product, quantityOf(product.id)));
                     focusLine(product.id, ["[data-inc]"]);
                   }}
                 >
@@ -124,7 +124,7 @@ export function CartDrawer() {
                   data-dec={product.id}
                   aria-label="تقليل الكمية"
                   onClick={() => {
-                    setQuantity(product.id, round2(quantityOf(product.id) - stepOf(product)));
+                    setQuantity(product.id, decreaseQuantity(product, quantityOf(product.id)));
                     focusLine(product.id, ["[data-dec]"]);
                   }}
                 >

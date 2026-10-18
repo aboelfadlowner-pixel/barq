@@ -57,6 +57,10 @@ export function Dashboard() {
               <span>طلبات جديدة مستنية</span>
               <b className="num">{stats.byStatus.new}</b>
             </Link>
+            <Link className={`card stat${stats.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
+              <span>منتجات مش مربوطة بشيت Foodics</span>
+              <b className="num">{stats.unlinkedProducts}</b>
+            </Link>
             <Link className={`card stat${stats.outOfStock ? " alert-stat" : ""}`} href="/admin/products?stock=out">
               <span>منتجات خلصانة</span>
               <b className="num" dir="ltr" style={{ textAlign: "right" }}>

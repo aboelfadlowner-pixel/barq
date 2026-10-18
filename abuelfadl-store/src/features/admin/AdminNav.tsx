@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/admin/orders", label: "الطلبات", icon: "orders" },
   { href: "/admin/products", label: "المنتجات", icon: "box" },
   { href: "/admin/categories", label: "الأقسام", icon: "tag" },
+  { href: "/admin/sync", label: "الأسعار", icon: "sync" },
 ];
 
 /** How often the new-orders counter refreshes. */

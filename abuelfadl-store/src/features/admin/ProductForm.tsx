@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { DEFAULT_MAX_WEIGHT, DEFAULT_WEIGHT_STEP } from "@/lib/quantity";
+import { isValidSku, normalizeSku } from "@/lib/sku";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
 import { api, AdminApiError } from "./api";
@@ -14,6 +16,9 @@ interface FormState {
   price: string;
   weighed: boolean;
   weightStep: string;
+  minWeight: string;
+  maxWeight: string;
+  sku: string;
   inStock: boolean;
   bestseller: boolean;
   offer: boolean;
@@ -26,7 +31,10 @@ const EMPTY: FormState = {
   categoryId: "",
   price: "",
   weighed: false,
-  weightStep: "0.25",
+  weightStep: String(DEFAULT_WEIGHT_STEP),
+  minWeight: String(DEFAULT_WEIGHT_STEP),
+  maxWeight: String(DEFAULT_MAX_WEIGHT),
+  sku: "",
   inStock: true,
   bestseller: false,
   offer: false,
@@ -39,7 +47,10 @@ const toForm = (p: Product): FormState => ({
   categoryId: p.categoryId,
   price: String(p.price),
   weighed: p.weighed,
-  weightStep: String(p.weightStep ?? 0.25),
+  weightStep: String(p.weightStep ?? DEFAULT_WEIGHT_STEP),
+  minWeight: String(p.minWeight ?? p.weightStep ?? DEFAULT_WEIGHT_STEP),
+  maxWeight: String(p.maxWeight ?? DEFAULT_MAX_WEIGHT),
+  sku: p.sku ?? "",
   inStock: p.inStock,
   bestseller: p.bestseller,
   offer: p.offer,
@@ -82,6 +93,9 @@ export function ProductForm({ id }: { id?: string }) {
       ...form,
       price: Number(form.price),
       weightStep: Number(form.weightStep),
+      minWeight: Number(form.minWeight),
+      maxWeight: Number(form.maxWeight),
+      sku: normalizeSku(form.sku),
     };
     try {
       const saved = await api<Product>(id ? `/api/admin/products/${id}` : "/api/admin/products", { method: id ? "PATCH" : "POST", body });
@@ -158,6 +172,13 @@ export function ProductForm({ id }: { id?: string }) {
               <input className="input num" inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" />
             </Field>
           </div>
+          <Field
+            label="SKU (من شيت Foodics)"
+            error={errors.sku || (form.sku && !isValidSku(normalizeSku(form.sku)) ? "الشكل الصح: sk-1234" : undefined)}
+            hint={form.sku ? "مربوط: السعر هيتحدّث من شيت المنتجات" : "اكتب الـ SKU عشان المنتج يتربط بالشيت والسعر يتحدّث لوحده"}
+          >
+            <input className="input num" dir="ltr" placeholder="sk-0000" value={form.sku} onChange={(e) => set("sku", e.target.value)} />
+          </Field>
           <Field label="الوصف" error={errors.description} hint="اختياري">
             <textarea className="textarea" value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
@@ -186,12 +207,42 @@ export function ProductForm({ id }: { id?: string }) {
             بيتباع بالوزن (كيلو)
           </label>
           {form.weighed ? (
-            <Field label="أقل زيادة في الوزن (كجم)" error={errors.weightStep} hint="0.25 يعني ربع كيلو">
-              <input className="input num" inputMode="decimal" value={form.weightStep} onChange={(e) => set("weightStep", e.target.value)} />
-            </Field>
+            <div className="weight-box stack">
+              <h3>البيع بالوزن</h3>
+              <Field label="وحدة الوزن">
+                <select className="select" value="kg" disabled>
+                  <option value="kg">كيلو (kg)</option>
+                </select>
+              </Field>
+              <Field label="أقل وزن (كجم)" error={errors.minWeight} hint="يبدأ من كام، مثلاً 0.125 = تُمن كيلو">
+                <input className="input num" inputMode="decimal" dir="ltr" value={form.minWeight} onChange={(e) => set("minWeight", e.target.value)} />
+              </Field>
+              <Field label="الزيادة (كجم)" error={errors.weightStep} hint="بيزوّد كام كل مرة، مثلاً 0.25 = ربع كيلو">
+                <input className="input num" inputMode="decimal" dir="ltr" value={form.weightStep} onChange={(e) => set("weightStep", e.target.value)} />
+              </Field>
+              <Field label="أقصى وزن (كجم)" error={errors.maxWeight} hint="أكبر كمية في الطلب الواحد">
+                <input className="input num" inputMode="decimal" dir="ltr" value={form.maxWeight} onChange={(e) => set("maxWeight", e.target.value)} />
+              </Field>
+              <WeightPreview min={Number(form.minWeight)} step={Number(form.weightStep)} max={Number(form.maxWeight)} price={Number(form.price)} />
+            </div>
           ) : null}
         </div>
       </div>
     </form>
+  );
+}
+
+/** Shows what the customer will be able to choose with the current settings, e.g. "125 جم، 250 جم، 375 جم … لحد 10 كيلو". */
+function WeightPreview({ min, step, max, price }: { min: number; step: number; max: number; price: number }) {
+  if (!(min > 0 && step > 0 && max >= min)) return null;
+  const options: number[] = [];
+  for (let kg = min; kg <= max + 1e-9 && options.length < 4; kg = Math.round((kg + step) * 1000) / 1000) options.push(kg);
+  const label = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} جم` : `${kg} كيلو`);
+  return (
+    <small className="muted">
+      العميل هيختار: {options.map(label).join("، ")}
+      {options.at(-1)! < max ? ` … لحد ${label(max)}` : ""}
+      {price > 0 ? ` (أقل طلب = ${Math.round(price * min * 100) / 100} ج.م)` : ""}
+    </small>
   );
 }

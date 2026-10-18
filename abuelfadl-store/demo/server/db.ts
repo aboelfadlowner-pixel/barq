@@ -1,25 +1,20 @@
-import { categories as seedCategories } from "../../src/data/categories";
-import { products as seedProducts } from "../../src/data/products";
 import type { StoreData } from "../../src/server/db";
+import { seedStore, upgradeStore } from "../../src/server/seed";
 
 /**
  * Browser version of `src/server/db.ts` for the demo build: same `read` / `mutate` API,
  * data kept in the viewer's localStorage (each viewer has their own copy).
  */
-const KEY = "abuelfadl_demo_db_v1";
-
-function seed(): StoreData {
-  return { categories: structuredClone(seedCategories), products: structuredClone(seedProducts), orders: [], orderSeq: 0 };
-}
+const KEY = "abuelfadl_demo_db_v1"; // older saved data is upgraded by `upgradeStore`
 
 function load(): StoreData {
   try {
     const saved = localStorage.getItem(KEY);
-    if (saved) return JSON.parse(saved) as StoreData;
+    if (saved) return upgradeStore(JSON.parse(saved) as StoreData);
   } catch {
     // unreadable or blocked storage: start from the original data
   }
-  return seed();
+  return seedStore();
 }
 
 let cache: StoreData = load();
@@ -51,6 +46,6 @@ export function snapshot(): StoreData {
 
 /** Back to the original 621 products and no orders. */
 export function resetData() {
-  cache = seed();
+  cache = seedStore();
   persist();
 }

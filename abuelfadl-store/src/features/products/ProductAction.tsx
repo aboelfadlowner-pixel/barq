@@ -4,7 +4,7 @@ import { useChrome } from "@/components/layout/ChromeProvider";
 import { Icon } from "@/components/ui/Icon";
 import { useCart } from "@/features/cart/CartProvider";
 import { flyToCart } from "@/lib/cart-effects";
-import { round2, stepOf, weightLabel } from "@/lib/quantity";
+import { decreaseQuantity, increaseQuantity, weightLabel } from "@/lib/quantity";
 import type { CatalogProduct } from "@/features/catalog/CatalogProvider";
 import { useProductSheet } from "./ProductSheet";
 
@@ -78,7 +78,7 @@ export function ProductAction({ product }: { product: CatalogProduct }) {
         aria-label="زيادة الكمية"
         onClick={(event) => {
           flyToCart(event.currentTarget);
-          setQuantity(product.id, round2(quantity + stepOf(product)));
+          setQuantity(product.id, increaseQuantity(product, quantity));
         }}
       >
         <Icon id="i-plus" />
@@ -90,7 +90,7 @@ export function ProductAction({ product }: { product: CatalogProduct }) {
         aria-label="تقليل الكمية"
         onClick={(event) => {
           const button = event.currentTarget;
-          setQuantity(product.id, round2(quantity - stepOf(product)));
+          setQuantity(product.id, decreaseQuantity(product, quantity));
           focusInCard(button, ["[data-dec]", "[data-add]"]);
         }}
       >

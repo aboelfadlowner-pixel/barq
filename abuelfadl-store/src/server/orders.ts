@@ -1,4 +1,5 @@
 import { MIN_ORDER } from "../lib/constants";
+import { isAllowedQuantity } from "../lib/quantity";
 import { ORDER_STATUSES, type OrderLine, type OrderStatus, type StoredOrder } from "../types/order";
 import { mutate, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
@@ -44,10 +45,8 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
       if (!product) throw new ApiError(409, "فيه منتج في السلة مبقاش موجود. حدّث الصفحة وجرّب تاني.");
       if (!product.inStock) throw new ApiError(409, `«${product.name}» خلص حاليًا. شيله من السلة وكمّل.`);
       const quantity = Number(item.quantity);
-      const step = product.weighed ? (product.weightStep ?? 0.25) : 1;
-      // Quantity must be a positive multiple of the step (pieces, or kg in steps of e.g. 0.25).
-      const steps = quantity / step;
-      if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 100 || Math.abs(steps - Math.round(steps)) > 1e-9) {
+      // Pieces: 1 to 20. Weighed: from the product's minimum, in its steps, up to its maximum (dashboard settings).
+      if (!isAllowedQuantity(product, quantity)) {
         throw new ApiError(400, `الكمية غير صحيحة لـ «${product.name}»`);
       }
       lines.push({
@@ -124,7 +123,7 @@ export function updateOrder(id: number, input: { status?: unknown; staffNote?: u
 
 /** Numbers for the dashboard home. "Today" is the Cairo calendar day. */
 export async function getStats() {
-  const { orders, products } = await read();
+  const { orders, products, syncLog = [] } = await read();
   const cairoDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const today = cairoDay(new Date().toISOString());
   const todays = orders.filter((order) => cairoDay(order.createdAt) === today && order.status !== "cancelled");
@@ -138,6 +137,8 @@ export async function getStats() {
     totalOrders: orders.length,
     products: products.length,
     outOfStock: products.filter((product) => !product.inStock).length,
+    unlinkedProducts: products.filter((product) => !product.sku).length,
+    lastSync: syncLog.at(-1)?.at ?? null,
     latestOrders: orders.slice(-5).reverse(),
   };
 }

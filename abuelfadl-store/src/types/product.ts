@@ -13,6 +13,15 @@ export interface Product {
   weighed: boolean;
   /** Quantity increment in kg. Present only when `weighed` is true (v29 uses 0.25). */
   weightStep?: number;
+  /** Smallest weight a customer can order, in kg (weighed products only). Defaults to `weightStep`. */
+  minWeight?: number;
+  /** Largest weight in one order, in kg (weighed products only). Defaults to 10. */
+  maxWeight?: number;
+  /**
+   * Foodics product SKU, e.g. "sk-16671". Links the product to the products sheet: when the sheet is imported,
+   * the price of the product with the same SKU is updated. Missing when the product is not linked yet.
+   */
+  sku?: string;
   /** False when the product is currently unavailable. v29 has no stock quantities, only available / unavailable. */
   inStock: boolean;
   /** Shown with the "best seller" label. */

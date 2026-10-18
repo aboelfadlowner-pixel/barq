@@ -167,6 +167,21 @@ Orders keep a copy of each product's name and price, so editing the catalog late
 - Production: set `ADMIN_PASSWORD` (and optionally `ADMIN_SESSION_SECRET`) in Vercel → Settings → Environment Variables. Without it the login is refused.
 - One shared password for now; per-user accounts and roles come with the database.
 
+### Foodics SKU linking and prices (B2)
+- Every product has an optional `sku` (`sk-1234`, unique). 344 of the 621 products got theirs from the WooCommerce export
+  (`src/data/skus.ts`, applied when the store is first created or upgraded); the rest are linked from the dashboard
+  (SKU column in the products table, or the product form). Filter "مش مربوط" lists them.
+- Prices come from the Foodics products sheet (`المنتجات.csv` in the "داتا سنتر" Drive folder): `src/server/sync.ts`
+  reads it and gives every product with the same SKU the sheet price. Only the price changes. Dashboard page `/admin/sync`
+  (temporary manual upload) shows the changes, linked SKUs missing from the sheet, active sheet SKUs not on the site, and history.
+  The Supabase sync will call the same `applyPrices`. Stock is a later phase.
+- API: `GET /api/admin/sync`, `POST /api/admin/sync/products { csv, fileName }`, `GET /api/admin/products?linked=yes|no`.
+
+### Weight settings
+Weighed products have `minWeight`, `weightStep` and `maxWeight` (kg; defaults 0.25 / 0.25 / 10), set in the product form like
+WooCommerce weight-based pricing. The product sheet shows quick choices within those settings, +/- buttons, and a "وزن تاني؟"
+field in grams that snaps to the nearest allowed weight. `src/lib/quantity.ts` holds the rules; orders are checked with the same code.
+
 ### Not done yet (next steps)
 1. Database (Supabase/Postgres) behind `src/server/*`, then real orders on Vercel.
 2. Product photo upload (today the dashboard takes an image path such as `/products/13221.webp`).

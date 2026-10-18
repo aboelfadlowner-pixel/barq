@@ -1,12 +1,11 @@
 import { CATEGORY_ARTS } from "../lib/category-art";
 import { normalizeArabic } from "../lib/arabic";
+import { DEFAULT_MAX_WEIGHT, DEFAULT_WEIGHT_STEP, roundQty } from "../lib/quantity";
+import { isValidSku, normalizeSku } from "../lib/sku";
 import type { Category, CategoryId } from "../types/category";
 import type { Product, ProductId, ProductQuery } from "../types/product";
 import { mutate, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
-
-/** Default weight step for weighed products (kg), same as v29. */
-const DEFAULT_WEIGHT_STEP = 0.25;
 
 // ---------- reads ----------
 
@@ -21,6 +20,8 @@ export async function getCategory(id: CategoryId): Promise<Category | null> {
 /** Extra admin-only filters on top of the public `ProductQuery`. */
 export interface AdminProductQuery extends ProductQuery {
   inStock?: boolean;
+  /** true: only products with a SKU; false: only products without one. */
+  linked?: boolean;
 }
 
 /** Products in catalog order. Search keeps the v29 rule: the normalized text must appear in "<product name> <category name>". */
@@ -31,7 +32,8 @@ export async function listProducts(query: AdminProductQuery = {}): Promise<Produ
   return products.filter((product) => {
     if (query.categoryId && product.categoryId !== query.categoryId) return false;
     if (query.inStock !== undefined && product.inStock !== query.inStock) return false;
-    if (search && !normalizeArabic(`${product.name} ${categoryName.get(product.categoryId) ?? ""}`).includes(search)) return false;
+    if (query.linked !== undefined && Boolean(product.sku) !== query.linked) return false;
+    if (search && !normalizeArabic(`${product.name} ${categoryName.get(product.categoryId) ?? ""} ${product.sku ?? ""}`).includes(search)) return false;
     return true;
   });
 }
@@ -49,8 +51,14 @@ export async function getProductsByIds(ids: ProductId[]): Promise<Product[]> {
 
 export type ProductInput = Partial<Omit<Product, "id">>;
 
-/** Checks and cleans product fields. `existing` is the current product for updates (missing fields keep their value). */
-function buildProduct(input: ProductInput, categories: Category[], existing?: Product): Omit<Product, "id"> {
+/** True when `value` is a positive weight in kg with at most gram precision (0.125 is fine, 0.1255 is not). */
+const isWeight = (value: number, max: number) => Number.isFinite(value) && value > 0 && value <= max && Math.abs(roundQty(value) - value) < 1e-9;
+
+/**
+ * Checks and cleans product fields. `existing` is the current product for updates (missing fields keep their value);
+ * `products` is the whole catalog, used to keep SKUs unique.
+ */
+function buildProduct(input: ProductInput, categories: Category[], products: Product[], existing?: Product): Omit<Product, "id"> {
   const fields: Record<string, string> = {};
   const merged = { ...existing, ...input };
 
@@ -63,11 +71,26 @@ function buildProduct(input: ProductInput, categories: Category[], existing?: Pr
   const price = Number(merged.price);
   if (!Number.isFinite(price) || price <= 0 || price > 100000) fields.price = "السعر لازم يكون رقم أكبر من صفر";
 
+  // Weight settings (like WooCommerce's weight-based pricing): from minWeight, in steps of weightStep, up to maxWeight.
   const weighed = Boolean(merged.weighed);
-  let weightStep: number | undefined;
+  let weights: Pick<Product, "weightStep" | "minWeight" | "maxWeight"> = {};
   if (weighed) {
-    weightStep = merged.weightStep === undefined ? DEFAULT_WEIGHT_STEP : Number(merged.weightStep);
-    if (!Number.isFinite(weightStep) || weightStep <= 0 || weightStep > 5) fields.weightStep = "خطوة الوزن لازم تكون بين 0 و 5 كيلو";
+    const weightStep = merged.weightStep === undefined ? DEFAULT_WEIGHT_STEP : Number(merged.weightStep);
+    const minWeight = merged.minWeight === undefined ? weightStep : Number(merged.minWeight);
+    const maxWeight = merged.maxWeight === undefined ? DEFAULT_MAX_WEIGHT : Number(merged.maxWeight);
+    if (!isWeight(weightStep, 5)) fields.weightStep = "الزيادة لازم تكون بين 0.001 و 5 كيلو";
+    if (!isWeight(minWeight, 50)) fields.minWeight = "أقل وزن لازم يكون أكبر من صفر (بالكيلو، مثلاً 0.125)";
+    if (!isWeight(maxWeight, 100)) fields.maxWeight = "أقصى وزن لازم يكون بين 0.001 و 100 كيلو";
+    else if (!fields.minWeight && maxWeight < minWeight) fields.maxWeight = "أقصى وزن لازم يكون أكبر من أو يساوي أقل وزن";
+    weights = { weightStep, minWeight, maxWeight };
+  }
+
+  // SKU: optional, "sk-" + digits, and never used by another product (one sheet row updates one product).
+  const sku = normalizeSku(merged.sku);
+  if (sku && !isValidSku(sku)) fields.sku = "الـ SKU لازم يكون بالشكل sk-1234";
+  else if (sku) {
+    const owner = products.find((product) => product.sku === sku && product.id !== existing?.id);
+    if (owner) fields.sku = `الـ SKU ده مربوط بمنتج تاني: «${owner.name}»`;
   }
 
   const description = typeof merged.description === "string" ? merged.description.trim() : "";
@@ -82,7 +105,8 @@ function buildProduct(input: ProductInput, categories: Category[], existing?: Pr
     name,
     price: Math.round(price * 100) / 100,
     weighed,
-    ...(weighed ? { weightStep } : {}),
+    ...weights,
+    ...(sku ? { sku } : {}),
     inStock: merged.inStock === undefined ? true : Boolean(merged.inStock),
     bestseller: Boolean(merged.bestseller),
     offer: Boolean(merged.offer),
@@ -94,7 +118,7 @@ function buildProduct(input: ProductInput, categories: Category[], existing?: Pr
 /** Creates a product with the next free id (ids continue the old WooCommerce numbering). */
 export function createProduct(input: ProductInput): Promise<Product> {
   return mutate((data) => {
-    const product: Product = { id: Math.max(0, ...data.products.map((p) => p.id)) + 1, ...buildProduct(input, data.categories) };
+    const product: Product = { id: Math.max(0, ...data.products.map((p) => p.id)) + 1, ...buildProduct(input, data.categories, data.products) };
     data.products.push(product);
     return product;
   });
@@ -104,7 +128,7 @@ export function updateProduct(id: ProductId, input: ProductInput): Promise<Produ
   return mutate((data) => {
     const index = data.products.findIndex((product) => product.id === id);
     if (index < 0) throw notFound("المنتج");
-    const product: Product = { id, ...buildProduct(input, data.categories, data.products[index]) };
+    const product: Product = { id, ...buildProduct(input, data.categories, data.products, data.products[index]) };
     data.products[index] = product;
     return product;
   });

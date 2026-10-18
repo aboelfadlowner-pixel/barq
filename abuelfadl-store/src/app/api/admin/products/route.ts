@@ -3,7 +3,7 @@ import { requireAdmin } from "@/server/auth";
 import { createProduct, listProducts, type ProductInput } from "@/server/catalog";
 import { handle, readJson, refreshStore } from "@/server/http";
 
-/** GET /api/admin/products?category=&search=&stock=in|out */
+/** GET /api/admin/products?category=&search=&stock=in|out&linked=yes|no */
 export const GET = handle(async (request) => {
   await requireAdmin();
   const params = new URL(request.url).searchParams;
@@ -12,6 +12,7 @@ export const GET = handle(async (request) => {
     categoryId: params.get("category") || undefined,
     search: params.get("search") || undefined,
     inStock: stock === "in" ? true : stock === "out" ? false : undefined,
+    linked: params.get("linked") === "yes" ? true : params.get("linked") === "no" ? false : undefined,
   });
 });
 

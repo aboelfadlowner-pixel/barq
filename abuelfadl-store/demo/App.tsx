@@ -36,6 +36,7 @@ import { OrderDetails } from "@/features/admin/OrderDetails";
 import { OrdersList } from "@/features/admin/OrdersList";
 import { ProductForm } from "@/features/admin/ProductForm";
 import { ProductsList } from "@/features/admin/ProductsList";
+import { SyncPage } from "@/features/admin/SyncPage";
 import { ToastProvider } from "@/features/admin/ui";
 import type { Category } from "@/types/category";
 import { isAdminSync } from "./server/auth";
@@ -210,6 +211,7 @@ function AdminApp({ pathname }: { pathname: string }) {
         <CategoriesManager />
       </>
     );
+  else if (pathname === "/admin/sync") page = <SyncPage />;
   else page = <div className="empty">الصفحة دي مش موجودة</div>;
 
   return (

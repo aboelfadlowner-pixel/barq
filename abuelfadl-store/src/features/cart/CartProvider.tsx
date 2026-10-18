@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useCatalog, type CatalogProduct } from "@/features/catalog/CatalogProvider";
 import { CART_STORAGE_KEY } from "@/lib/constants";
-import { MAX_RESTORED_QUANTITY, maxQuantityOf, round2 } from "@/lib/quantity";
+import { MAX_RESTORED_QUANTITY, maxQuantityOf, round2, roundQty } from "@/lib/quantity";
 import type { ProductId } from "@/types/product";
 
 export interface CartLine {
@@ -75,7 +75,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setQuantities((current) => {
         const next = { ...current };
         if (quantity <= 0 || !product.inStock) delete next[id];
-        else next[id] = Math.min(round2(quantity), maxQuantityOf(product));
+        else next[id] = Math.min(roundQty(quantity), maxQuantityOf(product));
         return next;
       });
     },
