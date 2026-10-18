@@ -182,6 +182,11 @@ Weighed products have `minWeight`, `weightStep` and `maxWeight` (kg; defaults 0.
 WooCommerce weight-based pricing. The product sheet shows quick choices within those settings, +/- buttons, and a "وزن تاني؟"
 field in grams that snaps to the nearest allowed weight. `src/lib/quantity.ts` holds the rules; orders are checked with the same code.
 
+### Category photos
+Categories have an optional `imageUrl` (dashboard → الأقسام). It is the banner of the category page (unless the category has an
+animated cover: sandwiches, juices) and, small and round, replaces the icon in the category switcher, the header pill and the
+home card. Without a photo the icon is shown. Sandwiches and fresh juices start with their existing tile photos (schema 2 upgrade).
+
 ### Not done yet (next steps)
 1. Database (Supabase/Postgres) behind `src/server/*`, then real orders on Vercel.
 2. Product photo upload (today the dashboard takes an image path such as `/products/13221.webp`).

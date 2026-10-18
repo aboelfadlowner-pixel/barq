@@ -26,6 +26,8 @@ export interface StoreData {
   syncLog: SyncRun[];
   /** Active sheet SKUs that no store product uses, from the latest import. */
   unlinkedSkus: UnlinkedSku[];
+  /** Data version (see `upgradeStore` in seed.ts). */
+  schema?: number;
 }
 
 const FILE = path.join(process.cwd(), ".data", "store.json");

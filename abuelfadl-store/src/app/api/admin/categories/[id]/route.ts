@@ -4,7 +4,7 @@ import { handle, readJson, refreshStore } from "@/server/http";
 
 type Context = RouteContext<"/api/admin/categories/[id]">;
 
-/** PATCH : { name?, art?, tint?, position? } */
+/** PATCH : { name?, art?, tint?, imageUrl?, position? } ("" removes the photo) */
 export const PATCH = handle(async (request, { params }: Context) => {
   await requireAdmin();
   const category = await updateCategory((await params).id, await readJson<CategoryInput>(request));

@@ -48,7 +48,7 @@ export function CategoriesManager() {
       <div className="adm-head">
         <div>
           <h1>الأقسام</h1>
-          <p>الترتيب هنا هو نفس ترتيبها في الصفحة الرئيسية للمتجر</p>
+          <p>الترتيب هنا هو نفس ترتيبها في المتجر. صورة القسم بتظهر غلاف فوق صفحته وصغيرة مكان الأيقونة.</p>
         </div>
         <button className="btn btn-primary" type="button" onClick={() => setAdding(true)} hidden={adding}>
           <Ic name="plus" />
@@ -108,7 +108,9 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [art, setArt] = useState(category.art);
   const [tint, setTint] = useState(category.tint);
-  const dirty = name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase();
+  const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
+  const dirty =
+    name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase() || imageUrl.trim() !== (category.imageUrl ?? "");
 
   return (
     <div className="cat-item">
@@ -120,9 +122,7 @@ function CategoryRow({
           <Ic name="down" />
         </button>
       </div>
-      <span className="swatch" style={{ background: tint }}>
-        <Art id={art} />
-      </span>
+      <CategoryThumb art={art} tint={tint} imageUrl={imageUrl} />
       <div className="grow">
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="اسم القسم" />
         <div className="row" style={{ gap: 6, marginTop: 4 }}>
@@ -130,7 +130,16 @@ function CategoryRow({
           <Link className="badge" href={`/admin/products?category=${category.id}`}>
             {category.productCount} منتج
           </Link>
+          {!imageUrl.trim() ? <span className="badge gold">من غير صورة</span> : null}
         </div>
+        <input
+          className="input num cat-image-input"
+          dir={imageUrl ? "ltr" : "rtl"}
+          placeholder="صورة القسم (مثال: /covers/dairy.webp)"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          aria-label="صورة القسم"
+        />
       </div>
       <select className="select" style={{ width: "auto" }} value={art} onChange={(e) => setArt(e.target.value)} aria-label="الأيقونة">
         {CATEGORY_ARTS.map((a) => (
@@ -140,7 +149,7 @@ function CategoryRow({
         ))}
       </select>
       <input className="color-input" type="color" value={tint} onChange={(e) => setTint(e.target.value.toUpperCase())} aria-label="لون الخلفية" />
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim() })}>
         حفظ
       </button>
       <button
@@ -158,7 +167,7 @@ function CategoryRow({
 }
 
 function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
-  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC" });
+  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -186,9 +195,7 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         </Field>
         <Field label="الأيقونة واللون" error={errors.art || errors.tint}>
           <div className="row">
-            <span className="swatch" style={{ background: form.tint }}>
-              <Art id={form.art} />
-            </span>
+            <CategoryThumb art={form.art} tint={form.tint} imageUrl={form.imageUrl} />
             <select className="select" style={{ width: "auto" }} value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>
               {CATEGORY_ARTS.map((a) => (
                 <option key={a} value={a}>
@@ -200,6 +207,9 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
           </div>
         </Field>
       </div>
+      <Field label="صورة القسم" error={errors.imageUrl} hint="اختياري: بتظهر غلاف فوق صفحة القسم، وصغيرة مكان الأيقونة. من غير صورة بتظهر الأيقونة.">
+        <input className="input num" dir="ltr" placeholder="/covers/dairy.webp" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
+      </Field>
       {errors._ ? <div className="alert">{errors._}</div> : null}
       <div className="row">
         <button className="btn btn-primary" disabled={busy}>
@@ -210,5 +220,18 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** What the store shows in place of the icon: the category photo (small and round) when there is one, else the icon on its colour. */
+function CategoryThumb({ art, tint, imageUrl }: { art: string; tint: string; imageUrl: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [imageUrl]);
+  const src = imageUrl.trim();
+  const showPhoto = Boolean(src) && !broken;
+  return (
+    <span className={`swatch${showPhoto ? " photo" : ""}`} style={{ background: showPhoto ? "#fff" : tint }} title={broken ? "الصورة مش لاقيها: راجع المسار" : undefined}>
+      {showPhoto ? <img src={src} alt="" onError={() => setBroken(true)} /> : <Art id={art} />}
+    </span>
   );
 }

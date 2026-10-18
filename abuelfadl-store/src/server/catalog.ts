@@ -155,8 +155,12 @@ function checkCategoryFields(category: Category) {
   if (category.name.length < 2 || category.name.length > 60) fields.name = "اكتب اسم القسم (من 2 لـ 60 حرف)";
   if (!(CATEGORY_ARTS as readonly string[]).includes(category.art)) fields.art = "اختار أيقونة من القائمة";
   if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "اللون لازم يكون بالشكل #RRGGBB";
+  if (category.imageUrl && !/^(\/|https:\/\/)/.test(category.imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
   assertValid(fields);
 }
+
+/** Category photo from the request: trimmed; empty means "no photo" (the icon is shown). */
+const cleanImage = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
 export function createCategory(input: CategoryInput): Promise<Category> {
   return mutate((data) => {
@@ -165,6 +169,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
       name: String(input.name ?? "").trim(),
       art: input.art ?? "a-bowl",
       tint: input.tint ?? "#EEF6EC",
+      ...(cleanImage(input.imageUrl) ? { imageUrl: cleanImage(input.imageUrl) } : {}),
     };
     checkCategoryFields(category);
     if (category.id === "all" || data.categories.some((c) => c.id === category.id)) {
@@ -175,7 +180,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
   });
 }
 
-/** Updates name, icon, colour and/or position. The id cannot change: it is in product records and page URLs. */
+/** Updates name, icon, colour, photo and/or position. The id cannot change: it is in product records and page URLs. */
 export function updateCategory(id: CategoryId, input: CategoryInput): Promise<Category> {
   return mutate((data) => {
     const index = data.categories.findIndex((category) => category.id === id);
@@ -187,6 +192,8 @@ export function updateCategory(id: CategoryId, input: CategoryInput): Promise<Ca
       art: input.art ?? current.art,
       tint: input.tint ?? current.tint,
     };
+    const imageUrl = input.imageUrl !== undefined ? cleanImage(input.imageUrl) : current.imageUrl;
+    if (imageUrl) category.imageUrl = imageUrl;
     checkCategoryFields(category);
     data.categories.splice(index, 1);
     const position = input.position === undefined ? index : Math.max(0, Math.min(data.categories.length, Math.trunc(input.position)));

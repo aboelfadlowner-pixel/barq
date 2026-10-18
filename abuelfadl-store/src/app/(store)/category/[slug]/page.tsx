@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { getCategoryCover } from "@/features/products/CategoryCover";
+import { CategoryPhoto, getCategoryCover } from "@/features/products/CategoryCover";
 import { CategorySwitcherButton } from "@/features/products/CategorySwitcher";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
 import { catalogService } from "@/services";
+import type { Category } from "@/types/category";
 
 /** "All products" pseudo category used by the "تسوّق الآن" button (v29 `openCat('all')`). */
 const ALL_SLUG = "all";
-const ALL_CATEGORY = { id: ALL_SLUG, name: "كل المنتجات", art: "", tint: "" };
+const ALL_CATEGORY: Category = { id: ALL_SLUG, name: "كل المنتجات", art: "", tint: "" };
 
 export async function generateStaticParams() {
   const categories = await catalogService.getCategories();
@@ -23,7 +24,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const category = isAll ? ALL_CATEGORY : await catalogService.getCategory(slug);
   if (!category) notFound();
 
-  const cover = getCategoryCover(slug);
+  // Animated cover when the category has one (sandwiches, juices), else its photo from the dashboard.
+  const cover = getCategoryCover(slug) ?? (category.imageUrl ? <CategoryPhoto src={category.imageUrl} /> : null);
 
   return (
     <div id="viewCat">
@@ -35,7 +37,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           <CategorySwitcherButton category={category} />
           <LayoutToggle />
         </div>
-        <div className={cover ? "cbanner has-cover" : "cbanner"} id="cbanner">
+        <div className={cover ? `cbanner ${getCategoryCover(slug) ? "has-cover" : "has-photo"}` : "cbanner"} id="cbanner">
           {cover ?? (
             <span className="slot">
               <Icon id="i-image" />

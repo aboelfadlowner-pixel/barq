@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { Category } from "@/types/category";
 import { Icon } from "../ui/Icon";
 import { CardTilt } from "./CardTilt";
-import { getCategoryTile } from "@/features/products/CategoryCover";
 
 /**
  * "Shop by category" section. Each card links to `/category/<id>`.
- * Categories without a photo (all but the ones in `getCategoryTile`) show the "مكان الصورة" placeholder.
+ * Categories without a photo (`imageUrl`, set in the dashboard) show the "مكان الصورة" placeholder.
  */
 export function CategoryGrid({ categories }: { categories: Category[] }) {
   return (
@@ -18,7 +17,7 @@ export function CategoryGrid({ categories }: { categories: Category[] }) {
         </div>
         <div className="pcs" id="cats">
           {categories.map((category) => {
-            const tile = getCategoryTile(category.id);
+            const tile = category.imageUrl;
             return (
               <Link
                 key={category.id}

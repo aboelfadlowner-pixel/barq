@@ -122,12 +122,8 @@ export function getCategoryCover(slug: string): React.JSX.Element | null {
   return Cover ? <Cover /> : null;
 }
 
-/** Static photo for the category's card on the home page (4:5, pale background), or null when there is none yet. */
-const TILES: Record<string, string> = {
-  sandwich: "/covers/sandwich/tile.webp",
-  juice: "/covers/juice/tile.webp",
-};
-
-export function getCategoryTile(slug: string): string | null {
-  return TILES[slug] ?? null;
+/** Category photo used as the banner when the category has no animated cover. */
+export function CategoryPhoto({ src }: { src: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className="cbanner-photo" src={src} alt="" decoding="async" />;
 }

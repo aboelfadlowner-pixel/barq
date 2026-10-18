@@ -10,13 +10,17 @@ import type { Category } from "@/types/category";
 
 const SHEET_ID = "cs";
 
-/** Category thumbnail: the category illustration, or the "all" icon for the pseudo category "all". */
-function Thumb({ category }: { category: Pick<Category, "id" | "art"> }) {
-  return category.id === "all" ? <Icon id="i-all" /> : <Art id={category.art} />;
+type ThumbCategory = Pick<Category, "id" | "name" | "art" | "imageUrl">;
+
+/** Category thumbnail: the category photo (small and round), else its illustration; the "all" icon for the pseudo category "all". */
+function Thumb({ category }: { category: Pick<Category, "id" | "art" | "imageUrl"> }) {
+  if (category.id === "all") return <Icon id="i-all" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return category.imageUrl ? <img alt="" src={category.imageUrl} decoding="async" /> : <Art id={category.art} />;
 }
 
 /** Pill button in the category page header that opens the category switcher sheet. */
-export function CategorySwitcherButton({ category }: { category: Pick<Category, "id" | "name" | "art"> }) {
+export function CategorySwitcherButton({ category }: { category: ThumbCategory }) {
   const { isOpen, open } = useOverlay();
   return (
     <button className="cswitch" type="button" id="csBtn" aria-haspopup="dialog" aria-label="تغيير القسم" aria-expanded={isOpen(SHEET_ID)} onClick={() => open(SHEET_ID)}>
@@ -49,7 +53,7 @@ export function CategorySwitcherSheet({ categories }: { categories: Category[] }
     return () => clearTimeout(timer);
   }, [open]);
 
-  const tiles: Pick<Category, "id" | "name" | "art">[] = [{ id: "all", name: "كل المنتجات", art: "" }, ...categories];
+  const tiles: ThumbCategory[] = [{ id: "all", name: "كل المنتجات", art: "" }, ...categories];
 
   return (
     <aside className={open ? "sheet cs open" : "sheet cs"} id="cs" ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="csTitle" inert={!open}>
