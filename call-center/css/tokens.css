@@ -28,6 +28,7 @@
   --info-50:   #edf3fa;
   --purple:    #6a52a3;
   --purple-50: #f3f0fa;
+  --link:      #2a66c4;   /* Foodics-style blue for values you can tap in the order panel */
 
   /* Shape */
   --radius-lg: 16px;

@@ -34,10 +34,10 @@
 }
 .p-thumb .svg-icon { width: 22px; height: 22px; stroke-width: 1.8; }
 .p-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.p-name { font-weight: 700; font-size: 19px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.p-unit { font-size: 12.5px; color: var(--muted); }
+.p-name { font-weight: 500; font-size: 22px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.p-unit { font-size: 13px; color: var(--muted); margin-top: auto; }
 .p-foot { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
-.p-price { font-weight: 700; font-size: 21px; line-height: 1.3; color: var(--ink); }
+.p-price { font-weight: 500; font-size: 18px; line-height: 1.3; color: var(--ink); }
 .p-price small { font-size: 13px; font-weight: 600; color: var(--muted); }
 .p-badge {
   position: absolute; top: 10px; inset-inline-end: 10px;
@@ -70,7 +70,7 @@
 .cart-sec { padding: 14px 16px; border-bottom: 1px solid var(--line-2); }
 .cart-sec:last-child { border-bottom: 0; }
 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; min-height: 32px; }
-.sec-head h3 { display: flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 800; }
+.sec-head h3 { display: flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 500; }
 .sec-head h3 .svg-icon { color: var(--green-600); }
 .sec-head .count-pill { font-size: 12px; font-weight: 800; color: var(--green-700); background: var(--green-50); border-radius: 999px; padding: 0 8px; }
 
@@ -87,9 +87,9 @@
 .line:first-child { padding-top: 2px; }
 .line:last-child { border-bottom: 0; padding-bottom: 2px; }
 .line-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.line-name { font-weight: 700; font-size: 14px; line-height: 1.45; }
-.line-unit { font-size: 12.5px; color: var(--muted); }
-.line-total { text-align: end; font-weight: 800; white-space: nowrap; }
+.line-name { font-weight: 500; font-size: 16px; line-height: 1.45; }
+.line-unit { font-size: 13px; color: var(--muted); }
+.line-total { text-align: end; font-weight: 500; font-size: 16px; white-space: nowrap; }
 .line-total .est { display: block; }
 .line-ctrl { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .line-actions { display: flex; gap: 2px; }
@@ -126,11 +126,11 @@
 
 .cart-foot { flex: none; padding: 14px 16px 16px; border-top: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; gap: 10px; }
 .totals { display: flex; flex-direction: column; gap: 3px; }
-.trow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; color: var(--ink-2); }
-.trow .num { font-weight: 700; }
+.trow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 16px; color: var(--ink); }
+.trow .num { font-weight: 500; }
 .trow.sub { font-size: 13px; color: var(--muted); }
-.trow.total { margin-top: 5px; padding-top: 8px; border-top: 1px solid var(--line-2); font-size: 19px; font-weight: 900; color: var(--ink); }
-.trow.total .num { font-weight: 900; }
+.trow.total { margin-top: 5px; padding-top: 8px; border-top: 1px solid var(--line-2); font-size: 20px; font-weight: 700; color: var(--ink); }
+.trow.total .num { font-weight: 700; }
 .est-note { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--warn); background: var(--warn-50); border-radius: 8px; padding: 6px 10px; }
 .est-note .svg-icon { width: 15px; height: 15px; }
 .foot-actions { display: flex; gap: 8px; }
@@ -439,19 +439,21 @@
 .search-row .search { flex: 1; }
 .pos-cart { background: var(--surface); }
 .sum-card { margin: 14px 14px 0; padding: 6px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
-.sum-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.sum-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 0; }
 .sum-row:last-of-type { border-bottom: 0; }
-.sum-row .k { font-weight: 700; color: var(--ink-2); font-size: 14px; padding-top: 2px; }
-.sum-row .v { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-size: 14.5px; }
+.sum-row .k { font-weight: 500; color: var(--ink); font-size: 17px; }
+.sum-row .v { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-size: 17px; color: var(--ink); }
 .sum-row .v .textarea { min-height: 64px; }
-.link-val { color: var(--green-700); font-weight: 800; }
-.note-val { color: var(--ink); font-weight: 600; }
+.link-val { color: var(--link); font-weight: 500; }
+.note-val { color: var(--ink); font-weight: 500; }
 .addr-val { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .addr-val > div:first-child { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.pen { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--green-600); cursor: pointer; }
-.pen:hover { background: var(--green-50); }
-.pen .svg-icon { width: 15px; height: 15px; }
+.pen { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--link); cursor: pointer; }
+.pen:hover { background: var(--info-50); }
+.pen .svg-icon { width: 17px; height: 17px; }
 .sum-card .alert { margin: 4px 0 10px; }
+.sum-card .link-btn { color: var(--link); font-weight: 500; font-size: 17px; }
+.sum-card .addr-extra { font-size: 14px; }
 .sum-empty { padding: 12px 0; display: flex; flex-direction: column; gap: 10px; color: var(--muted); font-size: 13.5px; }
 .items-sec { margin: 12px 14px 0; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
 .cart-scroll { padding-bottom: 14px; }

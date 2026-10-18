@@ -51,10 +51,8 @@ function card(p, inCart) {
       ${badge}
       ${thumb}
       <div class="p-name">${esc(p.name)}</div>
-      ${p.unitType === 'weight' ? `<div class="p-unit"><span class="tag tag-warn">${icon('scale')}بالوزن</span></div>` : ''}
-      <div class="p-foot">
-        <div class="p-price"><span class="num">${formatPrice(p.price)}</span>${p.unitType === 'weight' ? ' <small>للكيلو</small>' : ''}</div>
-      </div>
+      <div class="p-price"><span class="num">${formatPrice(p.price)}</span>${p.unitType === 'weight' ? ' <small>للكيلو</small>' : ''}</div>
+      <div class="p-unit">${p.unitType === 'weight' ? `<span class="tag tag-warn">${icon('scale')}بالوزن</span>` : 'بالوحدة'}</div>
     </button>`;
 }
 
