@@ -60,27 +60,3 @@
   100%{opacity:1;transform:translateY(0) rotate(0)}
 }
 @media(prefers-reduced-motion:reduce){.cv-sl,.cv-sd img,.cv-sh,.cvj-s img,.cvj-gs{animation-duration:.01s;animation-delay:0s}}
-
-/* ---- dairy cover (.cvd): five of the store's dairy products (cut from its dairy group photo) drop in one after
-   another, right to left, and stand side by side on the same line. Positions are % of a 1794x624 scene. ---- */
-.cvd{position:absolute;inset:0 0 var(--cb) 0;pointer-events:none;display:flex;justify-content:center;align-items:flex-end}
-.cvd-s{position:relative;width:100%;max-height:100%;aspect-ratio:1794/624}
-.cvd-gs{position:absolute;left:4%;width:92%;bottom:2.77%;height:7%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.22),transparent);opacity:0;animation:cvShadow .7s .2s both}
-.cvd-p{position:absolute;display:block;height:auto;opacity:0;filter:drop-shadow(0 5px 7px rgba(20,40,26,.16));animation:cvdDrop .95s var(--dl,0s) cubic-bezier(.3,.1,.4,1) both}
-.cvd-ashura{left:2.23%;width:18.67%;bottom:5.77%;--dl:1.15s;--tilt:2deg}
-.cvd-ghee-cow{left:22.80%;width:18.12%;bottom:5.77%;--dl:0.9s;--tilt:-3deg}
-.cvd-milk{left:42.81%;width:13.55%;bottom:5.77%;--dl:0.65s;--tilt:2deg}
-.cvd-ghee-buffalo{left:58.25%;width:19.62%;bottom:5.77%;--dl:0.4s;--tilt:-2deg}
-.cvd-caramel{left:79.77%;width:18.00%;bottom:5.77%;--dl:0.15s;--tilt:3deg}
-@keyframes cvdDrop{
-  0%{opacity:0;transform:translateY(-140%) rotate(var(--tilt))}
-  12%{opacity:1}
-  62%{opacity:1;transform:translateY(3%) rotate(0deg)}
-  80%{transform:translateY(-2%)}
-  100%{opacity:1;transform:none}
-}
-@media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}.cvd-gs{animation-duration:.01s;animation-delay:0s}}
-/* Wide screens: the title sits at the bottom right, so the row sits to its left. */
-@media(min-width:800px){
-  .cvd{inset:18px 0 26px 0;padding-inline:22% 3%}
-}
