@@ -15,11 +15,12 @@ export function navigate(to: string, { replace: _replace = false }: { replace?: 
   const [target, hash] = to.split("#");
   current = target || "/";
   listeners.forEach((listener) => listener());
-  // Next scrolls to the top after a navigation, or to the #anchor when there is one.
+  // Like Next: the new page opens at the top (or at its #anchor) instantly, never with the site's smooth scrolling
+  // (html{scroll-behavior:smooth} would otherwise show the page sliding up from where the link was tapped).
   requestAnimationFrame(() => {
     const anchor = hash ? document.getElementById(hash) : null;
-    if (anchor) anchor.scrollIntoView();
-    else window.scrollTo(0, 0);
+    if (anchor) anchor.scrollIntoView({ behavior: "instant" });
+    else window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   });
 }
 
