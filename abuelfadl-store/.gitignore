@@ -29,3 +29,4 @@ yarn-error.log*
 .verify-tmp/
 tsconfig.verify.json
 .data/
+demo/dist/

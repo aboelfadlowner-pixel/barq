@@ -172,3 +172,12 @@ Orders keep a copy of each product's name and price, so editing the catalog late
 2. Product photo upload (today the dashboard takes an image path such as `/products/13221.webp`).
 3. New-order notification to the branch (Telegram/WhatsApp/e-mail).
 4. Delivery zones and fees, staff accounts with roles, sales reports.
+
+### Demo link (no server)
+`npm run build:demo` builds `demo/dist/abuelfadl-demo.html`: one page with the real store and dashboard code, published as a
+claude.ai Artifact so it can be tried from any device before the backend is deployed.
+- The API route files run inside the browser (`demo/api.ts`); `src/server/db.ts` and `auth.ts` are swapped for browser versions
+  (`demo/server/`) and data is kept in the viewer's localStorage (each viewer has their own copy). Dashboard password: `admin`.
+- `demo/shims/` stand in for `next/link`, `next/navigation`, `next/server`, `next/headers`, `next/cache`; `demo/App.tsx` mirrors the
+  store and admin layouts. Nothing in `demo/` is part of the Next.js app.
+- Open the link with `#admin` to start on the dashboard. A floating bar switches between store and dashboard and resets the data.
