@@ -16,7 +16,7 @@
   --line:    #dde4df;
   --line-2:  #e9eeea;
   --surface: #f1f4f1;
-  --bg:      #f8faf8;
+  --bg:      #ffffff;
 
   /* Feedback (softened) */
   --danger:    #b4483c;
@@ -28,6 +28,8 @@
   --info-50:   #edf3fa;
   --purple:    #6a52a3;
   --purple-50: #f3f0fa;
+  --card-line:   #a8cdb7;   /* product / category cards: green-shaded edge */
+  --card-shadow: 0 2px 10px rgba(51, 105, 79, .12);
   --link:      #2a66c4;   /* Foodics-style blue for values you can tap in the order panel */
 
   /* Shape */

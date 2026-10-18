@@ -21,11 +21,11 @@
 .p-card {
   position: relative; display: flex; flex-direction: column; gap: 6px;
   min-height: 150px; height: auto; padding: 14px 14px 12px; text-align: start;
-  background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-  cursor: pointer; transition: border-color .12s, box-shadow .12s;
+  background: #fff; border: 1.5px solid var(--card-line); border-radius: var(--radius);
+  box-shadow: var(--card-shadow); cursor: pointer; transition: border-color .12s, box-shadow .12s;
 }
 .p-card > * { flex-shrink: 0; }
-.p-card:hover { border-color: var(--green-500); box-shadow: var(--shadow); }
+.p-card:hover { border-color: var(--green-500); box-shadow: 0 4px 16px rgba(51, 105, 79, .2); }
 .p-card.in-cart { border-color: var(--green-500); box-shadow: inset 0 0 0 1px var(--green-500); }
 .p-thumb {
   width: 46px; height: 46px; border-radius: 10px; overflow: hidden;
@@ -49,10 +49,10 @@
 /* ---------- Category cards (like Foodics) ---------- */
 .c-card {
   position: relative; display: flex; flex-direction: column; overflow: hidden; text-align: start;
-  min-height: 150px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-  cursor: pointer; transition: border-color .12s, box-shadow .12s; padding: 0;
+  min-height: 150px; background: #fff; border: 1.5px solid var(--card-line); border-radius: var(--radius);
+  box-shadow: var(--card-shadow); cursor: pointer; transition: border-color .12s, box-shadow .12s; padding: 0;
 }
-.c-card:hover { border-color: var(--green-500); box-shadow: var(--shadow); }
+.c-card:hover { border-color: var(--green-500); box-shadow: 0 4px 16px rgba(51, 105, 79, .2); }
 .c-tile { height: 86px; display: grid; place-items: center; background: var(--green-50); color: var(--green-600); }
 .c-tile .svg-icon { width: 34px; height: 34px; stroke-width: 1.6; }
 .c-name { padding: 10px 12px 2px; font-weight: 800; font-size: 15px; line-height: 1.4;
@@ -437,7 +437,7 @@
 .pos-title .back-link { margin: 0; text-decoration: underline; }
 .search-row { display: flex; gap: 10px; align-items: center; }
 .search-row .search { flex: 1; }
-.pos-cart { background: var(--surface); }
+.pos-cart { background: var(--bg); }
 .sum-card { margin: 14px 14px 0; padding: 6px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
 .sum-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 0; }
 .sum-row:last-of-type { border-bottom: 0; }
