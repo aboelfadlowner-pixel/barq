@@ -4,7 +4,8 @@ import { Icon } from "../ui/Icon";
 import { CardTilt } from "./CardTilt";
 
 /**
- * "Shop by category" section. Each card links to `/category/<id>`.
+ * "Shop by category" section. Each card links to `/category/<id>`. The cards are static (no scroll animation): the
+ * motion happens on the category page (cover and product photos).
  * Categories without a photo (`imageUrl`, set in the dashboard) show the "مكان الصورة" placeholder.
  */
 export function CategoryGrid({ categories }: { categories: Category[] }) {
@@ -21,7 +22,7 @@ export function CategoryGrid({ categories }: { categories: Category[] }) {
             return (
               <Link
                 key={category.id}
-                className={tile ? "pc rv pc-light" : "pc rv"}
+                className={tile ? "pc pc-light" : "pc"}
                 href={`/category/${category.id}`}
               >
                 <span className="pph">

@@ -5,10 +5,10 @@ import { useChrome } from "@/components/layout/ChromeProvider";
 
 /**
  * The `.grid` container of the category page.
- * With `dropIn`, a product photo falls into its place the first time its card is reached by scrolling
- * (class `in` on the card starts the CSS animation in `26-product-drop.css`); cards that come into view
- * together land one after another. Cards already on screen when the page opens are simply in place
- * (class `st`, no animation): the drop is for what you scroll down to.
+ * With `dropIn`, every product photo (or the logo placeholder of products without one) falls into its place the
+ * first time its card is on screen: the cards visible when the category opens, then each card reached by scrolling
+ * (class `in` on the card starts the CSS animation in `26-product-drop.css`). Cards that come into view together
+ * land one after another.
  */
 export function ProductGrid({ children, dropIn = false }: { children: React.ReactNode; dropIn?: boolean }) {
   const { productLayout } = useChrome();
@@ -23,15 +23,6 @@ export function ProductGrid({ children, dropIn = false }: { children: React.Reac
       cards.forEach((card) => card.classList.add("in", "st"));
       return;
     }
-    // Already on screen: no drop, the photo is just there.
-    const viewport = window.innerHeight || document.documentElement.clientHeight;
-    const below: HTMLElement[] = [];
-    cards.forEach((card) => {
-      const box = card.getBoundingClientRect();
-      if (box.top < viewport && box.bottom > 0) card.classList.add("in", "st");
-      else below.push(card);
-    });
-    if (!below.length) return;
     const observer = new IntersectionObserver(
       (entries) => {
         let order = 0;
@@ -48,7 +39,7 @@ export function ProductGrid({ children, dropIn = false }: { children: React.Reac
       },
       { rootMargin: "0px 0px -8% 0px", threshold: 0.25 },
     );
-    below.forEach((card) => observer.observe(card));
+    cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
   }, [dropIn, children]);
 
