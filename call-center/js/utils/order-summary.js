@@ -3,10 +3,10 @@ import { PAYMENT_METHOD } from '../constants.js';
 import { formatAddress, formatMoney } from './format.js';
 import { computeTotals, lineTotal, quantityLabel } from './pricing.js';
 
-export function buildOrderSummary(order) {
+export function buildOrderSummary(order, { edited = false } = {}) {
   const t = computeTotals(order.items, order.deliveryFee);
   const lines = [
-    `طلب رقم ${order.number}${order.isDemo ? ' (تجريبي)' : ''} — أبو الفضل`,
+    `طلب رقم ${order.number}${edited ? ' (بعد التعديل)' : ''}${order.isDemo ? ' (تجريبي)' : ''} — أبو الفضل`,
     `العميل: ${order.customer.name} — ${order.customer.phone}`,
     `العنوان: ${order.address.areaName} — ${formatAddress(order.address)}`,
     order.address.landmark ? `علامة مميزة: ${order.address.landmark}` : null,
