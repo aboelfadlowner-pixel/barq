@@ -156,3 +156,5 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .swatch.photo{border-radius:50%;overflow:hidden;padding:3px}
 .swatch img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .cat-image-input{margin-top:6px;font-size:13px;padding:6px 10px}
+.cat-images{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:560px){.cat-images{grid-template-columns:1fr}}

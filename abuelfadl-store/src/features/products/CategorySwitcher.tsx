@@ -10,13 +10,14 @@ import type { Category } from "@/types/category";
 
 const SHEET_ID = "cs";
 
-type ThumbCategory = Pick<Category, "id" | "name" | "art" | "imageUrl">;
+type ThumbCategory = Pick<Category, "id" | "name" | "art" | "imageUrl" | "iconUrl">;
 
-/** Category thumbnail: the category photo (small and round), else its illustration; the "all" icon for the pseudo category "all". */
-function Thumb({ category }: { category: Pick<Category, "id" | "art" | "imageUrl"> }) {
+/** Category thumbnail: its icon picture (small and round), else its photo, else its illustration; the "all" icon for "all". */
+function Thumb({ category }: { category: Pick<Category, "id" | "art" | "imageUrl" | "iconUrl"> }) {
   if (category.id === "all") return <Icon id="i-all" />;
+  const src = category.iconUrl || category.imageUrl;
   // eslint-disable-next-line @next/next/no-img-element
-  return category.imageUrl ? <img alt="" src={category.imageUrl} decoding="async" /> : <Art id={category.art} />;
+  return src ? <img alt="" src={src} decoding="async" /> : <Art id={category.art} />;
 }
 
 /** Pill button in the category page header that opens the category switcher sheet. */

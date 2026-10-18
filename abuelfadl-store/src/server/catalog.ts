@@ -156,6 +156,7 @@ function checkCategoryFields(category: Category) {
   if (!(CATEGORY_ARTS as readonly string[]).includes(category.art)) fields.art = "اختار أيقونة من القائمة";
   if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "اللون لازم يكون بالشكل #RRGGBB";
   if (category.imageUrl && !/^(\/|https:\/\/)/.test(category.imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (category.iconUrl && !/^(\/|https:\/\/)/.test(category.iconUrl)) fields.iconUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
   assertValid(fields);
 }
 
@@ -170,6 +171,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
       art: input.art ?? "a-bowl",
       tint: input.tint ?? "#EEF6EC",
       ...(cleanImage(input.imageUrl) ? { imageUrl: cleanImage(input.imageUrl) } : {}),
+      ...(cleanImage(input.iconUrl) ? { iconUrl: cleanImage(input.iconUrl) } : {}),
     };
     checkCategoryFields(category);
     if (category.id === "all" || data.categories.some((c) => c.id === category.id)) {
@@ -194,6 +196,8 @@ export function updateCategory(id: CategoryId, input: CategoryInput): Promise<Ca
     };
     const imageUrl = input.imageUrl !== undefined ? cleanImage(input.imageUrl) : current.imageUrl;
     if (imageUrl) category.imageUrl = imageUrl;
+    const iconUrl = input.iconUrl !== undefined ? cleanImage(input.iconUrl) : current.iconUrl;
+    if (iconUrl) category.iconUrl = iconUrl;
     checkCategoryFields(category);
     data.categories.splice(index, 1);
     const position = input.position === undefined ? index : Math.max(0, Math.min(data.categories.length, Math.trunc(input.position)));

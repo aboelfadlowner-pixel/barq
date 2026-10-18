@@ -111,52 +111,13 @@ function JuiceCover() {
   );
 }
 
-/**
- * "dairy" cover: the store's dairy group photo rebuilt from cut-outs (public/covers/dairy/*.webp, all cut from that one
- * photo, so each piece lands exactly where it is in it). White podiums appear, the cow and buffalo ghee jars and the milk
- * bottle drop onto them, then ashura, cream caramel and the two cups rise in front; then everything breathes slightly.
- * Positions are percentages of the photo, see the `.cvd` rules in 24-category-covers.css.
- */
-const DAIRY_PIECES = [
-  { name: "ghee-cow", motion: "drop" },
-  { name: "ghee-buffalo", motion: "drop" },
-  { name: "milk", motion: "drop" },
-  { name: "ashura", motion: "rise" },
-  { name: "caramel", motion: "rise" },
-  { name: "bowl", motion: "rise" },
-  { name: "cup", motion: "rise" },
-] as const;
-
-function DairyCover() {
-  return (
-    <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وسمن جاموسي وحليب وعاشورة وكريم كراميل">
-      <div className="cvd-s" aria-hidden="true">
-        <i className="cvd-glow" />
-        <i className="cvd-gs" />
-        <i className="cvd-pd cvd-pd1" />
-        <i className="cvd-pd cvd-pd2" />
-        {DAIRY_PIECES.map(({ name, motion }) => (
-          <img key={name} className={`cvd-p cvd-${motion} cvd-${name}`} src={`/covers/dairy/${name}.webp`} alt="" decoding="async" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
-  dairy: DairyCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
 export function getCategoryCover(slug: string): React.JSX.Element | null {
   const Cover = COVERS[slug];
   return Cover ? <Cover /> : null;
-}
-
-/** Category photo used as the banner when the category has no animated cover. */
-export function CategoryPhoto({ src }: { src: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img className="cbanner-photo" src={src} alt="" decoding="async" />;
 }

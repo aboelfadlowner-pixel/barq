@@ -13,7 +13,7 @@ export const GET = handle(async () => {
   }));
 });
 
-/** POST /api/admin/categories { id, name, art, tint, imageUrl? } */
+/** POST /api/admin/categories { id, name, art, tint, imageUrl?, iconUrl? } */
 export const POST = handle(async (request) => {
   await requireAdmin();
   const category = await createCategory(await readJson<CategoryInput>(request));

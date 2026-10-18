@@ -9,9 +9,11 @@ export interface Category {
   art: string;
   /** Card background colour (hex). */
   tint: string;
-  /**
-   * Category photo, e.g. "/covers/juice/tile.webp". Shown as the banner on the category page and, small and round,
-   * in place of the icon (category switcher, home card). Missing: the icon `art` is shown instead.
-   */
+  /** Category card photo on the home page ("تسوّق حسب القسم"), portrait 4:5, e.g. "/covers/juice/tile.webp". */
   imageUrl?: string;
+  /**
+   * Small round picture shown in place of the icon (category switcher, category page pill), square.
+   * Falls back to `imageUrl`, then to the illustration `art`.
+   */
+  iconUrl?: string;
 }

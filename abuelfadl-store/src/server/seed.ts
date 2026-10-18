@@ -1,18 +1,29 @@
 import { categories as seedCategories } from "../data/categories";
 import { products as seedProducts } from "../data/products";
 import { productSkus } from "../data/skus";
+import type { Category } from "../types/category";
 import type { StoreData } from "./db";
 
-/** Photos of the categories that already have one (the home-page tiles of the migration). */
+/** Photos of the categories that already have one: home-page card (4:5) and, when different, the small round icon. */
 const CATEGORY_IMAGES: Record<string, string> = {
   sandwich: "/covers/sandwich/tile.webp",
   juice: "/covers/juice/tile.webp",
+  dairy: "/covers/dairy/tile.webp",
 };
+const CATEGORY_ICONS: Record<string, string> = {
+  dairy: "/covers/dairy/icon.webp",
+};
+
+const withImages = (category: Category): Category => ({
+  ...category,
+  ...(CATEGORY_IMAGES[category.id] ? { imageUrl: CATEGORY_IMAGES[category.id] } : {}),
+  ...(CATEGORY_ICONS[category.id] ? { iconUrl: CATEGORY_ICONS[category.id] } : {}),
+});
 
 /** First contents of the data store: the v29 catalog with the Foodics SKUs from the WooCommerce export. */
 export function seedStore(): StoreData {
   return {
-    categories: seedCategories.map((category) => (CATEGORY_IMAGES[category.id] ? { ...category, imageUrl: CATEGORY_IMAGES[category.id] } : { ...category })),
+    categories: seedCategories.map(withImages),
     products: seedProducts.map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product })),
     orders: [],
     orderSeq: 0,
@@ -23,12 +34,13 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 2;
+const SCHEMA = 3;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
  * - SKU linking: products get their SKU from the WooCommerce export the first time.
  * - Schema 2: categories get the photos they already had (sandwiches, fresh juices).
+ * - Schema 3: dairy gets its card photo and icon (from the dairy group photo), unless already set.
  */
 export function upgradeStore(data: StoreData): StoreData {
   if (!data.syncLog) {
@@ -41,6 +53,13 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 2) {
     for (const category of data.categories) {
       if (!category.imageUrl && CATEGORY_IMAGES[category.id]) category.imageUrl = CATEGORY_IMAGES[category.id];
+    }
+  }
+  if ((data.schema ?? 1) < 3) {
+    for (const category of data.categories) {
+      if (category.id !== "dairy") continue;
+      if (!category.imageUrl) category.imageUrl = CATEGORY_IMAGES.dairy;
+      if (!category.iconUrl) category.iconUrl = CATEGORY_ICONS.dairy;
     }
   }
   data.schema = SCHEMA;

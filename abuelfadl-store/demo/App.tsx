@@ -25,7 +25,7 @@ import { ProductSheetProvider } from "@/features/products/ProductSheet";
 import { SearchProvider } from "@/features/search/SearchProvider";
 import { CategorySwitcherButton, CategorySwitcherSheet } from "@/features/products/CategorySwitcher";
 import { FavoritesProvider } from "@/features/products/FavoritesProvider";
-import { CategoryPhoto, getCategoryCover } from "@/features/products/CategoryCover";
+import { getCategoryCover } from "@/features/products/CategoryCover";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
 import { AdminNav } from "@/features/admin/AdminNav";
@@ -132,8 +132,7 @@ function HomePage({ categories }: { categories: Category[] }) {
 function CategoryPage({ slug, categories }: { slug: string; categories: Category[] }) {
   const category = slug === ALL_SLUG ? ALL_CATEGORY : categories.find((c) => c.id === slug);
   if (!category) return <StoreNotFound />;
-  const animated = getCategoryCover(slug);
-  const cover = animated ?? (category.imageUrl ? <CategoryPhoto src={category.imageUrl} /> : null);
+  const cover = getCategoryCover(slug);
   return (
     <div id="viewCat" key={slug}>
       <div className="wrap" style={{ paddingBottom: 40 }}>
@@ -144,7 +143,7 @@ function CategoryPage({ slug, categories }: { slug: string; categories: Category
           <CategorySwitcherButton category={category} />
           <LayoutToggle />
         </div>
-        <div className={cover ? `cbanner ${animated ? "has-cover" : "has-photo"}` : "cbanner"} id="cbanner">
+        <div className={cover ? "cbanner has-cover" : "cbanner"} id="cbanner">
           {cover ?? (
             <span className="slot">
               <Icon id="i-image" />

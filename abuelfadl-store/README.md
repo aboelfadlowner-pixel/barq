@@ -183,9 +183,10 @@ WooCommerce weight-based pricing. The product sheet shows quick choices within t
 field in grams that snaps to the nearest allowed weight. `src/lib/quantity.ts` holds the rules; orders are checked with the same code.
 
 ### Category photos
-Categories have an optional `imageUrl` (dashboard → الأقسام). It is the banner of the category page (unless the category has an
-animated cover: sandwiches, juices) and, small and round, replaces the icon in the category switcher, the header pill and the
-home card. Without a photo the icon is shown. Sandwiches and fresh juices start with their existing tile photos (schema 2 upgrade).
+Categories have two optional pictures (dashboard → الأقسام): `imageUrl`, the portrait 4:5 card photo on the home page, and
+`iconUrl`, a square picture shown small and round in place of the icon (category switcher, header pill; falls back to
+`imageUrl`, then to the illustration). The category page banner only shows animated covers (sandwiches, juices); other
+categories keep the placeholder until their cover is made. Dairy uses its group photo for the card and icon (schema 3 upgrade).
 
 ### Not done yet (next steps)
 1. Database (Supabase/Postgres) behind `src/server/*`, then real orders on Vercel.

@@ -48,7 +48,7 @@ export function CategoriesManager() {
       <div className="adm-head">
         <div>
           <h1>الأقسام</h1>
-          <p>الترتيب هنا هو نفس ترتيبها في المتجر. صورة القسم بتظهر غلاف فوق صفحته وصغيرة مكان الأيقونة.</p>
+          <p>الترتيب هنا هو نفس ترتيبها في المتجر. لكل قسم صورة للكارت في الرئيسية، وأيقونة صغيرة مدوّرة.</p>
         </div>
         <button className="btn btn-primary" type="button" onClick={() => setAdding(true)} hidden={adding}>
           <Ic name="plus" />
@@ -109,8 +109,11 @@ function CategoryRow({
   const [art, setArt] = useState(category.art);
   const [tint, setTint] = useState(category.tint);
   const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
+  const [iconUrl, setIconUrl] = useState(category.iconUrl ?? "");
   const dirty =
-    name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase() || imageUrl.trim() !== (category.imageUrl ?? "");
+    name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase() ||
+    imageUrl.trim() !== (category.imageUrl ?? "") ||
+    iconUrl.trim() !== (category.iconUrl ?? "");
 
   return (
     <div className="cat-item">
@@ -122,7 +125,7 @@ function CategoryRow({
           <Ic name="down" />
         </button>
       </div>
-      <CategoryThumb art={art} tint={tint} imageUrl={imageUrl} />
+      <CategoryThumb art={art} tint={tint} imageUrl={iconUrl || imageUrl} />
       <div className="grow">
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="اسم القسم" />
         <div className="row" style={{ gap: 6, marginTop: 4 }}>
@@ -132,14 +135,24 @@ function CategoryRow({
           </Link>
           {!imageUrl.trim() ? <span className="badge gold">من غير صورة</span> : null}
         </div>
-        <input
-          className="input num cat-image-input"
-          dir={imageUrl ? "ltr" : "rtl"}
-          placeholder="صورة القسم (مثال: /covers/dairy.webp)"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          aria-label="صورة القسم"
-        />
+        <div className="cat-images">
+          <input
+            className="input num cat-image-input"
+            dir={imageUrl ? "ltr" : "rtl"}
+            placeholder="صورة الكارت في الرئيسية (4:5)"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            aria-label="صورة كارت القسم في الرئيسية"
+          />
+          <input
+            className="input num cat-image-input"
+            dir={iconUrl ? "ltr" : "rtl"}
+            placeholder="الأيقونة الصغيرة (مربعة)"
+            value={iconUrl}
+            onChange={(e) => setIconUrl(e.target.value)}
+            aria-label="أيقونة القسم"
+          />
+        </div>
       </div>
       <select className="select" style={{ width: "auto" }} value={art} onChange={(e) => setArt(e.target.value)} aria-label="الأيقونة">
         {CATEGORY_ARTS.map((a) => (
@@ -149,7 +162,7 @@ function CategoryRow({
         ))}
       </select>
       <input className="color-input" type="color" value={tint} onChange={(e) => setTint(e.target.value.toUpperCase())} aria-label="لون الخلفية" />
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim() })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim() })}>
         حفظ
       </button>
       <button
@@ -167,7 +180,7 @@ function CategoryRow({
 }
 
 function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
-  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "" });
+  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "", iconUrl: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -195,7 +208,7 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         </Field>
         <Field label="الأيقونة واللون" error={errors.art || errors.tint}>
           <div className="row">
-            <CategoryThumb art={form.art} tint={form.tint} imageUrl={form.imageUrl} />
+            <CategoryThumb art={form.art} tint={form.tint} imageUrl={form.iconUrl || form.imageUrl} />
             <select className="select" style={{ width: "auto" }} value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>
               {CATEGORY_ARTS.map((a) => (
                 <option key={a} value={a}>
@@ -207,9 +220,14 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
           </div>
         </Field>
       </div>
-      <Field label="صورة القسم" error={errors.imageUrl} hint="اختياري: بتظهر غلاف فوق صفحة القسم، وصغيرة مكان الأيقونة. من غير صورة بتظهر الأيقونة.">
-        <input className="input num" dir="ltr" placeholder="/covers/dairy.webp" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
-      </Field>
+      <div className="grid2">
+        <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، بتظهر في «تسوّق حسب القسم».">
+          <input className="input num" dir="ltr" placeholder="/covers/dairy/tile.webp" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
+        </Field>
+        <Field label="الأيقونة الصغيرة" error={errors.iconUrl} hint="اختياري: مربعة، بتظهر مدوّرة مكان الأيقونة. من غيرها بتظهر صورة الكارت أو الرسمة.">
+          <input className="input num" dir="ltr" placeholder="/covers/dairy/icon.webp" value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })} />
+        </Field>
+      </div>
       {errors._ ? <div className="alert">{errors._}</div> : null}
       <div className="row">
         <button className="btn btn-primary" disabled={busy}>
