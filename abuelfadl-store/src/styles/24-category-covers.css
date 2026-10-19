@@ -61,14 +61,11 @@
 }
 @media(prefers-reduced-motion:reduce){.cv-sl,.cv-sd img,.cv-sh,.cvj-s img,.cvj-gs{animation-duration:.01s;animation-delay:0s}}
 
-/* ---- dairy cover (.cvd): five dairy products shot from the front, grouped tightly on a soft green disc, each with
+/* ---- dairy cover (.cvd): five dairy products shot from the front, grouped tightly, each with
    its own contact shadow. They rise into place one after another (under a second). On wide screens the products sit
    on the left and the title with a short line sits on the right (.cv-dairy). Positions are % of a 1600x1000 scene. ---- */
 .cvd{position:absolute;inset:4px 0 var(--cb) 0;pointer-events:none;display:flex;justify-content:center;align-items:flex-end}
 .cvd-s{position:relative;height:100%;aspect-ratio:1600/1000;max-width:100%}
-.cvd-disc{position:absolute;left:23.5%;top:6%;width:53%;aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle at 50% 38%,#F4F9F4 0,#E6F1E8 58%,#D8E9DC 100%);box-shadow:inset 0 -18px 40px rgba(31,94,55,.07);
-  animation:cvdDisc .7s cubic-bezier(.22,.8,.3,1) both}
 .cvd-p{position:absolute;display:block;opacity:0;animation:cvdRise .7s var(--dl,0s) cubic-bezier(.22,.8,.3,1) both}
 .cvd-p img{display:block;width:100%;height:auto;filter:drop-shadow(0 4px 6px rgba(20,40,26,.12))}
 .cvd-p .sh{position:absolute;left:8%;right:8%;bottom:-3%;height:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.28),transparent);z-index:-1}
@@ -78,8 +75,7 @@
 .cvd-murta{left:17.09%;top:64.50%;width:24.56%;z-index:4;--dl:0.5s}
 .cvd-cream{left:57.90%;top:65.50%;width:25.45%;z-index:4;--dl:0.62s}
 @keyframes cvdRise{from{opacity:0;transform:translateY(16%)}to{opacity:1;transform:none}}
-@keyframes cvdDisc{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.cvd-p,.cvd-disc{animation:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}}
 /* Banner layout for the dairy cover: phone = products on top, title and line below; wide = products left, text right. */
 .cbanner.cv-dairy{min-height:268px;--cb:84px}
 .cbanner.cv-dairy .ct p{color:#3E5A47;font-weight:500;margin-top:2px}

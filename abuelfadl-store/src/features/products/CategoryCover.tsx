@@ -113,7 +113,7 @@ function JuiceCover() {
 
 /**
  * "dairy" cover: cow ghee, milk and buffalo ghee at the back, murta and cream in front (public/covers/dairy/*.webp),
- * grouped tightly on a soft green disc, each with a contact shadow; they rise into place one after another.
+ * grouped tightly, each with a contact shadow; they rise into place one after another.
  * Positions are percentages of the scene, see the `.cvd` rules in 24-category-covers.css.
  */
 const DAIRY_PIECES = ["milk", "ghee-cow", "ghee-buffalo", "murta", "cream"] as const;
@@ -122,7 +122,6 @@ function DairyCover() {
   return (
     <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وحليب وسمن جاموسي ومورتة وقشطة">
       <div className="cvd-s" aria-hidden="true">
-        <i className="cvd-disc" />
         {DAIRY_PIECES.map((name) => (
           <span key={name} className={`cvd-p cvd-${name}`}>
             <i className="sh" />
