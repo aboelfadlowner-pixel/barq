@@ -173,7 +173,12 @@ function CategoryPage({ slug, categories, offersTitle }: { slug: string; categor
             )}
             <div className="ct">
               <h1 id="catTitle">{category.name}</h1>
-              {tagline ? <p>{tagline}</p> : null}
+              {tagline ? (
+                <p>
+                  {/* <bdi>: an English line keeps its own word order inside the right-to-left page. */}
+                  <bdi>{tagline}</bdi>
+                </p>
+              ) : null}
             </div>
           </div>
         )}
