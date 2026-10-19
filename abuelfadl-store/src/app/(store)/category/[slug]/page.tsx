@@ -6,7 +6,7 @@ import { CategorySwitcherButton } from "@/features/products/CategorySwitcher";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
 import { OffersBanner } from "@/features/offers/OffersStrip";
-import { OFFERS_SLUG } from "@/features/offers/useOffers";
+import { OFFERS_SLUG } from "@/lib/offers";
 import { catalogService, getSettings } from "@/services";
 import type { Category } from "@/types/category";
 

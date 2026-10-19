@@ -5,8 +5,7 @@ import { useCatalog } from "@/features/catalog/CatalogProvider";
 import { useSettings } from "@/features/settings/SettingsProvider";
 import { discountPercent, type CatalogProduct } from "@/lib/pricing";
 
-/** URL slug of the offers section: /category/deals. Not a stored category (products keep their own); "offers" is taken by the old static «العروض» category. */
-export const OFFERS_SLUG = "deals";
+export { OFFERS_SLUG } from "@/lib/offers";
 
 /** "الجمعة 24/10" for an offer end date "2026-10-24". */
 export function dayLabel(day: string): string {
