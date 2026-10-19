@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/types/order";
 
 /** Small stroke icons for the dashboard (separate from the store sprite so the admin bundle stays small). */
 const PATHS: Record<string, string> = {
@@ -26,10 +25,6 @@ export function Ic({ name }: { name: keyof typeof PATHS | string }) {
       <path d={PATHS[name]} />
     </svg>
   );
-}
-
-export function StatusBadge({ status }: { status: OrderStatus }) {
-  return <span className={`badge st-${status}`}>{ORDER_STATUS_LABELS[status]}</span>;
 }
 
 /** Text field with label and error, used by the dashboard forms. */

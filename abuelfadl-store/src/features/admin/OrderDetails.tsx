@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus, type StoredOrder } from "@/types/order";
+import type { StoredOrder } from "@/types/order";
 import { api, egp, formatDateTime, formatQty } from "./api";
-import { Ic, StatusBadge, useToast } from "./ui";
+import { Ic, useToast } from "./ui";
 
 export function OrderDetails({ id }: { id: string }) {
   const toast = useToast();
@@ -23,7 +23,7 @@ export function OrderDetails({ id }: { id: string }) {
     );
   }, [id]);
 
-  const save = async (body: { status?: OrderStatus; staffNote?: string }, message: string) => {
+  const save = async (body: { staffNote: string }, message: string) => {
     setBusy(true);
     try {
       setOrder(await api<StoredOrder>(`/api/admin/orders/${id}`, { method: "PATCH", body }));
@@ -51,7 +51,6 @@ export function OrderDetails({ id }: { id: string }) {
             <h1 className="num">{order.number}</h1>
             <p>{formatDateTime(order.createdAt)}</p>
           </div>
-          <StatusBadge status={order.status} />
         </div>
         <button className="btn btn-sm" type="button" onClick={() => window.print()}>
           طباعة
@@ -124,22 +123,6 @@ export function OrderDetails({ id }: { id: string }) {
         </div>
 
         <div className="stack">
-          <div className="card card-pad stack">
-            <h2>حالة الطلب</h2>
-            <div className="status-steps">
-              {ORDER_STATUSES.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  className={order.status === status ? "btn on" : "btn"}
-                  disabled={busy || order.status === status}
-                  onClick={() => save({ status }, `الحالة بقت: ${ORDER_STATUS_LABELS[status]}`)}
-                >
-                  {ORDER_STATUS_LABELS[status]}
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="card card-pad stack">
             <h2>ملاحظة داخلية</h2>
             <textarea className="textarea" placeholder="مثلاً: العميل طلب يتصل قبل ما يوصل" value={note} onChange={(e) => setNote(e.target.value)} />

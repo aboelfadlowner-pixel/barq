@@ -15,18 +15,18 @@ const LINKS = [
   { href: "/admin/sync", label: "الأسعار", icon: "sync" },
 ];
 
-/** How often the new-orders counter refreshes. */
+/** How often the today's-orders counter refreshes. */
 const POLL_MS = 30_000;
 
 export function AdminNav() {
   const pathname = usePathname();
-  const [newOrders, setNewOrders] = useState(0);
+  const [todayOrders, setTodayOrders] = useState(0);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       api<DashboardStats>("/api/admin/stats")
-        .then((stats) => alive && setNewOrders(stats.byStatus.new))
+        .then((stats) => alive && setTodayOrders(stats.todayOrders))
         .catch(() => {});
     load();
     const timer = setInterval(load, POLL_MS);
@@ -57,7 +57,7 @@ export function AdminNav() {
             <Link key={link.href} href={link.href} className={on ? "on" : undefined}>
               <Ic name={link.icon} />
               {link.label}
-              {link.icon === "orders" && newOrders > 0 ? <span className="count num">{newOrders}</span> : null}
+              {link.icon === "orders" && todayOrders > 0 ? <span className="count num" title="طلبات النهارده">{todayOrders}</span> : null}
             </Link>
           );
         })}

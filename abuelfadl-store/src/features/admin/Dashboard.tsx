@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DashboardStats } from "@/server/orders";
 import { api, egp, formatDateTime } from "./api";
-import { StatusBadge } from "./ui";
 
 export function Dashboard() {
   const router = useRouter();
@@ -53,10 +52,6 @@ export function Dashboard() {
               <span>متوسط الطلب</span>
               <b className="num">{egp(stats.averageOrder)}</b>
             </div>
-            <Link className={`card stat${stats.byStatus.new ? " alert-stat" : ""}`} href="/admin/orders?status=new">
-              <span>طلبات جديدة مستنية</span>
-              <b className="num">{stats.byStatus.new}</b>
-            </Link>
             <Link className={`card stat${stats.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
               <span>منتجات مش مربوطة بشيت Foodics</span>
               <b className="num">{stats.unlinkedProducts}</b>
@@ -85,7 +80,6 @@ export function Dashboard() {
                       <th>العميل</th>
                       <th>الوقت</th>
                       <th>الإجمالي</th>
-                      <th>الحالة</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -95,9 +89,6 @@ export function Dashboard() {
                         <td>{order.customer.name}</td>
                         <td className="muted">{formatDateTime(order.createdAt)}</td>
                         <td className="num">{egp(order.total)}</td>
-                        <td>
-                          <StatusBadge status={order.status} />
-                        </td>
                       </tr>
                     ))}
                   </tbody>
