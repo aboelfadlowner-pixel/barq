@@ -134,15 +134,16 @@ function DairyCover() {
 }
 
 /**
- * "imported" cover (imported cheese): Mocca d'Or, Jacks lavender and Landana pesto wheels at the back, Montana Intenso and
- * Landana Jersey in front (public/covers/imported/*.webp), each with a contact shadow; they rise in like the dairy cover.
+ * "imported" cover (imported cheese): a Mocca d'Or wheel in the middle, the Jacks wheel behind it on the right and a
+ * Landana Jersey wedge in front on the left (public/covers/imported/*.webp), each with a contact shadow; they rise in
+ * like the dairy cover.
  * Same scene and animation as `.cvd`; positions are the `.cvc-*` rules in 24-category-covers.css.
  */
-const CHEESE_PIECES = ["mocca", "jacks", "landana", "montana", "jersey"] as const;
+const CHEESE_PIECES = ["jacks", "mocca", "jersey"] as const;
 
 function CheeseCover() {
   return (
-    <div className="cvd" role="img" aria-label="أجبان مستوردة: موكا دور وجاك باللافندر ولاندانا بيستو ومونتانا انتنسو وجيرسي">
+    <div className="cvd" role="img" aria-label="أجبان مستوردة: موكا دور وجاكس باللافندر ولاندانا جيرسي">
       <div className="cvd-s" aria-hidden="true">
         {CHEESE_PIECES.map((name) => (
           <span key={name} className={`cvd-p cvc-${name}`}>

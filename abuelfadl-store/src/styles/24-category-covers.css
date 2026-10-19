@@ -75,11 +75,9 @@
 .cvd-murta{left:17.09%;top:64.50%;width:24.56%;z-index:4;--dl:0.5s}
 .cvd-cream{left:57.90%;top:65.50%;width:25.45%;z-index:4;--dl:0.62s}
 /* imported cheese cover: same scene and rise as the dairy cover (CheeseCover) */
-.cvc-mocca{left:34.59%;top:12.40%;width:30.94%;z-index:1;--dl:0.1s}
-.cvc-jacks{left:6.48%;top:25.20%;width:34.55%;z-index:2;--dl:0.22s}
-.cvc-landana{left:60.39%;top:26.40%;width:30.46%;z-index:2;--dl:0.34s}
-.cvc-montana{left:28.70%;top:49.20%;width:26.60%;z-index:4;--dl:0.5s}
-.cvc-jersey{left:56.61%;top:62.10%;width:21.27%;z-index:5;--dl:0.62s}
+.cvc-jacks{left:56.94%;top:10.00%;width:38.06%;z-index:1;--dl:0.1s}
+.cvc-mocca{left:24.81%;top:18.50%;width:49.19%;z-index:3;--dl:0.25s}
+.cvc-jersey{left:10.25%;top:47.00%;width:32.00%;z-index:4;--dl:0.45s}
 @keyframes cvdRise{from{opacity:0;transform:translateY(16%)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}}
 /* Banner layout for every category with a cover: phone = scene on top, title and line below;
