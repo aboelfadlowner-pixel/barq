@@ -60,3 +60,30 @@
   100%{opacity:1;transform:translateY(0) rotate(0)}
 }
 @media(prefers-reduced-motion:reduce){.cv-sl,.cv-sd img,.cv-sh,.cvj-s img,.cvj-gs{animation-duration:.01s;animation-delay:0s}}
+
+/* ---- dairy cover (.cvd): the store's dairy group photo rebuilt from single product photos (public/covers/dairy).
+   The ghee jars and the milk drop in at the back (right to left), then murta, ashura, cream caramel and cream drop in
+   front, each with a small bounce; then everything stays still. Positions are % of a 1536x1024 scene. ---- */
+.cvd{position:absolute;inset:6px 0 var(--cb) 0;pointer-events:none;display:flex;justify-content:center;align-items:flex-end}
+.cvd-s{position:relative;height:94%;aspect-ratio:1536/1024;max-width:100%}
+.cvd-gs{position:absolute;left:4%;width:92%;bottom:3%;height:7%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.2),transparent);opacity:0;animation:cvShadow .7s .2s both}
+.cvd-p{position:absolute;display:block;height:auto;opacity:0;filter:drop-shadow(0 5px 8px rgba(20,40,26,.15));animation:cvdDrop .9s var(--dl,0s) cubic-bezier(.3,.1,.4,1) both}
+.cvd-ghee-buffalo{left:61.13%;top:14.65%;width:19.28%;z-index:2;--dl:0.15s;--tilt:3deg}
+.cvd-milk{left:43.70%;top:2.44%;width:11.57%;z-index:1;--dl:0.4s;--tilt:-2deg}
+.cvd-ghee-cow{left:17.66%;top:14.65%;width:20.66%;z-index:2;--dl:0.65s;--tilt:-3deg}
+.cvd-cream{left:74.87%;top:65.72%;width:23.96%;z-index:5;--dl:1.0s;--tilt:2deg}
+.cvd-caramel{left:50.68%;top:56.45%;width:21.94%;z-index:4;--dl:1.2s;--tilt:-2deg}
+.cvd-ashura{left:26.79%;top:55.86%;width:22.33%;z-index:4;--dl:1.4s;--tilt:2deg}
+.cvd-murta{left:1.48%;top:65.33%;width:22.69%;z-index:5;--dl:1.6s;--tilt:-2deg}
+@keyframes cvdDrop{
+  0%{opacity:0;transform:translateY(-150%) rotate(var(--tilt))}
+  12%{opacity:1}
+  62%{opacity:1;transform:translateY(3%) rotate(0deg)}
+  80%{transform:translateY(-1.5%)}
+  100%{opacity:1;transform:none}
+}
+@media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}.cvd-gs{animation-duration:.01s;animation-delay:0s}}
+/* Wide screens: the title sits at the bottom right, so the scene sits to its left. */
+@media(min-width:800px){
+  .cvd{inset:14px 0 14px 0;padding-inline:22% 3%}
+}

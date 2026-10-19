@@ -111,9 +111,30 @@ function JuiceCover() {
   );
 }
 
+/**
+ * "dairy" cover: the store's dairy group photo rebuilt from single product photos (public/covers/dairy/*.webp).
+ * Buffalo ghee, milk and cow ghee drop in at the back, right to left; then cream, cream caramel, ashura and murta drop
+ * in front. Positions are percentages of the scene, see the `.cvd` rules in 24-category-covers.css.
+ */
+const DAIRY_PIECES = ["ghee-buffalo", "milk", "ghee-cow", "cream", "caramel", "ashura", "murta"] as const;
+
+function DairyCover() {
+  return (
+    <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وسمن جاموسي وحليب ومورتة وعاشورة وكريم كراميل وقشطة">
+      <div className="cvd-s" aria-hidden="true">
+        <i className="cvd-gs" />
+        {DAIRY_PIECES.map((name) => (
+          <img key={name} className={`cvd-p cvd-${name}`} src={`/covers/dairy/${name}.webp`} alt="" decoding="async" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
+  dairy: DairyCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
