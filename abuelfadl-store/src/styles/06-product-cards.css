@@ -32,3 +32,5 @@
 .pp s{color:var(--sale);font-size:.85rem;text-decoration-thickness:1.5px}
 .p h3{font:400 .9rem/1.5 var(--f-body);color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 
+/* offer from the dashboard: discount tag on the photo (the struck old price uses .pp s) */
+.tag.sale{background:var(--sale);color:#fff}

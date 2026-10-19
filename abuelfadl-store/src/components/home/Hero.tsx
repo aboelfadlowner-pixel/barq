@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { MIN_ORDER } from "@/lib/constants";
+import { MinOrderAmount } from "@/features/settings/SettingsProvider";
 import { Icon } from "../ui/Icon";
 import { HeroPhoto } from "./HeroPhoto";
 import { ScrollToButton } from "./ScrollToButton";
@@ -52,7 +52,7 @@ export function Hero() {
               </div>
               <div>
                 <Icon id="i-bag" />
-                الحد الأدنى {MIN_ORDER} ج.م
+                الحد الأدنى <MinOrderAmount /> ج.م
               </div>
               <div>
                 <Icon id="i-clock" />

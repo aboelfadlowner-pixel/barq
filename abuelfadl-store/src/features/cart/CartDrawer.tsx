@@ -7,7 +7,7 @@ import { Art } from "@/components/ui/Art";
 import { Icon } from "@/components/ui/Icon";
 import { useCatalog } from "@/features/catalog/CatalogProvider";
 import { flyToCart } from "@/lib/cart-effects";
-import { MIN_ORDER } from "@/lib/constants";
+import { useSettings } from "@/features/settings/SettingsProvider";
 import { formatMoney } from "@/lib/format";
 import { decreaseQuantity, increaseQuantity, quantityLabel, round2 } from "@/lib/quantity";
 import { useCheckout } from "@/features/checkout/CheckoutProvider";
@@ -51,8 +51,9 @@ export function CartDrawer() {
     lastFocus.current = null;
   }, [isOpen]);
 
-  const reachedMinimum = total >= MIN_ORDER;
-  const progress = Math.min(100, Math.round((total / MIN_ORDER) * 100));
+  const { minOrder, ordersOpen, closedMessage } = useSettings();
+  const reachedMinimum = total >= minOrder;
+  const progress = minOrder > 0 ? Math.min(100, Math.round((total / minOrder) * 100)) : 100;
 
   const focusLine = (id: number, selectors: string[]) =>
     requestAnimationFrame(() => {
@@ -73,11 +74,13 @@ export function CartDrawer() {
       </div>
       <div className="dr-min">
         <p id="minMsg">
-          {reachedMinimum
+          {!ordersOpen
+            ? closedMessage
+            : reachedMinimum
             ? "وصلت للحد الأدنى للطلب، والتوصيل متاح داخل البيطاش."
-            : `أضف ${formatMoney(MIN_ORDER - total)} ج.م لتصل إلى الحد الأدنى للطلب (${MIN_ORDER} ج.م).`}
+            : `أضف ${formatMoney(minOrder - total)} ج.م لتصل إلى الحد الأدنى للطلب (${minOrder} ج.م).`}
         </p>
-        <div className="track">
+        <div className="track" hidden={!ordersOpen}>
           <div className="fill" id="fill" style={{ width: `${progress}%` }} />
         </div>
       </div>
@@ -144,10 +147,10 @@ export function CartDrawer() {
           className="btn btn-primary"
           type="button"
           id="checkout"
-          disabled={!reachedMinimum}
+          disabled={!ordersOpen || !reachedMinimum}
           onClick={openCheckout}
         >
-          {reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${MIN_ORDER} ج.م`}
+          {!ordersOpen ? "استقبال الطلبات متوقف حاليًا" : reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${minOrder} ج.م`}
         </button>
       </div>
     </aside>

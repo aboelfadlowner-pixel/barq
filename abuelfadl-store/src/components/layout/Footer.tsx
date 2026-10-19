@@ -1,6 +1,7 @@
-import { MIN_ORDER } from "@/lib/constants";
+import { MinOrderAmount } from "@/features/settings/SettingsProvider";
 import { Icon } from "../ui/Icon";
 import { Wordmark } from "./Wordmark";
+import { WhatsAppLink } from "./WhatsAppLink";
 
 export function Footer() {
   return (
@@ -24,7 +25,7 @@ export function Footer() {
             <h3>التوصيل</h3>
             <ul>
               <li>داخل البيطاش حاليًا</li>
-              <li>الحد الأدنى للطلب {MIN_ORDER} ج.م</li>
+              <li>الحد الأدنى للطلب <MinOrderAmount /> ج.م</li>
               <li>الطلبات حتى 1:30 صباحًا</li>
             </ul>
           </div>
@@ -38,6 +39,7 @@ export function Footer() {
               <a className="circ" href="https://www.instagram.com/abu_elfadl1/" target="_blank" rel="noopener" aria-label="إنستجرام أبو الفضل">
                 <Icon id="i-ig" />
               </a>
+              <WhatsAppLink />
             </div>
           </div>
         </div>

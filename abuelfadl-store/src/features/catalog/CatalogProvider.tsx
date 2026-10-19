@@ -2,11 +2,11 @@
 
 import { createContext, useContext, useMemo } from "react";
 import { normalizeArabic } from "@/lib/arabic";
+import type { CatalogProduct } from "@/lib/pricing";
 import type { Category } from "@/types/category";
-import type { Product, ProductId } from "@/types/product";
+import type { ProductId } from "@/types/product";
 
-/** The product fields the browser needs (no description / offer flag: v29 does not show them). */
-export type CatalogProduct = Omit<Product, "description" | "offer">;
+export type { CatalogProduct } from "@/lib/pricing";
 
 interface CatalogContextValue {
   categories: Category[];

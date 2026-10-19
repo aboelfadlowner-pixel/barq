@@ -24,6 +24,7 @@ export function IconSprite() {
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
     <symbol id="i-fb" viewBox="0 0 24 24"><path d="M14 8h2V5h-2.5C11 5 10 6.5 10 8.5V10H8v3h2v6h3v-6h2l.5-3H13V8.7c0-.5.2-.7 1-.7z"/></symbol>
+    <symbol id="i-wa" viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-3.6A8 8 0 1 1 8.6 18.6z"/><path d="M9.2 8.6c.2-.4.5-.4.8-.4h.5l.9 2.1-.6.8c.5 1 1.3 1.8 2.3 2.3l.8-.6 2.1.9v.5c0 .3 0 .6-.4.8-.6.4-1.4.6-2.2.3a7.6 7.6 0 0 1-4.4-4.4c-.3-.8-.1-1.6.2-2.3z"/></symbol>
     <symbol id="i-ig" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="16.7" cy="7.4" r=".6"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2.2 2.2L15.5 10"/></symbol>
     </defs></svg>

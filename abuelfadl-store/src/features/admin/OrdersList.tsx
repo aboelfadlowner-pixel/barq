@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { StoredOrder } from "@/types/order";
 import { api, egp, formatDateTime } from "./api";
@@ -8,7 +8,9 @@ import { api, egp, formatDateTime } from "./api";
 /** Orders list (newest first) with search. Refreshes every 30 s so new orders appear without reloading. */
 export function OrdersList() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  // «العملاء» opens this page with ?q=<mobile> to show one customer's orders.
+  const params = useSearchParams();
+  const [search, setSearch] = useState(params.get("q") ?? "");
   const [orders, setOrders] = useState<StoredOrder[] | null>(null);
   const [error, setError] = useState("");
 

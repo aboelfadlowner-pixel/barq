@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeArabic } from "@/lib/arabic";
+import { discountPercent, isOfferActive } from "@/lib/pricing";
 import { isValidSku, normalizeSku } from "@/lib/sku";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
@@ -14,8 +15,8 @@ import { Ic, useToast } from "./ui";
 const PAGE = 60;
 
 /**
- * Products table: search, category and stock filters, and quick edits (price, in stock) without opening the form.
- * The whole list is loaded once and filtered in the browser, so typing is instant.
+ * Products table: search, category and stock filters, quick edits (price, in stock) without opening the form,
+ * and bulk edits on the ticked rows. The whole list is loaded once and filtered in the browser, so typing is instant.
  */
 export function ProductsList() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export function ProductsList() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(PAGE);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const category = params.get("category") ?? "";
   const stock = params.get("stock") ?? "";
   const linked = params.get("linked") ?? "";
@@ -75,6 +77,29 @@ export function ProductsList() {
   };
   const linkedCount = (products ?? []).filter((p) => p.sku).length;
 
+  const toggle = (id: number) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const allVisibleSelected = visible.length > 0 && visible.every((p) => selected.has(p.id));
+  const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(visible.map((p) => p.id)));
+
+  /** Sends one change for every ticked product and puts the saved rows back in the table. */
+  const bulkSave = async (patch: Record<string, unknown>, message: string) => {
+    try {
+      const changed = await api<Product[]>("/api/admin/products/bulk", { method: "POST", body: { ids: [...selected], patch } });
+      const byId = new Map(changed.map((p) => [p.id, p]));
+      setProducts((list) => list?.map((p) => byId.get(p.id) ?? p) ?? null);
+      toast(`${message} (${changed.length} منتج)`);
+      setSelected(new Set());
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  };
+
   return (
     <>
       <div className="adm-head">
@@ -119,6 +144,9 @@ export function ProductsList() {
             <table className="tbl">
               <thead>
                 <tr>
+                  <th className="sel">
+                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="تحديد كل المنتجات الظاهرة" title={`تحديد الكل (${visible.length})`} />
+                  </th>
                   <th></th>
                   <th>المنتج</th>
                   <th>القسم</th>
@@ -130,7 +158,10 @@ export function ProductsList() {
               </thead>
               <tbody>
                 {visible.slice(0, limit).map((product) => (
-                  <tr key={product.id} className={product.inStock ? undefined : "off"}>
+                  <tr key={product.id} className={[product.inStock ? "" : "off", selected.has(product.id) ? "picked" : ""].join(" ").trim() || undefined}>
+                    <td className="sel">
+                      <input type="checkbox" checked={selected.has(product.id)} onChange={() => toggle(product.id)} aria-label={`تحديد ${product.name}`} />
+                    </td>
                     <td>
                       {product.imageUrl ? <img className="thumb" src={product.imageUrl} alt="" loading="lazy" /> : <span className="thumb none">لا صورة</span>}
                     </td>
@@ -142,6 +173,11 @@ export function ProductsList() {
                         <small className="muted num">كود {product.id}</small>
                         {product.weighed ? <span className="badge">بالوزن</span> : null}
                         {product.bestseller ? <span className="badge gold">الأكثر مبيعًا</span> : null}
+                        {isOfferActive(product) ? (
+                          <span className="badge red">عرض {discountPercent(product.price, product.salePrice!)}%</span>
+                        ) : product.offer ? (
+                          <span className="badge">عرض مش ظاهر</span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="muted">{categoryName.get(product.categoryId) ?? product.categoryId}</td>
@@ -184,7 +220,89 @@ export function ProductsList() {
           <div className="empty">مفيش منتجات مطابقة</div>
         )}
       </div>
+      {selected.size ? <BulkBar count={selected.size} categories={categories} onApply={bulkSave} onClear={() => setSelected(new Set())} /> : null}
     </>
+  );
+}
+
+/** Bar at the bottom of the screen while products are ticked: one change for all of them. */
+function BulkBar({
+  count,
+  categories,
+  onApply,
+  onClear,
+}: {
+  count: number;
+  categories: Category[];
+  onApply: (patch: Record<string, unknown>, message: string) => Promise<void>;
+  onClear: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [discount, setDiscount] = useState("");
+  const [offerEnd, setOfferEnd] = useState("");
+  const run = async (patch: Record<string, unknown>, message: string) => {
+    setBusy(true);
+    await onApply(patch, message);
+    setBusy(false);
+  };
+  return (
+    <div className="bulk-bar" role="region" aria-label="تعديل جماعي">
+      <div className="row">
+        <b className="num">{count} منتج متحدد</b>
+        <button className="btn btn-sm btn-ghost" type="button" onClick={onClear}>
+          إلغاء التحديد
+        </button>
+      </div>
+      <div className="row bulk-actions">
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: true }, "بقوا متوفرين")}>
+          متوفر
+        </button>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: false }, "اتعلّموا خلصانين")}>
+          خلصان
+        </button>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: true }, "اتعلّموا «الأكثر مبيعًا»")}>
+          + الأكثر مبيعًا
+        </button>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: false }, "اتشالت علامة «الأكثر مبيعًا»")}>
+          − الأكثر مبيعًا
+        </button>
+        <select
+          className="select bulk-select"
+          value=""
+          disabled={busy}
+          aria-label="نقل لقسم"
+          onChange={(e) => {
+            const target = categories.find((c) => c.id === e.target.value);
+            if (target && confirm(`نقل ${count} منتج لقسم «${target.name}»؟`)) run({ categoryId: target.id }, `اتنقلوا لـ «${target.name}»`);
+          }}
+        >
+          <option value="">نقل لقسم…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <form
+        className="row bulk-actions"
+        onSubmit={(e) => {
+          e.preventDefault();
+          run({ discountPercent: Number(discount), offerEnd }, `اتعمل عليهم خصم ${discount}%`);
+        }}
+      >
+        <span className="muted">خصم</span>
+        <input className="input bulk-num num" inputMode="numeric" placeholder="10" value={discount} onChange={(e) => setDiscount(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} aria-label="نسبة الخصم" />
+        <span className="muted">% لحد</span>
+        <input className="input bulk-date num" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} aria-label="آخر يوم في العرض (اختياري)" />
+        <button className="btn btn-sm btn-primary" disabled={busy || !discount}>
+          طبّق الخصم
+        </button>
+        <button className="btn btn-sm btn-danger" type="button" disabled={busy} onClick={() => run({ offer: false }, "اتشال العرض")}>
+          شيل العرض
+        </button>
+      </form>
+    </div>
   );
 }
 

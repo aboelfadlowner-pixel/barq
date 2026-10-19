@@ -5,28 +5,36 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DashboardStats } from "@/server/orders";
 import { api } from "./api";
+import { AlertToggle, useNewOrderAlert } from "./NewOrderAlert";
 import { Ic } from "./ui";
 
+/** `main` links stay in the phone's bottom bar; the others open from «المزيد». */
 const LINKS = [
-  { href: "/admin", label: "الرئيسية", icon: "home" },
-  { href: "/admin/orders", label: "الطلبات", icon: "orders" },
-  { href: "/admin/products", label: "المنتجات", icon: "box" },
+  { href: "/admin", label: "الرئيسية", icon: "home", main: true },
+  { href: "/admin/orders", label: "الطلبات", icon: "orders", main: true },
+  { href: "/admin/products", label: "المنتجات", icon: "box", main: true },
+  { href: "/admin/customers", label: "العملاء", icon: "users", main: true },
+  { href: "/admin/reports", label: "التقارير", icon: "chart" },
+  { href: "/admin/arrange", label: "ترتيب المنتجات", icon: "sort" },
   { href: "/admin/categories", label: "الأقسام", icon: "tag" },
   { href: "/admin/sync", label: "الأسعار", icon: "sync" },
+  { href: "/admin/settings", label: "الإعدادات", icon: "gear" },
 ];
 
-/** How often the today's-orders counter refreshes. */
-const POLL_MS = 30_000;
+/** How often the today's-orders counter (and the new-order alert) refreshes. */
+const POLL_MS = 15_000;
 
 export function AdminNav() {
   const pathname = usePathname();
-  const [todayOrders, setTodayOrders] = useState(0);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const alert = useNewOrderAlert(stats);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       api<DashboardStats>("/api/admin/stats")
-        .then((stats) => alive && setTodayOrders(stats.todayOrders))
+        .then((next) => alive && setStats(next))
         .catch(() => {});
     load();
     const timer = setInterval(load, POLL_MS);
@@ -34,12 +42,18 @@ export function AdminNav() {
       alive = false;
       clearInterval(timer);
     };
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => setMoreOpen(false), [pathname]);
 
   const logout = async () => {
     await api("/api/admin/logout", { method: "POST" }).catch(() => {});
     window.location.href = "/admin/login";
   };
+
+  const isOn = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
+  const todayOrders = stats?.todayOrders ?? 0;
+  const moreOn = LINKS.some((link) => !link.main && isOn(link.href));
 
   return (
     <aside className="adm-side">
@@ -50,19 +64,37 @@ export function AdminNav() {
           <small>لوحة التحكم</small>
         </div>
       </div>
-      <nav className="adm-nav">
-        {LINKS.map((link) => {
-          const on = link.href === "/admin" ? pathname === "/admin" : pathname.startsWith(link.href);
-          return (
-            <Link key={link.href} href={link.href} className={on ? "on" : undefined}>
-              <Ic name={link.icon} />
-              {link.label}
-              {link.icon === "orders" && todayOrders > 0 ? <span className="count num" title="طلبات النهارده">{todayOrders}</span> : null}
-            </Link>
-          );
-        })}
+      <nav className={moreOpen ? "adm-nav more-open" : "adm-nav"}>
+        {LINKS.map((link) => (
+          <Link key={link.href} href={link.href} className={`${isOn(link.href) ? "on" : ""}${link.main ? "" : " extra"}`.trim() || undefined}>
+            <Ic name={link.icon} />
+            {link.label}
+            {link.icon === "orders" && todayOrders > 0 ? (
+              <span className="count num" title="طلبات النهارده">
+                {todayOrders}
+              </span>
+            ) : null}
+          </Link>
+        ))}
+        <button type="button" className={moreOn || moreOpen ? "more-btn on" : "more-btn"} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+          <Ic name="more" />
+          المزيد
+        </button>
+        <div className="more-foot">
+          <AlertToggle enabled={alert.enabled} onToggle={alert.toggle} />
+          <a href="/" target="_blank" rel="noreferrer">
+            <Ic name="store" />
+            فتح المتجر
+          </a>
+          <button type="button" onClick={logout}>
+            <Ic name="logout" />
+            خروج
+          </button>
+        </div>
       </nav>
+      {moreOpen ? <button type="button" className="more-backdrop" aria-label="إغلاق" onClick={() => setMoreOpen(false)} /> : null}
       <div className="adm-side-foot">
+        <AlertToggle className={alert.enabled ? "btn btn-ghost alert-on" : "btn btn-ghost"} enabled={alert.enabled} onToggle={alert.toggle} />
         <a className="btn btn-ghost" href="/" target="_blank" rel="noreferrer">
           <Ic name="store" />
           فتح المتجر

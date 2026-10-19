@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { cairoToday, discountPercent, isOfferActive } from "@/lib/pricing";
 import { DEFAULT_MAX_WEIGHT, DEFAULT_WEIGHT_STEP } from "@/lib/quantity";
 import { isValidSku, normalizeSku } from "@/lib/sku";
 import type { Category } from "@/types/category";
@@ -22,6 +23,9 @@ interface FormState {
   inStock: boolean;
   bestseller: boolean;
   offer: boolean;
+  salePrice: string;
+  offerStart: string;
+  offerEnd: string;
   description: string;
   imageUrl: string;
 }
@@ -38,6 +42,9 @@ const EMPTY: FormState = {
   inStock: true,
   bestseller: false,
   offer: false,
+  salePrice: "",
+  offerStart: "",
+  offerEnd: "",
   description: "",
   imageUrl: "",
 };
@@ -54,6 +61,9 @@ const toForm = (p: Product): FormState => ({
   inStock: p.inStock,
   bestseller: p.bestseller,
   offer: p.offer,
+  salePrice: p.salePrice === undefined ? "" : String(p.salePrice),
+  offerStart: p.offerStart ?? "",
+  offerEnd: p.offerEnd ?? "",
   description: p.description ?? "",
   imageUrl: p.imageUrl ?? "",
 });
@@ -96,6 +106,7 @@ export function ProductForm({ id }: { id?: string }) {
       minWeight: Number(form.minWeight),
       maxWeight: Number(form.maxWeight),
       sku: normalizeSku(form.sku),
+      salePrice: form.salePrice.trim() === "" ? "" : Number(form.salePrice),
     };
     try {
       const saved = await api<Product>(id ? `/api/admin/products/${id}` : "/api/admin/products", { method: id ? "PATCH" : "POST", body });
@@ -202,6 +213,23 @@ export function ProductForm({ id }: { id?: string }) {
             <input type="checkbox" checked={form.offer} onChange={(e) => set("offer", e.target.checked)} />
             عليه عرض
           </label>
+          {form.offer ? (
+            <div className="weight-box stack">
+              <h3>العرض</h3>
+              <Field label={form.weighed ? "سعر الكيلو في العرض (ج.م)" : "سعر العرض (ج.م)"} error={errors.salePrice} hint="لازم يكون أقل من السعر الأصلي">
+                <input className="input num" inputMode="decimal" dir="ltr" value={form.salePrice} onChange={(e) => set("salePrice", e.target.value)} />
+              </Field>
+              <div className="grid2">
+                <Field label="من يوم" error={errors.offerStart} hint="فاضي = من النهارده">
+                  <input className="input num" type="date" value={form.offerStart} onChange={(e) => set("offerStart", e.target.value)} />
+                </Field>
+                <Field label="لحد يوم" error={errors.offerEnd} hint="فاضي = لحد ما تشيله">
+                  <input className="input num" type="date" value={form.offerEnd} onChange={(e) => set("offerEnd", e.target.value)} />
+                </Field>
+              </div>
+              <OfferPreview form={form} />
+            </div>
+          ) : null}
           <label className="check">
             <input type="checkbox" checked={form.weighed} onChange={(e) => set("weighed", e.target.checked)} />
             بيتباع بالوزن (كيلو)
@@ -229,6 +257,21 @@ export function ProductForm({ id }: { id?: string }) {
         </div>
       </div>
     </form>
+  );
+}
+
+/** One line under the offer fields: the discount and whether it shows in the store today. */
+function OfferPreview({ form }: { form: FormState }) {
+  const price = Number(form.price);
+  const salePrice = Number(form.salePrice);
+  if (!(price > 0 && salePrice > 0 && salePrice < price)) return <small className="muted">اكتب سعر العرض عشان يظهر في المتجر.</small>;
+  const today = cairoToday();
+  const live = isOfferActive({ price, salePrice, offer: true, offerStart: form.offerStart || undefined, offerEnd: form.offerEnd || undefined }, today);
+  return (
+    <small className="muted">
+      خصم {discountPercent(price, salePrice)}% (توفير {Math.round((price - salePrice) * 100) / 100} ج.م) ·{" "}
+      {live ? <b style={{ color: "var(--brand)" }}>ظاهر في المتجر دلوقتي</b> : form.offerEnd && form.offerEnd < today ? "العرض خلص" : "هيظهر من يوم البداية"}
+    </small>
   );
 }
 

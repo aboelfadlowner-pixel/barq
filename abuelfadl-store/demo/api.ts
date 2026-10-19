@@ -9,6 +9,11 @@ import * as logout from "../src/app/api/admin/logout/route";
 import * as stats from "../src/app/api/admin/stats/route";
 import * as adminProducts from "../src/app/api/admin/products/route";
 import * as adminProduct from "../src/app/api/admin/products/[id]/route";
+import * as adminProductsBulk from "../src/app/api/admin/products/bulk/route";
+import * as adminProductsReorder from "../src/app/api/admin/products/reorder/route";
+import * as adminSettings from "../src/app/api/admin/settings/route";
+import * as adminReports from "../src/app/api/admin/reports/route";
+import * as adminCustomers from "../src/app/api/admin/customers/route";
 import * as adminCategories from "../src/app/api/admin/categories/route";
 import * as adminCategory from "../src/app/api/admin/categories/[id]/route";
 import * as adminOrders from "../src/app/api/admin/orders/route";
@@ -28,7 +33,12 @@ const ROUTES: [RegExp, RouteModule][] = [
   [/^\/api\/admin\/logout$/, logout],
   [/^\/api\/admin\/stats$/, stats],
   [/^\/api\/admin\/products$/, adminProducts],
+  [/^\/api\/admin\/products\/bulk$/, adminProductsBulk],
+  [/^\/api\/admin\/products\/reorder$/, adminProductsReorder],
   [/^\/api\/admin\/products\/(?<id>[^/]+)$/, adminProduct],
+  [/^\/api\/admin\/settings$/, adminSettings],
+  [/^\/api\/admin\/reports$/, adminReports],
+  [/^\/api\/admin\/customers$/, adminCustomers],
   [/^\/api\/admin\/categories$/, adminCategories],
   [/^\/api\/admin\/categories\/(?<id>[^/]+)$/, adminCategory],
   [/^\/api\/admin\/orders$/, adminOrders],

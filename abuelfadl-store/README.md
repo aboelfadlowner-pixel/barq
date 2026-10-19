@@ -188,6 +188,24 @@ Categories have two optional pictures (dashboard → الأقسام): `imageUrl`
 `imageUrl`, then to the illustration). The category page banner only shows animated covers (sandwiches, juices); other
 categories keep the placeholder until their cover is made. Dairy uses its group photo for the card and icon (schema 3 upgrade).
 
+### Dashboard tools (B3)
+
+- **Settings** (`/admin/settings`, `src/server/settings.ts`): minimum order, notice strip text, WhatsApp number (footer
+  button), and a switch that pauses orders (the store shows the paused message, `POST /api/orders` answers 409).
+  The store reads them in the root layout through `SettingsProvider`.
+- **New-order alert** (`NewOrderAlert.tsx`): the nav polls `/api/admin/stats` every 15 s; a higher order count plays a
+  chime, shows a toast and, if allowed, a browser notification. On/off per device.
+- **Bulk edit** (products table): tick rows, then in/out of stock, best-seller label, move to a category, a % discount
+  (optional last day) or end the offer. `POST /api/admin/products/bulk`.
+- **Offers**: `salePrice`, `offerStart`, `offerEnd` on a product (`src/lib/pricing.ts`). While active the store gets the
+  sale price as `price` and the regular one as `oldPrice` (struck through, discount tag), and orders charge the sale
+  price. Store pages revalidate every 10 minutes so offers start and end on their dates.
+- **Reports** (`/admin/reports`, `src/server/reports.ts`): sales per day and per hour, best sellers, sales by
+  category, and CSV exports (orders, order lines) that open in Excel.
+- **Customers** (`/admin/customers`): one row per mobile number from the orders; a row opens that customer's orders.
+- **Product order** (`/admin/arrange`): the order products show in on each category page.
+  `POST /api/admin/products/reorder`.
+
 ### Not done yet (next steps)
 1. Database (Supabase/Postgres) behind `src/server/*`, then real orders on Vercel.
 2. Product photo upload (today the dashboard takes an image path such as `/products/13221.webp`).

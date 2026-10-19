@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 import { useOverlay } from "@/components/layout/OverlayProvider";
 import { CART_SHEET_ID } from "@/features/cart/sheetIds";
 import { useCart } from "@/features/cart/CartProvider";
-import { MIN_ORDER } from "@/lib/constants";
+import { useSettings } from "@/features/settings/SettingsProvider";
 import type { Order } from "@/types/order";
 import { CheckoutSheet, CHECKOUT_SHEET_ID } from "./CheckoutSheet";
 import { OrderDone } from "./OrderDone";
@@ -31,15 +31,16 @@ export const DONE_SCREEN_ID = "done";
  */
 export function CheckoutProvider({ children }: { children: React.ReactNode }) {
   const { total } = useCart();
+  const { minOrder, ordersOpen } = useSettings();
   const { open, close } = useOverlay();
   const router = useRouter();
   const [order, setOrder] = useState<Order | null>(null);
 
   const openCheckout = useCallback(() => {
-    if (total < MIN_ORDER) return;
+    if (!ordersOpen || total < minOrder) return;
     open(CHECKOUT_SHEET_ID);
     close(CART_SHEET_ID);
-  }, [total, open, close]);
+  }, [total, minOrder, ordersOpen, open, close]);
 
   const showDone = useCallback(
     (placed: Order) => {

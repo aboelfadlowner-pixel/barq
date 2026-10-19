@@ -51,6 +51,14 @@ export async function getProductsByIds(ids: ProductId[]): Promise<Product[]> {
 
 export type ProductInput = Partial<Omit<Product, "id">>;
 
+/** Offer date: "" / missing -> undefined, a valid "YYYY-MM-DD" -> itself, anything else -> null (invalid). */
+function cleanDate(value: unknown): string | undefined | null {
+  if (value === undefined || value === null || value === "") return undefined;
+  const text = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(text))) return null;
+  return text;
+}
+
 /** True when `value` is a positive weight in kg with at most gram precision (0.125 is fine, 0.1255 is not). */
 const isWeight = (value: number, max: number) => Number.isFinite(value) && value > 0 && value <= max && Math.abs(roundQty(value) - value) < 1e-9;
 
@@ -93,6 +101,26 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     if (owner) fields.sku = `الـ SKU ده مربوط بمنتج تاني: «${owner.name}»`;
   }
 
+  // Offer: optional sale price below the price, with optional first / last day ("YYYY-MM-DD").
+  const offer = Boolean(merged.offer);
+  let offerFields: Pick<Product, "salePrice" | "offerStart" | "offerEnd"> = {};
+  if (offer) {
+    const hasSale = merged.salePrice !== undefined && merged.salePrice !== null && String(merged.salePrice) !== "";
+    const salePrice = hasSale ? Number(merged.salePrice) : undefined;
+    if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice <= 0)) fields.salePrice = "سعر العرض لازم يكون رقم أكبر من صفر";
+    else if (salePrice !== undefined && !fields.price && salePrice >= price) fields.salePrice = "سعر العرض لازم يكون أقل من السعر الأصلي";
+    const offerStart = cleanDate(merged.offerStart);
+    const offerEnd = cleanDate(merged.offerEnd);
+    if (offerStart === null) fields.offerStart = "التاريخ مش مظبوط";
+    if (offerEnd === null) fields.offerEnd = "التاريخ مش مظبوط";
+    else if (offerStart && offerEnd && offerEnd < offerStart) fields.offerEnd = "آخر يوم لازم يكون بعد أول يوم";
+    offerFields = {
+      ...(salePrice !== undefined && !fields.salePrice ? { salePrice: Math.round(salePrice * 100) / 100 } : {}),
+      ...(offerStart ? { offerStart } : {}),
+      ...(offerEnd ? { offerEnd } : {}),
+    };
+  }
+
   const description = typeof merged.description === "string" ? merged.description.trim() : "";
   if (description.length > 1000) fields.description = "الوصف طويل جدًا (أقصى حد 1000 حرف)";
 
@@ -109,7 +137,8 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     ...(sku ? { sku } : {}),
     inStock: merged.inStock === undefined ? true : Boolean(merged.inStock),
     bestseller: Boolean(merged.bestseller),
-    offer: Boolean(merged.offer),
+    offer,
+    ...offerFields,
     ...(description ? { description } : {}),
     ...(imageUrl ? { imageUrl } : {}),
   };
@@ -131,6 +160,76 @@ export function updateProduct(id: ProductId, input: ProductInput): Promise<Produ
     const product: Product = { id, ...buildProduct(input, data.categories, data.products, data.products[index]) };
     data.products[index] = product;
     return product;
+  });
+}
+
+/** What the products table can change on many products at once. */
+export interface BulkPatch {
+  inStock?: boolean;
+  bestseller?: boolean;
+  categoryId?: CategoryId;
+  /** Puts the selected products on offer at this discount, 1-90 %. */
+  discountPercent?: number;
+  /** Last offer day ("YYYY-MM-DD") used with `discountPercent`; empty for no end date. */
+  offerEnd?: string;
+  /** false: ends the offer on the selected products. */
+  offer?: boolean;
+}
+
+/**
+ * Applies one change to many products (products table, «تعديل جماعي»). Unknown ids are skipped.
+ * With `discountPercent`, each product gets `salePrice = price × (1 − percent)`, rounded to 2 decimals, and the offer on.
+ * Returns the changed products.
+ */
+export function bulkUpdateProducts(ids: unknown, patch: BulkPatch): Promise<Product[]> {
+  return mutate((data) => {
+    const wanted = new Set(Array.isArray(ids) ? ids.map(Number).filter(Number.isInteger) : []);
+    if (!wanted.size) throw new ApiError(400, "اختار منتج واحد على الأقل");
+    if (patch.categoryId !== undefined && !data.categories.some((c) => c.id === patch.categoryId)) throw new ApiError(400, "اختار قسم موجود");
+    const percent = patch.discountPercent === undefined ? undefined : Number(patch.discountPercent);
+    if (percent !== undefined && (!Number.isFinite(percent) || percent < 1 || percent > 90)) throw new ApiError(400, "نسبة الخصم لازم تكون من 1 لـ 90");
+    const offerEnd = cleanDate(patch.offerEnd);
+    if (offerEnd === null) throw new ApiError(400, "تاريخ آخر يوم مش مظبوط");
+
+    const changed: Product[] = [];
+    for (const product of data.products) {
+      if (!wanted.has(product.id)) continue;
+      if (patch.inStock !== undefined) product.inStock = Boolean(patch.inStock);
+      if (patch.bestseller !== undefined) product.bestseller = Boolean(patch.bestseller);
+      if (patch.categoryId !== undefined) product.categoryId = patch.categoryId;
+      if (percent !== undefined) {
+        product.offer = true;
+        product.salePrice = Math.round(product.price * (100 - percent)) / 100;
+        delete product.offerStart;
+        if (offerEnd) product.offerEnd = offerEnd;
+        else delete product.offerEnd;
+      } else if (patch.offer === false) {
+        product.offer = false;
+        delete product.salePrice;
+        delete product.offerStart;
+        delete product.offerEnd;
+      }
+      changed.push(product);
+    }
+    return changed;
+  });
+}
+
+/**
+ * New display order for one category's products («ترتيب المنتجات»). `ids` must list every product of the category once.
+ * The category's products keep their slots in the catalog list and are put back into them in the new order,
+ * so other categories (and the "كل المنتجات" page around them) do not move.
+ */
+export function reorderCategory(categoryId: CategoryId, ids: unknown): Promise<void> {
+  return mutate((data) => {
+    const slots = data.products.flatMap((product, index) => (product.categoryId === categoryId ? [index] : []));
+    const order = Array.isArray(ids) ? ids.map(Number) : [];
+    const byId = new Map(slots.map((index) => [data.products[index].id, data.products[index]]));
+    if (order.length !== slots.length || new Set(order).size !== order.length || order.some((id) => !byId.has(id))) {
+      throw new ApiError(409, "قائمة المنتجات اتغيّرت من وقت ما فتحت الصفحة. حدّث الصفحة ورتّب تاني.");
+    }
+    const placed = order.map((id) => byId.get(id)!);
+    slots.forEach((index, i) => (data.products[index] = placed[i]));
   });
 }
 

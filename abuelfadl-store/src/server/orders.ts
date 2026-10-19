@@ -1,4 +1,5 @@
-import { MIN_ORDER } from "../lib/constants";
+import { DEFAULT_SETTINGS } from "../lib/settings";
+import { cairoToday, sellingPrice } from "../lib/pricing";
 import { isAllowedQuantity } from "../lib/quantity";
 import { ORDER_STATUSES, type OrderLine, type OrderStatus, type StoredOrder } from "../types/order";
 import { mutate, read } from "./db";
@@ -20,10 +21,13 @@ export interface OrderRequest {
 /**
  * Places an order. Everything the browser sends is checked again here:
  * customer fields use the checkout form rules, prices come from the catalog (never from the browser),
- * unavailable or unknown products are refused, and the minimum order applies to the server total.
+ * unavailable or unknown products are refused, the minimum order (dashboard settings) applies to the server total,
+ * and nothing is accepted while orders are paused.
  */
 export function createOrder(request: OrderRequest): Promise<StoredOrder> {
   return mutate((data) => {
+    const settings = data.settings ?? DEFAULT_SETTINGS;
+    if (!settings.ordersOpen) throw new ApiError(409, settings.closedMessage);
     const fields: Record<string, string> = {};
     const name = String(request.customer?.name ?? "").trim();
     const phone = cleanPhone(String(request.customer?.phone ?? ""));
@@ -39,6 +43,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     if (!items.length || items.length > 200) throw new ApiError(400, "السلة فاضية");
 
     const byId = new Map(data.products.map((product) => [product.id, product]));
+    const today = cairoToday();
     const lines: OrderLine[] = [];
     for (const item of items) {
       const product = byId.get(Number(item.productId));
@@ -49,17 +54,18 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
       if (!isAllowedQuantity(product, quantity)) {
         throw new ApiError(400, `الكمية غير صحيحة لـ «${product.name}»`);
       }
+      const price = sellingPrice(product, today); // the offer price while an offer is on
       lines.push({
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price,
         weighed: product.weighed,
         quantity,
-        lineTotal: round2(product.price * quantity),
+        lineTotal: round2(price * quantity),
       });
     }
     const total = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-    if (total < MIN_ORDER) throw new ApiError(400, `الحد الأدنى للطلب ${MIN_ORDER} جنيه`);
+    if (total < settings.minOrder) throw new ApiError(400, `الحد الأدنى للطلب ${settings.minOrder} جنيه`);
 
     const now = new Date().toISOString();
     data.orderSeq += 1;

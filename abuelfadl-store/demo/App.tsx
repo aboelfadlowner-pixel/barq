@@ -25,6 +25,9 @@ import { ProductSheetProvider } from "@/features/products/ProductSheet";
 import { SearchProvider } from "@/features/search/SearchProvider";
 import { CategorySwitcherButton, CategorySwitcherSheet } from "@/features/products/CategorySwitcher";
 import { FavoritesProvider } from "@/features/products/FavoritesProvider";
+import { SettingsProvider } from "@/features/settings/SettingsProvider";
+import { toCatalogProduct } from "@/lib/pricing";
+import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
@@ -37,6 +40,10 @@ import { OrdersList } from "@/features/admin/OrdersList";
 import { ProductForm } from "@/features/admin/ProductForm";
 import { ProductsList } from "@/features/admin/ProductsList";
 import { SyncPage } from "@/features/admin/SyncPage";
+import { ArrangePage } from "@/features/admin/ArrangePage";
+import { CustomersPage } from "@/features/admin/CustomersPage";
+import { ReportsPage } from "@/features/admin/ReportsPage";
+import { SettingsPage } from "@/features/admin/SettingsPage";
 import { ToastProvider } from "@/features/admin/ui";
 import type { Category } from "@/types/category";
 import { isAdminSync } from "./server/auth";
@@ -72,46 +79,48 @@ const ALL_CATEGORY: Category = { id: ALL_SLUG, name: "كل المنتجات", ar
 
 function StoreApp({ pathname }: { pathname: string }) {
   // Read once per visit to the store, the way the server renders the layout (dashboard edits show on the next visit).
-  const { categories, products } = useMemo(() => snapshot(), []);
-  const catalogProducts = useMemo(() => products.map(({ description: _d, offer: _o, ...product }) => product), [products]);
+  const { categories, products, settings = DEFAULT_SETTINGS } = useMemo(() => snapshot(), []);
+  const catalogProducts = useMemo(() => products.map((product) => toCatalogProduct(product)), [products]);
   const category = pathname.match(/^\/category\/([^/]+)$/)?.[1];
 
   return (
     <div className="app" dir="rtl" lang="ar">
       <IconSprite />
       <IllustrationSprite />
-      <ChromeProvider>
-        <OverlayProvider>
-          <CatalogProvider categories={categories} products={catalogProducts}>
-            <CartProvider>
-              <FavoritesProvider>
-                <SearchProvider>
-                  <ProductSheetProvider>
-                    <CheckoutProvider>
-                      <RevealObserver />
-                      <Notice />
-                      <Header />
-                      <main id="top">
-                        {pathname === "/" ? (
-                          <HomePage categories={categories} />
-                        ) : category ? (
-                          <CategoryPage slug={decodeURIComponent(category)} categories={categories} />
-                        ) : (
-                          <StoreNotFound />
-                        )}
-                      </main>
-                      <Footer />
-                      <BottomNav />
-                      <CategorySwitcherSheet categories={categories} />
-                      <CartDrawer />
-                    </CheckoutProvider>
-                  </ProductSheetProvider>
-                </SearchProvider>
-              </FavoritesProvider>
-            </CartProvider>
-          </CatalogProvider>
-        </OverlayProvider>
-      </ChromeProvider>
+      <SettingsProvider settings={settings}>
+        <ChromeProvider>
+          <OverlayProvider>
+            <CatalogProvider categories={categories} products={catalogProducts}>
+              <CartProvider>
+                <FavoritesProvider>
+                  <SearchProvider>
+                    <ProductSheetProvider>
+                      <CheckoutProvider>
+                        <RevealObserver />
+                        <Notice />
+                        <Header />
+                        <main id="top">
+                          {pathname === "/" ? (
+                            <HomePage categories={categories} />
+                          ) : category ? (
+                            <CategoryPage slug={decodeURIComponent(category)} categories={categories} />
+                          ) : (
+                            <StoreNotFound />
+                          )}
+                        </main>
+                        <Footer />
+                        <BottomNav />
+                        <CategorySwitcherSheet categories={categories} />
+                        <CartDrawer />
+                      </CheckoutProvider>
+                    </ProductSheetProvider>
+                  </SearchProvider>
+                </FavoritesProvider>
+              </CartProvider>
+            </CatalogProvider>
+          </OverlayProvider>
+        </ChromeProvider>
+      </SettingsProvider>
     </div>
   );
 }
@@ -214,6 +223,10 @@ function AdminApp({ pathname }: { pathname: string }) {
       </>
     );
   else if (pathname === "/admin/sync") page = <SyncPage />;
+  else if (pathname === "/admin/settings") page = <SettingsPage />;
+  else if (pathname === "/admin/reports") page = <ReportsPage />;
+  else if (pathname === "/admin/customers") page = <CustomersPage />;
+  else if (pathname === "/admin/arrange") page = <ArrangePage />;
   else page = <div className="empty">الصفحة دي مش موجودة</div>;
 
   return (

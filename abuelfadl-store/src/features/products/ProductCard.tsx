@@ -2,7 +2,8 @@
 
 import { memo, type CSSProperties } from "react";
 import { BESTSELLER_LABEL } from "@/lib/constants";
-import { formatPrice } from "@/lib/format";
+import { formatMoney, formatPrice } from "@/lib/format";
+import { discountPercent } from "@/lib/pricing";
 import type { CatalogProduct } from "@/features/catalog/CatalogProvider";
 import { FavoriteButton } from "./FavoriteButton";
 import { ProductAction } from "./ProductAction";
@@ -38,7 +39,11 @@ export const ProductCard = memo(function ProductCard({ product, index, tint }: P
         ) : (
           <span className="phl" aria-hidden="true" />
         )}
-        {product.bestseller && <span className="tag">{BESTSELLER_LABEL}</span>}
+        {product.oldPrice ? (
+          <span className="tag sale">خصم {discountPercent(product.oldPrice, product.price)}%</span>
+        ) : (
+          product.bestseller && <span className="tag">{BESTSELLER_LABEL}</span>
+        )}
         <FavoriteButton product={product} />
         <div className="act" data-act>
           <ProductAction product={product} />
@@ -50,6 +55,7 @@ export const ProductCard = memo(function ProductCard({ product, index, tint }: P
           <small>{fraction}</small>
         </span>
         {product.weighed && <span className="per">/ كيلو</span>}
+        {product.oldPrice ? <s aria-label={`بدل ${formatMoney(product.oldPrice)} جنيه`}>{formatMoney(product.oldPrice)}</s> : null}
       </div>
       <h3>{product.name}</h3>
       {product.inStock ? <div className="av">متوفر</div> : <div className="av no">غير متوفر حاليًا</div>}

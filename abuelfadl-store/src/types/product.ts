@@ -26,8 +26,14 @@ export interface Product {
   inStock: boolean;
   /** Shown with the "best seller" label. */
   bestseller: boolean;
-  /** Imported from the old store; not used by the v29 interface, kept so no data is lost. */
+  /** Offer switch from the dashboard. The offer shows only with a `salePrice` below `price` and within its dates. */
   offer: boolean;
+  /** Offer price in EGP (per kg for weighed products). The store shows `price` struck through next to it. */
+  salePrice?: number;
+  /** First day of the offer, "YYYY-MM-DD" (Cairo). Missing: starts now. */
+  offerStart?: string;
+  /** Last day of the offer, "YYYY-MM-DD" (Cairo), included. Missing: until it is turned off. */
+  offerEnd?: string;
   description?: string;
   /** Public path of the product photo, e.g. "/products/13221.webp". Missing when there is no photo yet. */
   imageUrl?: string;

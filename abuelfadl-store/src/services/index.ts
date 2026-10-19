@@ -8,4 +8,7 @@ import type { CatalogService } from "./contracts";
  */
 export const catalogService: CatalogService = serverCatalogService;
 
+/** Dashboard settings (minimum order, notice strip, WhatsApp, orders paused) for the store layout. */
+export { getSettings } from "../server/settings";
+
 export type { CatalogService, OrderService } from "./contracts";
