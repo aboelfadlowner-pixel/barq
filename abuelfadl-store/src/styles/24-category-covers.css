@@ -76,13 +76,15 @@
 .cvd-cream{left:57.90%;top:65.50%;width:25.45%;z-index:4;--dl:0.62s}
 @keyframes cvdRise{from{opacity:0;transform:translateY(16%)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}}
-/* Banner layout for the dairy cover: phone = products on top, title and line below; wide = products left, text right. */
-.cbanner.cv-dairy{min-height:268px;--cb:84px}
-.cbanner.cv-dairy .ct p{color:#3E5A47;font-weight:500;margin-top:2px}
+/* Banner layout for every category with a cover: phone = scene on top, title and line below;
+   wide = scene on the left, title and line on the right (the scene boxes .cv/.cvj/.cvd move into the left 60%). */
+.cbanner.has-cover .ct p{color:#3E5A47;font-weight:500;margin-top:2px;opacity:1}
+.cbanner.has-cover{min-height:268px;--cb:84px}
 @media(min-width:800px){
-  .cbanner.cv-dairy{min-height:330px}
-  .cbanner.cv-dairy .cvd{inset:10px 40% 0 3%;justify-content:center}
-  .cbanner.cv-dairy .ct{top:0;bottom:0;inset-inline:0 auto;width:40%;display:flex;flex-direction:column;justify-content:center;padding:0 48px}
-  .cbanner.cv-dairy .ct h1{font-size:3.2rem}
-  .cbanner.cv-dairy .ct p{font-size:1.15rem}
+  .cbanner.has-cover{min-height:330px}
+  .cbanner.has-cover :is(.cv,.cvj,.cvd){inset:10px 40% 0 3%;justify-content:center}
+  .cbanner.has-cover .cv{inset-block:0 34px;--ch:min(230px,17.5cqw)}
+  .cbanner.has-cover .ct{top:0;bottom:0;inset-inline:0 auto;width:40%;display:flex;flex-direction:column;justify-content:center;padding:0 48px}
+  .cbanner.has-cover .ct h1{font-size:3.2rem}
+  .cbanner.has-cover .ct p{font-size:1.15rem}
 }
