@@ -1,4 +1,5 @@
 import { categories as seedCategories } from "../data/categories";
+import { DEFAULT_SETTINGS } from "../lib/settings";
 import { products as seedProducts } from "../data/products";
 import { productSkus } from "../data/skus";
 import type { Category } from "../types/category";
@@ -34,7 +35,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 3;
+const SCHEMA = 4;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -60,6 +61,12 @@ export function upgradeStore(data: StoreData): StoreData {
       if (category.id !== "dairy") continue;
       if (!category.imageUrl) category.imageUrl = CATEGORY_IMAGES.dairy;
       if (!category.iconUrl) category.iconUrl = CATEGORY_ICONS.dairy;
+    }
+  }
+  if ((data.schema ?? 1) < 4) {
+    // Map link of the main branch, for settings saved before it was known.
+    for (const branch of data.settings?.branches ?? []) {
+      if (!branch.mapUrl && branch.address.includes("السماليهي")) branch.mapUrl = DEFAULT_SETTINGS.branches[0].mapUrl;
     }
   }
   data.schema = SCHEMA;

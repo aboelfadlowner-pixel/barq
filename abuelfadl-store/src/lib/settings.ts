@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   tiktok: "",
   workHours: "يوميًا من 7 الصبح لـ 3 الفجر",
   deliveryHours: "يوميًا من 2 الضهر لـ 1:30 بالليل",
-  branches: [{ name: "البيطاش (الفرع الرئيسي)", address: "شارع السماليهي 1، البيطاش", mapUrl: "" }],
+  branches: [{ name: "البيطاش (الفرع الرئيسي)", address: "شارع السماليهي 1، البيطاش", mapUrl: "https://maps.app.goo.gl/uZ3ZrZA4WM4Ggjye7" }],
 };
 
 /** Saved settings completed with the defaults (older data files miss the fields added later). */
