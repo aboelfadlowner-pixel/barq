@@ -44,24 +44,37 @@ export function Dashboard() {
               <span>طلبات النهارده</span>
               <b className="num">{stats.todayOrders}</b>
             </div>
-            <div className="card stat">
-              <span>مبيعات النهارده</span>
-              <b className="num">{egp(stats.todayRevenue)}</b>
-            </div>
-            <div className="card stat">
-              <span>متوسط الطلب</span>
-              <b className="num">{egp(stats.averageOrder)}</b>
-            </div>
-            <Link className={`card stat${stats.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
-              <span>منتجات مش مربوطة بشيت Foodics</span>
-              <b className="num">{stats.unlinkedProducts}</b>
-            </Link>
-            <Link className={`card stat${stats.outOfStock ? " alert-stat" : ""}`} href="/admin/products?stock=out">
-              <span>منتجات خلصانة</span>
-              <b className="num" dir="ltr" style={{ textAlign: "right" }}>
-                {stats.outOfStock} <small className="muted">/ {stats.products}</small>
-              </b>
-            </Link>
+            {stats.role === "admin" ? (
+              <>
+                <div className="card stat">
+                  <span>مبيعات النهارده</span>
+                  <b className="num">{egp(stats.todayRevenue ?? 0)}</b>
+                </div>
+                <div className="card stat">
+                  <span>متوسط الطلب</span>
+                  <b className="num">{egp(stats.averageOrder ?? 0)}</b>
+                </div>
+              </>
+            ) : (
+              <Link className="card stat" href="/admin/orders">
+                <span>كل الطلبات</span>
+                <b className="num">{stats.totalOrders}</b>
+              </Link>
+            )}
+            {stats.role === "admin" ? (
+              <>
+                <Link className={`card stat${stats.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
+                  <span>منتجات مش مربوطة بشيت Foodics</span>
+                  <b className="num">{stats.unlinkedProducts}</b>
+                </Link>
+                <Link className={`card stat${stats.outOfStock ? " alert-stat" : ""}`} href="/admin/products?stock=out">
+                  <span>منتجات خلصانة</span>
+                  <b className="num" dir="ltr" style={{ textAlign: "right" }}>
+                    {stats.outOfStock} <small className="muted">/ {stats.products}</small>
+                  </b>
+                </Link>
+              </>
+            ) : null}
           </div>
 
           <div className="card">

@@ -2,6 +2,7 @@ import { isWithinHours, outsideHoursMessage } from "../lib/hours";
 import { withDefaults } from "../lib/settings";
 import { cairoToday, sellingPrice } from "../lib/pricing";
 import { isAllowedQuantity } from "../lib/quantity";
+import type { Role } from "../types/auth";
 import { ORDER_STATUSES, type OrderLine, type OrderStatus, type StoredOrder } from "../types/order";
 import { mutate, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
@@ -141,26 +142,39 @@ export function updateOrder(id: number, input: { status?: unknown; staffNote?: u
 }
 
 /** Numbers for the dashboard home. "Today" is the Cairo calendar day. */
-export async function getStats() {
+/** Dashboard home numbers. The call center gets the order counts only (no sales, products or price sync). */
+export interface DashboardStats {
+  role: Role;
+  todayOrders: number;
+  totalOrders: number;
+  latestOrders: StoredOrder[];
+  todayRevenue?: number;
+  averageOrder?: number;
+  byStatus?: Record<OrderStatus, number>;
+  products?: number;
+  outOfStock?: number;
+  unlinkedProducts?: number;
+  lastSync?: string | null;
+}
+
+export async function getStats(role: Role): Promise<DashboardStats> {
   const { orders, products, syncLog = [] } = await read();
   const cairoDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const today = cairoDay(new Date().toISOString());
   const todays = orders.filter((order) => cairoDay(order.createdAt) === today && order.status !== "cancelled");
   const byStatus = Object.fromEntries(ORDER_STATUSES.map((status) => [status, 0])) as Record<OrderStatus, number>;
   for (const order of orders) byStatus[order.status] += 1;
+  const counts = { role, todayOrders: todays.length, totalOrders: orders.length, latestOrders: orders.slice(-5).reverse() };
+  if (role !== "admin") return counts;
   return {
-    todayOrders: todays.length,
+    ...counts,
     // Sales = products (delivery fees are not sales).
     todayRevenue: round2(todays.reduce((sum, order) => sum + productsOf(order), 0)),
     averageOrder: todays.length ? round2(todays.reduce((sum, order) => sum + productsOf(order), 0) / todays.length) : 0,
     byStatus,
-    totalOrders: orders.length,
     products: products.length,
     outOfStock: products.filter((product) => !product.inStock).length,
     unlinkedProducts: products.filter((product) => !product.sku).length,
     lastSync: syncLog.at(-1)?.at ?? null,
-    latestOrders: orders.slice(-5).reverse(),
   };
 }
-
-export type DashboardStats = Awaited<ReturnType<typeof getStats>>;

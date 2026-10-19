@@ -4,21 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DashboardStats } from "@/server/orders";
+import { ROLE_LABELS } from "@/types/auth";
 import { api } from "./api";
 import { AlertToggle, useNewOrderAlert } from "./NewOrderAlert";
 import { Ic } from "./ui";
 
-/** `main` links stay in the phone's bottom bar; the others open from «المزيد». */
+/** `main` links stay in the phone's bottom bar; the others open from «المزيد». `admin` links are hidden from the call center. */
 const LINKS = [
   { href: "/admin", label: "الرئيسية", icon: "home", main: true },
   { href: "/admin/orders", label: "الطلبات", icon: "orders", main: true },
-  { href: "/admin/products", label: "المنتجات", icon: "box", main: true },
+  { href: "/admin/products", label: "المنتجات", icon: "box", main: true, admin: true },
   { href: "/admin/customers", label: "العملاء", icon: "users", main: true },
-  { href: "/admin/reports", label: "التقارير", icon: "chart" },
-  { href: "/admin/arrange", label: "ترتيب المنتجات", icon: "sort" },
-  { href: "/admin/categories", label: "الأقسام", icon: "tag" },
-  { href: "/admin/sync", label: "الأسعار", icon: "sync" },
-  { href: "/admin/settings", label: "الإعدادات", icon: "gear" },
+  { href: "/admin/reports", label: "التقارير", icon: "chart", admin: true },
+  { href: "/admin/arrange", label: "ترتيب المنتجات", icon: "sort", admin: true },
+  { href: "/admin/categories", label: "الأقسام", icon: "tag", admin: true },
+  { href: "/admin/sync", label: "الأسعار", icon: "sync", admin: true },
+  { href: "/admin/settings", label: "الإعدادات", icon: "gear", admin: true },
 ];
 
 /** How often the today's-orders counter (and the new-order alert) refreshes. */
@@ -53,7 +54,9 @@ export function AdminNav() {
 
   const isOn = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   const todayOrders = stats?.todayOrders ?? 0;
-  const moreOn = LINKS.some((link) => !link.main && isOn(link.href));
+  // Until the role is known only the links both roles share are shown.
+  const links = LINKS.filter((link) => !link.admin || stats?.role === "admin");
+  const moreOn = links.some((link) => !link.main && isOn(link.href));
 
   return (
     <aside className="adm-side">
@@ -61,11 +64,11 @@ export function AdminNav() {
         <img src="/images/logo-icon.png" alt="" />
         <div>
           أبو الفضل
-          <small>لوحة التحكم</small>
+          <small>لوحة التحكم{stats ? ` · ${ROLE_LABELS[stats.role]}` : ""}</small>
         </div>
       </div>
       <nav className={moreOpen ? "adm-nav more-open" : "adm-nav"}>
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <Link key={link.href} href={link.href} className={`${isOn(link.href) ? "on" : ""}${link.main ? "" : " extra"}`.trim() || undefined}>
             <Ic name={link.icon} />
             {link.label}

@@ -1,19 +1,28 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import type { Role } from "../types/auth";
 import { ApiError } from "./errors";
 
 /**
- * Admin login: one shared password (env `ADMIN_PASSWORD`) and a signed session cookie.
- * Good enough while there is one admin team and no database; replace with per-user accounts later.
+ * Dashboard login: one password per role and a signed session cookie that carries the role.
+ * `ADMIN_PASSWORD` opens everything; `CALLCENTER_PASSWORD` opens the orders side only (see `Role`).
+ * Good enough while there is no database; replace with per-user accounts later.
  *
- * In development, if `ADMIN_PASSWORD` is not set, the password is "admin" so the dashboard can be tried right away.
- * In production the login is refused until `ADMIN_PASSWORD` is set.
+ * In development, unset passwords default to "admin" and "callcenter" so the dashboard can be tried right away.
+ * In production a role cannot log in until its password is set.
  */
 export const SESSION_COOKIE = "af_admin";
 const SESSION_DAYS = 7;
 
+const isProduction = () => process.env.NODE_ENV === "production";
+
 function adminPassword(): string | null {
-  return process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === "production" ? null : "admin");
+  return process.env.ADMIN_PASSWORD || (isProduction() ? null : "admin");
+}
+
+function callCenterPassword(): string | null {
+  return process.env.CALLCENTER_PASSWORD || (isProduction() ? null : "callcenter");
 }
 
 /** Signing key: `ADMIN_SESSION_SECRET`, or derived from the password (changing the password then logs everyone out). */
@@ -30,33 +39,52 @@ function safeEqual(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function checkPassword(password: string): boolean {
-  const expected = adminPassword();
-  if (!expected) throw new ApiError(503, "لوحة التحكم غير مفعّلة: لازم يتحط ADMIN_PASSWORD في إعدادات السيرفر");
-  return safeEqual(password, expected);
+/** The role whose password this is, or null. */
+export function checkPassword(password: string): Role | null {
+  const admin = adminPassword();
+  if (!admin) throw new ApiError(503, "لوحة التحكم غير مفعّلة: لازم يتحط ADMIN_PASSWORD في إعدادات السيرفر");
+  if (safeEqual(password, admin)) return "admin";
+  const callCenter = callCenterPassword();
+  return callCenter && safeEqual(password, callCenter) ? "callcenter" : null;
 }
 
-/** Cookie value: "<expiry ms>.<signature>". */
-export function createSessionToken(): { value: string; maxAge: number } {
+/** Cookie value: "<expiry ms>.<role>.<signature>". */
+export function createSessionToken(role: Role): { value: string; maxAge: number } {
   const key = secret();
   if (!key) throw new ApiError(503, "لوحة التحكم غير مفعّلة");
   const maxAge = SESSION_DAYS * 24 * 60 * 60;
-  const expires = String(Date.now() + maxAge * 1000);
-  return { value: `${expires}.${sign(expires, key)}`, maxAge };
+  const payload = `${Date.now() + maxAge * 1000}.${role}`;
+  return { value: `${payload}.${sign(payload, key)}`, maxAge };
 }
 
-function isValidToken(token: string | undefined): boolean {
+function roleFromToken(token: string | undefined): Role | null {
   const key = secret();
-  if (!token || !key) return false;
-  const [expires, signature] = token.split(".");
-  return Boolean(expires && signature) && Number(expires) > Date.now() && safeEqual(signature, sign(expires, key));
+  if (!token || !key) return null;
+  const [expires, role, signature] = token.split(".");
+  if (!expires || !signature || (role !== "admin" && role !== "callcenter")) return null;
+  return Number(expires) > Date.now() && safeEqual(signature, sign(`${expires}.${role}`, key)) ? role : null;
 }
 
-export async function isAdmin(): Promise<boolean> {
-  return isValidToken((await cookies()).get(SESSION_COOKIE)?.value);
+/** The signed-in role, or null when there is no valid session. */
+export async function getRole(): Promise<Role | null> {
+  return roleFromToken((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
-/** Throws 401 unless the request carries a valid admin session. Call at the top of every /api/admin handler. */
+/** Throws 401 without a session, 403 for the call center. For every admin-only /api/admin handler. */
 export async function requireAdmin(): Promise<void> {
-  if (!(await isAdmin())) throw new ApiError(401, "لازم تسجّل دخول الأول");
+  const role = await getRole();
+  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
+  if (role !== "admin") throw new ApiError(403, "الصفحة دي للأدمن بس");
+}
+
+/** Throws 401 without a session; returns the role. For the handlers the call center uses too (orders, customers, stats). */
+export async function requireStaff(): Promise<Role> {
+  const role = await getRole();
+  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
+  return role;
+}
+
+/** For admin-only dashboard pages: the call center is sent to the orders. (The panel layout handles signed-out users.) */
+export async function adminOnlyPage(): Promise<void> {
+  if ((await getRole()) !== "admin") redirect("/admin/orders");
 }

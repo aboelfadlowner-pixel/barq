@@ -162,10 +162,16 @@ Admin (needs the session cookie from `/api/admin/login`, otherwise 401):
 
 Orders keep a copy of each product's name and price, so editing the catalog later never changes old orders.
 
-### Admin login
-- Development: password `admin` unless `ADMIN_PASSWORD` is set in `.env.local`.
-- Production: set `ADMIN_PASSWORD` (and optionally `ADMIN_SESSION_SECRET`) in Vercel → Settings → Environment Variables. Without it the login is refused.
-- One shared password for now; per-user accounts and roles come with the database.
+### Dashboard login and roles
+- Two roles, one password each (`src/server/auth.ts`, `src/types/auth.ts`):
+  - **admin** (`ADMIN_PASSWORD`): everything.
+  - **callcenter** (`CALLCENTER_PASSWORD`): home (order counts only), orders (view, print, internal note), customers and
+    the new-order alert. Admin-only API handlers answer 403 (`requireAdmin`); admin-only pages redirect to the orders
+    (`adminOnlyPage`); shared handlers use `requireStaff`.
+- Development: `admin` / `callcenter` unless set in `.env.local`.
+- Production: set both in Vercel → Settings → Environment Variables (and optionally `ADMIN_SESSION_SECRET`).
+  Without `ADMIN_PASSWORD` nobody can log in; without `CALLCENTER_PASSWORD` the call center cannot.
+- Per-employee accounts come with the database.
 
 ### Foodics SKU linking and prices (B2)
 - Every product has an optional `sku` (`sk-1234`, unique). 344 of the 621 products got theirs from the WooCommerce export

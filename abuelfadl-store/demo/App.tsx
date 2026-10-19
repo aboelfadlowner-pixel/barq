@@ -49,7 +49,7 @@ import { ReportsPage } from "@/features/admin/ReportsPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { ToastProvider } from "@/features/admin/ui";
 import type { Category } from "@/types/category";
-import { isAdminSync } from "./server/auth";
+import { getRoleSync } from "./server/auth";
 import { resetData, snapshot } from "./server/db";
 
 /** Switches between the store and dashboard stylesheets, like the full page load between the two Next.js root layouts. */
@@ -200,14 +200,20 @@ function StoreNotFound() {
 
 function AdminApp({ pathname }: { pathname: string }) {
   const params = useSearchParams();
-  const loggedIn = isAdminSync();
+  const role = getRoleSync();
+  const loggedIn = role !== null;
   const isLogin = pathname === "/admin/login";
+  // Pages open to the call center too (see `adminOnlyPage` in src/server/auth.ts for the real app).
+  const staffPage = pathname === "/admin" || pathname.startsWith("/admin/orders") || pathname === "/admin/customers";
+  const blocked = loggedIn && !isLogin && role !== "admin" && !staffPage;
 
-  // Same rules as the two admin layouts: the login page sends signed-in users on, every other page needs a session.
+  // Same rules as the admin layouts: the login page sends signed-in users on, every other page needs a session,
+  // and admin-only pages send the call center to the orders.
   useLayoutEffect(() => {
     if (isLogin && loggedIn) navigate(params.get("next")?.startsWith("/admin") ? params.get("next")! : "/admin");
     if (!isLogin && !loggedIn) navigate("/admin/login");
-  }, [isLogin, loggedIn, params]);
+    if (blocked) navigate("/admin/orders");
+  }, [isLogin, loggedIn, blocked, params]);
 
   if (isLogin) {
     const next = params.get("next");
@@ -217,7 +223,7 @@ function AdminApp({ pathname }: { pathname: string }) {
       </ToastProvider>
     );
   }
-  if (!loggedIn) return null;
+  if (!loggedIn || blocked) return null;
 
   const id = pathname.match(/^\/admin\/(?:orders|products)\/([^/]+)$/)?.[1];
   let page: React.ReactNode;

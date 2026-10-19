@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { AdminNav } from "@/features/admin/AdminNav";
-import { isAdmin } from "@/server/auth";
+import { getRole } from "@/server/auth";
 
-/** Every dashboard page except the login: requires an admin session. (The API checks the session again on every call.) */
+/** Every dashboard page except the login: requires a session (admin or call center; admin-only pages check again). (The API checks the session again on every call.) */
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  if (!(await isAdmin())) redirect("/admin/login");
+  if (!(await getRole())) redirect("/admin/login");
   return (
     <div className="adm">
       <AdminNav />
