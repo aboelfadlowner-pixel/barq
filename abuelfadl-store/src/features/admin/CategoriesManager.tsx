@@ -111,7 +111,9 @@ function CategoryRow({
   const [tint, setTint] = useState(category.tint);
   const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
   const [iconUrl, setIconUrl] = useState(category.iconUrl ?? "");
+  const [tagline, setTagline] = useState(category.tagline ?? "");
   const dirty =
+    tagline.trim() !== (category.tagline ?? "") ||
     name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase() ||
     imageUrl.trim() !== (category.imageUrl ?? "") ||
     iconUrl.trim() !== (category.iconUrl ?? "");
@@ -136,6 +138,16 @@ function CategoryRow({
           </Link>
           {!imageUrl.trim() ? <span className="badge gold">بدون صورة</span> : null}
         </div>
+        <small className="muted cat-tagline-label">جملة القسم (تحت اسمه في صفحته)</small>
+        <input
+          className="input cat-tagline"
+          dir="auto"
+          placeholder="اختياري، مثلًا: Fresh Dairy, Every Day"
+          value={tagline}
+          onChange={(e) => setTagline(e.target.value)}
+          aria-label="جملة القسم تحت اسمه في صفحته"
+          maxLength={80}
+        />
         <div className="cat-images">
           <div>
             <small className="muted">صورة الكارت في الرئيسية (طولية 4:5)</small>
@@ -155,7 +167,7 @@ function CategoryRow({
         ))}
       </select>
       <input className="color-input" type="color" value={tint} onChange={(e) => setTint(e.target.value.toUpperCase())} aria-label="لون الخلفية" />
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim() })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim() })}>
         حفظ
       </button>
       <button
@@ -173,7 +185,7 @@ function CategoryRow({
 }
 
 function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
-  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "", iconUrl: "" });
+  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "", iconUrl: "", tagline: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -213,6 +225,9 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
           </div>
         </Field>
       </div>
+      <Field label="جملة القسم" error={errors.tagline} hint="اختياري: تظهر تحت اسم القسم في صفحته، بالعربي أو بالإنجليزي.">
+        <input className="input" dir="auto" value={form.tagline} maxLength={80} onChange={(e) => setForm({ ...form, tagline: e.target.value })} placeholder="مثلًا: Fresh Dairy, Every Day" />
+      </Field>
       <div className="grid2">
         <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، تظهر في «تسوّق حسب القسم».">
           <ImagePicker value={form.imageUrl} onChange={(url) => setForm({ ...form, imageUrl: url })} shape="tall" compact />

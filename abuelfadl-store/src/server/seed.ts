@@ -14,11 +14,18 @@ const CATEGORY_IMAGES: Record<string, string> = {
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
 };
+/** Lines under the names of the categories that have a cover (editable from the dashboard). */
+const CATEGORY_TAGLINES: Record<string, string> = {
+  dairy: "Fresh Dairy, Every Day",
+  sandwich: "Freshly Made, Generously Filled",
+  juice: "100% Fresh, Nothing Added",
+};
 
 const withImages = (category: Category): Category => ({
   ...category,
   ...(CATEGORY_IMAGES[category.id] ? { imageUrl: CATEGORY_IMAGES[category.id] } : {}),
   ...(CATEGORY_ICONS[category.id] ? { iconUrl: CATEGORY_ICONS[category.id] } : {}),
+  ...(CATEGORY_TAGLINES[category.id] ? { tagline: CATEGORY_TAGLINES[category.id] } : {}),
 });
 
 /** First contents of the data store: the v29 catalog with the Foodics SKUs from the WooCommerce export. */
@@ -43,7 +50,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 7;
+const SCHEMA = 8;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -88,6 +95,12 @@ export function upgradeStore(data: StoreData): StoreData {
     // The store texts moved from colloquial to simplified Arabic: replace the old defaults that were never edited.
     for (const [key, old] of Object.entries(OLD_DEFAULT_TEXTS) as [keyof typeof OLD_DEFAULT_TEXTS, string][]) {
       if (data.settings[key] === old) data.settings[key] = DEFAULT_SETTINGS[key];
+    }
+  }
+  if ((data.schema ?? 1) < 8) {
+    // Category lines moved from the code into the data, so they can be edited from the dashboard.
+    for (const category of data.categories) {
+      if (category.tagline === undefined && CATEGORY_TAGLINES[category.id]) category.tagline = CATEGORY_TAGLINES[category.id];
     }
   }
   data.schema = SCHEMA;

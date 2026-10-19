@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
+import { getCategoryCover } from "@/features/products/CategoryCover";
 import { CategorySwitcherButton } from "@/features/products/CategorySwitcher";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
@@ -32,7 +32,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   if (!category) notFound();
 
   const cover = getCategoryCover(slug);
-  const tagline = getCategoryTagline(slug);
+  const tagline = category.tagline;
 
   return (
     <div id="viewCat">

@@ -28,7 +28,7 @@ import { FavoritesProvider } from "@/features/products/FavoritesProvider";
 import { SettingsProvider } from "@/features/settings/SettingsProvider";
 import { toCatalogProduct } from "@/lib/pricing";
 import { withDefaults } from "@/lib/settings";
-import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
+import { getCategoryCover } from "@/features/products/CategoryCover";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { ContactPage } from "@/features/contact/ContactPage";
 import { OffersBanner, OffersStrip } from "@/features/offers/OffersStrip";
@@ -150,7 +150,7 @@ function CategoryPage({ slug, categories, offersTitle }: { slug: string; categor
     slug === ALL_SLUG ? ALL_CATEGORY : slug === OFFERS_SLUG ? { id: OFFERS_SLUG, name: offersTitle, art: "", tint: "" } : categories.find((c) => c.id === slug);
   if (!category) return <StoreNotFound />;
   const cover = getCategoryCover(slug);
-  const tagline = getCategoryTagline(slug);
+  const tagline = category.tagline;
   return (
     <div id="viewCat" key={slug}>
       <div className="wrap" style={{ paddingBottom: 40 }}>

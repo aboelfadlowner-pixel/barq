@@ -139,17 +139,6 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   dairy: DairyCover,
 };
 
-/** Short line under the category title, for categories whose cover has one. */
-const TAGLINES: Record<string, string> = {
-  dairy: "Fresh Dairy, Every Day",
-  sandwich: "Freshly Made, Generously Filled",
-  juice: "100% Fresh, Nothing Added",
-};
-
-export function getCategoryTagline(slug: string): string | null {
-  return TAGLINES[slug] ?? null;
-}
-
 /** The animated cover of a category, or null when the category has none. */
 export function getCategoryCover(slug: string): React.JSX.Element | null {
   const Cover = COVERS[slug];

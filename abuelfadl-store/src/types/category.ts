@@ -16,4 +16,6 @@ export interface Category {
    * Falls back to `imageUrl`, then to the illustration `art`.
    */
   iconUrl?: string;
+  /** Short line under the category name on its page, e.g. "Fresh Dairy, Every Day" (dashboard «جملة القسم»). */
+  tagline?: string;
 }

@@ -248,3 +248,5 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .img-actions{display:flex;flex-wrap:wrap;gap:6px}
 .img-pick .err{color:var(--danger);font-size:13px}
 .img-pick .hint{color:var(--muted);font-size:12px}
+.cat-tagline-label{display:block;margin-top:8px}
+.cat-tagline{margin-top:2px;font-size:13px;padding:6px 10px}
