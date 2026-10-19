@@ -125,9 +125,9 @@ export function ProductsList() {
           ))}
         </select>
         <select className="select" value={stock} onChange={(e) => setFilter("stock", e.target.value)} aria-label="المخزون">
-          <option value="">متوفر وغير متوفر</option>
+          <option value="">كل الحالات</option>
           <option value="in">متوفر</option>
-          <option value="out">خلصان</option>
+          <option value="out">غير متوفر</option>
         </select>
         <select className="select" value={linked} onChange={(e) => setFilter("linked", e.target.value)} aria-label="الربط بشيت Foodics">
           <option value="">مربوط وغير مربوط</option>
@@ -195,7 +195,7 @@ export function ProductsList() {
                         <input
                           type="checkbox"
                           checked={product.inStock}
-                          onChange={(e) => quickSave(product, { inStock: e.target.checked }, e.target.checked ? "بقى متوفر" : "اتعلّم خلصان")}
+                          onChange={(e) => quickSave(product, { inStock: e.target.checked }, e.target.checked ? "أصبح متوفرًا" : "أصبح غير متوفر")}
                         />
                       </label>
                     </td>
@@ -254,11 +254,11 @@ function BulkBar({
         </button>
       </div>
       <div className="row bulk-actions">
-        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: true }, "بقوا متوفرين")}>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: true }, "أصبحت متوفرة")}>
           متوفر
         </button>
-        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: false }, "اتعلّموا خلصانين")}>
-          خلصان
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: false }, "أصبحت غير متوفرة")}>
+          غير متوفر
         </button>
         <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: true }, "اتعلّموا «الأكثر مبيعًا»")}>
           + الأكثر مبيعًا

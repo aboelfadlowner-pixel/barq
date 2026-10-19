@@ -59,7 +59,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     for (const item of items) {
       const product = byId.get(Number(item.productId));
       if (!product) throw new ApiError(409, "فيه منتج في السلة مبقاش موجود. حدّث الصفحة وجرّب تاني.");
-      if (!product.inStock) throw new ApiError(409, `«${product.name}» خلص حاليًا. شيله من السلة وكمّل.`);
+      if (!product.inStock) throw new ApiError(409, `«${product.name}» غير متوفر حاليًا. احذفه من السلة وأكمل طلبك.`);
       const quantity = Number(item.quantity);
       // Pieces: 1 to 20. Weighed: from the product's minimum, in its steps, up to its maximum (dashboard settings).
       if (!isAllowedQuantity(product, quantity)) {

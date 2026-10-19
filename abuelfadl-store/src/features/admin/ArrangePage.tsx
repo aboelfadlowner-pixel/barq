@@ -142,7 +142,7 @@ export function ArrangePage() {
                     <b>{product.name}</b>
                     <div className="row" style={{ gap: 6 }}>
                       <small className="muted num">{egp(product.price)}</small>
-                      {!product.inStock ? <span className="badge red">خلصان</span> : null}
+                      {!product.inStock ? <span className="badge red">غير متوفر</span> : null}
                     </div>
                   </div>
                   <button

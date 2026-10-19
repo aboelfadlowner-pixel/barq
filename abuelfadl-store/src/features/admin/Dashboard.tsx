@@ -68,7 +68,7 @@ export function Dashboard() {
                   <b className="num">{stats.unlinkedProducts}</b>
                 </Link>
                 <Link className={`card stat${stats.outOfStock ? " alert-stat" : ""}`} href="/admin/products?stock=out">
-                  <span>منتجات خلصانة</span>
+                  <span>منتجات غير متوفرة</span>
                   <b className="num" dir="ltr" style={{ textAlign: "right" }}>
                     {stats.outOfStock} <small className="muted">/ {stats.products}</small>
                   </b>
