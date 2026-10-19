@@ -5,3 +5,4 @@
 .bnav .ico{width:24px;height:24px}
 .bnav .cc{top:4px;inset-inline-start:calc(50% + 4px)}
 @media(min-width:900px){.bnav{display:none}}
+.bnav button{white-space:nowrap;min-width:0;padding-inline:2px}

@@ -9,16 +9,17 @@ import { useChrome } from "./ChromeProvider";
 
 /**
  * Mobile bottom navigation (shown by the CSS below 900px).
- * home / cats / cart / account / search behave as in v29.
+ * home / cats / cart / search behave as in v29; the fourth slot (v29 "account") opens «اتصل بنا».
  */
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { searchOpen, setSearchOpen, showToast } = useChrome();
+  const { searchOpen, setSearchOpen } = useChrome();
   const { count } = useCart();
   const { openCart } = useCartDrawer();
   const onHome = pathname === "/";
   const onCategory = pathname.startsWith("/category");
+  const onContact = pathname === "/contact";
 
   const goHome = () => {
     if (onHome) instantScroll(() => window.scrollTo(0, 0));
@@ -52,9 +53,10 @@ export function BottomNav() {
           {count}
         </span>
       </button>
-      <button type="button" onClick={() => showToast("تسجيل الدخول يتفعّل عند ربط الموقع بنظام الحسابات")}>
-        <Icon id="i-user" />
-        حسابي
+      {/* «حسابي» comes back here when customer accounts exist; until then the slot opens the contact page. */}
+      <button type="button" className={onContact ? "on" : undefined} onClick={() => router.push("/contact")}>
+        <Icon id="i-phone" />
+        تواصل معنا
       </button>
       <button type="button" onClick={toggleSearch}>
         <Icon id="i-search" />
