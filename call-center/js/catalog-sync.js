@@ -30,10 +30,12 @@ export function syncCatalog({ manual = false } = {}) {
     patch({ busy: true });
     const result = { pulled: false, pulledAt: null, nextPullInMs: 0, added: 0, changed: 0, failed: null };
     try {
+      // "by weight / by unit" and categories (call-center only) run alongside the data-center pull.
+      const saleUnits = ds.syncSaleUnits().catch(() => null);
       let log = await ds.lastDataCenterSync().catch(() => null);
-      if (log && ago(log.pulledAt) >= PULL_GAP_MS && !manual) {
+      if (log && log.pulledAt && ago(log.pulledAt) >= PULL_GAP_MS && !manual) {
         // Two screens checking at the same moment: wait a little and look again before pulling.
-        await new Promise((r) => setTimeout(r, Math.random() * 15000));
+        await new Promise((r) => setTimeout(r, Math.random() * 8000));
         log = await ds.lastDataCenterSync().catch(() => null);
       }
       if (log && ago(log.pulledAt) >= PULL_GAP_MS) {
@@ -48,7 +50,7 @@ export function syncCatalog({ manual = false } = {}) {
       }
       result.pulledAt = log?.pulledAt ?? null;
       result.nextPullInMs = Math.max(0, PULL_GAP_MS - ago(result.pulledAt));
-      await ds.syncSaleUnits().catch(() => null);
+      await saleUnits;
 
       const before = signature();
       await reloadProducts();

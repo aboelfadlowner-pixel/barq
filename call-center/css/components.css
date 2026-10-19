@@ -557,12 +557,16 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 @media (max-width: 600px) { .role-pill-admin { display: none; } }
 
 /* ---------- Preparation screen (branch) ---------- */
-.prep-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.prep-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 1400px) { .prep-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .p-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .p-col-body { display: flex; flex-direction: column; gap: 12px; min-height: 260px; padding: 10px; border-radius: var(--radius); background: #eef3f0; }
 .tone-head-new .b-count { background: var(--green-600); color: #fff; }
 .tone-head-preparing .b-count { background: #b7791f; color: #fff; }
 .tone-head-at_cashier .b-count { background: var(--purple); color: #fff; }
+.tone-head-out .b-count { background: var(--green-700); color: #fff; }
+.po-out { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--green-700); font-weight: 600; }
+.po-out .svg-icon { width: 16px; height: 16px; }
 .p-order { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
 .p-order.is-cancelled { border-color: var(--danger); background: var(--danger-50); }
 .p-order.is-cancelled .po-items { text-decoration: line-through; opacity: .6; }
@@ -573,7 +577,8 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .po-cancel { display: flex; gap: 8px; color: var(--danger); font-size: 14px; }
 .po-cancel .svg-icon { width: 18px; height: 18px; flex-shrink: 0; }
 .po-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 15.5px; }
-.po-items li { padding: 6px 8px; border-radius: 8px; background: var(--surface); }
+.po-items li { padding: 6px 8px; border-radius: 8px; background: var(--surface); display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.po-items li .pi-note { flex-basis: 100%; }
 .pi-amount { display: inline-block; min-width: 54px; color: var(--green-700); }
 .pi-name { font-weight: 800; }
 .pi-note { margin-top: 3px; font-size: 13px; color: var(--warn); display: flex; gap: 4px; align-items: center; }

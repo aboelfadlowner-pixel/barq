@@ -113,12 +113,14 @@ function prepCard(o, busy, checks = {}) {
   const next = cancelled ? null : nextOf(o.stage);
   const prev = cancelled ? null : prevOf(o.stage);
   const since = { preparing: o.preparingAt, at_cashier: o.atCashierAt }[o.stage];
+  const out = o.stage === 'out';
+  const canTick = !cancelled && !out;   // an order that left is for reference only
   const a = o.address;
   return `
     <article class="p-order ${cancelled ? 'is-cancelled' : ''} ${editUnseen(o) ? 'is-edited' : ''}" data-oid="${esc(o.id)}">
       <header class="po-head">
         <strong class="po-no num">#${esc(o.number)}</strong>
-        ${!cancelled && o.items.length ? `<span class="po-progress ${checkedCount(o, checks) === o.items.length ? 'is-full' : ''}">تم <span class="num">${checkedCount(o, checks)}</span> من <span class="num">${o.items.length}</span></span>` : ''}
+        ${canTick && o.items.length ? `<span class="po-progress ${checkedCount(o, checks) === o.items.length ? 'is-full' : ''}">تم <span class="num">${checkedCount(o, checks)}</span> من <span class="num">${o.items.length}</span></span>` : ''}
         <span class="po-time">${icon('clock')}<span class="num">${formatTime(o.createdAt)}</span> · ${formatRelative(o.createdAt)}</span>
       </header>
       ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>الطلب ده اتلغى — متكملش تجهيزه</strong>
@@ -128,13 +130,14 @@ function prepCard(o, busy, checks = {}) {
         <ul>${(o.editChanges || []).map(changeLine).join('')}</ul>
         <button type="button" class="btn btn-soft po-ack" data-ack ${busy ? 'disabled' : ''}>${icon('check')}شُفت التعديل</button>
       </div>` : ''}
-      <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, !cancelled)).join('')}</ul>
+      <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, canTick)).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
         ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} من ${formatRelative(since)}</div>` : ''}
+      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
       ${prev ? `<button type="button" class="link-btn po-back" data-back="${prev.id}" ${busy ? 'disabled' : ''}>رجوع لـ «${esc(prev.label)}»</button>` : ''}
@@ -166,7 +169,6 @@ export function mountPrep(view) {
         </div>
       </div>
       <div class="prep-cols" data-cols><p class="muted">جارٍ التحميل…</p></div>
-      <details class="card card-pad prep-out" data-out><summary></summary><div data-out-list></div></details>
     </div></div>`;
 
   const cols = view.querySelector('[data-cols]');
@@ -191,15 +193,12 @@ export function mountPrep(view) {
     const by = (stage) => orders.filter((o) => (o.stage || 'new') === stage && stage !== 'out'
       && (o.status !== 'cancelled' || recent(o.cancelledAt)))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId) + column('at_cashier', by('at_cashier'), busyId);
+    // CONFIRMED: the orders that left with the driver (this working day) stay in their own column, newest first,
+    // so the branch knows what went out and can go back to an order.
     const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled')
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
-    view.querySelector('[data-out] summary').innerHTML = `${icon('check')}خرج مع الطيار النهارده <span class="b-count num">${out.length}</span>`;
-    view.querySelector('[data-out-list]').innerHTML = out.length
-      ? `<ul class="out-list">${out.map((o) => `<li><strong class="num">#${esc(o.number)}</strong> · ${esc(o.customer.name)} · ${esc(o.address.areaName)}
-          <span class="muted num">خرج ${formatTime(o.outAt)}</span>${o.driver ? ` · ${icon('user')}<strong>${esc(o.driver)}</strong>` : ''}
-          <button type="button" class="link-btn" data-oid="${esc(o.id)}" data-back="at_cashier">رجوع لـ «على الكاشير»</button></li>`).join('')}</ul>`
-      : '<p class="muted">لسه مفيش طلبات خرجت النهارده</p>';
+    cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
+      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
   };
 
   const load = async () => {
