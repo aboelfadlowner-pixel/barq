@@ -133,10 +133,33 @@ function DairyCover() {
   );
 }
 
+/**
+ * "imported" cover (imported cheese): Mocca d'Or, Jacks lavender and Landana pesto wheels at the back, Montana Intenso and
+ * Landana Jersey in front (public/covers/imported/*.webp), each with a contact shadow; they rise in like the dairy cover.
+ * Same scene and animation as `.cvd`; positions are the `.cvc-*` rules in 24-category-covers.css.
+ */
+const CHEESE_PIECES = ["mocca", "jacks", "landana", "montana", "jersey"] as const;
+
+function CheeseCover() {
+  return (
+    <div className="cvd" role="img" aria-label="أجبان مستوردة: موكا دور وجاك باللافندر ولاندانا بيستو ومونتانا انتنسو وجيرسي">
+      <div className="cvd-s" aria-hidden="true">
+        {CHEESE_PIECES.map((name) => (
+          <span key={name} className={`cvd-p cvc-${name}`}>
+            <i className="sh" />
+            <img src={`/covers/imported/${name}.webp`} alt="" decoding="async" />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
   dairy: DairyCover,
+  imported: CheeseCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
