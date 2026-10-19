@@ -46,3 +46,12 @@ export function formatDateTime(iso: string): string {
 
 /** Quantity with its unit: "2" pieces or "0.75 كجم". */
 export const formatQty = (quantity: number, weighed: boolean) => (weighed ? `${quantity} كجم` : `${quantity}`);
+
+/** Uploads an image file (already resized by `ImagePicker`) and returns its public URL. */
+export async function uploadImage(file: Blob): Promise<string> {
+  const response = await fetch("/api/admin/uploads", { method: "POST", headers: { "Content-Type": file.type }, body: file });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401) window.location.href = `/admin/login?next=${encodeURIComponent(window.location.pathname)}`;
+  if (!response.ok || !data.url) throw new AdminApiError(data.error || "الصورة ماترفعتش، حاول تاني", response.status);
+  return data.url as string;
+}

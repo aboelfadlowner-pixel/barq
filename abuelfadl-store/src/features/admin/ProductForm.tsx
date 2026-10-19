@@ -9,6 +9,7 @@ import { isValidSku, normalizeSku } from "@/lib/sku";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
 import { api, AdminApiError } from "./api";
+import { ImagePicker } from "./ImagePicker";
 import { Field, Ic, useToast } from "./ui";
 
 interface FormState {
@@ -193,10 +194,9 @@ export function ProductForm({ id }: { id?: string }) {
           <Field label="الوصف" error={errors.description} hint="اختياري">
             <textarea className="textarea" value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
-          <Field label="رابط الصورة" error={errors.imageUrl} hint="مثال: /products/13221.webp (رفع الصور هييجي مع قاعدة البيانات)">
-            <input className="input num" dir="ltr" value={form.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} />
+          <Field label="صورة المنتج" error={errors.imageUrl}>
+            <ImagePicker value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
           </Field>
-          {form.imageUrl ? <img src={form.imageUrl} alt="" style={{ width: 140, height: 140, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)" }} /> : null}
         </div>
 
         <div className="card card-pad stack">

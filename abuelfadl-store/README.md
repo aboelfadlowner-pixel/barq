@@ -220,6 +220,10 @@ categories keep the placeholder until their cover is made. Dairy uses its group 
   (`subtotal` + `deliveryFee` = `total`; the minimum order applies to the products). Reports count delivery fees apart.
 - **Order hours** (settings, `src/lib/hours.ts`): orders open and close on their own (Cairo time, windows past midnight
   work). The store checks the time in the browser (`useOrdering`), the orders API checks it again.
+- **Image upload** (`ImagePicker.tsx`, `POST /api/admin/uploads`, `src/server/storage.ts`): product and category photos are
+  picked from the phone / computer, resized in the browser (long side 1000 px, WebP) and uploaded. Files are kept in
+  `.data/uploads/` and served at `/uploads/<name>`. Vercel cannot keep files, so before going live `storage.ts` must
+  move to Supabase Storage (the dashboard and the API stay the same). The demo keeps uploads as data URLs.
 - **Product order** (`/admin/arrange`): the order products show in on each category page.
   `POST /api/admin/products/reorder`.
 

@@ -6,6 +6,7 @@ import { Art } from "@/components/ui/Art";
 import { CATEGORY_ARTS } from "@/lib/category-art";
 import type { Category } from "@/types/category";
 import { api, AdminApiError } from "./api";
+import { ImagePicker } from "./ImagePicker";
 import { Field, Ic, useToast } from "./ui";
 
 type AdminCategory = Category & { productCount: number };
@@ -136,22 +137,14 @@ function CategoryRow({
           {!imageUrl.trim() ? <span className="badge gold">من غير صورة</span> : null}
         </div>
         <div className="cat-images">
-          <input
-            className="input num cat-image-input"
-            dir={imageUrl ? "ltr" : "rtl"}
-            placeholder="صورة الكارت في الرئيسية (4:5)"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            aria-label="صورة كارت القسم في الرئيسية"
-          />
-          <input
-            className="input num cat-image-input"
-            dir={iconUrl ? "ltr" : "rtl"}
-            placeholder="الأيقونة الصغيرة (مربعة)"
-            value={iconUrl}
-            onChange={(e) => setIconUrl(e.target.value)}
-            aria-label="أيقونة القسم"
-          />
+          <div>
+            <small className="muted">صورة الكارت في الرئيسية (طولية 4:5)</small>
+            <ImagePicker value={imageUrl} onChange={setImageUrl} shape="tall" compact />
+          </div>
+          <div>
+            <small className="muted">الأيقونة الصغيرة (مربعة)</small>
+            <ImagePicker value={iconUrl} onChange={setIconUrl} max={400} compact />
+          </div>
         </div>
       </div>
       <select className="select" style={{ width: "auto" }} value={art} onChange={(e) => setArt(e.target.value)} aria-label="الأيقونة">
@@ -222,10 +215,10 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
       </div>
       <div className="grid2">
         <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، بتظهر في «تسوّق حسب القسم».">
-          <input className="input num" dir="ltr" placeholder="/covers/dairy/tile.webp" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
+          <ImagePicker value={form.imageUrl} onChange={(url) => setForm({ ...form, imageUrl: url })} shape="tall" compact />
         </Field>
         <Field label="الأيقونة الصغيرة" error={errors.iconUrl} hint="اختياري: مربعة، بتظهر مدوّرة مكان الأيقونة. من غيرها بتظهر صورة الكارت أو الرسمة.">
-          <input className="input num" dir="ltr" placeholder="/covers/dairy/icon.webp" value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })} />
+          <ImagePicker value={form.iconUrl} onChange={(url) => setForm({ ...form, iconUrl: url })} max={400} compact />
         </Field>
       </div>
       {errors._ ? <div className="alert">{errors._}</div> : null}

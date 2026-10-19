@@ -7,6 +7,9 @@ import type { Product, ProductId, ProductQuery } from "../types/product";
 import { mutate, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
 
+/** Image address: a site path (/uploads/…, /products/…), an https link, or (demo uploads) an inline data URL. */
+const IMAGE_URL = /^(\/|https:\/\/|data:image\/(webp|jpeg|png);base64,)/;
+
 // ---------- reads ----------
 
 export async function listCategories(): Promise<Category[]> {
@@ -125,7 +128,7 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
   if (description.length > 1000) fields.description = "الوصف طويل جدًا (أقصى حد 1000 حرف)";
 
   const imageUrl = typeof merged.imageUrl === "string" ? merged.imageUrl.trim() : "";
-  if (imageUrl && !/^(\/|https:\/\/)/.test(imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (imageUrl && !IMAGE_URL.test(imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
 
   assertValid(fields);
   return {
@@ -254,8 +257,8 @@ function checkCategoryFields(category: Category) {
   if (category.name.length < 2 || category.name.length > 60) fields.name = "اكتب اسم القسم (من 2 لـ 60 حرف)";
   if (!(CATEGORY_ARTS as readonly string[]).includes(category.art)) fields.art = "اختار أيقونة من القائمة";
   if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "اللون لازم يكون بالشكل #RRGGBB";
-  if (category.imageUrl && !/^(\/|https:\/\/)/.test(category.imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
-  if (category.iconUrl && !/^(\/|https:\/\/)/.test(category.iconUrl)) fields.iconUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (category.imageUrl && !IMAGE_URL.test(category.imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (category.iconUrl && !IMAGE_URL.test(category.iconUrl)) fields.iconUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
   assertValid(fields);
 }
 

@@ -47,6 +47,7 @@ const demoPlugin = {
     b.onResolve({ filter: /^next\// }, (args) => (nextShims[args.path] ? { path: nextShims[args.path] } : undefined));
     // Server modules that need a server get their browser versions.
     b.onResolve({ filter: /^@\/server\/auth$/ }, () => ({ path: r("demo/server/auth.ts") }));
+    b.onResolve({ filter: /^@\/server\/storage$/ }, () => ({ path: r("demo/server/storage.ts") }));
     b.onResolve({ filter: /^\.\/db$/ }, (args) => (args.importer.startsWith(r("src/server")) ? { path: r("demo/server/db.ts") } : undefined));
     // Dashboard code reloads pages with window.location; route that through the in-memory router.
     b.onLoad({ filter: /src[\\/]features[\\/]admin[\\/].*\.tsx?$/ }, (args) => ({
