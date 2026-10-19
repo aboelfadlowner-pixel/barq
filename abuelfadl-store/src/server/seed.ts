@@ -10,11 +10,9 @@ const CATEGORY_IMAGES: Record<string, string> = {
   sandwich: "/covers/sandwich/tile.webp",
   juice: "/covers/juice/tile.webp",
   dairy: "/covers/dairy/tile.webp",
-  imported: "/covers/imported/tile.webp",
 };
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
-  imported: "/covers/imported/icon.webp",
 };
 /** Lines under the names of the categories that have a cover (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
@@ -53,7 +51,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 9;
+const SCHEMA = 10;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -107,12 +105,15 @@ export function upgradeStore(data: StoreData): StoreData {
     }
   }
   if ((data.schema ?? 1) < 9) {
-    // Cover, photos and line of «أجبان مستوردة» (kept when the category already has its own).
+    // Line of «أجبان مستوردة» (kept when the category already has its own).
     const imported = data.categories.find((category) => category.id === "imported");
-    if (imported) {
-      if (!imported.imageUrl) imported.imageUrl = CATEGORY_IMAGES.imported;
-      if (!imported.iconUrl) imported.iconUrl = CATEGORY_ICONS.imported;
-      if (imported.tagline === undefined) imported.tagline = CATEGORY_TAGLINES.imported;
+    if (imported && imported.tagline === undefined) imported.tagline = CATEGORY_TAGLINES.imported;
+  }
+  if ((data.schema ?? 1) < 10) {
+    // The imported cheese cover was dropped: forget the card image and icon that pointed at its files.
+    for (const category of data.categories) {
+      if (category.imageUrl?.startsWith("/covers/imported/")) category.imageUrl = "";
+      if (category.iconUrl?.startsWith("/covers/imported/")) category.iconUrl = "";
     }
   }
   data.schema = SCHEMA;
