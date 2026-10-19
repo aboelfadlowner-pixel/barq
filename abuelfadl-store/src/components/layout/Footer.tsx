@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSettings } from "@/features/settings/SettingsProvider";
 import { Icon } from "../ui/Icon";
 import { Wordmark } from "./Wordmark";
 
-/** Site footer. Contact details, hours and social links come from the dashboard settings. */
+/**
+ * Site footer. Contact details, hours and social links come from the dashboard settings.
+ * Not shown on «اتصل بنا», which already has the same details.
+ */
 export function Footer() {
   const s = useSettings();
+  if (usePathname() === "/contact") return null;
   return (
     <footer className="foot">
       <div className="wrap">
