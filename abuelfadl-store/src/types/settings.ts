@@ -30,4 +30,8 @@ export interface StoreSettings {
   branches: Branch[];
   /** Name of the offers section, e.g. "عروض الخميس والجمعة". The section shows only while some product is on offer. */
   offersTitle: string;
+  /** Small label above the offers title, e.g. "عروض لفترة محدودة". Empty: no label. */
+  offersKicker: string;
+  /** Line under the offers title. Empty: written automatically ("خصومات لحد 25% على 8 منتج · لحد يوم ..."). */
+  offersSubtitle: string;
 }

@@ -9,22 +9,28 @@ import { OFFERS_SLUG, dayLabel, useOffers } from "./useOffers";
  * Title from the dashboard settings, biggest discount, product count, end day, and «شوف كل العروض» (the offers page).
  */
 export function OffersStrip() {
-  const { title, products, maxPercent, endDay } = useOffers();
+  const { title, kicker, subtitle, products, maxPercent, endDay } = useOffers();
   if (!products.length) return null;
   return (
     <section className="sec offers-sec" id="offersSec" aria-labelledby="offersTitle">
       <div className="wrap">
         <div className="offers-head">
           <div className="offers-copy">
-            <span className="offers-kicker">
-              <span className="offers-dot" aria-hidden="true" />
-              عروض لفترة محدودة
-            </span>
+            {kicker ? (
+              <span className="offers-kicker">
+                <span className="offers-dot" aria-hidden="true" />
+                {kicker}
+              </span>
+            ) : null}
             <h2 id="offersTitle">{title}</h2>
-            <p>
-              خصومات لحد <b className="num">{maxPercent}%</b> على <b className="num">{products.length}</b> منتج
-              {endDay ? <> · لحد يوم {dayLabel(endDay)}</> : null}
-            </p>
+            {subtitle ? (
+              <p>{subtitle}</p>
+            ) : (
+              <p>
+                خصومات لحد <b className="num">{maxPercent}%</b> على <b className="num">{products.length}</b> منتج
+                {endDay ? <> · لحد يوم {dayLabel(endDay)}</> : null}
+              </p>
+            )}
           </div>
           <span className="offers-big num" aria-hidden="true">
             -{maxPercent}%
@@ -41,7 +47,7 @@ export function OffersStrip() {
 
 /** Banner of the offers page (/category/deals). */
 export function OffersBanner() {
-  const { title, products, maxPercent, endDay } = useOffers();
+  const { title, subtitle, products, maxPercent, endDay } = useOffers();
   return (
     <div className="cbanner offers-banner" id="cbanner">
       <span className="offers-big num" aria-hidden="true">
@@ -50,7 +56,9 @@ export function OffersBanner() {
       <div className="ct">
         <h1 id="catTitle">{title}</h1>
         <p>
-          {products.length ? (
+          {products.length && subtitle ? (
+            subtitle
+          ) : products.length ? (
             <>
               خصومات لحد {maxPercent}% على {products.length} منتج{endDay ? ` · لحد يوم ${dayLabel(endDay)}` : ""}
             </>

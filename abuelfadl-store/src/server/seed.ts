@@ -22,10 +22,18 @@ const withImages = (category: Category): Category => ({
 });
 
 /** First contents of the data store: the v29 catalog with the Foodics SKUs from the WooCommerce export. */
+/**
+ * The old static «العروض» category (28 products) from the WooCommerce store, removed at the owner's request: offers now
+ * come from the offer price of each product (the «العروض» section, /category/deals). `src/data` keeps it for verify:data.
+ */
+const REMOVED_CATEGORY = "offers";
+
 export function seedStore(): StoreData {
   return {
-    categories: seedCategories.map(withImages),
-    products: seedProducts.map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product })),
+    categories: seedCategories.filter((category) => category.id !== REMOVED_CATEGORY).map(withImages),
+    products: seedProducts
+      .filter((product) => product.categoryId !== REMOVED_CATEGORY)
+      .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product })),
     orders: [],
     orderSeq: 0,
     syncLog: [],
@@ -35,7 +43,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 4;
+const SCHEMA = 5;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -68,6 +76,10 @@ export function upgradeStore(data: StoreData): StoreData {
     for (const branch of data.settings?.branches ?? []) {
       if (!branch.mapUrl && branch.address.includes("السماليهي")) branch.mapUrl = DEFAULT_SETTINGS.branches[0].mapUrl;
     }
+  }
+  if ((data.schema ?? 1) < 5) {
+    data.categories = data.categories.filter((category) => category.id !== REMOVED_CATEGORY);
+    data.products = data.products.filter((product) => product.categoryId !== REMOVED_CATEGORY);
   }
   data.schema = SCHEMA;
   return data;
