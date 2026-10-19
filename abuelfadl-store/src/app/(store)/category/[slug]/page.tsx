@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { getCategoryCover } from "@/features/products/CategoryCover";
+import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
 import { CategorySwitcherButton } from "@/features/products/CategorySwitcher";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
@@ -25,6 +25,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   if (!category) notFound();
 
   const cover = getCategoryCover(slug);
+  const tagline = getCategoryTagline(slug);
 
   return (
     <div id="viewCat">
@@ -36,7 +37,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           <CategorySwitcherButton category={category} />
           <LayoutToggle />
         </div>
-        <div className={cover ? "cbanner has-cover" : "cbanner"} id="cbanner">
+        <div className={cover ? `cbanner has-cover cv-${slug}` : "cbanner"} id="cbanner">
           {cover ?? (
             <span className="slot">
               <Icon id="i-image" />
@@ -45,6 +46,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           )}
           <div className="ct">
             <h1 id="catTitle">{category.name}</h1>
+            {tagline ? <p>{tagline}</p> : null}
           </div>
         </div>
         <CategoryProducts categoryId={category.id} />

@@ -112,19 +112,22 @@ function JuiceCover() {
 }
 
 /**
- * "dairy" cover: the store's dairy group photo rebuilt from single product photos (public/covers/dairy/*.webp).
- * Buffalo ghee, milk and cow ghee drop in at the back, right to left; then cream, cream caramel, ashura and murta drop
- * in front. Positions are percentages of the scene, see the `.cvd` rules in 24-category-covers.css.
+ * "dairy" cover: cow ghee, milk and buffalo ghee at the back, murta and cream in front (public/covers/dairy/*.webp),
+ * grouped tightly on a soft green disc, each with a contact shadow; they rise into place one after another.
+ * Positions are percentages of the scene, see the `.cvd` rules in 24-category-covers.css.
  */
-const DAIRY_PIECES = ["ghee-buffalo", "milk", "ghee-cow", "cream", "caramel", "ashura", "murta"] as const;
+const DAIRY_PIECES = ["milk", "ghee-cow", "ghee-buffalo", "murta", "cream"] as const;
 
 function DairyCover() {
   return (
-    <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وسمن جاموسي وحليب ومورتة وعاشورة وكريم كراميل وقشطة">
+    <div className="cvd" role="img" aria-label="ألبان أبو الفضل: سمن بقري وحليب وسمن جاموسي ومورتة وقشطة">
       <div className="cvd-s" aria-hidden="true">
-        <i className="cvd-gs" />
+        <i className="cvd-disc" />
         {DAIRY_PIECES.map((name) => (
-          <img key={name} className={`cvd-p cvd-${name}`} src={`/covers/dairy/${name}.webp`} alt="" decoding="async" />
+          <span key={name} className={`cvd-p cvd-${name}`}>
+            <i className="sh" />
+            <img src={`/covers/dairy/${name}.webp`} alt="" decoding="async" />
+          </span>
         ))}
       </div>
     </div>
@@ -136,6 +139,15 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   juice: JuiceCover,
   dairy: DairyCover,
 };
+
+/** Short line under the category title, for categories whose cover has one. */
+const TAGLINES: Record<string, string> = {
+  dairy: "طازة كل يوم… من مزرعتنا لبيتك",
+};
+
+export function getCategoryTagline(slug: string): string | null {
+  return TAGLINES[slug] ?? null;
+}
 
 /** The animated cover of a category, or null when the category has none. */
 export function getCategoryCover(slug: string): React.JSX.Element | null {
