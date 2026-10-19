@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
 import { api, egp } from "./api";
 import { Ic, useToast } from "./ui";
 
 /**
- * «ترتيب المنتجات»: the order products show in on a category page. Move rows with the arrows, then «حفظ الترتيب».
+ * «ترتيب المنتجات»: the order products show in on a category page. Drag a row (press and hold on a phone) or use the
+ * arrows, then «حفظ الترتيب».
  * The «الأكثر مبيعًا» label can be switched from here too (saved at once).
  */
 export function ArrangePage() {
@@ -44,6 +45,9 @@ export function ArrangePage() {
       next.splice(to, 0, id);
       return next;
     });
+
+  const listRef = useRef<HTMLOListElement>(null);
+  const { draggingId, startDrag } = useDragSort(listRef, setOrder);
 
   const bestsellersFirst = () => setOrder((list) => [...list.filter((id) => byId.get(id)?.bestseller), ...list.filter((id) => !byId.get(id)?.bestseller)]);
   const inStockFirst = () => setOrder((list) => [...list.filter((id) => byId.get(id)?.inStock), ...list.filter((id) => !byId.get(id)?.inStock)]);
@@ -119,11 +123,19 @@ export function ArrangePage() {
         {products === null ? (
           <div className="empty">جاري التحميل…</div>
         ) : order.length ? (
-          <ol className="arrange">
+          <ol className={draggingId ? "arrange dragging" : "arrange"} ref={listRef}>
             {order.map((id, index) => {
               const product = byId.get(id)!;
               return (
-                <li key={id} className={product.inStock ? undefined : "off"}>
+                <li
+                  key={id}
+                  data-id={id}
+                  className={[product.inStock ? "" : "off", draggingId === id ? "lifted" : ""].join(" ").trim() || undefined}
+                  onPointerDown={(event) => startDrag(event, id)}
+                >
+                  <span className="grip" aria-hidden="true" title="اسحب لتغيير الترتيب">
+                    ⠿
+                  </span>
                   <span className="pos num">{index + 1}</span>
                   {product.imageUrl ? <img className="thumb" src={product.imageUrl} alt="" loading="lazy" /> : <span className="thumb none">لا صورة</span>}
                   <div className="grow">
@@ -163,4 +175,139 @@ export function ArrangePage() {
       </div>
     </>
   );
+}
+
+/** Pixels a mouse must move before a press becomes a drag (so clicks still work). */
+const MOUSE_SLOP = 5;
+/** How long a finger must stay down on a row before it can be dragged (shorter presses scroll the page as usual). */
+const LONG_PRESS_MS = 280;
+/** Distance from the top / bottom of the screen where dragging scrolls the page. */
+const EDGE = 70;
+
+/**
+ * Drag-to-reorder for the rows of `listRef` (each row has `data-id`). Mouse: press and move. Touch: press and hold, then
+ * move; the grip (⠿) starts at once. Rows swap places live while dragging; the page scrolls near the screen edges.
+ * Buttons inside a row keep working because a drag never starts on them.
+ */
+function useDragSort(listRef: React.RefObject<HTMLOListElement | null>, setOrder: React.Dispatch<React.SetStateAction<number[]>>) {
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const drag = useRef<{
+    id: number;
+    active: boolean;
+    startY: number;
+    y: number;
+    timer?: ReturnType<typeof setTimeout>;
+    frame?: number;
+    /** The window listeners added for this drag, removed by `end`. */
+    move: (event: PointerEvent) => void;
+    up: () => void;
+  } | null>(null);
+
+  // While a touch drag is active the page must not scroll: a non-passive touchmove listener cancels it.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const stop = (event: TouchEvent) => {
+      if (drag.current?.active) event.preventDefault();
+    };
+    list.addEventListener("touchmove", stop, { passive: false });
+    return () => list.removeEventListener("touchmove", stop);
+  });
+
+  // Leaving the page in the middle of a drag removes its window listeners.
+  useEffect(
+    () => () => {
+      const current = drag.current;
+      if (!current) return;
+      clearTimeout(current.timer);
+      if (current.frame) cancelAnimationFrame(current.frame);
+      window.removeEventListener("pointermove", current.move);
+      window.removeEventListener("pointerup", current.up);
+      window.removeEventListener("pointercancel", current.up);
+    },
+    [],
+  );
+
+  /** Puts the dragged product after every other row whose middle is above the pointer. Works from ids, not indexes,
+   *  so a move read from a not-yet-updated screen can never shuffle the other rows. */
+  const reorderAt = (y: number) => {
+    const current = drag.current;
+    const list = listRef.current;
+    if (!current || !list) return;
+    const others = [...list.querySelectorAll<HTMLElement>("li[data-id]")].filter((row) => Number(row.dataset.id) !== current.id);
+    const target = others.filter((row) => {
+      const box = row.getBoundingClientRect();
+      return box.top + box.height / 2 < y;
+    }).length;
+    setOrder((order) => {
+      const rest = order.filter((id) => id !== current.id);
+      if (order.indexOf(current.id) === target) return order;
+      rest.splice(target, 0, current.id);
+      return rest;
+    });
+  };
+
+  const autoScroll = () => {
+    const current = drag.current;
+    if (!current?.active) return;
+    const speed = current.y < EDGE ? -(EDGE - current.y) / 4 : current.y > window.innerHeight - EDGE ? (current.y - (window.innerHeight - EDGE)) / 4 : 0;
+    if (speed) {
+      window.scrollBy(0, speed);
+      reorderAt(current.y);
+    }
+    current.frame = requestAnimationFrame(autoScroll);
+  };
+
+  const activate = () => {
+    const current = drag.current;
+    if (!current || current.active) return;
+    current.active = true;
+    setDraggingId(current.id);
+    navigator.vibrate?.(15);
+    current.frame = requestAnimationFrame(autoScroll);
+  };
+
+  const end = () => {
+    const current = drag.current;
+    if (!current) return;
+    clearTimeout(current.timer);
+    if (current.frame) cancelAnimationFrame(current.frame);
+    drag.current = null;
+    setDraggingId(null);
+    window.removeEventListener("pointermove", current.move);
+    window.removeEventListener("pointerup", current.up);
+    window.removeEventListener("pointercancel", current.up);
+  };
+
+  function onMove(event: PointerEvent) {
+    const current = drag.current;
+    if (!current) return;
+    current.y = event.clientY;
+    if (!current.active) {
+      const moved = Math.abs(event.clientY - current.startY);
+      if (event.pointerType === "mouse" && moved > MOUSE_SLOP) activate();
+      else if (event.pointerType !== "mouse" && moved > 10) end(); // finger moved before the long press: it is a scroll
+      return;
+    }
+    event.preventDefault();
+    reorderAt(event.clientY);
+  }
+
+  const startDrag = (event: React.PointerEvent, id: number) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button, a, input, select")) return;
+    end();
+    const current = { id, active: false, startY: event.clientY, y: event.clientY, move: onMove, up: end };
+    drag.current = current;
+    const onGrip = Boolean((event.target as HTMLElement).closest(".grip"));
+    if (event.pointerType !== "mouse") {
+      if (onGrip) activate();
+      else drag.current.timer = setTimeout(activate, LONG_PRESS_MS);
+    }
+    if (event.pointerType === "mouse") event.preventDefault(); // no text selection while dragging
+    window.addEventListener("pointermove", current.move);
+    window.addEventListener("pointerup", current.up);
+    window.addEventListener("pointercancel", current.up);
+  };
+
+  return { draggingId, startDrag };
 }
