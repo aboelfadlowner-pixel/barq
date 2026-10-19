@@ -43,6 +43,28 @@ document.addEventListener("click", (event) => {
   navigate(href);
 });
 
+// Outside links (WhatsApp, Google Maps, Facebook…) refuse to load inside the Artifact frame ("This content is blocked"),
+// so they are opened in a new browser tab. If the browser blocks the new tab, the link is copied and a short note shows.
+document.addEventListener("click", (event) => {
+  const link = (event.target as Element | null)?.closest?.("a");
+  const href = link?.getAttribute("href") ?? "";
+  if (!link || event.defaultPrevented || !/^https?:\/\//.test(href)) return;
+  event.preventDefault();
+  const tab = window.open(href, "_blank");
+  if (tab) {
+    tab.opener = null;
+    return;
+  }
+  void navigator.clipboard?.writeText(href).catch(() => undefined);
+  const note = Object.assign(document.createElement("div"), {
+    textContent: "اللينك ده بيفتح في صفحة جديدة، والمعاينة منعته. اتنسخ، الصقه في المتصفح. (في الموقع الحقيقي بيفتح عادي)",
+  });
+  note.style.cssText =
+    "position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,420px);background:#1A211C;color:#fff;padding:10px 14px;border-radius:12px;font:500 14px/1.6 'Readex Pro',sans-serif;text-align:center;direction:rtl";
+  document.body.append(note);
+  setTimeout(() => note.remove(), 4500);
+});
+
 // `window.location` replacement used by the dashboard code in this build (see scripts/build-demo.mjs).
 (window as unknown as { __demoLocation: object }).__demoLocation = {
   set href(value: string) {
