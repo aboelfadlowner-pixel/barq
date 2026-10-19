@@ -64,6 +64,9 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
     const deliveryHours = text(input.deliveryHours, current.deliveryHours);
     if (deliveryHours.length > 80) fields.deliveryHours = "أقصى حد 80 حرف";
 
+    const offersTitle = text(input.offersTitle, current.offersTitle);
+    if (offersTitle.length < 2 || offersTitle.length > 40) fields.offersTitle = "اكتب اسم من 2 لـ 40 حرف";
+
     const branches = input.branches === undefined ? current.branches : cleanBranches(input.branches, fields);
 
     assertValid(fields);
@@ -80,6 +83,7 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
       workHours,
       deliveryHours,
       branches,
+      offersTitle,
     };
     data.settings = settings;
     return settings;

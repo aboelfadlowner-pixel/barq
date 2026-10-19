@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Category } from "@/types/category";
 import { Icon } from "../ui/Icon";
+import { OffersCategoryCard } from "@/features/offers/OffersStrip";
 import { CardTilt } from "./CardTilt";
 
 /**
@@ -17,6 +18,7 @@ export function CategoryGrid({ categories }: { categories: Category[] }) {
           <p>اختر القسم لتشوف منتجاته.</p>
         </div>
         <div className="pcs" id="cats">
+          <OffersCategoryCard />
           {categories.map((category) => {
             const tile = category.imageUrl;
             return (

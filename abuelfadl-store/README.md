@@ -206,6 +206,10 @@ categories keep the placeholder until their cover is made. Dairy uses its group 
 - **Contact page** (`/contact`, `src/features/contact/ContactPage.tsx`): call and WhatsApp buttons, social links,
   branches (with an optional Google Maps link) and hours, all edited under «بيانات التواصل» in the settings.
   The footer reads the same settings.
+- **Offers section** (`src/features/offers/`): products with an active offer are listed under `/category/deals`
+  (they stay in their own category too), with a strip under the hero and a first card in «تسوّق حسب القسم» and the
+  category switcher. All of it shows only while something is on offer. Its name («عروض الخميس والجمعة»…) is set in the
+  settings. (`offers` is the id of the old static «العروض» category, so the section uses `deals`.)
 - **Product order** (`/admin/arrange`): the order products show in on each category page.
   `POST /api/admin/products/reorder`.
 

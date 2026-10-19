@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useCatalog } from "@/features/catalog/CatalogProvider";
 import { useSearch } from "@/features/search/SearchProvider";
 import { normalizeArabic } from "@/lib/arabic";
+import { OFFERS_SLUG, useOffers } from "@/features/offers/useOffers";
 import { ProductCard } from "./ProductCard";
 import { ProductGrid } from "./ProductGrid";
 
@@ -17,8 +18,14 @@ export function CategoryProducts({ categoryId }: { categoryId: string }) {
   const { products, search, getCategory } = useCatalog();
   const { query, setQuery } = useSearch();
   const searching = normalizeArabic(query) !== "";
+  const offers = useOffers();
   const matching = searching ? search(query) : products;
-  const list = categoryId === "all" ? matching : matching.filter((product) => product.categoryId === categoryId);
+  const list =
+    categoryId === "all"
+      ? matching
+      : categoryId === OFFERS_SLUG
+        ? offers.products.filter((product) => !searching || matching.includes(product))
+        : matching.filter((product) => product.categoryId === categoryId);
 
   return (
     <>
@@ -40,7 +47,7 @@ export function CategoryProducts({ categoryId }: { categoryId: string }) {
       ) : (
         <div className="empty" id="empty">
           <Art id="a-basket" viewBox="0 0 120 110" />
-          <p>لا توجد منتجات مطابقة.</p>
+          <p>{categoryId === OFFERS_SLUG && !searching ? "مفيش عروض دلوقتي." : "لا توجد منتجات مطابقة."}</p>
           <Link className="btn btn-ghost" href="/category/all" id="reset" onClick={() => setQuery("")}>
             عرض كل المنتجات
           </Link>

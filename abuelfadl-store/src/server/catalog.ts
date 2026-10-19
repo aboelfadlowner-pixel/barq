@@ -273,7 +273,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
       ...(cleanImage(input.iconUrl) ? { iconUrl: cleanImage(input.iconUrl) } : {}),
     };
     checkCategoryFields(category);
-    if (category.id === "all" || data.categories.some((c) => c.id === category.id)) {
+    if (category.id === "all" || category.id === "deals" || data.categories.some((c) => c.id === category.id)) {
       throw new ApiError(409, "الكود ده مستخدم قبل كده", { id: "الكود ده مستخدم قبل كده" });
     }
     data.categories.push(category);

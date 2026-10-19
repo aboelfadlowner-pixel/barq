@@ -28,4 +28,6 @@ export interface StoreSettings {
   workHours: string;
   deliveryHours: string;
   branches: Branch[];
+  /** Name of the offers section, e.g. "عروض الخميس والجمعة". The section shows only while some product is on offer. */
+  offersTitle: string;
 }

@@ -1,0 +1,43 @@
+/* Offers section (shown only while products are on offer): home strip, category card, switcher tile, offers banner. */
+:root{--offer-1:#9E1B1B;--offer-2:#D9381E;--offer-gold:#FFD27A}
+.offers-sec{padding-top:8px}
+.offers-head{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr auto;align-items:center;gap:14px 18px;padding:22px 22px 20px;border-radius:26px;color:#fff;
+  background:radial-gradient(circle at 12% 120%,rgba(255,210,122,.35),transparent 45%),linear-gradient(120deg,var(--offer-1),var(--offer-2));box-shadow:0 14px 34px rgba(158,27,27,.22)}
+.offers-copy{position:relative;z-index:1;min-width:0}
+.offers-kicker{display:inline-flex;align-items:center;gap:8px;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:.8rem;font-weight:600;letter-spacing:.2px}
+.offers-dot{width:8px;height:8px;border-radius:50%;background:var(--offer-gold);box-shadow:0 0 0 0 rgba(255,210,122,.7);animation:offerPulse 1.8s infinite}
+@keyframes offerPulse{70%,100%{box-shadow:0 0 0 9px rgba(255,210,122,0)}}
+.offers-head h2{margin:8px 0 2px;font-size:clamp(1.6rem,4.6vw,2.4rem);font-weight:700;line-height:1.2;color:#fff}
+.offers-head p{margin:0;opacity:.95;font-size:.95rem}
+.offers-head p b{color:var(--offer-gold);font-weight:700}
+.offers-big{position:absolute;inset-inline-end:-6px;bottom:-26px;font-size:clamp(5.5rem,16vw,9rem);font-weight:800;line-height:1;color:rgba(255,255,255,.12);pointer-events:none;direction:ltr}
+.offers-all{position:relative;z-index:1;align-self:end;background:#fff;color:var(--offer-1);border:0;font-weight:700;white-space:nowrap;text-decoration:none}
+.offers-all:hover{background:var(--offer-gold);color:#5A1010}
+.offers-all .ico{width:18px;height:18px}
+@media(max-width:640px){.offers-head{grid-template-columns:1fr}.offers-all{justify-self:start}}
+.offers-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,46%);gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:14px 2px 6px;margin-top:2px;scrollbar-width:thin;overscroll-behavior-x:contain}
+@media(min-width:720px){.offers-row{grid-auto-columns:minmax(190px,23%)}}
+@media(min-width:1100px){.offers-row{grid-auto-columns:calc((100% - 48px)/5)}}
+.offers-item{scroll-snap-align:start;min-width:0}
+.offers-more{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:22px;border:1.5px dashed #E8B4AE;color:var(--offer-1);font-weight:600;text-decoration:none;scroll-snap-align:start}
+.offers-more b{font-size:1.6rem}
+
+/* «تسوّق حسب القسم»: offers card first */
+.pc.pc-offers{background:linear-gradient(150deg,var(--offer-2),var(--offer-1));color:#fff}
+.pc-offers .pph{display:grid;place-items:center}
+.pc-offers-art{display:flex;flex-direction:column;align-items:center;transform:translateY(-12%)}
+.pc-offers-art b{font-size:clamp(2.6rem,9vw,3.6rem);font-weight:800;line-height:1;color:var(--offer-gold);direction:ltr}
+.pc-offers-art small{font-size:.85rem;font-weight:600;opacity:.9;margin-top:4px}
+.pc.pc-offers .pt{background:linear-gradient(to top,rgba(70,8,8,.45),transparent)}
+
+/* category switcher */
+.th-offers{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:linear-gradient(150deg,var(--offer-2),var(--offer-1));color:var(--offer-gold);font-weight:800;font-size:1.6rem}
+.cs-tile.cs-offers{background:#FDEEEB;color:var(--offer-1)}
+.cs-tile.cs-offers .t{padding:0}
+.cswitch .cs-th .th-offers{font-size:1rem}
+
+/* offers page banner */
+.cbanner.offers-banner{background:radial-gradient(circle at 12% 120%,rgba(255,210,122,.35),transparent 45%),linear-gradient(120deg,var(--offer-1),var(--offer-2));min-height:180px}
+.cbanner.offers-banner::after{display:none}
+.cbanner.offers-banner .ct p{color:var(--offer-gold);font-weight:600;opacity:1}
+@media(min-width:800px){.cbanner.offers-banner{min-height:220px}}

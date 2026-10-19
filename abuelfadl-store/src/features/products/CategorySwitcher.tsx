@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { useOverlay } from "@/components/layout/OverlayProvider";
 import { Art } from "@/components/ui/Art";
 import { Icon } from "@/components/ui/Icon";
+import { OFFERS_SLUG, useOffers } from "@/features/offers/useOffers";
 import type { Category } from "@/types/category";
 
 const SHEET_ID = "cs";
@@ -15,6 +16,7 @@ type ThumbCategory = Pick<Category, "id" | "name" | "art" | "imageUrl" | "iconUr
 /** Category thumbnail: its icon picture (small and round), else its photo, else its illustration; the "all" icon for "all". */
 function Thumb({ category }: { category: Pick<Category, "id" | "art" | "imageUrl" | "iconUrl"> }) {
   if (category.id === "all") return <Icon id="i-all" />;
+  if (category.id === OFFERS_SLUG) return <span className="th-offers">%</span>;
   const src = category.iconUrl || category.imageUrl;
   // eslint-disable-next-line @next/next/no-img-element
   return src ? <img alt="" src={src} decoding="async" /> : <Art id={category.art} />;
@@ -36,7 +38,7 @@ export function CategorySwitcherButton({ category }: { category: ThumbCategory }
   );
 }
 
-/** Bottom sheet listing "all products" + every category. Rendered once in the root layout. */
+/** Bottom sheet listing the offers (while there are some), "all products" and every category. Rendered once in the root layout. */
 export function CategorySwitcherSheet({ categories }: { categories: Category[] }) {
   const { isOpen, close } = useOverlay();
   const open = isOpen(SHEET_ID);
@@ -54,7 +56,12 @@ export function CategorySwitcherSheet({ categories }: { categories: Category[] }
     return () => clearTimeout(timer);
   }, [open]);
 
-  const tiles: ThumbCategory[] = [{ id: "all", name: "كل المنتجات", art: "" }, ...categories];
+  const offers = useOffers();
+  const tiles: ThumbCategory[] = [
+    ...(offers.products.length ? [{ id: OFFERS_SLUG, name: offers.title, art: "" }] : []),
+    { id: "all", name: "كل المنتجات", art: "" },
+    ...categories,
+  ];
 
   return (
     <aside className={open ? "sheet cs open" : "sheet cs"} id="cs" ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="csTitle" inert={!open}>
@@ -69,7 +76,7 @@ export function CategorySwitcherSheet({ categories }: { categories: Category[] }
         {tiles.map((tile, index) => (
           <Link
             key={tile.id}
-            className="cs-tile"
+            className={tile.id === OFFERS_SLUG ? "cs-tile cs-offers" : "cs-tile"}
             href={`/category/${tile.id}`}
             style={{ "--i": index } as React.CSSProperties}
             aria-current={tile.id === current ? "true" : undefined}

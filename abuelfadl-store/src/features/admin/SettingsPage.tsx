@@ -17,6 +17,7 @@ interface FormState {
   tiktok: string;
   workHours: string;
   deliveryHours: string;
+  offersTitle: string;
   branches: Branch[];
 }
 
@@ -33,6 +34,7 @@ const toForm = (s: StoreSettings): FormState => ({
   tiktok: s.tiktok,
   workHours: s.workHours,
   deliveryHours: s.deliveryHours,
+  offersTitle: s.offersTitle,
   branches: s.branches,
 });
 
@@ -138,6 +140,11 @@ export function SettingsPage() {
             <small className="muted">الشريط هيظهر كده:</small>
             <div className={settings.ordersOpen ? "" : "paused"}>{preview || "(مش هيظهر شريط)"}</div>
           </div>
+
+          <h2 style={{ marginTop: 10 }}>قسم العروض</h2>
+          <Field label="اسم قسم العروض" error={errors.offersTitle} hint="مثلاً: عروض الخميس والجمعة. القسم بيظهر في الموقع لوحده وقت ما يكون فيه منتجات عليها عرض، ويختفي لما تخلص">
+            <input className="input" value={form.offersTitle} onChange={(e) => set("offersTitle", e.target.value)} />
+          </Field>
 
           <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>

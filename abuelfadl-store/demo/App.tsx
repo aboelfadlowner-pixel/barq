@@ -31,6 +31,8 @@ import { withDefaults } from "@/lib/settings";
 import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { ContactPage } from "@/features/contact/ContactPage";
+import { OffersBanner, OffersStrip } from "@/features/offers/OffersStrip";
+import { OFFERS_SLUG } from "@/features/offers/useOffers";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
 import { AdminNav } from "@/features/admin/AdminNav";
 import { CategoriesManager } from "@/features/admin/CategoriesManager";
@@ -107,7 +109,7 @@ function StoreApp({ pathname }: { pathname: string }) {
                           ) : pathname === "/contact" ? (
                           <ContactPage />
                         ) : category ? (
-                            <CategoryPage slug={decodeURIComponent(category)} categories={categories} />
+                            <CategoryPage slug={decodeURIComponent(category)} categories={categories} offersTitle={settings.offersTitle} />
                           ) : (
                             <StoreNotFound />
                           )}
@@ -134,6 +136,7 @@ function HomePage({ categories }: { categories: Category[] }) {
   return (
     <div id="viewHome">
       <Hero />
+      <OffersStrip />
       <CategoryGrid categories={categories} />
       <EditorialSection />
       <TrustSection />
@@ -142,8 +145,9 @@ function HomePage({ categories }: { categories: Category[] }) {
 }
 
 /** src/app/(store)/category/[slug]/page.tsx */
-function CategoryPage({ slug, categories }: { slug: string; categories: Category[] }) {
-  const category = slug === ALL_SLUG ? ALL_CATEGORY : categories.find((c) => c.id === slug);
+function CategoryPage({ slug, categories, offersTitle }: { slug: string; categories: Category[]; offersTitle: string }) {
+  const category =
+    slug === ALL_SLUG ? ALL_CATEGORY : slug === OFFERS_SLUG ? { id: OFFERS_SLUG, name: offersTitle, art: "", tint: "" } : categories.find((c) => c.id === slug);
   if (!category) return <StoreNotFound />;
   const cover = getCategoryCover(slug);
   const tagline = getCategoryTagline(slug);
@@ -157,18 +161,22 @@ function CategoryPage({ slug, categories }: { slug: string; categories: Category
           <CategorySwitcherButton category={category} />
           <LayoutToggle />
         </div>
-        <div className={cover ? `cbanner has-cover cv-${slug}` : "cbanner"} id="cbanner">
-          {cover ?? (
-            <span className="slot">
-              <Icon id="i-image" />
-              مكان صورة القسم
-            </span>
-          )}
-          <div className="ct">
-            <h1 id="catTitle">{category.name}</h1>
-            {tagline ? <p>{tagline}</p> : null}
+        {slug === OFFERS_SLUG ? (
+          <OffersBanner />
+        ) : (
+          <div className={cover ? `cbanner has-cover cv-${slug}` : "cbanner"} id="cbanner">
+            {cover ?? (
+              <span className="slot">
+                <Icon id="i-image" />
+                مكان صورة القسم
+              </span>
+            )}
+            <div className="ct">
+              <h1 id="catTitle">{category.name}</h1>
+              {tagline ? <p>{tagline}</p> : null}
+            </div>
           </div>
-        </div>
+        )}
         <CategoryProducts categoryId={category.id} />
       </div>
     </div>

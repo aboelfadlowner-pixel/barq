@@ -5,7 +5,9 @@ import { getCategoryCover, getCategoryTagline } from "@/features/products/Catego
 import { CategorySwitcherButton } from "@/features/products/CategorySwitcher";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
-import { catalogService } from "@/services";
+import { OffersBanner } from "@/features/offers/OffersStrip";
+import { OFFERS_SLUG } from "@/features/offers/useOffers";
+import { catalogService, getSettings } from "@/services";
 import type { Category } from "@/types/category";
 
 /** "All products" pseudo category used by the "تسوّق الآن" button (v29 `openCat('all')`). */
@@ -14,14 +16,19 @@ const ALL_CATEGORY: Category = { id: ALL_SLUG, name: "كل المنتجات", ar
 
 export async function generateStaticParams() {
   const categories = await catalogService.getCategories();
-  return [{ slug: ALL_SLUG }, ...categories.map((category) => ({ slug: category.id }))];
+  return [{ slug: ALL_SLUG }, { slug: OFFERS_SLUG }, ...categories.map((category) => ({ slug: category.id }))];
 }
 
 /** Category page (v29 `#viewCat`): header bar, banner, and the product grid (rendered on the client, it reacts to the search text). */
 export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const isAll = slug === ALL_SLUG;
-  const category = isAll ? ALL_CATEGORY : await catalogService.getCategory(slug);
+  // "offers" is not a stored category: it lists the products on offer today, under the name set in the dashboard.
+  const category = isAll
+    ? ALL_CATEGORY
+    : slug === OFFERS_SLUG
+      ? { id: OFFERS_SLUG, name: (await getSettings()).offersTitle, art: "", tint: "" }
+      : await catalogService.getCategory(slug);
   if (!category) notFound();
 
   const cover = getCategoryCover(slug);
@@ -37,18 +44,22 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           <CategorySwitcherButton category={category} />
           <LayoutToggle />
         </div>
-        <div className={cover ? `cbanner has-cover cv-${slug}` : "cbanner"} id="cbanner">
-          {cover ?? (
-            <span className="slot">
-              <Icon id="i-image" />
-              مكان صورة القسم
-            </span>
-          )}
-          <div className="ct">
-            <h1 id="catTitle">{category.name}</h1>
-            {tagline ? <p>{tagline}</p> : null}
+        {slug === OFFERS_SLUG ? (
+          <OffersBanner />
+        ) : (
+          <div className={cover ? `cbanner has-cover cv-${slug}` : "cbanner"} id="cbanner">
+            {cover ?? (
+              <span className="slot">
+                <Icon id="i-image" />
+                مكان صورة القسم
+              </span>
+            )}
+            <div className="ct">
+              <h1 id="catTitle">{category.name}</h1>
+              {tagline ? <p>{tagline}</p> : null}
+            </div>
           </div>
-        </div>
+        )}
         <CategoryProducts categoryId={category.id} />
       </div>
     </div>

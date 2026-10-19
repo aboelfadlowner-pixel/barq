@@ -29,10 +29,15 @@ export const discountPercent = (price: number, salePrice: number) => Math.round(
  * The product fields the browser needs. `price` is what the customer pays today (the offer price during an offer)
  * and `oldPrice` the regular price shown struck through; the offer settings themselves stay on the server.
  */
-export type CatalogProduct = Omit<Product, "description" | "offer" | "salePrice" | "offerStart" | "offerEnd"> & { oldPrice?: number };
+export type CatalogProduct = Omit<Product, "description" | "offer" | "salePrice" | "offerStart" | "offerEnd"> & {
+  oldPrice?: number;
+  /** Last offer day ("YYYY-MM-DD") while an offer with an end date is on. */
+  offerEnd?: string;
+};
 
 /** Turns a stored product into what the store sends to the browser (see `CatalogProduct`). */
 export function toCatalogProduct(product: Product, today = cairoToday()): CatalogProduct {
   const { description: _d, offer: _o, salePrice: _s, offerStart: _a, offerEnd: _b, ...rest } = product;
-  return isOfferActive(product, today) ? { ...rest, price: product.salePrice!, oldPrice: product.price } : rest;
+  if (!isOfferActive(product, today)) return rest;
+  return { ...rest, price: product.salePrice!, oldPrice: product.price, ...(product.offerEnd ? { offerEnd: product.offerEnd } : {}) };
 }
