@@ -19,7 +19,6 @@ interface FormState {
   deliveryHours: string;
   offersTitle: string;
   offersKicker: string;
-  offersSubtitle: string;
   branches: Branch[];
 }
 
@@ -38,7 +37,6 @@ const toForm = (s: StoreSettings): FormState => ({
   deliveryHours: s.deliveryHours,
   offersTitle: s.offersTitle,
   offersKicker: s.offersKicker,
-  offersSubtitle: s.offersSubtitle,
   branches: s.branches,
 });
 
@@ -151,9 +149,6 @@ export function SettingsPage() {
           </Field>
           <Field label="الكلمة الصغيرة فوق الاسم" error={errors.offersKicker} hint="مثلاً: عروض لفترة محدودة. فاضي = مش هتظهر">
             <input className="input" value={form.offersKicker} onChange={(e) => set("offersKicker", e.target.value)} />
-          </Field>
-          <Field label="السطر اللي تحت الاسم" error={errors.offersSubtitle} hint="فاضي = بيتكتب لوحده: «خصومات لحد 25% على 8 منتج · لحد يوم السبت»">
-            <input className="input" placeholder="بيتكتب لوحده لو سبته فاضي" value={form.offersSubtitle} onChange={(e) => set("offersSubtitle", e.target.value)} />
           </Field>
 
           <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>

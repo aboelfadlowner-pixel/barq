@@ -69,8 +69,6 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
 
     const offersKicker = text(input.offersKicker, current.offersKicker);
     if (offersKicker.length > 40) fields.offersKicker = "أقصى حد 40 حرف";
-    const offersSubtitle = text(input.offersSubtitle, current.offersSubtitle);
-    if (offersSubtitle.length > 120) fields.offersSubtitle = "أقصى حد 120 حرف";
 
     const branches = input.branches === undefined ? current.branches : cleanBranches(input.branches, fields);
 
@@ -90,7 +88,6 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
       branches,
       offersTitle,
       offersKicker,
-      offersSubtitle,
     };
     data.settings = settings;
     return settings;
