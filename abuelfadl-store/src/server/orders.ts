@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from "../lib/settings";
+import { withDefaults } from "../lib/settings";
 import { cairoToday, sellingPrice } from "../lib/pricing";
 import { isAllowedQuantity } from "../lib/quantity";
 import { ORDER_STATUSES, type OrderLine, type OrderStatus, type StoredOrder } from "../types/order";
@@ -26,7 +26,7 @@ export interface OrderRequest {
  */
 export function createOrder(request: OrderRequest): Promise<StoredOrder> {
   return mutate((data) => {
-    const settings = data.settings ?? DEFAULT_SETTINGS;
+    const settings = withDefaults(data.settings);
     if (!settings.ordersOpen) throw new ApiError(409, settings.closedMessage);
     const fields: Record<string, string> = {};
     const name = String(request.customer?.name ?? "").trim();

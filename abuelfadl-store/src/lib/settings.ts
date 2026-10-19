@@ -5,10 +5,20 @@ import { MIN_ORDER } from "./constants";
 export const DEFAULT_SETTINGS: StoreSettings = {
   minOrder: MIN_ORDER,
   notice: "التوصيل متاح حاليًا داخل البيطاش فقط",
-  whatsapp: "",
+  whatsapp: "01099400097",
   ordersOpen: true,
   closedMessage: "استقبال الطلبات متوقف دلوقتي، ارجعلنا كمان شوية",
+  phone: "01099400097",
+  facebook: "https://www.facebook.com/Abu.AlFadl.Market",
+  instagram: "https://www.instagram.com/abu_elfadl1/",
+  tiktok: "",
+  workHours: "يوميًا من 7 الصبح لـ 3 الفجر",
+  deliveryHours: "يوميًا من 2 الضهر لـ 1:30 بالليل",
+  branches: [{ name: "البيطاش (الفرع الرئيسي)", address: "شارع السماليهي 1، البيطاش", mapUrl: "" }],
 };
+
+/** Saved settings completed with the defaults (older data files miss the fields added later). */
+export const withDefaults = (settings: Partial<StoreSettings> | undefined): StoreSettings => ({ ...DEFAULT_SETTINGS, ...settings });
 
 /** Text of the strip above the header: the notice followed by the minimum order, or the paused message. */
 export function noticeText(settings: StoreSettings): string {

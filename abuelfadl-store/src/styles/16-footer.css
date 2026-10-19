@@ -5,3 +5,5 @@
 .foot p{max-width:42ch;color:var(--muted)}
 .soc{display:flex;gap:10px;margin-top:6px}
 .copy{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px;font-size:.85rem;color:var(--muted)}
+.foot-link{color:var(--brand);font-weight:600;text-decoration:none}
+.foot ul a{text-decoration:none}

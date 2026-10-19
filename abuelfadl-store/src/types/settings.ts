@@ -1,3 +1,11 @@
+/** One branch on the contact page. */
+export interface Branch {
+  name: string;
+  address: string;
+  /** Google Maps link ("افتح على الخريطة"). Empty until it is added. */
+  mapUrl: string;
+}
+
 /** Store-wide settings edited from the dashboard ("الإعدادات"). */
 export interface StoreSettings {
   /** Minimum order total in EGP. 0 means no minimum. */
@@ -10,4 +18,14 @@ export interface StoreSettings {
   ordersOpen: boolean;
   /** Shown in the strip and the cart while orders are paused. */
   closedMessage: string;
+  /** Contact page («اتصل بنا»): phone for the call button (Egyptian number, digits only). Empty when none. */
+  phone: string;
+  /** Social links (full https URLs). Empty when the store has none. */
+  facebook: string;
+  instagram: string;
+  tiktok: string;
+  /** Free text, e.g. "من 7 الصبح لـ 3 الفجر". */
+  workHours: string;
+  deliveryHours: string;
+  branches: Branch[];
 }

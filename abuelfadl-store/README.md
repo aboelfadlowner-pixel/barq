@@ -203,6 +203,9 @@ categories keep the placeholder until their cover is made. Dairy uses its group 
 - **Reports** (`/admin/reports`, `src/server/reports.ts`): sales per day and per hour, best sellers, sales by
   category, and CSV exports (orders, order lines) that open in Excel.
 - **Customers** (`/admin/customers`): one row per mobile number from the orders; a row opens that customer's orders.
+- **Contact page** (`/contact`, `src/features/contact/ContactPage.tsx`): call and WhatsApp buttons, social links,
+  branches (with an optional Google Maps link) and hours, all edited under «بيانات التواصل» in the settings.
+  The footer reads the same settings.
 - **Product order** (`/admin/arrange`): the order products show in on each category page.
   `POST /api/admin/products/reorder`.
 

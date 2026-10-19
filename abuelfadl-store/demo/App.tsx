@@ -27,9 +27,10 @@ import { CategorySwitcherButton, CategorySwitcherSheet } from "@/features/produc
 import { FavoritesProvider } from "@/features/products/FavoritesProvider";
 import { SettingsProvider } from "@/features/settings/SettingsProvider";
 import { toCatalogProduct } from "@/lib/pricing";
-import { DEFAULT_SETTINGS } from "@/lib/settings";
+import { withDefaults } from "@/lib/settings";
 import { getCategoryCover, getCategoryTagline } from "@/features/products/CategoryCover";
 import { LayoutToggle } from "@/features/products/LayoutToggle";
+import { ContactPage } from "@/features/contact/ContactPage";
 import { CategoryProducts } from "@/features/products/CategoryProducts";
 import { AdminNav } from "@/features/admin/AdminNav";
 import { CategoriesManager } from "@/features/admin/CategoriesManager";
@@ -79,7 +80,8 @@ const ALL_CATEGORY: Category = { id: ALL_SLUG, name: "كل المنتجات", ar
 
 function StoreApp({ pathname }: { pathname: string }) {
   // Read once per visit to the store, the way the server renders the layout (dashboard edits show on the next visit).
-  const { categories, products, settings = DEFAULT_SETTINGS } = useMemo(() => snapshot(), []);
+  const { categories, products, settings: saved } = useMemo(() => snapshot(), []);
+  const settings = useMemo(() => withDefaults(saved), [saved]);
   const catalogProducts = useMemo(() => products.map((product) => toCatalogProduct(product)), [products]);
   const category = pathname.match(/^\/category\/([^/]+)$/)?.[1];
 
@@ -102,7 +104,9 @@ function StoreApp({ pathname }: { pathname: string }) {
                         <main id="top">
                           {pathname === "/" ? (
                             <HomePage categories={categories} />
-                          ) : category ? (
+                          ) : pathname === "/contact" ? (
+                          <ContactPage />
+                        ) : category ? (
                             <CategoryPage slug={decodeURIComponent(category)} categories={categories} />
                           ) : (
                             <StoreNotFound />

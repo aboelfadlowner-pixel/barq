@@ -222,3 +222,5 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .arrange .moves .btn{padding:4px 8px}
 .arrange .best{color:var(--muted)}
 .arrange .best.on{background:var(--warn-soft);border-color:#F0D9A8;color:var(--warn)}
+.branch-row{display:grid;grid-template-columns:1fr 1.4fr 1.4fr auto;gap:6px;align-items:center}
+@media(max-width:700px){.branch-row{grid-template-columns:1fr;padding-bottom:10px;border-bottom:1px dashed var(--line)}}

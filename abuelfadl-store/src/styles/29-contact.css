@@ -1,0 +1,34 @@
+/* «اتصل بنا» page (contact details from the dashboard settings) */
+.contact{padding-bottom:48px}
+.ct-head{margin:18px 0 22px}
+.ct-head h1{font-size:clamp(1.9rem,5vw,2.6rem);font-weight:700}
+.ct-head p{color:var(--muted);margin-top:4px}
+.ct-actions{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:700px){.ct-actions{grid-template-columns:1fr 1fr}}
+.ct-btn{text-decoration:none;display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:20px;color:#fff;box-shadow:var(--shadow-sm);transition:transform .15s,filter .15s}
+.ct-btn:hover{filter:brightness(1.06)}
+.ct-btn:active{transform:scale(.98)}
+.ct-btn svg{width:30px;height:30px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ct-btn span{display:flex;flex-direction:column}
+.ct-btn b{font-size:1.15rem;font-weight:600}
+.ct-btn small{font-size:1rem;opacity:.92;font-variant-numeric:tabular-nums;text-align:right}
+.ct-btn.call{background:var(--brand)}
+.ct-btn.wa{background:#1E9E55}
+.ct-grid{display:grid;gap:14px;margin-top:16px;grid-template-columns:1fr}
+@media(min-width:900px){.ct-grid{grid-template-columns:repeat(3,1fr)}}
+.ct-card{border:1px solid var(--line);border-radius:20px;padding:18px 20px;background:var(--bg)}
+.ct-card h2{display:flex;align-items:center;gap:8px;font-size:1.1rem;font-weight:600;margin-bottom:12px}
+.ct-card h2 svg{width:20px;height:20px;fill:none;stroke:var(--brand);stroke-width:1.8}
+.ct-card dl{margin:0;display:grid;gap:4px}
+.ct-card dt{color:var(--muted);font-size:.85rem}
+.ct-card dd{margin:0 0 8px;font-weight:500}
+.ct-branches{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.ct-branches li{display:flex;flex-direction:column;gap:2px}
+.ct-branches span{color:var(--muted)}
+.ct-map{text-decoration:none;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:.9rem}
+.ct-map svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
+.ct-map.soon{color:var(--muted);opacity:.7}
+.ct-social{display:flex;flex-wrap:wrap;gap:8px}
+.ct-social a{text-decoration:none;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border:1px solid var(--line);border-radius:999px;font-weight:500}
+.ct-social a:hover{border-color:var(--brand);color:var(--brand)}
+.ct-social svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}

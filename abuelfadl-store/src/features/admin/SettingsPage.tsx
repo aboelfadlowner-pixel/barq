@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { noticeText } from "@/lib/settings";
-import type { StoreSettings } from "@/types/settings";
+import type { Branch, StoreSettings } from "@/types/settings";
 import { api, AdminApiError } from "./api";
 import { Field, useToast } from "./ui";
 
@@ -11,9 +11,30 @@ interface FormState {
   notice: string;
   whatsapp: string;
   closedMessage: string;
+  phone: string;
+  facebook: string;
+  instagram: string;
+  tiktok: string;
+  workHours: string;
+  deliveryHours: string;
+  branches: Branch[];
 }
 
-const toForm = (s: StoreSettings): FormState => ({ minOrder: String(s.minOrder), notice: s.notice, whatsapp: s.whatsapp, closedMessage: s.closedMessage });
+type TextField = Exclude<keyof FormState, "branches">;
+
+const toForm = (s: StoreSettings): FormState => ({
+  minOrder: String(s.minOrder),
+  notice: s.notice,
+  whatsapp: s.whatsapp,
+  closedMessage: s.closedMessage,
+  phone: s.phone,
+  facebook: s.facebook,
+  instagram: s.instagram,
+  tiktok: s.tiktok,
+  workHours: s.workHours,
+  deliveryHours: s.deliveryHours,
+  branches: s.branches,
+});
 
 /** Store settings: pause/resume orders (saved at once) and the texts and numbers the store shows (saved with "حفظ"). */
 export function SettingsPage() {
@@ -53,7 +74,11 @@ export function SettingsPage() {
 
   if (!settings || !form) return message ? <div className="alert">{message}</div> : <div className="empty">جاري التحميل…</div>;
 
-  const set = (key: keyof FormState, value: string) => setForm((f) => (f ? { ...f, [key]: value } : f));
+  const set = (key: TextField, value: string) => setForm((f) => (f ? { ...f, [key]: value } : f));
+  const setBranch = (index: number, patch: Partial<Branch>) =>
+    setForm((f) => (f ? { ...f, branches: f.branches.map((b, i) => (i === index ? { ...b, ...patch } : b)) } : f));
+  const addBranch = () => setForm((f) => (f ? { ...f, branches: [...f.branches, { name: "", address: "", mapUrl: "" }] } : f));
+  const removeBranch = (index: number) => setForm((f) => (f ? { ...f, branches: f.branches.filter((_, i) => i !== index) } : f));
   const preview = noticeText({ ...settings, ...form, minOrder: Number(form.minOrder) || 0 });
   const changed = JSON.stringify(form) !== JSON.stringify(toForm(settings));
 
@@ -109,12 +134,57 @@ export function SettingsPage() {
           <Field label="رسالة وقت إيقاف الطلبات" error={errors.closedMessage} hint="بتظهر في الشريط وفي السلة لما الطلبات تتوقف">
             <input className="input" value={form.closedMessage} onChange={(e) => set("closedMessage", e.target.value)} />
           </Field>
-          <Field label="رقم واتساب خدمة العملاء" error={errors.whatsapp} hint="بيظهر زرار واتساب في آخر الموقع. سيبه فاضي لو مش عايزه">
-            <input className="input num" inputMode="tel" dir="ltr" placeholder="01000000000" value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
-          </Field>
           <div className="settings-preview">
             <small className="muted">الشريط هيظهر كده:</small>
             <div className={settings.ordersOpen ? "" : "paused"}>{preview || "(مش هيظهر شريط)"}</div>
+          </div>
+
+          <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>
+          <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>
+            بتظهر في صفحة «اتصل بنا» وفي آخر الموقع
+          </p>
+          <div className="grid2">
+            <Field label="رقم التليفون (زرار اتصال)" error={errors.phone}>
+              <input className="input num" inputMode="tel" dir="ltr" placeholder="01000000000" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+            </Field>
+            <Field label="رقم الواتساب" error={errors.whatsapp} hint="فاضي = زرار الواتساب مش هيظهر">
+              <input className="input num" inputMode="tel" dir="ltr" placeholder="01000000000" value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
+            </Field>
+            <Field label="مواعيد العمل" error={errors.workHours}>
+              <input className="input" value={form.workHours} onChange={(e) => set("workHours", e.target.value)} />
+            </Field>
+            <Field label="مواعيد التوصيل" error={errors.deliveryHours}>
+              <input className="input" value={form.deliveryHours} onChange={(e) => set("deliveryHours", e.target.value)} />
+            </Field>
+          </div>
+          <Field label="لينك فيسبوك" error={errors.facebook}>
+            <input className="input num" dir="ltr" placeholder="https://www.facebook.com/..." value={form.facebook} onChange={(e) => set("facebook", e.target.value)} />
+          </Field>
+          <Field label="لينك إنستجرام" error={errors.instagram}>
+            <input className="input num" dir="ltr" placeholder="https://www.instagram.com/..." value={form.instagram} onChange={(e) => set("instagram", e.target.value)} />
+          </Field>
+          <Field label="لينك تيك توك" error={errors.tiktok} hint="فاضي = مش هيظهر">
+            <input className="input num" dir="ltr" placeholder="https://www.tiktok.com/@..." value={form.tiktok} onChange={(e) => set("tiktok", e.target.value)} />
+          </Field>
+
+          <div className="stack" style={{ gap: 10 }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <b>الفروع</b>
+              <button className="btn btn-sm" type="button" onClick={addBranch} disabled={form.branches.length >= 20}>
+                + فرع
+              </button>
+            </div>
+            {errors.branches ? <div className="alert">{errors.branches}</div> : null}
+            {form.branches.map((branch, index) => (
+              <div key={index} className="branch-row">
+                <input className="input" placeholder="اسم الفرع" value={branch.name} onChange={(e) => setBranch(index, { name: e.target.value })} aria-label="اسم الفرع" />
+                <input className="input" placeholder="العنوان" value={branch.address} onChange={(e) => setBranch(index, { address: e.target.value })} aria-label="العنوان" />
+                <input className="input num" dir="ltr" placeholder="لينك Google Maps (اختياري)" value={branch.mapUrl} onChange={(e) => setBranch(index, { mapUrl: e.target.value })} aria-label="لينك الخريطة" />
+                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeBranch(index)} aria-label={`مسح فرع ${branch.name}`}>
+                  مسح
+                </button>
+              </div>
+            ))}
           </div>
           <div className="row">
             <button className="btn btn-primary" disabled={busy || !changed}>
