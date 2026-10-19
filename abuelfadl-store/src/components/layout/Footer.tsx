@@ -44,7 +44,13 @@ export function Footer() {
           <div>
             <h3>التوصيل</h3>
             <ul>
-              <li>داخل البيطاش حاليًا</li>
+              {s.deliveryAreas
+                .filter((area) => area.active)
+                .map((area) => (
+                  <li key={area.id}>
+                    {area.name}: {area.fee ? `${area.fee} ج.م` : "مجانًا"}
+                  </li>
+                ))}
               {s.minOrder > 0 ? <li>الحد الأدنى للطلب {s.minOrder} ج.م</li> : null}
               {s.deliveryHours ? <li>{s.deliveryHours}</li> : null}
             </ul>

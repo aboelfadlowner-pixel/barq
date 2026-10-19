@@ -172,7 +172,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .more-btn,.more-foot,.more-backdrop{display:none}
 .adm-side-foot .alert-on{color:var(--brand)}
 @media(max-width:860px){
-  .adm-nav{flex-direction:row;flex-wrap:wrap;gap:0}
+  .adm-nav{flex-direction:row;flex-wrap:wrap;gap:0;position:relative;z-index:2}
   .adm-nav a.extra{display:none}
   .more-btn{display:flex;flex:1;flex-direction:column;align-items:center;gap:2px;font-size:11px;padding:6px 4px;border:0;background:none;color:var(--muted);font-weight:500;border-radius:10px;cursor:pointer}
   .more-btn.on{background:var(--brand-soft);color:var(--brand)}
@@ -180,7 +180,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   .adm-nav.more-open .more-foot{display:flex;order:-1;flex:0 0 100%;gap:6px;padding:6px 4px 10px;margin-bottom:6px;border-bottom:1px solid var(--line)}
   .more-foot a,.more-foot button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;padding:8px 4px;border:1px solid var(--line);background:var(--card);border-radius:10px;color:var(--fg);cursor:pointer}
   .more-foot button[aria-pressed="true"]{color:var(--brand);border-color:#B9D8C4}
-  .more-backdrop{display:block;position:fixed;inset:0;background:rgba(20,30,22,.25);border:0;z-index:19}
+  .more-backdrop{display:block;position:fixed;inset:0;background:rgba(20,30,22,.25);border:0;z-index:1}
 }
 
 /* ---- products: bulk edit ---- */
@@ -229,3 +229,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .arrange .grip{font-size:20px;line-height:1;color:var(--muted);padding:6px 2px;cursor:grab;touch-action:none}
 .arrange.dragging,.arrange.dragging li{cursor:grabbing}
 .arrange li.lifted{background:var(--brand-soft);box-shadow:0 6px 20px rgba(20,30,22,.18);position:relative;z-index:2;border-radius:10px}
+.area-row{display:grid;grid-template-columns:1.6fr 1fr auto auto;gap:8px;align-items:center}
+.area-fee{display:flex;align-items:center;gap:6px}
+@media(max-width:560px){.area-row{grid-template-columns:1fr 1fr;padding-bottom:10px;border-bottom:1px dashed var(--line)}}

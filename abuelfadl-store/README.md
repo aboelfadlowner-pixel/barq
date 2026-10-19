@@ -210,6 +210,10 @@ categories keep the placeholder until their cover is made. Dairy uses its group 
   (they stay in their own category too), with a strip under the hero and a first card in «تسوّق حسب القسم» and the
   category switcher. All of it shows only while something is on offer. Its name («عروض الخميس والجمعة»…) is set in the
   settings. (`offers` is the id of the old static «العروض» category, so the section uses `deals`.)
+- **Delivery areas** (settings): name, fee, on/off. The checkout asks for the area, the server adds its fee
+  (`subtotal` + `deliveryFee` = `total`; the minimum order applies to the products). Reports count delivery fees apart.
+- **Order hours** (settings, `src/lib/hours.ts`): orders open and close on their own (Cairo time, windows past midnight
+  work). The store checks the time in the browser (`useOrdering`), the orders API checks it again.
 - **Product order** (`/admin/arrange`): the order products show in on each category page.
   `POST /api/admin/products/reorder`.
 

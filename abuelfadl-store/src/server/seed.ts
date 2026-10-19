@@ -1,5 +1,5 @@
 import { categories as seedCategories } from "../data/categories";
-import { DEFAULT_SETTINGS } from "../lib/settings";
+import { DEFAULT_SETTINGS, OLD_NOTICE } from "../lib/settings";
 import { products as seedProducts } from "../data/products";
 import { productSkus } from "../data/skus";
 import type { Category } from "../types/category";
@@ -43,7 +43,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 5;
+const SCHEMA = 6;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -80,6 +80,9 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 5) {
     data.categories = data.categories.filter((category) => category.id !== REMOVED_CATEGORY);
     data.products = data.products.filter((product) => product.categoryId !== REMOVED_CATEGORY);
+  }
+  if ((data.schema ?? 1) < 6 && data.settings?.notice === OLD_NOTICE) {
+    data.settings.notice = DEFAULT_SETTINGS.notice; // delivery now covers more areas than البيطاش
   }
   data.schema = SCHEMA;
   return data;

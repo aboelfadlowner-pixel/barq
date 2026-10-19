@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { noticeText } from "@/lib/settings";
-import type { Branch, StoreSettings } from "@/types/settings";
+import { outsideHoursMessage } from "@/lib/hours";
+import type { Branch, DeliveryArea, OrderHours, StoreSettings } from "@/types/settings";
 import { api, AdminApiError } from "./api";
 import { Field, useToast } from "./ui";
 
@@ -20,9 +21,12 @@ interface FormState {
   offersTitle: string;
   offersKicker: string;
   branches: Branch[];
+  /** Fees as typed (strings), turned into numbers when saving. */
+  deliveryAreas: (Omit<DeliveryArea, "fee"> & { fee: string })[];
+  orderHours: OrderHours;
 }
 
-type TextField = Exclude<keyof FormState, "branches">;
+type TextField = Exclude<keyof FormState, "branches" | "deliveryAreas" | "orderHours">;
 
 const toForm = (s: StoreSettings): FormState => ({
   minOrder: String(s.minOrder),
@@ -37,6 +41,8 @@ const toForm = (s: StoreSettings): FormState => ({
   deliveryHours: s.deliveryHours,
   offersTitle: s.offersTitle,
   offersKicker: s.offersKicker,
+  deliveryAreas: s.deliveryAreas.map((area) => ({ ...area, fee: String(area.fee) })),
+  orderHours: s.orderHours,
   branches: s.branches,
 });
 
@@ -83,7 +89,12 @@ export function SettingsPage() {
     setForm((f) => (f ? { ...f, branches: f.branches.map((b, i) => (i === index ? { ...b, ...patch } : b)) } : f));
   const addBranch = () => setForm((f) => (f ? { ...f, branches: [...f.branches, { name: "", address: "", mapUrl: "" }] } : f));
   const removeBranch = (index: number) => setForm((f) => (f ? { ...f, branches: f.branches.filter((_, i) => i !== index) } : f));
-  const preview = noticeText({ ...settings, ...form, minOrder: Number(form.minOrder) || 0 });
+  const setArea = (index: number, patch: Partial<FormState["deliveryAreas"][number]>) =>
+    setForm((f) => (f ? { ...f, deliveryAreas: f.deliveryAreas.map((a, i) => (i === index ? { ...a, ...patch } : a)) } : f));
+  const addArea = () => setForm((f) => (f ? { ...f, deliveryAreas: [...f.deliveryAreas, { id: "", name: "", fee: "", active: true }] } : f));
+  const removeArea = (index: number) => setForm((f) => (f ? { ...f, deliveryAreas: f.deliveryAreas.filter((_, i) => i !== index) } : f));
+  const setHours = (patch: Partial<OrderHours>) => setForm((f) => (f ? { ...f, orderHours: { ...f.orderHours, ...patch } } : f));
+  const preview = noticeText({ ...settings, notice: form.notice, closedMessage: form.closedMessage, minOrder: Number(form.minOrder) || 0 });
   const changed = JSON.stringify(form) !== JSON.stringify(toForm(settings));
 
   return (
@@ -125,7 +136,7 @@ export function SettingsPage() {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            save({ ...form, minOrder: Number(form.minOrder) }, "الإعدادات اتحفظت");
+            save({ ...form, minOrder: Number(form.minOrder), deliveryAreas: form.deliveryAreas.map((a) => ({ ...a, fee: a.fee.trim() === "" ? "" : Number(a.fee) })) }, "الإعدادات اتحفظت");
           }}
         >
           <h2>المتجر</h2>
@@ -141,6 +152,50 @@ export function SettingsPage() {
           <div className="settings-preview">
             <small className="muted">الشريط هيظهر كده:</small>
             <div className={settings.ordersOpen ? "" : "paused"}>{preview || "(مش هيظهر شريط)"}</div>
+          </div>
+
+          <h2 style={{ marginTop: 10 }}>مواعيد استقبال الطلبات</h2>
+          <label className="check">
+            <input type="checkbox" checked={form.orderHours.enabled} onChange={(e) => setHours({ enabled: e.target.checked })} />
+            الطلبات تقفل وتفتح لوحدها في المواعيد دي
+          </label>
+          <div className="grid2">
+            <Field label="بنبدأ نستقبل الساعة" error={errors.orderHours}>
+              <input className="input num" type="time" value={form.orderHours.open} disabled={!form.orderHours.enabled} onChange={(e) => setHours({ open: e.target.value })} />
+            </Field>
+            <Field label="بنقفل الساعة" hint="لو بعد نص الليل اكتبها عادي (مثلاً 01:30)">
+              <input className="input num" type="time" value={form.orderHours.close} disabled={!form.orderHours.enabled} onChange={(e) => setHours({ close: e.target.value })} />
+            </Field>
+          </div>
+          {form.orderHours.enabled ? <small className="muted">برّه المواعيد الموقع هيكتب: «{outsideHoursMessage(form.orderHours)}»</small> : null}
+
+          <div className="stack" style={{ gap: 10, marginTop: 10 }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <h2>مناطق التوصيل</h2>
+              <button className="btn btn-sm" type="button" onClick={addArea} disabled={form.deliveryAreas.length >= 20}>
+                + منطقة
+              </button>
+            </div>
+            <p className="muted" style={{ fontSize: 13, marginTop: -6 }}>
+              العميل بيختار منطقته وهو بيطلب، والرسوم بتتضاف على الإجمالي. شيل علامة «شغالة» عشان توقف منطقة من غير ما تمسحها.
+            </p>
+            {errors.deliveryAreas ? <div className="alert">{errors.deliveryAreas}</div> : null}
+            {form.deliveryAreas.map((area, index) => (
+              <div key={area.id || `new-${index}`} className="area-row">
+                <input className="input" placeholder="اسم المنطقة" value={area.name} onChange={(e) => setArea(index, { name: e.target.value })} aria-label="اسم المنطقة" />
+                <div className="area-fee">
+                  <input className="input num" inputMode="decimal" placeholder="0" value={area.fee} onChange={(e) => setArea(index, { fee: e.target.value })} aria-label={`رسوم ${area.name}`} />
+                  <span className="muted">ج.م</span>
+                </div>
+                <label className="check">
+                  <input type="checkbox" checked={area.active} onChange={(e) => setArea(index, { active: e.target.checked })} />
+                  شغالة
+                </label>
+                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeArea(index)} aria-label={`مسح ${area.name}`}>
+                  مسح
+                </button>
+              </div>
+            ))}
           </div>
 
           <h2 style={{ marginTop: 10 }}>قسم العروض</h2>

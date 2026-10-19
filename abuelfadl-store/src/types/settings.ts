@@ -6,6 +6,26 @@ export interface Branch {
   mapUrl: string;
 }
 
+/** A delivery area the customer picks at checkout. Its fee is added to the order total. */
+export interface DeliveryArea {
+  /** Stable id stored on orders (names can change). */
+  id: string;
+  name: string;
+  /** Delivery fee in EGP. */
+  fee: number;
+  /** False: hidden at checkout (kept for later). */
+  active: boolean;
+}
+
+/** Daily order-taking hours, Cairo time. `close` before `open` means the window ends after midnight. */
+export interface OrderHours {
+  enabled: boolean;
+  /** "HH:MM", 24-hour, e.g. "14:00". */
+  open: string;
+  /** "HH:MM", e.g. "01:30". */
+  close: string;
+}
+
 /** Store-wide settings edited from the dashboard ("الإعدادات"). */
 export interface StoreSettings {
   /** Minimum order total in EGP. 0 means no minimum. */
@@ -32,4 +52,8 @@ export interface StoreSettings {
   offersTitle: string;
   /** Small label above the offers title, e.g. "عروض لفترة محدودة". Empty: no label. */
   offersKicker: string;
+  /** Delivery areas and fees. With no active area the checkout asks for none and adds no fee. */
+  deliveryAreas: DeliveryArea[];
+  /** When enabled, orders are accepted only within these hours (outside them the store works as when paused). */
+  orderHours: OrderHours;
 }

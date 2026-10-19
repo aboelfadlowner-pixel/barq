@@ -15,3 +15,12 @@
 .po.off{color:var(--muted);background:var(--bg-soft)}.po small{font-size:.75rem;margin-inline-start:6px}
 .co-sum{display:flex;justify-content:space-between;align-items:baseline;margin:20px 0 12px;font-size:1rem}
 .co-sum strong{font-size:1.4rem}
+/* delivery areas (dashboard settings) and the products / delivery lines above the total */
+.areas{margin-top:4px}
+.areas .po{cursor:pointer;padding:12px 16px}
+.areas .fee{font-variant-numeric:tabular-nums;color:var(--brand);font-weight:600;white-space:nowrap}
+.areas.bad .po{border-color:#E5A3A3}
+.areas .err{color:var(--sale);font-size:.8rem;min-height:1em}
+.co-lines{display:grid;gap:6px;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line);color:var(--muted);font-size:.92rem}
+.co-lines div{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
+.co-lines + .co-sum{margin-top:8px}

@@ -1,3 +1,4 @@
+import { isWithinHours, outsideHoursMessage } from "../lib/hours";
 import { withDefaults } from "../lib/settings";
 import { cairoToday, sellingPrice } from "../lib/pricing";
 import { isAllowedQuantity } from "../lib/quantity";
@@ -11,10 +12,14 @@ const cleanPhone = (value: string) =>
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+/** Products total of an order (older orders have no `subtotal`: no delivery fee then). */
+const productsOf = (order: StoredOrder) => order.subtotal ?? order.total - (order.deliveryFee ?? 0);
+
 /** What the public `POST /api/orders` accepts (same shape as `OrderDraft`; `total` is ignored). */
 export interface OrderRequest {
   customer?: { name?: unknown; phone?: unknown; address?: unknown; note?: unknown };
   items?: { productId?: unknown; quantity?: unknown }[];
+  areaId?: unknown;
   paymentMethod?: unknown;
 }
 
@@ -28,6 +33,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
   return mutate((data) => {
     const settings = withDefaults(data.settings);
     if (!settings.ordersOpen) throw new ApiError(409, settings.closedMessage);
+    if (!isWithinHours(settings.orderHours)) throw new ApiError(409, outsideHoursMessage(settings.orderHours));
     const fields: Record<string, string> = {};
     const name = String(request.customer?.name ?? "").trim();
     const phone = cleanPhone(String(request.customer?.phone ?? ""));
@@ -37,6 +43,10 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     if (!/^01[0125][0-9]{8}$/.test(phone)) fields.phone = "اكتب رقم موبايل مصري صحيح من 11 رقم";
     if (address.length < 8 || address.length > 300) fields.address = "اكتب العنوان بالتفصيل (الشارع والعمارة والدور)";
     if (request.paymentMethod !== undefined && request.paymentMethod !== "cash") fields.paymentMethod = "الدفع كاش عند الاستلام فقط حاليًا";
+    // Delivery area: required while the settings have active areas; its fee comes from the settings, never the browser.
+    const areas = settings.deliveryAreas.filter((area) => area.active);
+    const area = areas.find((a) => a.id === request.areaId);
+    if (areas.length && !area) fields.areaId = "اختار منطقة التوصيل";
     assertValid(fields);
 
     const items = Array.isArray(request.items) ? request.items : [];
@@ -64,8 +74,9 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
         lineTotal: round2(price * quantity),
       });
     }
-    const total = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-    if (total < settings.minOrder) throw new ApiError(400, `الحد الأدنى للطلب ${settings.minOrder} جنيه`);
+    const subtotal = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0));
+    if (subtotal < settings.minOrder) throw new ApiError(400, `الحد الأدنى للطلب ${settings.minOrder} جنيه`);
+    const deliveryFee = area?.fee ?? 0;
 
     const now = new Date().toISOString();
     data.orderSeq += 1;
@@ -74,7 +85,9 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
       number: `AF-${String(data.orderSeq).padStart(5, "0")}`,
       customer: { name, phone, address, note },
       lines,
-      total,
+      subtotal,
+      ...(area ? { deliveryArea: area.name, deliveryFee } : {}),
+      total: round2(subtotal + deliveryFee),
       paymentMethod: "cash",
       status: "new",
       createdAt: now,
@@ -137,8 +150,9 @@ export async function getStats() {
   for (const order of orders) byStatus[order.status] += 1;
   return {
     todayOrders: todays.length,
-    todayRevenue: round2(todays.reduce((sum, order) => sum + order.total, 0)),
-    averageOrder: todays.length ? round2(todays.reduce((sum, order) => sum + order.total, 0) / todays.length) : 0,
+    // Sales = products (delivery fees are not sales).
+    todayRevenue: round2(todays.reduce((sum, order) => sum + productsOf(order), 0)),
+    averageOrder: todays.length ? round2(todays.reduce((sum, order) => sum + productsOf(order), 0) / todays.length) : 0,
     byStatus,
     totalOrders: orders.length,
     products: products.length,

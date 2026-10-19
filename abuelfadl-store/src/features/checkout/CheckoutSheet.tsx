@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOverlay } from "@/components/layout/OverlayProvider";
 import { Icon } from "@/components/ui/Icon";
 import { useCart } from "@/features/cart/CartProvider";
+import { useSettings } from "@/features/settings/SettingsProvider";
 import { CUSTOMER_STORAGE_KEY } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 import { orderService } from "@/services/client";
@@ -15,6 +16,7 @@ interface Errors {
   name?: string;
   phone?: string;
   address?: string;
+  area?: string;
 }
 
 /** Egyptian mobile number: strips spaces and dashes and turns Arabic-Indic digits into 0-9 (v29 `submitOrder`). */
@@ -22,8 +24,9 @@ const cleanPhone = (value: string) =>
   value.replace(/[\s-]/g, "").replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
 
 /**
- * Delivery details sheet (v29 `#co`): name, mobile, address, note, payment (cash only), total and confirm.
- * Name, phone and address are remembered in localStorage (`abuelfadl_customer`) for the next order.
+ * Delivery details sheet (v29 `#co`): name, mobile, delivery area (fee from the dashboard settings), address, note,
+ * payment (cash only), totals and confirm. Name, phone, area and address are remembered in localStorage
+ * (`abuelfadl_customer`) for the next order.
  */
 export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }) {
   const { lines, count, total, clear } = useCart();
@@ -33,6 +36,10 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
+  const [areaId, setAreaId] = useState("");
+  const areas = useSettings().deliveryAreas.filter((area) => area.active);
+  const area = areas.find((a) => a.id === areaId);
+  const deliveryFee = area?.fee ?? 0;
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -47,6 +54,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
       setName((current) => current || saved.name || "");
       setPhone((current) => current || saved.phone || "");
       setAddress((current) => current || saved.addr || "");
+      setAreaId((current) => current || saved.area || "");
     } catch {
       // unreadable storage: leave the fields empty
     }
@@ -67,15 +75,17 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
     const next: Errors = {};
     if (trimmedName.length < 3) next.name = "اكتب اسمك من فضلك";
     if (!/^01[0125][0-9]{8}$/.test(mobile)) next.phone = "اكتب رقم موبايل مصري صحيح من 11 رقم";
+    if (areas.length && !area) next.area = "اختار منطقة التوصيل";
     if (trimmedAddress.length < 8) next.address = "اكتب العنوان بالتفصيل (الشارع والعمارة والدور)";
     setErrors(next);
     if (next.name) return nameRef.current?.focus();
     if (next.phone) return phoneRef.current?.focus();
+    if (next.area) return document.getElementById("coAreas")?.querySelector<HTMLInputElement>("input")?.focus();
     if (next.address) return addressRef.current?.focus();
 
     setBusy(true);
     try {
-      localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify({ name: trimmedName, phone: mobile, addr: trimmedAddress }));
+      localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify({ name: trimmedName, phone: mobile, addr: trimmedAddress, area: areaId }));
     } catch {
       // storage blocked: the order still goes through
     }
@@ -83,7 +93,8 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
       const placed = await orderService.submitOrder({
         customer: { name: trimmedName, phone: mobile, address: trimmedAddress, note: note.trim() },
         items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
-        total,
+        areaId: area?.id,
+        total: total + deliveryFee,
         paymentMethod: "cash",
       });
       clear();
@@ -135,6 +146,19 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
             {errors.phone}
           </small>
         </div>
+        {areas.length ? (
+          <fieldset className={errors.area ? "pay areas bad" : "pay areas"} id="coAreas">
+            <legend>منطقة التوصيل</legend>
+            {areas.map((option) => (
+              <label key={option.id} className={option.id === areaId ? "po on" : "po"}>
+                <input type="radio" name="area" value={option.id} checked={option.id === areaId} onChange={() => (setAreaId(option.id), setErrors((e) => ({ ...e, area: undefined })))} />
+                <span className="pd">{option.name}</span>
+                <b className="fee">{option.fee ? `${formatMoney(option.fee)} ج.م` : "مجانًا"}</b>
+              </label>
+            ))}
+            <small className="err">{errors.area}</small>
+          </fieldset>
+        ) : null}
         <div className={fieldClass("address")}>
           <label htmlFor="coAddr">العنوان</label>
           <textarea
@@ -171,9 +195,21 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
             </span>
           </label>
         </fieldset>
+        {areas.length ? (
+          <div className="co-lines">
+            <div>
+              <span>المنتجات</span>
+              <span>{formatMoney(total)} ج.م</span>
+            </div>
+            <div>
+              <span>التوصيل{area ? ` (${area.name})` : ""}</span>
+              <span>{area ? `${formatMoney(deliveryFee)} ج.م` : "اختار المنطقة"}</span>
+            </div>
+          </div>
+        ) : null}
         <div className="co-sum">
           <span>الإجمالي</span>
-          <strong id="coTotal">{formatMoney(total)} ج.م</strong>
+          <strong id="coTotal">{formatMoney(total + deliveryFee)} ج.م</strong>
         </div>
         <button className="btn btn-primary" type="button" id="coSubmit" style={{ width: "100%" }} disabled={busy} onClick={submit}>
           تأكيد الطلب

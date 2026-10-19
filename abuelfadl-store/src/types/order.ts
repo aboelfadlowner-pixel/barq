@@ -16,6 +16,8 @@ export interface CustomerDetails {
 /** What the checkout form produces. */
 export interface OrderDraft {
   customer: CustomerDetails;
+  /** Delivery area picked at checkout (`DeliveryArea.id` from the settings). */
+  areaId?: string;
   items: CartItem[];
   /** Total in EGP, as shown in the browser. The server recomputes it from its own prices. */
   total: number;
@@ -61,7 +63,12 @@ export interface StoredOrder {
   number: string;
   customer: CustomerDetails;
   lines: OrderLine[];
-  /** Server-computed total in EGP. */
+  /** Products only, in EGP. Missing on orders placed before delivery fees existed (then it equals `total`). */
+  subtotal?: number;
+  /** Delivery area name and fee at order time (copied, so later settings changes do not alter the order). */
+  deliveryArea?: string;
+  deliveryFee?: number;
+  /** Server-computed total in EGP: products + delivery fee. */
   total: number;
   paymentMethod: PaymentMethod;
   status: OrderStatus;

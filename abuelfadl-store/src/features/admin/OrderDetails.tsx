@@ -85,6 +85,22 @@ export function OrderDetails({ id }: { id: string }) {
                       <td className="num">{egp(line.lineTotal)}</td>
                     </tr>
                   ))}
+                  {order.deliveryArea ? (
+                    <>
+                      <tr>
+                        <td colSpan={3} className="muted">
+                          المنتجات
+                        </td>
+                        <td className="num">{egp(order.subtotal ?? order.total - (order.deliveryFee ?? 0))}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={3} className="muted">
+                          التوصيل ({order.deliveryArea})
+                        </td>
+                        <td className="num">{egp(order.deliveryFee ?? 0)}</td>
+                      </tr>
+                    </>
+                  ) : null}
                   <tr className="total-row">
                     <td colSpan={3}>الإجمالي (كاش عند الاستلام)</td>
                     <td className="num">{egp(order.total)}</td>
@@ -110,6 +126,12 @@ export function OrderDetails({ id }: { id: string }) {
                   واتساب
                 </a>
               </dd>
+              {order.deliveryArea ? (
+                <>
+                  <dt>المنطقة</dt>
+                  <dd>{order.deliveryArea}</dd>
+                </>
+              ) : null}
               <dt>العنوان</dt>
               <dd>{order.customer.address}</dd>
               {order.customer.note ? (

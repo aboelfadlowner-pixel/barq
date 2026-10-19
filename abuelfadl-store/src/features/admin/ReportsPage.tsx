@@ -51,16 +51,19 @@ export function ReportsPage() {
     const orders = await periodOrders();
     if (!orders.length) return toast("مفيش طلبات في الفترة دي");
     downloadCsv(`abuelfadl-orders-${report!.daily[0].day}_${report!.daily.at(-1)!.day}.csv`, [
-      ["رقم الطلب", "التاريخ", "الوقت", "العميل", "الموبايل", "العنوان", "ملاحظة العميل", "عدد الأصناف", "الأصناف", "الإجمالي"],
+      ["رقم الطلب", "التاريخ", "الوقت", "العميل", "الموبايل", "المنطقة", "العنوان", "ملاحظة العميل", "عدد الأصناف", "الأصناف", "المنتجات", "التوصيل", "الإجمالي"],
       ...orders.map((order) => [
         order.number,
         ...cairoParts(order.createdAt),
         order.customer.name,
         order.customer.phone,
+        order.deliveryArea ?? "",
         order.customer.address,
         order.customer.note,
         order.lines.length,
         order.lines.map((line) => `${line.name} × ${formatQty(line.quantity, line.weighed)}`).join(" | "),
+        order.subtotal ?? order.total - (order.deliveryFee ?? 0),
+        order.deliveryFee ?? 0,
         order.total,
       ]),
     ]);
@@ -109,7 +112,7 @@ export function ReportsPage() {
         <div className="stack">
           <div className="stats" style={{ marginBottom: 0 }}>
             <div className="card stat">
-              <span>المبيعات</span>
+              <span>المبيعات (المنتجات)</span>
               <b className="num">{egp(report.revenue)}</b>
             </div>
             <div className="card stat">
@@ -119,6 +122,10 @@ export function ReportsPage() {
             <div className="card stat">
               <span>متوسط الطلب</span>
               <b className="num">{egp(report.averageOrder)}</b>
+            </div>
+            <div className="card stat">
+              <span>رسوم التوصيل</span>
+              <b className="num">{egp(report.deliveryFees)}</b>
             </div>
             <div className="card stat">
               <span>عملاء طلبوا</span>

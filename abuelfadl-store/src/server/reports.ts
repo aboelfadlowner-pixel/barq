@@ -6,6 +6,9 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 const cairoDay = (iso: string) => cairoToday(new Date(iso));
 const cairoHour = (iso: string) => Number(new Date(iso).toLocaleString("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", hour12: false })) % 24;
 
+/** Products total of an order (older orders have no `subtotal`: no delivery fee then). */
+const productsTotal = (order: StoredOrder) => order.subtotal ?? order.total - (order.deliveryFee ?? 0);
+
 /** "YYYY-MM-DD" `n` days before `day` (calendar arithmetic in UTC, so no daylight-saving surprises). */
 function shiftDay(day: string, n: number): string {
   const date = new Date(`${day}T12:00:00Z`);
@@ -36,7 +39,9 @@ export async function getReport(days: number) {
   const inRange = ordersInRange(orders, days);
   const today = cairoToday();
 
-  const revenue = round2(inRange.reduce((sum, order) => sum + order.total, 0));
+  // Sales = products; delivery fees are reported on their own.
+  const revenue = round2(inRange.reduce((sum, order) => sum + productsTotal(order), 0));
+  const deliveryFees = round2(inRange.reduce((sum, order) => sum + (order.deliveryFee ?? 0), 0));
   const daily = Array.from({ length: days }, (_, i) => ({ day: shiftDay(today, days - 1 - i), orders: 0, revenue: 0 }));
   const dayIndex = new Map(daily.map((entry, i) => [entry.day, i]));
   const byHour = Array.from({ length: 24 }, () => 0);
@@ -49,7 +54,7 @@ export async function getReport(days: number) {
     const entry = daily[dayIndex.get(cairoDay(order.createdAt)) ?? -1];
     if (entry) {
       entry.orders += 1;
-      entry.revenue = round2(entry.revenue + order.total);
+      entry.revenue = round2(entry.revenue + productsTotal(order));
     }
     byHour[cairoHour(order.createdAt)] += 1;
     for (const line of order.lines) {
@@ -69,6 +74,7 @@ export async function getReport(days: number) {
     orders: inRange.length,
     revenue,
     averageOrder: inRange.length ? round2(revenue / inRange.length) : 0,
+    deliveryFees,
     customers: new Set(inRange.map((order) => order.customer.phone)).size,
     daily,
     byHour,

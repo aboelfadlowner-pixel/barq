@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useCatalog } from "@/features/catalog/CatalogProvider";
 import { flyToCart } from "@/lib/cart-effects";
 import { useSettings } from "@/features/settings/SettingsProvider";
+import { useOrdering } from "@/features/settings/useOrdering";
 import { formatMoney } from "@/lib/format";
 import { decreaseQuantity, increaseQuantity, quantityLabel, round2 } from "@/lib/quantity";
 import { useCheckout } from "@/features/checkout/CheckoutProvider";
@@ -51,7 +52,8 @@ export function CartDrawer() {
     lastFocus.current = null;
   }, [isOpen]);
 
-  const { minOrder, ordersOpen, closedMessage } = useSettings();
+  const { minOrder } = useSettings();
+  const { canOrder, message } = useOrdering();
   const reachedMinimum = total >= minOrder;
   const progress = minOrder > 0 ? Math.min(100, Math.round((total / minOrder) * 100)) : 100;
 
@@ -74,13 +76,13 @@ export function CartDrawer() {
       </div>
       <div className="dr-min">
         <p id="minMsg">
-          {!ordersOpen
-            ? closedMessage
+          {!canOrder
+            ? message
             : reachedMinimum
-            ? "وصلت للحد الأدنى للطلب، والتوصيل متاح داخل البيطاش."
+            ? "وصلت للحد الأدنى للطلب. رسوم التوصيل بتتحسب حسب منطقتك."
             : `أضف ${formatMoney(minOrder - total)} ج.م لتصل إلى الحد الأدنى للطلب (${minOrder} ج.م).`}
         </p>
-        <div className="track" hidden={!ordersOpen}>
+        <div className="track" hidden={!canOrder}>
           <div className="fill" id="fill" style={{ width: `${progress}%` }} />
         </div>
       </div>
@@ -147,10 +149,10 @@ export function CartDrawer() {
           className="btn btn-primary"
           type="button"
           id="checkout"
-          disabled={!ordersOpen || !reachedMinimum}
+          disabled={!canOrder || !reachedMinimum}
           onClick={openCheckout}
         >
-          {!ordersOpen ? "استقبال الطلبات متوقف حاليًا" : reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${minOrder} ج.م`}
+          {!canOrder ? "مش بنستقبل طلبات دلوقتي" : reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${minOrder} ج.م`}
         </button>
       </div>
     </aside>
