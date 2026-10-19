@@ -179,8 +179,8 @@ Orders keep a copy of each product's name and price, so editing the catalog late
 
 ### Weight settings
 Weighed products have `minWeight`, `weightStep` and `maxWeight` (kg; defaults 0.25 / 0.25 / 10), set in the product form like
-WooCommerce weight-based pricing. The product sheet shows quick choices within those settings, +/- buttons, and a "وزن تاني؟"
-field in grams that snaps to the nearest allowed weight. `src/lib/quantity.ts` holds the rules; orders are checked with the same code.
+WooCommerce weight-based pricing. The product sheet shows quick choices within those settings and +/- buttons
+(no free-typed weight). `src/lib/quantity.ts` holds the rules; orders are checked with the same code.
 
 ### Category photos
 Categories have two optional pictures (dashboard → الأقسام): `imageUrl`, the portrait 4:5 card photo on the home page, and

@@ -44,15 +44,6 @@ export function isAllowedQuantity(product: Weighable, quantity: number): boolean
   return Math.abs(steps - Math.round(steps)) < 1e-6;
 }
 
-/** Nearest allowed quantity to `quantity` (e.g. a weight typed by the customer). */
-export function snapQuantity(product: Weighable, quantity: number): number {
-  const { min, step, max } = quantityRule(product);
-  if (!Number.isFinite(quantity) || quantity <= min) return min;
-  const lastStep = Math.floor((max - min) / step + 1e-9);
-  const steps = Math.min(lastStep, Math.round((quantity - min) / step));
-  return roundQty(min + steps * step);
-}
-
 /** One step up (starting at the minimum when the product is not in the cart yet), capped at the maximum. */
 export function increaseQuantity(product: Weighable, quantity: number): number {
   const { min, step, max } = quantityRule(product);
