@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Art } from "@/components/ui/Art";
-import { CATEGORY_ARTS } from "@/lib/category-art";
 import type { Category } from "@/types/category";
 import { api, AdminApiError } from "./api";
 import { ImagePicker } from "./ImagePicker";
@@ -107,14 +106,12 @@ function CategoryRow({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(category.name);
-  const [art, setArt] = useState(category.art);
-  const [tint, setTint] = useState(category.tint);
   const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
   const [iconUrl, setIconUrl] = useState(category.iconUrl ?? "");
   const [tagline, setTagline] = useState(category.tagline ?? "");
   const dirty =
     tagline.trim() !== (category.tagline ?? "") ||
-    name !== category.name || art !== category.art || tint.toLowerCase() !== category.tint.toLowerCase() ||
+    name !== category.name ||
     imageUrl.trim() !== (category.imageUrl ?? "") ||
     iconUrl.trim() !== (category.iconUrl ?? "");
 
@@ -128,7 +125,7 @@ function CategoryRow({
           <Ic name="down" />
         </button>
       </div>
-      <CategoryThumb art={art} tint={tint} imageUrl={iconUrl || imageUrl} />
+      <CategoryThumb art={category.art} tint={category.tint} imageUrl={iconUrl || imageUrl} />
       <div className="grow">
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="اسم القسم" />
         <div className="row" style={{ gap: 6, marginTop: 4 }}>
@@ -159,15 +156,7 @@ function CategoryRow({
           </div>
         </div>
       </div>
-      <select className="select" style={{ width: "auto" }} value={art} onChange={(e) => setArt(e.target.value)} aria-label="الأيقونة">
-        {CATEGORY_ARTS.map((a) => (
-          <option key={a} value={a}>
-            {a.slice(2)}
-          </option>
-        ))}
-      </select>
-      <input className="color-input" type="color" value={tint} onChange={(e) => setTint(e.target.value.toUpperCase())} aria-label="لون الخلفية" />
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, art, tint, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim() })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim() })}>
         حفظ
       </button>
       <button
@@ -210,19 +199,6 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         </Field>
         <Field label="الكود (بالإنجليزي)" error={errors.id} hint="يظهر في رابط الصفحة ولا يمكن تغييره لاحقًا">
           <input className="input num" dir="ltr" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} placeholder="frozen" />
-        </Field>
-        <Field label="الأيقونة واللون" error={errors.art || errors.tint}>
-          <div className="row">
-            <CategoryThumb art={form.art} tint={form.tint} imageUrl={form.iconUrl || form.imageUrl} />
-            <select className="select" style={{ width: "auto" }} value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>
-              {CATEGORY_ARTS.map((a) => (
-                <option key={a} value={a}>
-                  {a.slice(2)}
-                </option>
-              ))}
-            </select>
-            <input className="color-input" type="color" value={form.tint} onChange={(e) => setForm({ ...form, tint: e.target.value.toUpperCase() })} />
-          </div>
         </Field>
       </div>
       <Field label="جملة القسم" error={errors.tagline} hint="اختياري: تظهر تحت اسم القسم في صفحته، بالعربي أو بالإنجليزي.">
