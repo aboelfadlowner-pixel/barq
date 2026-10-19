@@ -8,10 +8,10 @@ import { downloadCsv } from "./download";
 import { Ic, useToast } from "./ui";
 
 const PERIODS = [
-  { days: 1, label: "النهارده" },
+  { days: 1, label: "اليوم" },
   { days: 7, label: "آخر 7 أيام" },
-  { days: 30, label: "آخر 30 يوم" },
-  { days: 90, label: "آخر 3 شهور" },
+  { days: 30, label: "آخر 30 يومًا" },
+  { days: 90, label: "آخر 3 أشهر" },
 ];
 
 const dayLabel = (day: string) => {
@@ -49,7 +49,7 @@ export function ReportsPage() {
 
   const exportOrders = async () => {
     const orders = await periodOrders();
-    if (!orders.length) return toast("مفيش طلبات في الفترة دي");
+    if (!orders.length) return toast("لا توجد طلبات في هذه الفترة");
     downloadCsv(`abuelfadl-orders-${report!.daily[0].day}_${report!.daily.at(-1)!.day}.csv`, [
       ["رقم الطلب", "التاريخ", "الوقت", "العميل", "الموبايل", "المنطقة", "العنوان", "ملاحظة العميل", "عدد الأصناف", "الأصناف", "المنتجات", "التوصيل", "الإجمالي"],
       ...orders.map((order) => [
@@ -71,7 +71,7 @@ export function ReportsPage() {
 
   const exportLines = async () => {
     const orders = await periodOrders();
-    if (!orders.length) return toast("مفيش طلبات في الفترة دي");
+    if (!orders.length) return toast("لا توجد طلبات في هذه الفترة");
     downloadCsv(`abuelfadl-items-${report!.daily[0].day}_${report!.daily.at(-1)!.day}.csv`, [
       ["رقم الطلب", "التاريخ", "الموبايل", "كود المنتج", "المنتج", "بالوزن", "الكمية", "السعر", "الإجمالي"],
       ...orders.flatMap((order) =>
@@ -85,7 +85,7 @@ export function ReportsPage() {
       <div className="adm-head">
         <div>
           <h1>التقارير</h1>
-          <p>من الطلبات اللي جت من الموقع</p>
+          <p>من الطلبات الواردة من الموقع</p>
         </div>
         <div className="row">
           <button className="btn btn-sm" type="button" disabled={!report?.orders} onClick={exportOrders}>
@@ -107,7 +107,7 @@ export function ReportsPage() {
       </div>
       {error ? <div className="alert">{error}</div> : null}
       {!report ? (
-        <div className="empty">جاري التحميل…</div>
+        <div className="empty">جارٍ التحميل…</div>
       ) : (
         <div className="stack">
           <div className="stats" style={{ marginBottom: 0 }}>
@@ -128,13 +128,13 @@ export function ReportsPage() {
               <b className="num">{egp(report.deliveryFees)}</b>
             </div>
             <div className="card stat">
-              <span>عملاء طلبوا</span>
+              <span>العملاء الذين طلبوا</span>
               <b className="num">{report.customers}</b>
             </div>
           </div>
 
           {report.orders === 0 ? (
-            <div className="card empty">مفيش طلبات في الفترة دي لسه.</div>
+            <div className="card empty">لا توجد طلبات في هذه الفترة بعد.</div>
           ) : (
             <>
               {report.days > 1 ? (
@@ -146,12 +146,12 @@ export function ReportsPage() {
               <div className="card card-pad stack">
                 <h2>الطلبات بالساعة</h2>
                 <p className="muted" style={{ fontSize: 13 }}>
-                  تعرف منها وقت الزحمة وتظبط عليه الشيفتات
+                  تساعدك على معرفة أوقات الذروة وتنظيم الورديات
                 </p>
                 <Bars items={report.byHour.map((count, hour) => ({ label: hourLabel(hour), value: count, note: "" }))} format={(n) => `${n} طلب`} />
               </div>
               <div className="report-grid">
-                <TopTable title="الأكثر مبيعًا (بالفلوس)" rows={report.topByRevenue} />
+                <TopTable title="الأكثر مبيعًا (بالقيمة)" rows={report.topByRevenue} />
                 <TopTable title="الأكثر طلبًا (بعدد الطلبات)" rows={report.topByOrders} />
               </div>
               <div className="card card-pad stack">

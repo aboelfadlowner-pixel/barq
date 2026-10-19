@@ -79,7 +79,7 @@ export function CartDrawer() {
           {!canOrder
             ? message
             : reachedMinimum
-            ? "وصلت للحد الأدنى للطلب. رسوم التوصيل بتتحسب حسب منطقتك."
+            ? "وصلت إلى الحد الأدنى للطلب. تُحسب رسوم التوصيل حسب منطقتك."
             : `أضف ${formatMoney(minOrder - total)} ج.م لتصل إلى الحد الأدنى للطلب (${minOrder} ج.م).`}
         </p>
         <div className="track" hidden={!canOrder}>
@@ -152,7 +152,7 @@ export function CartDrawer() {
           disabled={!canOrder || !reachedMinimum}
           onClick={openCheckout}
         >
-          {!canOrder ? "مش بنستقبل طلبات دلوقتي" : reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${minOrder} ج.م`}
+          {!canOrder ? "استقبال الطلبات متوقف حاليًا" : reachedMinimum ? "إتمام الطلب" : `الحد الأدنى للطلب ${minOrder} ج.م`}
         </button>
       </div>
     </aside>

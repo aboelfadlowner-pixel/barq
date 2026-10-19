@@ -42,7 +42,7 @@ export function SyncPage() {
       const run = await api<SyncRun>("/api/admin/sync/products", { method: "POST", body: { csv, fileName: file.name } });
       setLatest(run);
       await load();
-      toast(run.changes.length ? `اتحدّث سعر ${run.changes.length} منتج` : "كل الأسعار زي ما هي، مفيش تغيير");
+      toast(run.changes.length ? `تم تحديث سعر ${run.changes.length} منتج` : "لا يوجد تغيير في الأسعار");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -56,7 +56,7 @@ export function SyncPage() {
       <div className="adm-head">
         <div>
           <h1>تحديث الأسعار</h1>
-          <p>من شيت المنتجات بتاع Foodics: أي منتج ليه نفس الـ SKU ياخد سعر الشيت</p>
+          <p>من شيت المنتجات الخاص بـ Foodics: كل منتج له نفس الـ SKU يأخذ سعر الشيت</p>
         </div>
         <div className="row">
           <input
@@ -69,7 +69,7 @@ export function SyncPage() {
           />
           <button className="btn btn-primary" type="button" disabled={busy} onClick={() => fileRef.current?.click()}>
             <Ic name="sync" />
-            {busy ? "جاري التحديث…" : "رفع شيت المنتجات"}
+            {busy ? "جارٍ التحديث…" : "رفع شيت المنتجات"}
           </button>
         </div>
       </div>
@@ -79,30 +79,30 @@ export function SyncPage() {
       {status ? (
         <div className="stats">
           <Link className="card stat" href="/admin/products?linked=yes">
-            <span>منتجات مربوطة بالشيت</span>
+            <span>منتجات مرتبطة بالشيت</span>
             <b className="num">{status.linkedProducts}</b>
           </Link>
           <Link className={`card stat${status.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
-            <span>منتجات لسه ملهاش SKU</span>
+            <span>منتجات بدون SKU</span>
             <b className="num">{status.unlinkedProducts}</b>
           </Link>
           <div className="card stat">
             <span>آخر تحديث</span>
             <b className="num" style={{ fontSize: 18 }}>
-              {status.runs[0] ? formatDateTime(status.runs[0].at) : "لسه"}
+              {status.runs[0] ? formatDateTime(status.runs[0].at) : "لا يوجد"}
             </b>
           </div>
         </div>
       ) : !error ? (
-        <div className="empty">جاري التحميل…</div>
+        <div className="empty">جارٍ التحميل…</div>
       ) : null}
 
       {status && !latest ? (
         <div className="card card-pad stack">
-          <h2>لسه مفيش تحديث</h2>
+          <h2>لا يوجد تحديث بعد</h2>
           <p className="muted">
-            نزّل «المنتجات.csv» من فولدر «داتا سنتر» على الدرايف، واضغط «رفع شيت المنتجات». السعر بس هو اللي بيتحدّث، والاسم والصورة
-            والقسم و«متوفر» بيفضلوا زي ما إنت حاططهم.
+            حمّل «المنتجات.csv» من مجلد «داتا سنتر» على الدرايف، ثم اضغط «رفع شيت المنتجات». يتم تحديث السعر فقط، ويبقى الاسم والصورة
+            والقسم و«متوفر» كما أدخلتها.
           </p>
         </div>
       ) : null}
@@ -119,16 +119,16 @@ export function SyncPage() {
                 صفوف الشيت <b className="num">{latest.rowsRead}</b>
               </span>
               <span className="badge green">
-                اتلقى <b className="num">{latest.matched}</b> منتج
+                تمت مطابقة <b className="num">{latest.matched}</b> منتج
               </span>
               <span className={`badge ${latest.changes.length ? "gold" : ""}`}>
-                سعر اتغيّر <b className="num">{latest.changes.length}</b>
+                أسعار تغيّرت <b className="num">{latest.changes.length}</b>
               </span>
               <span className={`badge ${latest.missingFromSheet.length ? "red" : ""}`}>
-                مربوط ومش في الشيت <b className="num">{latest.missingFromSheet.length}</b>
+                مرتبط وغير موجود في الشيت <b className="num">{latest.missingFromSheet.length}</b>
               </span>
               <span className="badge">
-                SKU في الشيت ومش على الموقع <b className="num">{latest.unlinkedCount}</b>
+                SKU في الشيت وغير موجود على الموقع <b className="num">{latest.unlinkedCount}</b>
               </span>
             </div>
           </div>
@@ -148,7 +148,7 @@ function ChangesTable({ run }: { run: SyncRun }) {
   return (
     <div className="card">
       <div className="card-pad">
-        <h2>الأسعار اللي اتغيرت</h2>
+        <h2>الأسعار التي تغيّرت</h2>
       </div>
       {run.changes.length ? (
         <div className="table-wrap">
@@ -158,7 +158,7 @@ function ChangesTable({ run }: { run: SyncRun }) {
                 <th>المنتج</th>
                 <th>SKU</th>
                 <th>كان</th>
-                <th>بقى</th>
+                <th>أصبح</th>
                 <th>الفرق</th>
               </tr>
             </thead>
@@ -189,7 +189,7 @@ function ChangesTable({ run }: { run: SyncRun }) {
           <More total={run.changes.length} limit={limit} onMore={() => setLimit((n) => n + PAGE)} />
         </div>
       ) : (
-        <div className="empty">كل الأسعار المربوطة زي الشيت بالظبط</div>
+        <div className="empty">كل الأسعار المرتبطة مطابقة للشيت</div>
       )}
     </div>
   );
@@ -200,8 +200,8 @@ function MissingTable({ run }: { run: SyncRun }) {
   return (
     <div className="card">
       <div className="card-pad stack" style={{ gap: 4 }}>
-        <h2>مربوطة بـ SKU مش موجود في الشيت</h2>
-        <p className="muted">سعرها متحدّثش. غالباً الـ SKU مكتوب غلط أو المنتج اتمسح من Foodics: راجع الـ SKU في صفحة المنتج.</p>
+        <h2>مرتبطة بـ SKU غير موجود في الشيت</h2>
+        <p className="muted">لم يتم تحديث سعرها. غالبًا الـ SKU مكتوب بشكل خاطئ أو تم حذف المنتج من Foodics: راجع الـ SKU في صفحة المنتج.</p>
       </div>
       <div className="table-wrap">
         <table className="tbl">
@@ -236,8 +236,8 @@ function UnlinkedTable({ status }: { status: SyncStatus }) {
   return (
     <div className="card">
       <div className="card-pad stack" style={{ gap: 8 }}>
-        <h2>في الشيت ومش على الموقع</h2>
-        <p className="muted">منتجات نشطة في Foodics ملهاش منتج على الموقع. لو المنتج موجود على الموقع باسم تاني، اكتب الـ SKU بتاعه في صفحته.</p>
+        <h2>في الشيت وغير موجودة على الموقع</h2>
+        <p className="muted">منتجات نشطة في Foodics ليس لها منتج على الموقع. إذا كان المنتج موجودًا على الموقع باسم آخر، فاكتب الـ SKU الخاص به في صفحته.</p>
         <input className="input" type="search" placeholder="ابحث بالاسم أو الـ SKU" value={search} onChange={(e) => (setSearch(e.target.value), setLimit(PAGE))} style={{ maxWidth: 320 }} />
       </div>
       {rows.length ? (
@@ -266,7 +266,7 @@ function UnlinkedTable({ status }: { status: SyncStatus }) {
           <More total={rows.length} limit={limit} onMore={() => setLimit((n) => n + PAGE)} />
         </div>
       ) : (
-        <div className="empty">مفيش</div>
+        <div className="empty">لا يوجد</div>
       )}
     </div>
   );
@@ -276,7 +276,7 @@ function History({ runs, current, onPick }: { runs: SyncRun[]; current: SyncRun;
   return (
     <div className="card">
       <div className="card-pad">
-        <h2>التحديثات اللي فاتت</h2>
+        <h2>التحديثات السابقة</h2>
       </div>
       <div className="table-wrap">
         <table className="tbl">
@@ -284,8 +284,8 @@ function History({ runs, current, onPick }: { runs: SyncRun[]; current: SyncRun;
             <tr>
               <th>الوقت</th>
               <th>المصدر</th>
-              <th>اتلقى</th>
-              <th>اتغيّر</th>
+              <th>المطابق</th>
+              <th>تغيّر</th>
             </tr>
           </thead>
           <tbody>

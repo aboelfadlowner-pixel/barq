@@ -74,13 +74,13 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
   const merged = { ...existing, ...input };
 
   const name = typeof merged.name === "string" ? merged.name.trim() : "";
-  if (name.length < 2 || name.length > 120) fields.name = "اكتب اسم المنتج (من 2 لـ 120 حرف)";
+  if (name.length < 2 || name.length > 120) fields.name = "اكتب اسم المنتج (من 2 إلى 120 حرفًا)";
 
   const categoryId = merged.categoryId ?? "";
-  if (!categories.some((category) => category.id === categoryId)) fields.categoryId = "اختار قسم موجود";
+  if (!categories.some((category) => category.id === categoryId)) fields.categoryId = "اختر قسمًا موجودًا";
 
   const price = Number(merged.price);
-  if (!Number.isFinite(price) || price <= 0 || price > 100000) fields.price = "السعر لازم يكون رقم أكبر من صفر";
+  if (!Number.isFinite(price) || price <= 0 || price > 100000) fields.price = "يجب أن يكون السعر رقمًا أكبر من صفر";
 
   // Weight settings (like WooCommerce's weight-based pricing): from minWeight, in steps of weightStep, up to maxWeight.
   const weighed = Boolean(merged.weighed);
@@ -89,19 +89,19 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     const weightStep = merged.weightStep === undefined ? DEFAULT_WEIGHT_STEP : Number(merged.weightStep);
     const minWeight = merged.minWeight === undefined ? weightStep : Number(merged.minWeight);
     const maxWeight = merged.maxWeight === undefined ? DEFAULT_MAX_WEIGHT : Number(merged.maxWeight);
-    if (!isWeight(weightStep, 5)) fields.weightStep = "الزيادة لازم تكون بين 0.001 و 5 كيلو";
-    if (!isWeight(minWeight, 50)) fields.minWeight = "أقل وزن لازم يكون أكبر من صفر (بالكيلو، مثلاً 0.125)";
-    if (!isWeight(maxWeight, 100)) fields.maxWeight = "أقصى وزن لازم يكون بين 0.001 و 100 كيلو";
-    else if (!fields.minWeight && maxWeight < minWeight) fields.maxWeight = "أقصى وزن لازم يكون أكبر من أو يساوي أقل وزن";
+    if (!isWeight(weightStep, 5)) fields.weightStep = "يجب أن تكون الزيادة بين 0.001 و 5 كيلو";
+    if (!isWeight(minWeight, 50)) fields.minWeight = "يجب أن يكون أقل وزن أكبر من صفر (بالكيلو، مثلًا 0.125)";
+    if (!isWeight(maxWeight, 100)) fields.maxWeight = "يجب أن يكون أقصى وزن بين 0.001 و 100 كيلو";
+    else if (!fields.minWeight && maxWeight < minWeight) fields.maxWeight = "يجب أن يكون أقصى وزن أكبر من أقل وزن أو مساويًا له";
     weights = { weightStep, minWeight, maxWeight };
   }
 
   // SKU: optional, "sk-" + digits, and never used by another product (one sheet row updates one product).
   const sku = normalizeSku(merged.sku);
-  if (sku && !isValidSku(sku)) fields.sku = "الـ SKU لازم يكون بالشكل sk-1234";
+  if (sku && !isValidSku(sku)) fields.sku = "يجب أن يكون الـ SKU بالشكل sk-1234";
   else if (sku) {
     const owner = products.find((product) => product.sku === sku && product.id !== existing?.id);
-    if (owner) fields.sku = `الـ SKU ده مربوط بمنتج تاني: «${owner.name}»`;
+    if (owner) fields.sku = `هذا الـ SKU مرتبط بمنتج آخر: «${owner.name}»`;
   }
 
   // Offer: optional sale price below the price, with optional first / last day ("YYYY-MM-DD").
@@ -110,13 +110,13 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
   if (offer) {
     const hasSale = merged.salePrice !== undefined && merged.salePrice !== null && String(merged.salePrice) !== "";
     const salePrice = hasSale ? Number(merged.salePrice) : undefined;
-    if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice <= 0)) fields.salePrice = "سعر العرض لازم يكون رقم أكبر من صفر";
-    else if (salePrice !== undefined && !fields.price && salePrice >= price) fields.salePrice = "سعر العرض لازم يكون أقل من السعر الأصلي";
+    if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice <= 0)) fields.salePrice = "يجب أن يكون سعر العرض رقمًا أكبر من صفر";
+    else if (salePrice !== undefined && !fields.price && salePrice >= price) fields.salePrice = "يجب أن يكون سعر العرض أقل من السعر الأصلي";
     const offerStart = cleanDate(merged.offerStart);
     const offerEnd = cleanDate(merged.offerEnd);
-    if (offerStart === null) fields.offerStart = "التاريخ مش مظبوط";
-    if (offerEnd === null) fields.offerEnd = "التاريخ مش مظبوط";
-    else if (offerStart && offerEnd && offerEnd < offerStart) fields.offerEnd = "آخر يوم لازم يكون بعد أول يوم";
+    if (offerStart === null) fields.offerStart = "التاريخ غير صحيح";
+    if (offerEnd === null) fields.offerEnd = "التاريخ غير صحيح";
+    else if (offerStart && offerEnd && offerEnd < offerStart) fields.offerEnd = "يجب أن يكون آخر يوم بعد أول يوم";
     offerFields = {
       ...(salePrice !== undefined && !fields.salePrice ? { salePrice: Math.round(salePrice * 100) / 100 } : {}),
       ...(offerStart ? { offerStart } : {}),
@@ -125,10 +125,10 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
   }
 
   const description = typeof merged.description === "string" ? merged.description.trim() : "";
-  if (description.length > 1000) fields.description = "الوصف طويل جدًا (أقصى حد 1000 حرف)";
+  if (description.length > 1000) fields.description = "الوصف طويل جدًا (الحد الأقصى 1000 حرف)";
 
   const imageUrl = typeof merged.imageUrl === "string" ? merged.imageUrl.trim() : "";
-  if (imageUrl && !IMAGE_URL.test(imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (imageUrl && !IMAGE_URL.test(imageUrl)) fields.imageUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
 
   assertValid(fields);
   return {
@@ -187,12 +187,12 @@ export interface BulkPatch {
 export function bulkUpdateProducts(ids: unknown, patch: BulkPatch): Promise<Product[]> {
   return mutate((data) => {
     const wanted = new Set(Array.isArray(ids) ? ids.map(Number).filter(Number.isInteger) : []);
-    if (!wanted.size) throw new ApiError(400, "اختار منتج واحد على الأقل");
-    if (patch.categoryId !== undefined && !data.categories.some((c) => c.id === patch.categoryId)) throw new ApiError(400, "اختار قسم موجود");
+    if (!wanted.size) throw new ApiError(400, "اختر منتجًا واحدًا على الأقل");
+    if (patch.categoryId !== undefined && !data.categories.some((c) => c.id === patch.categoryId)) throw new ApiError(400, "اختر قسمًا موجودًا");
     const percent = patch.discountPercent === undefined ? undefined : Number(patch.discountPercent);
-    if (percent !== undefined && (!Number.isFinite(percent) || percent < 1 || percent > 90)) throw new ApiError(400, "نسبة الخصم لازم تكون من 1 لـ 90");
+    if (percent !== undefined && (!Number.isFinite(percent) || percent < 1 || percent > 90)) throw new ApiError(400, "يجب أن تكون نسبة الخصم من 1 إلى 90");
     const offerEnd = cleanDate(patch.offerEnd);
-    if (offerEnd === null) throw new ApiError(400, "تاريخ آخر يوم مش مظبوط");
+    if (offerEnd === null) throw new ApiError(400, "تاريخ آخر يوم غير صحيح");
 
     const changed: Product[] = [];
     for (const product of data.products) {
@@ -229,7 +229,7 @@ export function reorderCategory(categoryId: CategoryId, ids: unknown): Promise<v
     const order = Array.isArray(ids) ? ids.map(Number) : [];
     const byId = new Map(slots.map((index) => [data.products[index].id, data.products[index]]));
     if (order.length !== slots.length || new Set(order).size !== order.length || order.some((id) => !byId.has(id))) {
-      throw new ApiError(409, "قائمة المنتجات اتغيّرت من وقت ما فتحت الصفحة. حدّث الصفحة ورتّب تاني.");
+      throw new ApiError(409, "تغيّرت قائمة المنتجات منذ فتح الصفحة. حدّث الصفحة وأعد الترتيب.");
     }
     const placed = order.map((id) => byId.get(id)!);
     slots.forEach((index, i) => (data.products[index] = placed[i]));
@@ -253,12 +253,12 @@ export type CategoryInput = Partial<Category> & {
 
 function checkCategoryFields(category: Category) {
   const fields: Record<string, string> = {};
-  if (!/^[a-z0-9-]{2,40}$/.test(category.id)) fields.id = "الكود بالإنجليزي الصغير وأرقام و - فقط (مثال: frozen-food)";
-  if (category.name.length < 2 || category.name.length > 60) fields.name = "اكتب اسم القسم (من 2 لـ 60 حرف)";
-  if (!(CATEGORY_ARTS as readonly string[]).includes(category.art)) fields.art = "اختار أيقونة من القائمة";
-  if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "اللون لازم يكون بالشكل #RRGGBB";
-  if (category.imageUrl && !IMAGE_URL.test(category.imageUrl)) fields.imageUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
-  if (category.iconUrl && !IMAGE_URL.test(category.iconUrl)) fields.iconUrl = "رابط الصورة لازم يبدأ بـ / أو https://";
+  if (!/^[a-z0-9-]{2,40}$/.test(category.id)) fields.id = "استخدم حروفًا إنجليزية صغيرة وأرقامًا و - فقط (مثال: frozen-food)";
+  if (category.name.length < 2 || category.name.length > 60) fields.name = "اكتب اسم القسم (من 2 إلى 60 حرفًا)";
+  if (!(CATEGORY_ARTS as readonly string[]).includes(category.art)) fields.art = "اختر أيقونة من القائمة";
+  if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "يجب أن يكون اللون بالشكل #RRGGBB";
+  if (category.imageUrl && !IMAGE_URL.test(category.imageUrl)) fields.imageUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
+  if (category.iconUrl && !IMAGE_URL.test(category.iconUrl)) fields.iconUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
   assertValid(fields);
 }
 
@@ -277,7 +277,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
     };
     checkCategoryFields(category);
     if (category.id === "all" || category.id === "deals" || data.categories.some((c) => c.id === category.id)) {
-      throw new ApiError(409, "الكود ده مستخدم قبل كده", { id: "الكود ده مستخدم قبل كده" });
+      throw new ApiError(409, "هذا الكود مستخدم من قبل", { id: "هذا الكود مستخدم من قبل" });
     }
     data.categories.push(category);
     return category;
@@ -314,7 +314,7 @@ export function deleteCategory(id: CategoryId): Promise<void> {
     const index = data.categories.findIndex((category) => category.id === id);
     if (index < 0) throw notFound("القسم");
     const count = data.products.filter((product) => product.categoryId === id).length;
-    if (count) throw new ApiError(409, `القسم فيه ${count} منتج. انقلهم أو امسحهم الأول.`);
+    if (count) throw new ApiError(409, `يحتوي القسم على ${count} منتج. انقلها أو احذفها أولًا.`);
     data.categories.splice(index, 1);
   });
 }

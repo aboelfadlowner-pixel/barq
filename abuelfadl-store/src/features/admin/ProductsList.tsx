@@ -130,15 +130,15 @@ export function ProductsList() {
           <option value="out">غير متوفر</option>
         </select>
         <select className="select" value={linked} onChange={(e) => setFilter("linked", e.target.value)} aria-label="الربط بشيت Foodics">
-          <option value="">مربوط وغير مربوط</option>
-          <option value="yes">مربوط بالشيت ({linkedCount})</option>
-          <option value="no">مش مربوط ({(products?.length ?? 0) - linkedCount})</option>
+          <option value="">المرتبط وغير المرتبط</option>
+          <option value="yes">مرتبط بالشيت ({linkedCount})</option>
+          <option value="no">غير مرتبط ({(products?.length ?? 0) - linkedCount})</option>
         </select>
       </div>
       {error ? <div className="alert">{error}</div> : null}
       <div className="card">
         {products === null ? (
-          <div className="empty">جاري التحميل…</div>
+          <div className="empty">جارٍ التحميل…</div>
         ) : visible.length ? (
           <div className="table-wrap">
             <table className="tbl">
@@ -176,7 +176,7 @@ export function ProductsList() {
                         {isOfferActive(product) ? (
                           <span className="badge red">عرض {discountPercent(product.price, product.salePrice!)}%</span>
                         ) : product.offer ? (
-                          <span className="badge">عرض مش ظاهر</span>
+                          <span className="badge">عرض غير ظاهر</span>
                         ) : null}
                       </div>
                     </td>
@@ -184,11 +184,11 @@ export function ProductsList() {
                     <td>
                       <SkuCell
                         product={product}
-                        onSave={(sku) => quickSave(product, { sku }, sku ? `اتربط بـ ${sku}` : "اتشال الربط")}
+                        onSave={(sku) => quickSave(product, { sku }, sku ? `تم الربط بـ ${sku}` : "تمت إزالة الربط")}
                       />
                     </td>
                     <td>
-                      <PriceCell product={product} onSave={(price) => quickSave(product, { price }, `السعر اتغيّر لـ ${egp(price)}`)} />
+                      <PriceCell product={product} onSave={(price) => quickSave(product, { price }, `تم تغيير السعر إلى ${egp(price)}`)} />
                     </td>
                     <td>
                       <label className="check">
@@ -217,7 +217,7 @@ export function ProductsList() {
             ) : null}
           </div>
         ) : (
-          <div className="empty">مفيش منتجات مطابقة</div>
+          <div className="empty">لا توجد منتجات مطابقة</div>
         )}
       </div>
       {selected.size ? <BulkBar count={selected.size} categories={categories} onApply={bulkSave} onClear={() => setSelected(new Set())} /> : null}
@@ -248,7 +248,7 @@ function BulkBar({
   return (
     <div className="bulk-bar" role="region" aria-label="تعديل جماعي">
       <div className="row">
-        <b className="num">{count} منتج متحدد</b>
+        <b className="num">{count} منتج محدد</b>
         <button className="btn btn-sm btn-ghost" type="button" onClick={onClear}>
           إلغاء التحديد
         </button>
@@ -260,23 +260,23 @@ function BulkBar({
         <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ inStock: false }, "أصبحت غير متوفرة")}>
           غير متوفر
         </button>
-        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: true }, "اتعلّموا «الأكثر مبيعًا»")}>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: true }, "تم وضع علامة «الأكثر مبيعًا»")}>
           + الأكثر مبيعًا
         </button>
-        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: false }, "اتشالت علامة «الأكثر مبيعًا»")}>
+        <button className="btn btn-sm" type="button" disabled={busy} onClick={() => run({ bestseller: false }, "تمت إزالة علامة «الأكثر مبيعًا»")}>
           − الأكثر مبيعًا
         </button>
         <select
           className="select bulk-select"
           value=""
           disabled={busy}
-          aria-label="نقل لقسم"
+          aria-label="نقل إلى قسم"
           onChange={(e) => {
             const target = categories.find((c) => c.id === e.target.value);
-            if (target && confirm(`نقل ${count} منتج لقسم «${target.name}»؟`)) run({ categoryId: target.id }, `اتنقلوا لـ «${target.name}»`);
+            if (target && confirm(`نقل ${count} منتج إلى قسم «${target.name}»؟`)) run({ categoryId: target.id }, `تم النقل إلى «${target.name}»`);
           }}
         >
-          <option value="">نقل لقسم…</option>
+          <option value="">نقل إلى قسم…</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -288,18 +288,18 @@ function BulkBar({
         className="row bulk-actions"
         onSubmit={(e) => {
           e.preventDefault();
-          run({ discountPercent: Number(discount), offerEnd }, `اتعمل عليهم خصم ${discount}%`);
+          run({ discountPercent: Number(discount), offerEnd }, `تم تطبيق خصم ${discount}%`);
         }}
       >
         <span className="muted">خصم</span>
         <input className="input bulk-num num" inputMode="numeric" placeholder="10" value={discount} onChange={(e) => setDiscount(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} aria-label="نسبة الخصم" />
-        <span className="muted">% لحد</span>
+        <span className="muted">% حتى</span>
         <input className="input bulk-date num" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} aria-label="آخر يوم في العرض (اختياري)" />
         <button className="btn btn-sm btn-primary" disabled={busy || !discount}>
           طبّق الخصم
         </button>
-        <button className="btn btn-sm btn-danger" type="button" disabled={busy} onClick={() => run({ offer: false }, "اتشال العرض")}>
-          شيل العرض
+        <button className="btn btn-sm btn-danger" type="button" disabled={busy} onClick={() => run({ offer: false }, "تمت إزالة العرض")}>
+          إزالة العرض
         </button>
       </form>
     </div>
@@ -351,12 +351,12 @@ function SkuCell({ product, onSave }: { product: Product; onSave: (sku: string) 
         placeholder="sk-0000"
         value={value}
         aria-label={`SKU ${product.name}`}
-        title={bad ? "الشكل الصح: sk-1234" : product.sku ? "مربوط بشيت Foodics" : "مش مربوط"}
+        title={bad ? "الصيغة الصحيحة: sk-1234" : product.sku ? "مرتبط بشيت Foodics" : "غير مرتبط"}
         onChange={(e) => setValue(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
       />
-      {!product.sku ? <span className="badge red">مش مربوط</span> : null}
+      {!product.sku ? <span className="badge red">غير مرتبط</span> : null}
     </div>
   );
 }

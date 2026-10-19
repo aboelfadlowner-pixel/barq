@@ -7,13 +7,13 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   notice: "التوصيل متاح للبيطاش والهانوفيل والدخيلة",
   whatsapp: "01099400097",
   ordersOpen: true,
-  closedMessage: "استقبال الطلبات متوقف دلوقتي، ارجعلنا كمان شوية",
+  closedMessage: "استقبال الطلبات متوقف مؤقتًا، يسعدنا طلبك بعد قليل",
   phone: "01099400097",
   facebook: "https://www.facebook.com/Abu.AlFadl.Market",
   instagram: "https://www.instagram.com/abu_elfadl1/",
   tiktok: "",
-  workHours: "يوميًا من 7 الصبح لـ 3 الفجر",
-  deliveryHours: "يوميًا من 2 الضهر لـ 1:30 بالليل",
+  workHours: "يوميًا من 7 صباحًا حتى 3 فجرًا",
+  deliveryHours: "يوميًا من 2 ظهرًا حتى 1:30 صباحًا",
   offersTitle: "العروض",
   offersKicker: "عروض لفترة محدودة",
   deliveryAreas: [
@@ -30,6 +30,13 @@ export const withDefaults = (settings: Partial<StoreSettings> | undefined): Stor
 
 /** Notice text of the first version, replaced by the new default when it was never edited (see `upgradeStore`). */
 export const OLD_NOTICE = "التوصيل متاح حاليًا داخل البيطاش فقط";
+
+/** Colloquial defaults of earlier versions, replaced by the simplified-Arabic ones when never edited (see `upgradeStore`). */
+export const OLD_DEFAULT_TEXTS: Partial<Record<"closedMessage" | "workHours" | "deliveryHours", string>> = {
+  closedMessage: "استقبال الطلبات متوقف دلوقتي، ارجعلنا كمان شوية",
+  workHours: "يوميًا من 7 الصبح لـ 3 الفجر",
+  deliveryHours: "يوميًا من 2 الضهر لـ 1:30 بالليل",
+};
 
 /** Text of the strip above the header: the notice followed by the minimum order, or the paused message. */
 export function noticeText(settings: StoreSettings): string {

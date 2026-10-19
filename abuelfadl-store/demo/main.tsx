@@ -57,7 +57,7 @@ document.addEventListener("click", (event) => {
   }
   void navigator.clipboard?.writeText(href).catch(() => undefined);
   const note = Object.assign(document.createElement("div"), {
-    textContent: "اللينك ده بيفتح في صفحة جديدة، والمعاينة منعته. اتنسخ، الصقه في المتصفح. (في الموقع الحقيقي بيفتح عادي)",
+    textContent: "يفتح هذا الرابط في صفحة جديدة، لكن المعاينة منعته. تم نسخ الرابط، الصقه في المتصفح. (في الموقع الفعلي يفتح بشكل طبيعي)",
   });
   note.style.cssText =
     "position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,420px);background:#1A211C;color:#fff;padding:10px 14px;border-radius:12px;font:500 14px/1.6 'Readex Pro',sans-serif;text-align:center;direction:rtl";

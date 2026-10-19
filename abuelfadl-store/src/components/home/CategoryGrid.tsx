@@ -14,7 +14,7 @@ export function CategoryGrid({ categories }: { categories: Category[] }) {
       <div className="wrap">
         <div className="sec-h rv">
           <h2>تسوّق حسب القسم</h2>
-          <p>اختر القسم لتشوف منتجاته.</p>
+          <p>اختر القسم لتتصفح منتجاته.</p>
         </div>
         <div className="pcs" id="cats">
           {categories.map((category) => {

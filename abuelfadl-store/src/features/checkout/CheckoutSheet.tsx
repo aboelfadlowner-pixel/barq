@@ -73,9 +73,9 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
     const mobile = cleanPhone(phone);
     const trimmedAddress = address.trim();
     const next: Errors = {};
-    if (trimmedName.length < 3) next.name = "اكتب اسمك من فضلك";
-    if (!/^01[0125][0-9]{8}$/.test(mobile)) next.phone = "اكتب رقم موبايل مصري صحيح من 11 رقم";
-    if (areas.length && !area) next.area = "اختار منطقة التوصيل";
+    if (trimmedName.length < 3) next.name = "من فضلك اكتب اسمك";
+    if (!/^01[0125][0-9]{8}$/.test(mobile)) next.phone = "اكتب رقم موبايل مصري صحيح (11 رقمًا)";
+    if (areas.length && !area) next.area = "اختر منطقة التوصيل";
     if (trimmedAddress.length < 8) next.address = "اكتب العنوان بالتفصيل (الشارع والعمارة والدور)";
     setErrors(next);
     if (next.name) return nameRef.current?.focus();
@@ -185,7 +185,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
           <legend>طريقة الدفع</legend>
           <label className="po on">
             <input type="radio" name="pay" value="cash" defaultChecked />
-            <span className="pd">كاش عند الاستلام</span>
+            <span className="pd">الدفع نقدًا عند الاستلام</span>
             <Icon id="i-check" />
           </label>
           <label className="po off">
@@ -203,7 +203,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
             </div>
             <div>
               <span>التوصيل{area ? ` (${area.name})` : ""}</span>
-              <span>{area ? `${formatMoney(deliveryFee)} ج.م` : "اختار المنطقة"}</span>
+              <span>{area ? `${formatMoney(deliveryFee)} ج.م` : "اختر المنطقة"}</span>
             </div>
           </div>
         ) : null}

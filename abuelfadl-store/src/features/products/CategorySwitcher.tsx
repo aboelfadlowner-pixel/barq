@@ -71,7 +71,7 @@ export function CategorySwitcherSheet({ categories }: { categories: Category[] }
       <h2 id="csTitle" style={{ marginTop: 34 }}>
         الأقسام
       </h2>
-      <p className="co-sub">اختر القسم وانتقل له مباشرة.</p>
+      <p className="co-sub">اختر القسم وانتقل إليه مباشرة.</p>
       <div className="cs-grid" id="csGrid">
         {tiles.map((tile, index) => (
           <Link

@@ -26,7 +26,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (response.status === 401 && !path.endsWith("/login")) {
     window.location.href = `/admin/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
-  if (!response.ok) throw new AdminApiError(data.error || "حصل خطأ، حاول تاني", response.status, data.fields);
+  if (!response.ok) throw new AdminApiError(data.error || "حدث خطأ، حاول مرة أخرى", response.status, data.fields);
   return data as T;
 }
 
@@ -52,6 +52,6 @@ export async function uploadImage(file: Blob): Promise<string> {
   const response = await fetch("/api/admin/uploads", { method: "POST", headers: { "Content-Type": file.type }, body: file });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401) window.location.href = `/admin/login?next=${encodeURIComponent(window.location.pathname)}`;
-  if (!response.ok || !data.url) throw new AdminApiError(data.error || "الصورة ماترفعتش، حاول تاني", response.status);
+  if (!response.ok || !data.url) throw new AdminApiError(data.error || "تعذّر رفع الصورة، حاول مرة أخرى", response.status);
   return data.url as string;
 }

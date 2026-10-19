@@ -100,7 +100,7 @@ export function useNewOrderAlert(stats: DashboardStats | null) {
         // ignore
       }
     }
-    toast(next ? "تنبيه الطلبات الجديدة اشتغل" : "تنبيه الطلبات الجديدة اتقفل");
+    toast(next ? "تم تشغيل تنبيه الطلبات الجديدة" : "تم إيقاف تنبيه الطلبات الجديدة");
   }, [enabled, toast]);
 
   return { enabled, toggle };
@@ -109,9 +109,9 @@ export function useNewOrderAlert(stats: DashboardStats | null) {
 /** On/off button for the new-order alert. */
 export function AlertToggle({ enabled, onToggle, className }: { enabled: boolean; onToggle: () => void; className?: string }) {
   return (
-    <button type="button" className={className} onClick={onToggle} aria-pressed={enabled} title="صوت وإشعار لما ييجي طلب جديد">
+    <button type="button" className={className} onClick={onToggle} aria-pressed={enabled} title="صوت وإشعار عند وصول طلب جديد">
       <Ic name="bell" />
-      {enabled ? "التنبيه شغال" : "التنبيه مقفول"}
+      {enabled ? "التنبيه مفعّل" : "التنبيه متوقف"}
     </button>
   );
 }

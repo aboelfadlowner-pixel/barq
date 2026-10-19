@@ -111,7 +111,7 @@ export function ProductForm({ id }: { id?: string }) {
     };
     try {
       const saved = await api<Product>(id ? `/api/admin/products/${id}` : "/api/admin/products", { method: id ? "PATCH" : "POST", body });
-      toast(id ? "التعديلات اتحفظت" : `المنتج اتضاف برقم ${saved.id}`);
+      toast(id ? "تم حفظ التعديلات" : `تمت إضافة المنتج برقم ${saved.id}`);
       router.push("/admin/products");
     } catch (err) {
       if (err instanceof AdminApiError) {
@@ -123,11 +123,11 @@ export function ProductForm({ id }: { id?: string }) {
   };
 
   const remove = async () => {
-    if (!id || !confirm(`متأكد إنك عايز تمسح «${form.name}»؟ مش هينفع ترجّعه.`)) return;
+    if (!id || !confirm(`هل تريد حذف «${form.name}»؟ لا يمكن التراجع عن ذلك.`)) return;
     setBusy(true);
     try {
       await api(`/api/admin/products/${id}`, { method: "DELETE" });
-      toast("المنتج اتمسح");
+      toast("تم حذف المنتج");
       router.push("/admin/products");
     } catch (err) {
       setMessage((err as Error).message);
@@ -135,7 +135,7 @@ export function ProductForm({ id }: { id?: string }) {
     }
   };
 
-  if (!loaded) return message ? <div className="alert">{message}</div> : <div className="empty">جاري التحميل…</div>;
+  if (!loaded) return message ? <div className="alert">{message}</div> : <div className="empty">جارٍ التحميل…</div>;
 
   return (
     <form onSubmit={submit} noValidate>
@@ -153,11 +153,11 @@ export function ProductForm({ id }: { id?: string }) {
           {id ? (
             <button className="btn btn-danger" type="button" onClick={remove} disabled={busy}>
               <Ic name="trash" />
-              مسح
+              حذف
             </button>
           ) : null}
           <button className="btn btn-primary" disabled={busy}>
-            {busy ? "جاري الحفظ…" : "حفظ"}
+            {busy ? "جارٍ الحفظ…" : "حفظ"}
           </button>
         </div>
       </div>
@@ -172,7 +172,7 @@ export function ProductForm({ id }: { id?: string }) {
           <div className="grid2">
             <Field label="القسم" error={errors.categoryId}>
               <select className="select" value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
-                <option value="">اختار القسم</option>
+                <option value="">اختر القسم</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -186,8 +186,8 @@ export function ProductForm({ id }: { id?: string }) {
           </div>
           <Field
             label="SKU (من شيت Foodics)"
-            error={errors.sku || (form.sku && !isValidSku(normalizeSku(form.sku)) ? "الشكل الصح: sk-1234" : undefined)}
-            hint={form.sku ? "مربوط: السعر هيتحدّث من شيت المنتجات" : "اكتب الـ SKU عشان المنتج يتربط بالشيت والسعر يتحدّث لوحده"}
+            error={errors.sku || (form.sku && !isValidSku(normalizeSku(form.sku)) ? "الصيغة الصحيحة: sk-1234" : undefined)}
+            hint={form.sku ? "مرتبط: سيتم تحديث السعر من شيت المنتجات" : "اكتب الـ SKU لربط المنتج بالشيت وتحديث سعره تلقائيًا"}
           >
             <input className="input num" dir="ltr" placeholder="sk-0000" value={form.sku} onChange={(e) => set("sku", e.target.value)} />
           </Field>
@@ -207,7 +207,7 @@ export function ProductForm({ id }: { id?: string }) {
           </label>
           <label className="check">
             <input type="checkbox" checked={form.bestseller} onChange={(e) => set("bestseller", e.target.checked)} />
-            يظهر عليه «الأكثر مبيعًا»
+            تظهر عليه علامة «الأكثر مبيعًا»
           </label>
           <label className="check">
             <input type="checkbox" checked={form.offer} onChange={(e) => set("offer", e.target.checked)} />
@@ -216,14 +216,14 @@ export function ProductForm({ id }: { id?: string }) {
           {form.offer ? (
             <div className="weight-box stack">
               <h3>العرض</h3>
-              <Field label={form.weighed ? "سعر الكيلو في العرض (ج.م)" : "سعر العرض (ج.م)"} error={errors.salePrice} hint="لازم يكون أقل من السعر الأصلي">
+              <Field label={form.weighed ? "سعر الكيلو في العرض (ج.م)" : "سعر العرض (ج.م)"} error={errors.salePrice} hint="يجب أن يكون أقل من السعر الأصلي">
                 <input className="input num" inputMode="decimal" dir="ltr" value={form.salePrice} onChange={(e) => set("salePrice", e.target.value)} />
               </Field>
               <div className="grid2">
-                <Field label="من يوم" error={errors.offerStart} hint="فاضي = من النهارده">
+                <Field label="من يوم" error={errors.offerStart} hint="فارغ = من اليوم">
                   <input className="input num" type="date" value={form.offerStart} onChange={(e) => set("offerStart", e.target.value)} />
                 </Field>
-                <Field label="لحد يوم" error={errors.offerEnd} hint="فاضي = لحد ما تشيله">
+                <Field label="حتى يوم" error={errors.offerEnd} hint="فارغ = حتى تزيله">
                   <input className="input num" type="date" value={form.offerEnd} onChange={(e) => set("offerEnd", e.target.value)} />
                 </Field>
               </div>
@@ -232,7 +232,7 @@ export function ProductForm({ id }: { id?: string }) {
           ) : null}
           <label className="check">
             <input type="checkbox" checked={form.weighed} onChange={(e) => set("weighed", e.target.checked)} />
-            بيتباع بالوزن (كيلو)
+            يُباع بالوزن (كيلو)
           </label>
           {form.weighed ? (
             <div className="weight-box stack">
@@ -242,10 +242,10 @@ export function ProductForm({ id }: { id?: string }) {
                   <option value="kg">كيلو (kg)</option>
                 </select>
               </Field>
-              <Field label="أقل وزن (كجم)" error={errors.minWeight} hint="يبدأ من كام، مثلاً 0.125 = تُمن كيلو">
+              <Field label="أقل وزن (كجم)" error={errors.minWeight} hint="أقل كمية يمكن طلبها، مثلًا 0.125 = ثُمن كيلو">
                 <input className="input num" inputMode="decimal" dir="ltr" value={form.minWeight} onChange={(e) => set("minWeight", e.target.value)} />
               </Field>
-              <Field label="الزيادة (كجم)" error={errors.weightStep} hint="بيزوّد كام كل مرة، مثلاً 0.25 = ربع كيلو">
+              <Field label="الزيادة (كجم)" error={errors.weightStep} hint="مقدار الزيادة في كل مرة، مثلًا 0.25 = ربع كيلو">
                 <input className="input num" inputMode="decimal" dir="ltr" value={form.weightStep} onChange={(e) => set("weightStep", e.target.value)} />
               </Field>
               <Field label="أقصى وزن (كجم)" error={errors.maxWeight} hint="أكبر كمية في الطلب الواحد">
@@ -264,13 +264,13 @@ export function ProductForm({ id }: { id?: string }) {
 function OfferPreview({ form }: { form: FormState }) {
   const price = Number(form.price);
   const salePrice = Number(form.salePrice);
-  if (!(price > 0 && salePrice > 0 && salePrice < price)) return <small className="muted">اكتب سعر العرض عشان يظهر في المتجر.</small>;
+  if (!(price > 0 && salePrice > 0 && salePrice < price)) return <small className="muted">اكتب سعر العرض ليظهر في المتجر.</small>;
   const today = cairoToday();
   const live = isOfferActive({ price, salePrice, offer: true, offerStart: form.offerStart || undefined, offerEnd: form.offerEnd || undefined }, today);
   return (
     <small className="muted">
       خصم {discountPercent(price, salePrice)}% (توفير {Math.round((price - salePrice) * 100) / 100} ج.م) ·{" "}
-      {live ? <b style={{ color: "var(--brand)" }}>ظاهر في المتجر دلوقتي</b> : form.offerEnd && form.offerEnd < today ? "العرض خلص" : "هيظهر من يوم البداية"}
+      {live ? <b style={{ color: "var(--brand)" }}>ظاهر في المتجر الآن</b> : form.offerEnd && form.offerEnd < today ? "انتهى العرض" : "سيظهر من يوم البداية"}
     </small>
   );
 }
@@ -283,8 +283,8 @@ function WeightPreview({ min, step, max, price }: { min: number; step: number; m
   const label = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} جم` : `${kg} كيلو`);
   return (
     <small className="muted">
-      العميل هيختار: {options.map(label).join("، ")}
-      {options.at(-1)! < max ? ` … لحد ${label(max)}` : ""}
+      خيارات العميل: {options.map(label).join("، ")}
+      {options.at(-1)! < max ? ` … حتى ${label(max)}` : ""}
       {price > 0 ? ` (أقل طلب = ${Math.round(price * min * 100) / 100} ج.م)` : ""}
     </small>
   );

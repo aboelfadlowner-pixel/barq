@@ -47,7 +47,7 @@ export function CategoryProducts({ categoryId }: { categoryId: string }) {
       ) : (
         <div className="empty" id="empty">
           <Art id="a-basket" viewBox="0 0 120 110" />
-          <p>{categoryId === OFFERS_SLUG && !searching ? "مفيش عروض دلوقتي." : "لا توجد منتجات مطابقة."}</p>
+          <p>{categoryId === OFFERS_SLUG && !searching ? "لا توجد عروض حاليًا." : "لا توجد منتجات مطابقة."}</p>
           <Link className="btn btn-ghost" href="/category/all" id="reset" onClick={() => setQuery("")}>
             عرض كل المنتجات
           </Link>

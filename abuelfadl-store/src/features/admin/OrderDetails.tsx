@@ -36,7 +36,7 @@ export function OrderDetails({ id }: { id: string }) {
   };
 
   if (error) return <div className="alert">{error}</div>;
-  if (!order) return <div className="empty">جاري التحميل…</div>;
+  if (!order) return <div className="empty">جارٍ التحميل…</div>;
 
   const whatsapp = `https://wa.me/2${order.customer.phone}`;
 
@@ -102,7 +102,7 @@ export function OrderDetails({ id }: { id: string }) {
                     </>
                   ) : null}
                   <tr className="total-row">
-                    <td colSpan={3}>الإجمالي (كاش عند الاستلام)</td>
+                    <td colSpan={3}>الإجمالي (الدفع نقدًا عند الاستلام)</td>
                     <td className="num">{egp(order.total)}</td>
                   </tr>
                 </tbody>
@@ -147,8 +147,8 @@ export function OrderDetails({ id }: { id: string }) {
         <div className="stack">
           <div className="card card-pad stack">
             <h2>ملاحظة داخلية</h2>
-            <textarea className="textarea" placeholder="مثلاً: العميل طلب يتصل قبل ما يوصل" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button className="btn" type="button" disabled={busy || note === order.staffNote} onClick={() => save({ staffNote: note }, "الملاحظة اتحفظت")}>
+            <textarea className="textarea" placeholder="مثلًا: طلب العميل الاتصال به قبل الوصول" value={note} onChange={(e) => setNote(e.target.value)} />
+            <button className="btn" type="button" disabled={busy || note === order.staffNote} onClick={() => save({ staffNote: note }, "تم حفظ الملاحظة")}>
               حفظ الملاحظة
             </button>
             <small className="muted">آخر تحديث: {formatDateTime(order.updatedAt)}</small>

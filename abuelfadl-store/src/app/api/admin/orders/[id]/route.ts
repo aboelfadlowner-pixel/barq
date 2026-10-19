@@ -16,6 +16,6 @@ export const GET = handle(async (_request, { params }: Context) => {
 export const PATCH = handle(async (request, { params }: Context) => {
   const role = await requireStaff();
   const body = await readJson<{ status?: unknown; staffNote?: unknown }>(request);
-  if (role !== "admin" && body.status !== undefined) throw new ApiError(403, "تغيير حالة الطلب للأدمن بس");
+  if (role !== "admin" && body.status !== undefined) throw new ApiError(403, "تغيير حالة الطلب متاح للمدير فقط");
   return updateOrder(parseId((await params).id, "الطلب"), body);
 });

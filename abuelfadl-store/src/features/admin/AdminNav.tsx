@@ -73,7 +73,7 @@ export function AdminNav() {
             <Ic name={link.icon} />
             {link.label}
             {link.icon === "orders" && todayOrders > 0 ? (
-              <span className="count num" title="طلبات النهارده">
+              <span className="count num" title="طلبات اليوم">
                 {todayOrders}
               </span>
             ) : null}

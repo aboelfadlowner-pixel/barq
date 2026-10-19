@@ -74,7 +74,7 @@ export function Header() {
             id="acct"
             type="button"
             aria-label="حسابي"
-            onClick={() => showToast("تسجيل الدخول يتفعّل عند ربط الموقع بنظام الحسابات")}
+            onClick={() => showToast("يُفعَّل تسجيل الدخول عند ربط الموقع بنظام الحسابات")}
           >
             <Icon id="i-user" />
           </button>

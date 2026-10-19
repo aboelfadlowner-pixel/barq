@@ -14,7 +14,7 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: "last", label: "آخر طلب" },
   { value: "total", label: "الأكثر شراءً" },
   { value: "orders", label: "الأكثر طلبات" },
-  { value: "idle", label: "بطّلوا يطلبوا" },
+  { value: "idle", label: "توقفوا عن الطلب" },
 ];
 
 const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -75,7 +75,7 @@ export function CustomersPage() {
           <b className="num">{all.length}</b>
         </div>
         <div className="card stat">
-          <span>طلبوا أكتر من مرة</span>
+          <span>طلبوا أكثر من مرة</span>
           <b className="num">
             {repeat} <small className="muted">{all.length ? `(${Math.round((repeat / all.length) * 100)}%)` : ""}</small>
           </b>
@@ -98,7 +98,7 @@ export function CustomersPage() {
       {error ? <div className="alert">{error}</div> : null}
       <div className="card">
         {customers === null ? (
-          <div className="empty">جاري التحميل…</div>
+          <div className="empty">جارٍ التحميل…</div>
         ) : visible.length ? (
           <div className="table-wrap">
             <table className="tbl">
@@ -128,7 +128,7 @@ export function CustomersPage() {
                     <td className="num">{egp(c.total)}</td>
                     <td className="muted">
                       {formatDateTime(c.lastOrder)}
-                      <div style={{ fontSize: 12 }}>{daysSince(c.lastOrder) === 0 ? "النهارده" : `من ${daysSince(c.lastOrder)} يوم`}</div>
+                      <div style={{ fontSize: 12 }}>{daysSince(c.lastOrder) === 0 ? "اليوم" : `منذ ${daysSince(c.lastOrder)} يوم`}</div>
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <a className="btn btn-sm" href={`https://wa.me/2${c.phone}`} target="_blank" rel="noreferrer">
@@ -141,7 +141,7 @@ export function CustomersPage() {
             </table>
           </div>
         ) : (
-          <div className="empty">{all.length ? "مفيش عملاء مطابقين" : "لسه مفيش عملاء. أول طلب من الموقع هيظهر صاحبه هنا."}</div>
+          <div className="empty">{all.length ? "لا يوجد عملاء مطابقون" : "لا يوجد عملاء بعد. سيظهر هنا صاحب أول طلب من الموقع."}</div>
         )}
       </div>
     </>

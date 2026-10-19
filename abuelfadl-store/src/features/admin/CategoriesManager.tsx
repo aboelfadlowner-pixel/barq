@@ -34,11 +34,11 @@ export function CategoriesManager() {
   };
 
   const remove = async (category: AdminCategory) => {
-    if (!confirm(`مسح قسم «${category.name}»؟`)) return;
+    if (!confirm(`هل تريد حذف قسم «${category.name}»؟`)) return;
     try {
       await api(`/api/admin/categories/${category.id}`, { method: "DELETE" });
       await load();
-      toast("القسم اتمسح");
+      toast("تم حذف القسم");
     } catch (err) {
       toast((err as Error).message);
     }
@@ -63,14 +63,14 @@ export function CategoriesManager() {
             setAdding(false);
             if (created) {
               await load();
-              toast("القسم اتضاف");
+              toast("تمت إضافة القسم");
             }
           }}
         />
       ) : null}
       <div className="card">
         {categories === null ? (
-          <div className="empty">جاري التحميل…</div>
+          <div className="empty">جارٍ التحميل…</div>
         ) : (
           <div className="cat-list">
             {categories.map((category, index) => (
@@ -79,8 +79,8 @@ export function CategoriesManager() {
                 category={category}
                 first={index === 0}
                 last={index === categories.length - 1}
-                onMove={(delta) => patch(category.id, { position: index + delta }, "الترتيب اتغيّر")}
-                onSave={(body) => patch(category.id, body, "القسم اتحفظ")}
+                onMove={(delta) => patch(category.id, { position: index + delta }, "تم تغيير الترتيب")}
+                onSave={(body) => patch(category.id, body, "تم حفظ القسم")}
                 onDelete={() => remove(category)}
               />
             ))}
@@ -119,10 +119,10 @@ function CategoryRow({
   return (
     <div className="cat-item">
       <div className="row" style={{ flexDirection: "column", gap: 2 }}>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={first} onClick={() => onMove(-1)} aria-label="لفوق">
+        <button className="btn btn-sm btn-ghost" type="button" disabled={first} onClick={() => onMove(-1)} aria-label="إلى الأعلى">
           <Ic name="up" />
         </button>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={last} onClick={() => onMove(1)} aria-label="لتحت">
+        <button className="btn btn-sm btn-ghost" type="button" disabled={last} onClick={() => onMove(1)} aria-label="إلى الأسفل">
           <Ic name="down" />
         </button>
       </div>
@@ -134,7 +134,7 @@ function CategoryRow({
           <Link className="badge" href={`/admin/products?category=${category.id}`}>
             {category.productCount} منتج
           </Link>
-          {!imageUrl.trim() ? <span className="badge gold">من غير صورة</span> : null}
+          {!imageUrl.trim() ? <span className="badge gold">بدون صورة</span> : null}
         </div>
         <div className="cat-images">
           <div>
@@ -163,8 +163,8 @@ function CategoryRow({
         type="button"
         onClick={onDelete}
         disabled={category.productCount > 0}
-        title={category.productCount ? "القسم فيه منتجات، انقلها الأول" : undefined}
-        aria-label="مسح"
+        title={category.productCount ? "القسم يحتوي على منتجات، انقلها أولًا" : undefined}
+        aria-label="حذف"
       >
         <Ic name="trash" />
       </button>
@@ -184,7 +184,7 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
       await api("/api/admin/categories", { method: "POST", body: form });
       onDone(true);
     } catch (err) {
-      setErrors(err instanceof AdminApiError ? { ...err.fields, _: err.message } : { _: "حصل خطأ" });
+      setErrors(err instanceof AdminApiError ? { ...err.fields, _: err.message } : { _: "حدث خطأ" });
       setBusy(false);
     }
   };
@@ -196,7 +196,7 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         <Field label="الاسم" error={errors.name}>
           <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: مجمدات" autoFocus />
         </Field>
-        <Field label="الكود (بالإنجليزي)" error={errors.id} hint="بيظهر في رابط الصفحة ومش بيتغيّر بعد كده">
+        <Field label="الكود (بالإنجليزي)" error={errors.id} hint="يظهر في رابط الصفحة ولا يمكن تغييره لاحقًا">
           <input className="input num" dir="ltr" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} placeholder="frozen" />
         </Field>
         <Field label="الأيقونة واللون" error={errors.art || errors.tint}>
@@ -214,10 +214,10 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
         </Field>
       </div>
       <div className="grid2">
-        <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، بتظهر في «تسوّق حسب القسم».">
+        <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، تظهر في «تسوّق حسب القسم».">
           <ImagePicker value={form.imageUrl} onChange={(url) => setForm({ ...form, imageUrl: url })} shape="tall" compact />
         </Field>
-        <Field label="الأيقونة الصغيرة" error={errors.iconUrl} hint="اختياري: مربعة، بتظهر مدوّرة مكان الأيقونة. من غيرها بتظهر صورة الكارت أو الرسمة.">
+        <Field label="الأيقونة الصغيرة" error={errors.iconUrl} hint="اختياري: مربعة، تظهر مدوّرة مكان الأيقونة. بدونها تظهر صورة الكارت أو الرسمة.">
           <ImagePicker value={form.iconUrl} onChange={(url) => setForm({ ...form, iconUrl: url })} max={400} compact />
         </Field>
       </div>
@@ -241,7 +241,7 @@ function CategoryThumb({ art, tint, imageUrl }: { art: string; tint: string; ima
   const src = imageUrl.trim();
   const showPhoto = Boolean(src) && !broken;
   return (
-    <span className={`swatch${showPhoto ? " photo" : ""}`} style={{ background: showPhoto ? "#fff" : tint }} title={broken ? "الصورة مش لاقيها: راجع المسار" : undefined}>
+    <span className={`swatch${showPhoto ? " photo" : ""}`} style={{ background: showPhoto ? "#fff" : tint }} title={broken ? "الصورة غير موجودة: راجع المسار" : undefined}>
       {showPhoto ? <img src={src} alt="" onError={() => setBroken(true)} /> : <Art id={art} />}
     </span>
   );

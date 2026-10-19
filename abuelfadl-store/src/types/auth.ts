@@ -4,4 +4,4 @@
  */
 export type Role = "admin" | "callcenter";
 
-export const ROLE_LABELS: Record<Role, string> = { admin: "أدمن", callcenter: "كول سنتر" };
+export const ROLE_LABELS: Record<Role, string> = { admin: "مدير", callcenter: "خدمة العملاء" };

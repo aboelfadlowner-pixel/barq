@@ -186,10 +186,10 @@ function CategoryPage({ slug, categories, offersTitle }: { slug: string; categor
 function StoreNotFound() {
   return (
     <div className="wrap" style={{ padding: "80px 0", textAlign: "center" }}>
-      <h1>الصفحة دي مش موجودة</h1>
+      <h1>هذه الصفحة غير موجودة</h1>
       <p style={{ marginTop: 12 }}>
         <Link className="btn btn-primary" href="/">
-          الرجوع للرئيسية
+          العودة إلى الرئيسية
         </Link>
       </p>
     </div>
@@ -245,7 +245,7 @@ function AdminApp({ pathname }: { pathname: string }) {
   else if (pathname === "/admin/reports") page = <ReportsPage />;
   else if (pathname === "/admin/customers") page = <CustomersPage />;
   else if (pathname === "/admin/arrange") page = <ArrangePage />;
-  else page = <div className="empty">الصفحة دي مش موجودة</div>;
+  else page = <div className="empty">هذه الصفحة غير موجودة</div>;
 
   return (
     <ToastProvider>
@@ -289,7 +289,7 @@ function DemoBar({ admin }: { admin: boolean }) {
       </button>
       {admin ? (
         <button type="button" className={confirming ? "warn" : undefined} onClick={reset} onBlur={() => setConfirming(false)}>
-          {done ? "رجعت ✓" : confirming ? "متأكد؟ اضغط تاني" : "رجّع الداتا الأصلية"}
+          {done ? "تمت الاستعادة ✓" : confirming ? "هل أنت متأكد؟ اضغط مرة أخرى" : "استعادة البيانات الأصلية"}
         </button>
       ) : null}
     </div>

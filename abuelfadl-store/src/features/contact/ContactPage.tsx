@@ -28,7 +28,7 @@ export function ContactPage() {
       </div>
       <header className="ct-head">
         <h1>اتصل بنا</h1>
-        <p>عندك سؤال عن طلب أو منتج؟ كلّمنا وإحنا نساعدك.</p>
+        <p>لديك سؤال عن طلب أو منتج؟ تواصل معنا ويسعدنا مساعدتك.</p>
       </header>
 
       <div className="ct-actions">
@@ -36,7 +36,7 @@ export function ContactPage() {
           <a className="ct-btn call" href={`tel:${s.phone}`}>
             <Icon id="i-phone" />
             <span>
-              <b>اتصل بينا</b>
+              <b>اتصل بنا</b>
               <small dir="ltr">{spaced(s.phone)}</small>
             </span>
           </a>
@@ -45,7 +45,7 @@ export function ContactPage() {
           <a className="ct-btn wa" href={`https://wa.me/2${s.whatsapp}`} target="_blank" rel="noopener">
             <Icon id="i-wa" />
             <span>
-              <b>كلّمنا واتساب</b>
+              <b>تواصل عبر واتساب</b>
               <small dir="ltr">{spaced(s.whatsapp)}</small>
             </span>
           </a>
@@ -90,7 +90,7 @@ export function ContactPage() {
                   {branch.mapUrl ? (
                     <a className="btn btn-ghost ct-map" href={branch.mapUrl} target="_blank" rel="noopener">
                       <Icon id="i-pin" />
-                      افتح على الخريطة
+                      افتح في الخريطة
                     </a>
                   ) : (
                     <span className="ct-map soon">

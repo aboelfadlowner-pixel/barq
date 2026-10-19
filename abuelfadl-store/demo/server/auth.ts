@@ -28,13 +28,13 @@ export async function getRole(): Promise<Role | null> {
 
 export async function requireAdmin(): Promise<void> {
   const role = getRoleSync();
-  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
-  if (role !== "admin") throw new ApiError(403, "الصفحة دي للأدمن بس");
+  if (!role) throw new ApiError(401, "يجب تسجيل الدخول أولًا");
+  if (role !== "admin") throw new ApiError(403, "هذه الصفحة متاحة للمدير فقط");
 }
 
 export async function requireStaff(): Promise<Role> {
   const role = getRoleSync();
-  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
+  if (!role) throw new ApiError(401, "يجب تسجيل الدخول أولًا");
   return role;
 }
 

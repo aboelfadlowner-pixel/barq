@@ -6,7 +6,7 @@ import { OFFERS_SLUG, useOffers } from "./useOffers";
 
 /**
  * Home-page offers banner, right under the hero. Hidden when nothing is on offer.
- * Label and title from the dashboard settings, and «شوف كل العروض» (the offers page).
+ * Label and title from the dashboard settings, and «عرض كل العروض» (the offers page).
  */
 export function OffersStrip() {
   const { title, kicker, products, maxPercent } = useOffers();
@@ -28,7 +28,7 @@ export function OffersStrip() {
             -{maxPercent}%
           </span>
           <Link className="btn offers-all" href={`/category/${OFFERS_SLUG}`}>
-            شوف كل العروض
+            عرض كل العروض
             <Icon id="i-arrow" />
           </Link>
         </div>
@@ -47,7 +47,7 @@ export function OffersBanner() {
       </span>
       <div className="ct">
         <h1 id="catTitle">{title}</h1>
-        {products.length ? null : <p>مفيش عروض دلوقتي، تابعنا عشان تلحق العروض الجاية</p>}
+        {products.length ? null : <p>لا توجد عروض حاليًا، تابعنا لمعرفة العروض القادمة</p>}
       </div>
     </div>
   );

@@ -25,8 +25,8 @@ const NAME = /^[a-z0-9]{8,40}\.(webp|jpg|png)$/;
 export async function saveImage(data: Uint8Array, contentType: string): Promise<string> {
   const bytes = Buffer.from(data);
   const type = TYPES[contentType];
-  if (!type || !type.magic(bytes)) throw new ApiError(400, "الملف ده مش صورة (المسموح: WebP أو JPG أو PNG)");
-  if (bytes.length > MAX_UPLOAD_BYTES) throw new ApiError(413, "الصورة كبيرة قوي (أقصى حد 3 ميجا)");
+  if (!type || !type.magic(bytes)) throw new ApiError(400, "هذا الملف ليس صورة (المسموح: WebP أو JPG أو PNG)");
+  if (bytes.length > MAX_UPLOAD_BYTES) throw new ApiError(413, "حجم الصورة كبير جدًا (الحد الأقصى 3 ميجابايت)");
   const name = `${Date.now().toString(36)}${randomBytes(6).toString("hex")}.${type.ext}`;
   await mkdir(DIR, { recursive: true });
   await writeFile(path.join(DIR, name), bytes);

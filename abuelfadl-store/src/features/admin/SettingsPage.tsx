@@ -82,7 +82,7 @@ export function SettingsPage() {
     }
   };
 
-  if (!settings || !form) return message ? <div className="alert">{message}</div> : <div className="empty">جاري التحميل…</div>;
+  if (!settings || !form) return message ? <div className="alert">{message}</div> : <div className="empty">جارٍ التحميل…</div>;
 
   const set = (key: TextField, value: string) => setForm((f) => (f ? { ...f, [key]: value } : f));
   const setBranch = (index: number, patch: Partial<Branch>) =>
@@ -102,7 +102,7 @@ export function SettingsPage() {
       <div className="adm-head">
         <div>
           <h1>الإعدادات</h1>
-          <p>اللي بتغيّره هنا بيظهر في المتجر على طول</p>
+          <p>تظهر التعديلات في المتجر فورًا</p>
         </div>
       </div>
 
@@ -112,8 +112,8 @@ export function SettingsPage() {
             <h2>استقبال الطلبات</h2>
             <p className="muted">
               {settings.ordersOpen
-                ? "شغال: العملاء يقدروا يطلبوا من الموقع."
-                : "متوقف: الموقع شغال للتصفح بس، ومفيش طلبات بتتقبل لحد ما تشغّله."}
+                ? "مفعّل: يمكن للعملاء الطلب من الموقع."
+                : "متوقف: الموقع متاح للتصفح فقط، ولا تُقبل الطلبات حتى تعيد تشغيله."}
             </p>
           </div>
           <button
@@ -121,8 +121,8 @@ export function SettingsPage() {
             type="button"
             disabled={busy}
             onClick={() => {
-              if (settings.ordersOpen && !confirm("هتوقف استقبال الطلبات من الموقع. متأكد؟")) return;
-              save({ ordersOpen: !settings.ordersOpen }, settings.ordersOpen ? "استقبال الطلبات اتوقف" : "استقبال الطلبات اشتغل");
+              if (settings.ordersOpen && !confirm("سيتم إيقاف استقبال الطلبات من الموقع. هل أنت متأكد؟")) return;
+              save({ ordersOpen: !settings.ordersOpen }, settings.ordersOpen ? "تم إيقاف استقبال الطلبات" : "تم تشغيل استقبال الطلبات");
             }}
           >
             {settings.ordersOpen ? "إيقاف الطلبات" : "تشغيل الطلبات"}
@@ -136,38 +136,38 @@ export function SettingsPage() {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            save({ ...form, minOrder: Number(form.minOrder), deliveryAreas: form.deliveryAreas.map((a) => ({ ...a, fee: a.fee.trim() === "" ? "" : Number(a.fee) })) }, "الإعدادات اتحفظت");
+            save({ ...form, minOrder: Number(form.minOrder), deliveryAreas: form.deliveryAreas.map((a) => ({ ...a, fee: a.fee.trim() === "" ? "" : Number(a.fee) })) }, "تم حفظ الإعدادات");
           }}
         >
           <h2>المتجر</h2>
-          <Field label="الحد الأدنى للطلب (ج.م)" error={errors.minOrder} hint="0 = من غير حد أدنى">
+          <Field label="الحد الأدنى للطلب (ج.م)" error={errors.minOrder} hint="0 = بدون حد أدنى">
             <input className="input num" inputMode="decimal" dir="ltr" value={form.minOrder} onChange={(e) => set("minOrder", e.target.value)} />
           </Field>
-          <Field label="جملة الشريط اللي فوق" error={errors.notice} hint="الحد الأدنى بيتكتب بعدها لوحده">
+          <Field label="نص الشريط العلوي" error={errors.notice} hint="يُضاف الحد الأدنى بعدها تلقائيًا">
             <input className="input" value={form.notice} onChange={(e) => set("notice", e.target.value)} />
           </Field>
-          <Field label="رسالة وقت إيقاف الطلبات" error={errors.closedMessage} hint="بتظهر في الشريط وفي السلة لما الطلبات تتوقف">
+          <Field label="رسالة وقت إيقاف الطلبات" error={errors.closedMessage} hint="تظهر في الشريط وفي السلة عند إيقاف الطلبات">
             <input className="input" value={form.closedMessage} onChange={(e) => set("closedMessage", e.target.value)} />
           </Field>
           <div className="settings-preview">
-            <small className="muted">الشريط هيظهر كده:</small>
-            <div className={settings.ordersOpen ? "" : "paused"}>{preview || "(مش هيظهر شريط)"}</div>
+            <small className="muted">سيظهر الشريط هكذا:</small>
+            <div className={settings.ordersOpen ? "" : "paused"}>{preview || "(لن يظهر شريط)"}</div>
           </div>
 
           <h2 style={{ marginTop: 10 }}>مواعيد استقبال الطلبات</h2>
           <label className="check">
             <input type="checkbox" checked={form.orderHours.enabled} onChange={(e) => setHours({ enabled: e.target.checked })} />
-            الطلبات تقفل وتفتح لوحدها في المواعيد دي
+            تُفتح الطلبات وتُغلق تلقائيًا في هذه المواعيد
           </label>
           <div className="grid2">
-            <Field label="بنبدأ نستقبل الساعة" error={errors.orderHours}>
+            <Field label="بداية استقبال الطلبات" error={errors.orderHours}>
               <input className="input num" type="time" value={form.orderHours.open} disabled={!form.orderHours.enabled} onChange={(e) => setHours({ open: e.target.value })} />
             </Field>
-            <Field label="بنقفل الساعة" hint="لو بعد نص الليل اكتبها عادي (مثلاً 01:30)">
+            <Field label="نهاية استقبال الطلبات" hint="إذا كان بعد منتصف الليل فاكتبه كالمعتاد (مثلًا 01:30)">
               <input className="input num" type="time" value={form.orderHours.close} disabled={!form.orderHours.enabled} onChange={(e) => setHours({ close: e.target.value })} />
             </Field>
           </div>
-          {form.orderHours.enabled ? <small className="muted">برّه المواعيد الموقع هيكتب: «{outsideHoursMessage(form.orderHours)}»</small> : null}
+          {form.orderHours.enabled ? <small className="muted">خارج المواعيد سيعرض الموقع: «{outsideHoursMessage(form.orderHours)}»</small> : null}
 
           <div className="stack" style={{ gap: 10, marginTop: 10 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
@@ -177,7 +177,7 @@ export function SettingsPage() {
               </button>
             </div>
             <p className="muted" style={{ fontSize: 13, marginTop: -6 }}>
-              العميل بيختار منطقته وهو بيطلب، والرسوم بتتضاف على الإجمالي. شيل علامة «شغالة» عشان توقف منطقة من غير ما تمسحها.
+              يختار العميل منطقته أثناء الطلب، وتُضاف الرسوم إلى الإجمالي. أزل علامة «مفعّلة» لإيقاف منطقة بدون حذفها.
             </p>
             {errors.deliveryAreas ? <div className="alert">{errors.deliveryAreas}</div> : null}
             {form.deliveryAreas.map((area, index) => (
@@ -189,32 +189,32 @@ export function SettingsPage() {
                 </div>
                 <label className="check">
                   <input type="checkbox" checked={area.active} onChange={(e) => setArea(index, { active: e.target.checked })} />
-                  شغالة
+                  مفعّلة
                 </label>
-                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeArea(index)} aria-label={`مسح ${area.name}`}>
-                  مسح
+                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeArea(index)} aria-label={`حذف ${area.name}`}>
+                  حذف
                 </button>
               </div>
             ))}
           </div>
 
           <h2 style={{ marginTop: 10 }}>قسم العروض</h2>
-          <Field label="اسم قسم العروض" error={errors.offersTitle} hint="مثلاً: عروض الخميس والجمعة. القسم بيظهر في الموقع لوحده وقت ما يكون فيه منتجات عليها عرض، ويختفي لما تخلص">
+          <Field label="اسم قسم العروض" error={errors.offersTitle} hint="مثلًا: عروض الخميس والجمعة. يظهر القسم في الموقع تلقائيًا عند وجود منتجات عليها عرض، ويختفي عند انتهائها">
             <input className="input" value={form.offersTitle} onChange={(e) => set("offersTitle", e.target.value)} />
           </Field>
-          <Field label="الكلمة الصغيرة فوق الاسم" error={errors.offersKicker} hint="مثلاً: عروض لفترة محدودة. فاضي = مش هتظهر">
+          <Field label="النص الصغير أعلى الاسم" error={errors.offersKicker} hint="مثلًا: عروض لفترة محدودة. فارغ = لن يظهر">
             <input className="input" value={form.offersKicker} onChange={(e) => set("offersKicker", e.target.value)} />
           </Field>
 
           <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>
-            بتظهر في صفحة «اتصل بنا» وفي آخر الموقع
+            تظهر في صفحة «اتصل بنا» وفي أسفل الموقع
           </p>
           <div className="grid2">
-            <Field label="رقم التليفون (زرار اتصال)" error={errors.phone}>
+            <Field label="رقم الهاتف (زر الاتصال)" error={errors.phone}>
               <input className="input num" inputMode="tel" dir="ltr" placeholder="01000000000" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
             </Field>
-            <Field label="رقم الواتساب" error={errors.whatsapp} hint="فاضي = زرار الواتساب مش هيظهر">
+            <Field label="رقم الواتساب" error={errors.whatsapp} hint="فارغ = لن يظهر زر الواتساب">
               <input className="input num" inputMode="tel" dir="ltr" placeholder="01000000000" value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
             </Field>
             <Field label="مواعيد العمل" error={errors.workHours}>
@@ -224,13 +224,13 @@ export function SettingsPage() {
               <input className="input" value={form.deliveryHours} onChange={(e) => set("deliveryHours", e.target.value)} />
             </Field>
           </div>
-          <Field label="لينك فيسبوك" error={errors.facebook}>
+          <Field label="رابط فيسبوك" error={errors.facebook}>
             <input className="input num" dir="ltr" placeholder="https://www.facebook.com/..." value={form.facebook} onChange={(e) => set("facebook", e.target.value)} />
           </Field>
-          <Field label="لينك إنستجرام" error={errors.instagram}>
+          <Field label="رابط إنستجرام" error={errors.instagram}>
             <input className="input num" dir="ltr" placeholder="https://www.instagram.com/..." value={form.instagram} onChange={(e) => set("instagram", e.target.value)} />
           </Field>
-          <Field label="لينك تيك توك" error={errors.tiktok} hint="فاضي = مش هيظهر">
+          <Field label="رابط تيك توك" error={errors.tiktok} hint="فارغ = لن يظهر">
             <input className="input num" dir="ltr" placeholder="https://www.tiktok.com/@..." value={form.tiktok} onChange={(e) => set("tiktok", e.target.value)} />
           </Field>
 
@@ -246,16 +246,16 @@ export function SettingsPage() {
               <div key={index} className="branch-row">
                 <input className="input" placeholder="اسم الفرع" value={branch.name} onChange={(e) => setBranch(index, { name: e.target.value })} aria-label="اسم الفرع" />
                 <input className="input" placeholder="العنوان" value={branch.address} onChange={(e) => setBranch(index, { address: e.target.value })} aria-label="العنوان" />
-                <input className="input num" dir="ltr" placeholder="لينك Google Maps (اختياري)" value={branch.mapUrl} onChange={(e) => setBranch(index, { mapUrl: e.target.value })} aria-label="لينك الخريطة" />
-                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeBranch(index)} aria-label={`مسح فرع ${branch.name}`}>
-                  مسح
+                <input className="input num" dir="ltr" placeholder="رابط Google Maps (اختياري)" value={branch.mapUrl} onChange={(e) => setBranch(index, { mapUrl: e.target.value })} aria-label="رابط الخريطة" />
+                <button className="btn btn-sm btn-danger" type="button" onClick={() => removeBranch(index)} aria-label={`حذف فرع ${branch.name}`}>
+                  حذف
                 </button>
               </div>
             ))}
           </div>
           <div className="row">
             <button className="btn btn-primary" disabled={busy || !changed}>
-              {busy ? "جاري الحفظ…" : "حفظ"}
+              {busy ? "جارٍ الحفظ…" : "حفظ"}
             </button>
             {changed ? (
               <button className="btn btn-ghost" type="button" onClick={() => (setForm(toForm(settings)), setErrors({}))}>

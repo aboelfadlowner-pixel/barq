@@ -38,9 +38,9 @@ export const ORDER_STATUSES: OrderStatus[] = ["new", "preparing", "out_for_deliv
 /** Arabic labels for the admin dashboard. */
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   new: "جديد",
-  preparing: "بيتحضّر",
+  preparing: "قيد التحضير",
   out_for_delivery: "خرج للتوصيل",
-  delivered: "اتسلّم",
+  delivered: "تم التسليم",
   cancelled: "ملغي",
 };
 

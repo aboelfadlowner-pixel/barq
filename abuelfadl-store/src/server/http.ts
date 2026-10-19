@@ -16,7 +16,7 @@ export function handle<C>(fn: (request: Request, context: C) => Promise<unknown>
         return NextResponse.json({ error: error.message, fields: error.fields }, { status: error.status });
       }
       console.error("[api]", error);
-      return NextResponse.json({ error: "حصل خطأ في السيرفر" }, { status: 500 });
+      return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
     }
   };
 }
@@ -29,7 +29,7 @@ export async function readJson<T = Record<string, unknown>>(request: Request): P
   } catch {
     // fall through
   }
-  throw new ApiError(400, "البيانات المبعوتة مش مفهومة");
+  throw new ApiError(400, "البيانات المرسلة غير مفهومة");
 }
 
 /** Parses a numeric id from the URL, or throws 404. */

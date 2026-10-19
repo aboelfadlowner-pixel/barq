@@ -137,14 +137,14 @@ export function OrderDone({ order, onContinue }: { order: Order | null; onContin
                 </div>
                 <div>
                   <span>الدفع</span>
-                  <b>كاش عند الاستلام</b>
+                  <b>نقدًا عند الاستلام</b>
                 </div>
                 <div>
                   <span>الإجمالي</span>
                   <b>{formatMoney(order.total)} ج.م</b>
                 </div>
               </div>
-              <p className="onote">هنتواصل معك على {order.customer.phone} لتأكيد الطلب. (نسخة تجريبية: الطلب لا يُرسل فعليًا بعد.)</p>
+              <p className="onote">سنتواصل معك على {order.customer.phone} لتأكيد الطلب. (نسخة تجريبية: الطلب لا يُرسل فعليًا بعد.)</p>
             </>
           )}
           <button className="btn btn-primary" type="button" id="doneBtn" ref={buttonRef} onClick={onContinue}>

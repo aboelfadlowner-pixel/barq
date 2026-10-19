@@ -13,7 +13,7 @@ async function shrink(file: File, max: number): Promise<Blob> {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("الملف ده مش صورة أو مش مدعوم"));
+      img.onerror = () => reject(new Error("هذا الملف ليس صورة أو غير مدعوم"));
       img.src = url;
     });
     const scale = Math.min(1, max / Math.max(image.naturalWidth, image.naturalHeight));
@@ -31,7 +31,7 @@ async function shrink(file: File, max: number): Promise<Blob> {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const jpeg = await encode("image/jpeg");
-    if (!jpeg) throw new Error("الصورة ماتظبطتش، جرّب صورة تانية");
+    if (!jpeg) throw new Error("تعذّرت معالجة الصورة، جرّب صورة أخرى");
     return jpeg;
   } finally {
     URL.revokeObjectURL(url);
@@ -65,7 +65,7 @@ export function ImagePicker({
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return setError("اختار ملف صورة (JPG أو PNG أو WebP)");
+    if (!file.type.startsWith("image/")) return setError("اختر ملف صورة (JPG أو PNG أو WebP)");
     setBusy(true);
     setError("");
     try {
@@ -102,23 +102,23 @@ export function ImagePicker({
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
             </svg>
-            {compact ? "ارفع صورة" : "دوس هنا عشان تختار صورة، أو اسحبها وسيبها هنا"}
+            {compact ? "ارفع صورة" : "اضغط لاختيار صورة، أو اسحبها وأفلتها هنا"}
           </span>
         )}
-        {busy ? <span className="img-busy">جاري رفع الصورة…</span> : null}
+        {busy ? <span className="img-busy">جارٍ رفع الصورة…</span> : null}
       </button>
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
       <div className="img-actions">
         <button className="btn btn-sm" type="button" disabled={busy} onClick={() => input.current?.click()}>
-          {value ? "تغيير الصورة" : "اختار صورة"}
+          {value ? "تغيير الصورة" : "اختر صورة"}
         </button>
         {value ? (
           <button className="btn btn-sm btn-ghost" type="button" disabled={busy} onClick={() => onChange("")}>
-            شيل الصورة
+            إزالة الصورة
           </button>
         ) : null}
         <button className="btn btn-sm btn-ghost" type="button" onClick={() => setShowLink((v) => !v)}>
-          {showLink ? "إخفاء اللينك" : "أو حط لينك"}
+          {showLink ? "إخفاء الرابط" : "أو أضف رابطًا"}
         </button>
       </div>
       {showLink ? (
@@ -128,10 +128,10 @@ export function ImagePicker({
           placeholder="https://… أو /products/…"
           value={value.startsWith("data:") ? "" : value}
           onChange={(e) => onChange(e.target.value.trim())}
-          aria-label="لينك الصورة"
+          aria-label="رابط الصورة"
         />
       ) : null}
-      {error ? <small className="err">{error}</small> : <small className="hint">{compact ? "" : "JPG أو PNG من الموبايل عادي، الصورة بتتصغّر وتتظبط لوحدها"}</small>}
+      {error ? <small className="err">{error}</small> : <small className="hint">{compact ? "" : "يمكن رفع JPG أو PNG من الموبايل، ويتم تصغير الصورة وضبطها تلقائيًا"}</small>}
     </div>
   );
 }

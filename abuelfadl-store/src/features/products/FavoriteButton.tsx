@@ -11,7 +11,7 @@ export function FavoriteButton({ product }: { product: Pick<Product, "id" | "nam
       className="fav"
       type="button"
       aria-pressed={isFavorite(product.id)}
-      aria-label={`إضافة ${product.name} للمفضلة`}
+      aria-label={`إضافة ${product.name} إلى المفضلة`}
       onClick={() => toggle(product.id)}
     >
       <Icon id="i-heart" />

@@ -42,7 +42,7 @@ function safeEqual(a: string, b: string): boolean {
 /** The role whose password this is, or null. */
 export function checkPassword(password: string): Role | null {
   const admin = adminPassword();
-  if (!admin) throw new ApiError(503, "لوحة التحكم غير مفعّلة: لازم يتحط ADMIN_PASSWORD في إعدادات السيرفر");
+  if (!admin) throw new ApiError(503, "لوحة التحكم غير مفعّلة: يجب ضبط ADMIN_PASSWORD في إعدادات الخادم");
   if (safeEqual(password, admin)) return "admin";
   const callCenter = callCenterPassword();
   return callCenter && safeEqual(password, callCenter) ? "callcenter" : null;
@@ -73,14 +73,14 @@ export async function getRole(): Promise<Role | null> {
 /** Throws 401 without a session, 403 for the call center. For every admin-only /api/admin handler. */
 export async function requireAdmin(): Promise<void> {
   const role = await getRole();
-  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
-  if (role !== "admin") throw new ApiError(403, "الصفحة دي للأدمن بس");
+  if (!role) throw new ApiError(401, "يجب تسجيل الدخول أولًا");
+  if (role !== "admin") throw new ApiError(403, "هذه الصفحة متاحة للمدير فقط");
 }
 
 /** Throws 401 without a session; returns the role. For the handlers the call center uses too (orders, customers, stats). */
 export async function requireStaff(): Promise<Role> {
   const role = await getRole();
-  if (!role) throw new ApiError(401, "لازم تسجّل دخول الأول");
+  if (!role) throw new ApiError(401, "يجب تسجيل الدخول أولًا");
   return role;
 }
 

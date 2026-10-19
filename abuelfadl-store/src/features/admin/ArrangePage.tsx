@@ -64,7 +64,7 @@ export function ArrangePage() {
         slots.forEach((slot, i) => (next[slot] = byId.get(order[i])!));
         return next;
       });
-      toast("الترتيب اتحفظ وظاهر في المتجر");
+      toast("تم حفظ الترتيب وأصبح ظاهرًا في المتجر");
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -76,14 +76,14 @@ export function ArrangePage() {
     try {
       const updated = await api<Product>(`/api/admin/products/${product.id}`, { method: "PATCH", body: { bestseller: !product.bestseller } });
       setProducts((list) => list?.map((p) => (p.id === updated.id ? updated : p)) ?? null);
-      toast(updated.bestseller ? "اتعلّم «الأكثر مبيعًا»" : "اتشالت علامة «الأكثر مبيعًا»");
+      toast(updated.bestseller ? "تم وضع علامة «الأكثر مبيعًا»" : "تمت إزالة علامة «الأكثر مبيعًا»");
     } catch (err) {
       toast((err as Error).message);
     }
   };
 
   const switchCategory = (next: string) => {
-    if (changed && !confirm("فيه ترتيب مش محفوظ. تسيبه وتروح لقسم تاني؟")) return;
+    if (changed && !confirm("يوجد ترتيب غير محفوظ. هل تريد تركه والانتقال إلى قسم آخر؟")) return;
     setCategoryId(next);
   };
 
@@ -92,10 +92,10 @@ export function ArrangePage() {
       <div className="adm-head">
         <div>
           <h1>ترتيب المنتجات</h1>
-          <p>الترتيب اللي المنتجات بتظهر بيه في صفحة القسم</p>
+          <p>ترتيب ظهور المنتجات في صفحة القسم</p>
         </div>
         <button className="btn btn-primary" type="button" disabled={!changed || busy} onClick={save}>
-          {busy ? "جاري الحفظ…" : "حفظ الترتيب"}
+          {busy ? "جارٍ الحفظ…" : "حفظ الترتيب"}
         </button>
       </div>
       <div className="toolbar">
@@ -107,21 +107,21 @@ export function ArrangePage() {
           ))}
         </select>
         <button className="btn btn-sm" type="button" onClick={bestsellersFirst}>
-          الأكثر مبيعًا الأول
+          الأكثر مبيعًا أولًا
         </button>
         <button className="btn btn-sm" type="button" onClick={inStockFirst}>
-          المتوفر الأول
+          المتوفر أولًا
         </button>
         {changed ? (
           <button className="btn btn-sm btn-ghost" type="button" onClick={() => setOrder(saved)}>
-            رجّع زي ما كان
+            استعادة الترتيب السابق
           </button>
         ) : null}
       </div>
       {error ? <div className="alert">{error}</div> : null}
       <div className="card">
         {products === null ? (
-          <div className="empty">جاري التحميل…</div>
+          <div className="empty">جارٍ التحميل…</div>
         ) : order.length ? (
           <ol className={draggingId ? "arrange dragging" : "arrange"} ref={listRef}>
             {order.map((id, index) => {
@@ -158,10 +158,10 @@ export function ArrangePage() {
                     <button type="button" className="btn btn-sm" disabled={index === 0} onClick={() => move(index, 0)} aria-label="أول القائمة" title="أول القائمة">
                       ⤒
                     </button>
-                    <button type="button" className="btn btn-sm" disabled={index === 0} onClick={() => move(index, index - 1)} aria-label="لفوق">
+                    <button type="button" className="btn btn-sm" disabled={index === 0} onClick={() => move(index, index - 1)} aria-label="إلى الأعلى">
                       <Ic name="up" />
                     </button>
-                    <button type="button" className="btn btn-sm" disabled={index === order.length - 1} onClick={() => move(index, index + 1)} aria-label="لتحت">
+                    <button type="button" className="btn btn-sm" disabled={index === order.length - 1} onClick={() => move(index, index + 1)} aria-label="إلى الأسفل">
                       <Ic name="down" />
                     </button>
                   </div>
@@ -170,7 +170,7 @@ export function ArrangePage() {
             })}
           </ol>
         ) : (
-          <div className="empty">القسم ده مفيهوش منتجات</div>
+          <div className="empty">لا توجد منتجات في هذا القسم</div>
         )}
       </div>
     </>

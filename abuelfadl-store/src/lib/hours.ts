@@ -24,9 +24,9 @@ export function isWithinHours(hours: OrderHours, now = new Date()): boolean {
 /** "2 الضهر", "1:30 بالليل", "7 الصبح". */
 export function timeLabel(time: string): string {
   const [h, m] = time.split(":").map(Number);
-  const period = h < 5 ? "بالليل" : h < 12 ? "الصبح" : h < 16 ? "الضهر" : h < 19 ? "العصر" : "بالليل";
+  const period = h < 12 ? "صباحًا" : h < 16 ? "ظهرًا" : h < 19 ? "عصرًا" : "مساءً";
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${period}`;
 }
 
 /** Message shown outside the hours, e.g. "بنستقبل الطلبات من 2 الضهر لـ 1:30 بالليل". */
-export const outsideHoursMessage = (hours: OrderHours) => `بنستقبل الطلبات يوميًا من ${timeLabel(hours.open)} لـ ${timeLabel(hours.close)}`;
+export const outsideHoursMessage = (hours: OrderHours) => `نستقبل الطلبات يوميًا من ${timeLabel(hours.open)} حتى ${timeLabel(hours.close)}`;

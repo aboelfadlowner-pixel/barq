@@ -10,7 +10,7 @@ import { applyPrices, readProductsSheet } from "@/server/sync";
 export const POST = handle(async (request) => {
   await requireAdmin();
   const { csv, fileName } = await readJson<{ csv?: unknown; fileName?: unknown }>(request);
-  if (typeof csv !== "string" || !csv.trim()) throw new ApiError(400, "اختار ملف الشيت الأول");
+  if (typeof csv !== "string" || !csv.trim()) throw new ApiError(400, "اختر ملف الشيت أولًا");
   const run = await applyPrices(readProductsSheet(csv), `رفع يدوي${typeof fileName === "string" && fileName ? `: ${fileName.slice(0, 80)}` : ""}`);
   if (run.changes.length) refreshStore();
   return run;

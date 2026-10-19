@@ -7,7 +7,7 @@ import { handle, readJson } from "@/server/http";
 export const POST = handle(async (request) => {
   const { password } = await readJson<{ password?: unknown }>(request);
   const role = typeof password === "string" ? checkPassword(password) : null;
-  if (!role) throw new ApiError(401, "كلمة السر غلط");
+  if (!role) throw new ApiError(401, "كلمة المرور غير صحيحة");
   const { value, maxAge } = createSessionToken(role);
   const response = NextResponse.json({ ok: true, role });
   response.cookies.set(SESSION_COOKIE, value, {

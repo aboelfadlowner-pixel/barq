@@ -141,9 +141,9 @@ const COVERS: Record<string, () => React.JSX.Element> = {
 
 /** Short line under the category title, for categories whose cover has one. */
 const TAGLINES: Record<string, string> = {
-  dairy: "طازة كل يوم… من مزرعتنا لبيتك",
-  sandwich: "عيش طازة وحشوة غنية… في كل لقمة",
-  juice: "فريش ١٠٠٪… من غير أي إضافات",
+  dairy: "طازجة كل يوم… من مزرعتنا إلى بيتك",
+  sandwich: "خبز طازج وحشوة غنية… في كل لقمة",
+  juice: "فريش ١٠٠٪… دون أي إضافات",
 };
 
 export function getCategoryTagline(slug: string): string | null {

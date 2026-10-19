@@ -1,5 +1,5 @@
 import { categories as seedCategories } from "../data/categories";
-import { DEFAULT_SETTINGS, OLD_NOTICE } from "../lib/settings";
+import { DEFAULT_SETTINGS, OLD_DEFAULT_TEXTS, OLD_NOTICE } from "../lib/settings";
 import { products as seedProducts } from "../data/products";
 import { productSkus } from "../data/skus";
 import type { Category } from "../types/category";
@@ -43,7 +43,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 6;
+const SCHEMA = 7;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -83,6 +83,12 @@ export function upgradeStore(data: StoreData): StoreData {
   }
   if ((data.schema ?? 1) < 6 && data.settings?.notice === OLD_NOTICE) {
     data.settings.notice = DEFAULT_SETTINGS.notice; // delivery now covers more areas than البيطاش
+  }
+  if ((data.schema ?? 1) < 7 && data.settings) {
+    // The store texts moved from colloquial to simplified Arabic: replace the old defaults that were never edited.
+    for (const [key, old] of Object.entries(OLD_DEFAULT_TEXTS) as [keyof typeof OLD_DEFAULT_TEXTS, string][]) {
+      if (data.settings[key] === old) data.settings[key] = DEFAULT_SETTINGS[key];
+    }
   }
   data.schema = SCHEMA;
   return data;

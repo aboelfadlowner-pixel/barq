@@ -63,7 +63,7 @@ export async function getReport(days: number) {
       sales.revenue = round2(sales.revenue + line.lineTotal);
       sales.orders += 1;
       productSales.set(line.productId, sales);
-      const category = categoryName.get(categoryOf.get(line.productId) ?? "") ?? "منتجات اتمسحت";
+      const category = categoryName.get(categoryOf.get(line.productId) ?? "") ?? "منتجات محذوفة";
       categorySales.set(category, round2((categorySales.get(category) ?? 0) + line.lineTotal));
     }
   }

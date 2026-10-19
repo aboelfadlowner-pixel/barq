@@ -24,8 +24,8 @@ export function Dashboard() {
     <>
       <div className="adm-head">
         <div>
-          <h1>أهلًا بيك 👋</h1>
-          <p>ملخص النهارده</p>
+          <h1>أهلًا بك 👋</h1>
+          <p>ملخص اليوم</p>
         </div>
         <div className="row">
           <a className="btn btn-sm" href="/" target="_blank" rel="noreferrer">
@@ -41,13 +41,13 @@ export function Dashboard() {
         <>
           <div className="stats">
             <div className="card stat">
-              <span>طلبات النهارده</span>
+              <span>طلبات اليوم</span>
               <b className="num">{stats.todayOrders}</b>
             </div>
             {stats.role === "admin" ? (
               <>
                 <div className="card stat">
-                  <span>مبيعات النهارده</span>
+                  <span>مبيعات اليوم</span>
                   <b className="num">{egp(stats.todayRevenue ?? 0)}</b>
                 </div>
                 <div className="card stat">
@@ -64,7 +64,7 @@ export function Dashboard() {
             {stats.role === "admin" ? (
               <>
                 <Link className={`card stat${stats.unlinkedProducts ? " alert-stat" : ""}`} href="/admin/products?linked=no">
-                  <span>منتجات مش مربوطة بشيت Foodics</span>
+                  <span>منتجات غير مربوطة بشيت Foodics</span>
                   <b className="num">{stats.unlinkedProducts}</b>
                 </Link>
                 <Link className={`card stat${stats.outOfStock ? " alert-stat" : ""}`} href="/admin/products?stock=out">
@@ -108,12 +108,12 @@ export function Dashboard() {
                 </table>
               </div>
             ) : (
-              <div className="empty">لسه مفيش طلبات. اعمل طلب تجربة من المتجر وهيظهر هنا.</div>
+              <div className="empty">لا توجد طلبات بعد. أنشئ طلبًا تجريبيًا من المتجر وسيظهر هنا.</div>
             )}
           </div>
         </>
       ) : !error ? (
-        <div className="empty">جاري التحميل…</div>
+        <div className="empty">جارٍ التحميل…</div>
       ) : null}
     </>
   );

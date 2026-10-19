@@ -41,24 +41,24 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     const address = String(request.customer?.address ?? "").trim();
     const note = String(request.customer?.note ?? "").trim().slice(0, 500);
     if (name.length < 3 || name.length > 80) fields.name = "اكتب اسمك من فضلك";
-    if (!/^01[0125][0-9]{8}$/.test(phone)) fields.phone = "اكتب رقم موبايل مصري صحيح من 11 رقم";
+    if (!/^01[0125][0-9]{8}$/.test(phone)) fields.phone = "اكتب رقم موبايل مصريًا صحيحًا من 11 رقمًا";
     if (address.length < 8 || address.length > 300) fields.address = "اكتب العنوان بالتفصيل (الشارع والعمارة والدور)";
-    if (request.paymentMethod !== undefined && request.paymentMethod !== "cash") fields.paymentMethod = "الدفع كاش عند الاستلام فقط حاليًا";
+    if (request.paymentMethod !== undefined && request.paymentMethod !== "cash") fields.paymentMethod = "الدفع نقدًا عند الاستلام فقط حاليًا";
     // Delivery area: required while the settings have active areas; its fee comes from the settings, never the browser.
     const areas = settings.deliveryAreas.filter((area) => area.active);
     const area = areas.find((a) => a.id === request.areaId);
-    if (areas.length && !area) fields.areaId = "اختار منطقة التوصيل";
+    if (areas.length && !area) fields.areaId = "اختر منطقة التوصيل";
     assertValid(fields);
 
     const items = Array.isArray(request.items) ? request.items : [];
-    if (!items.length || items.length > 200) throw new ApiError(400, "السلة فاضية");
+    if (!items.length || items.length > 200) throw new ApiError(400, "السلة فارغة");
 
     const byId = new Map(data.products.map((product) => [product.id, product]));
     const today = cairoToday();
     const lines: OrderLine[] = [];
     for (const item of items) {
       const product = byId.get(Number(item.productId));
-      if (!product) throw new ApiError(409, "فيه منتج في السلة مبقاش موجود. حدّث الصفحة وجرّب تاني.");
+      if (!product) throw new ApiError(409, "أحد المنتجات في السلة لم يعد متوفرًا. حدّث الصفحة وحاول مرة أخرى.");
       if (!product.inStock) throw new ApiError(409, `«${product.name}» غير متوفر حاليًا. احذفه من السلة وأكمل طلبك.`);
       const quantity = Number(item.quantity);
       // Pieces: 1 to 20. Weighed: from the product's minimum, in its steps, up to its maximum (dashboard settings).

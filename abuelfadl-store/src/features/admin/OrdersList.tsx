@@ -40,7 +40,7 @@ export function OrdersList() {
       <div className="adm-head">
         <div>
           <h1>الطلبات</h1>
-          <p>{orders ? `${orders.length} طلب، ` : ""}اضغط على أي طلب عشان تشوف تفاصيله</p>
+          <p>{orders ? `${orders.length} طلب، ` : ""}اضغط على أي طلب لعرض تفاصيله</p>
         </div>
       </div>
       <div className="toolbar">
@@ -49,7 +49,7 @@ export function OrdersList() {
       {error ? <div className="alert">{error}</div> : null}
       <div className="card">
         {orders === null ? (
-          <div className="empty">جاري التحميل…</div>
+          <div className="empty">جارٍ التحميل…</div>
         ) : visible.length ? (
           <div className="table-wrap">
             <table className="tbl">
@@ -78,7 +78,7 @@ export function OrdersList() {
             </table>
           </div>
         ) : (
-          <div className="empty">مفيش طلبات هنا</div>
+          <div className="empty">لا توجد طلبات هنا</div>
         )}
       </div>
     </>

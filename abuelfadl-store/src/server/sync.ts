@@ -24,7 +24,7 @@ interface SheetRow {
 export function readProductsSheet(csv: string): SheetRow[] {
   const rows = parseCsv(csv);
   if (!rows.length || !("sku" in rows[0]) || !("price" in rows[0])) {
-    throw new ApiError(400, "الملف ده مش شيت المنتجات بتاع Foodics: لازم يكون فيه عمودين sku و price");
+    throw new ApiError(400, "هذا الملف ليس شيت المنتجات الخاص بـ Foodics: يجب أن يحتوي على العمودين sku و price");
   }
   return rows.flatMap((row) => {
     const sku = normalizeSku(row.sku);
@@ -40,7 +40,7 @@ export function readProductsSheet(csv: string): SheetRow[] {
  * The same function will be called by the Supabase sync later (with `source` = "Supabase").
  */
 export function applyPrices(rows: SheetRow[], source: string): Promise<SyncRun> {
-  if (!rows.length) throw new ApiError(400, "مفيش ولا صف فيه SKU وسعر صحيح في الشيت");
+  if (!rows.length) throw new ApiError(400, "لا يوجد في الشيت أي صف يحتوي على SKU وسعر صحيح");
   return mutate((data) => {
     const bySku = new Map(rows.map((row) => [row.sku, row])); // a repeated SKU: the last row wins
     const run: SyncRun = {
