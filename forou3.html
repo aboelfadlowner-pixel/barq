@@ -918,8 +918,8 @@ function renderApp() {
     <div class="bottom-bar">
       <button class="action-btn btn-secondary" onclick="clearAll()" style="flex:0.6">🗑 مسح</button>
       <button class="action-btn btn-primary" onclick="toggleSummary()">📋 الطلبية (${filledCount})</button>
-      <button class="action-btn btn-excel" onclick="exportToExcel()">📄 CSV</button>
-      <button class="action-btn btn-secondary" onclick="printOrder()" style="flex:0.7;background:#1a3a2a;color:#fff">🖨 طباعة</button>
+      <button class="action-btn btn-excel" onclick="if(confirm('📄 تصدير الطلبية كملف CSV؟'))exportToExcel()">📄 CSV</button>
+      <button class="action-btn btn-secondary" onclick="if(confirm('🖨 طباعة الطلبية؟'))printOrder()" style="flex:0.7;background:#1a3a2a;color:#fff">🖨 طباعة</button>
       <button id="sendFactoryBtn" class="action-btn" onclick="sendOrderToFactory()" style="background:#e94560;color:#fff;flex:1">📤 إرسال للمصنع</button>
     </div>
     ${summaryModal}
@@ -1170,6 +1170,7 @@ function doLogin() {
     activeTab = getActiveTabs()[0]?.id;
     quantities = {};
     orderDate = new Date().toISOString().split('T')[0];
+    loadFromStorage(); // الطلبية المحفوظة على الجهاز (مثلاً بعد إرسال فشل) متضيعش لو حد خرج ودخل تاني
     loadStockFromStorage();
     loadTodayPromo();
     // تحديد الشاشة الأولى حسب الدور
@@ -1374,6 +1375,9 @@ function updateTabCounts() {
 }
 
 function clearAll() {
+  const count = Object.keys(quantities).length;
+  if (count === 0) { showToast('ℹ️ الطلبية فاضية أصلاً', 2000); return; }
+  if (!confirm(`🗑 هل أنت متأكد إنك عايز تمسح الطلبية (${count} صنف)؟\nمش هينفع ترجعها تاني.`)) return;
   quantities = {};
   // مسح كل الـ inputs في الصفحة
   document.querySelectorAll('.qty-input').forEach(inp => inp.value = '');
@@ -2393,7 +2397,7 @@ async function loadReceiveData() {
   if (!currentUser) return;
   receiveLoading = true;
   try {
-    const res = await fetch(`${SB_URL}/rest/v1/branch_orders?branch_name=eq.${encodeURIComponent(currentUser.branch)}&select=id,created_at,status&order=created_at.desc&limit=10`, { headers: SB_HEADERS });
+    const res = await fetch(`${SB_URL}/rest/v1/branch_orders?branch_name=eq.${encodeURIComponent(currentUser.branch)}&status=neq.sending&select=id,created_at,status&order=created_at.desc&limit=10`, { headers: SB_HEADERS });
     receiveOrders = res.ok ? await res.json() : [];
   } catch (e) {
     console.error('[loadReceiveData]', e);
@@ -2617,7 +2621,7 @@ async function refreshLearnedAverages() {
   try {
     const [snapRes, ordersRes] = await Promise.all([
       fetch(`${SB_URL}/rest/v1/inventory_snapshots?branch=eq.${encodeURIComponent(branch)}&select=snapshot_date,data&order=snapshot_date.asc`, { headers: SB_HEADERS }),
-      fetch(`${SB_URL}/rest/v1/branch_order_items?select=sku,quantity,branch_orders!inner(created_at,branch_name)&branch_orders.branch_name=eq.${encodeURIComponent(branch)}`, { headers: SB_HEADERS })
+      fetch(`${SB_URL}/rest/v1/branch_order_items?select=sku,quantity,branch_orders!inner(created_at,branch_name,status)&branch_orders.branch_name=eq.${encodeURIComponent(branch)}&branch_orders.status=neq.sending`, { headers: SB_HEADERS })
     ]);
     if (!snapRes.ok || !ordersRes.ok) return;
     const snapshots = await snapRes.json();
@@ -2687,38 +2691,129 @@ async function refreshLearnedAverages() {
   }
 }
 
-async function sendOrderToFactory() {
+// ===== إرسال الطلبية للمصنع — "نجح" معناها وصلت 100%، و"فشل" معناها موصلتش =====
+// الطريقة: الطلبية بتتسجل الأول بحالة 'sending' (مخفية عن المصنع)، وبعدين الأصناف، وفي الآخر خطوة واحدة
+// بتقلبها 'pending' فتظهر للمصنع كاملة مرة واحدة. أي فشل في النص = المصنع مشافش حاجة.
+// ورقم الطلبية بيفضل محفوظ على الجهاز لحد ما الإرسال ينجح، فإعادة الإرسال (حتى بعد تعديل) بتكمّل نفس الطلبية
+// ومستحيل تتكرر. ولو الرد ضاع بعد ما الطلبية وصلت، بنسأل السيرفر بنفسنا قبل ما نقول "فشل".
+const PENDING_SUBMISSION_KEY = 'barq_pending_order_submission';
+
+function sbFetch(url, options, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 15000);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+async function sbJson(url, options) {
+  const res = await sbFetch(url, { ...options, headers: { ...SB_HEADERS, ...((options && options.headers) || {}) } });
+  if (!res.ok) throw new Error(await res.text());
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
+
+function itemsFingerprint(list) {
+  return list.map(i => i.sku + ':' + parseFloat(i.quantity)).sort().join(',');
+}
+
+const LAST_SENT_KEY = 'barq_last_sent_order';
+
+// اللي اتبعت للمصنع خلال آخر 12 ساعة من الجهاز ده (sku -> الكمية المبعوتة)، عشان منبعتش نفس الأصناف مرتين
+function loadSentToday() {
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(LAST_SENT_KEY) || 'null'); } catch(e) {}
+  if (!last || last.branchKey !== (currentUser?.branchKey || '') || !last.items || (Date.now() - last.ts) > 12 * 60 * 60 * 1000) return null;
+  return last;
+}
+
+function recordSentItems(sentItems) {
+  const prev = loadSentToday();
+  const merged = prev ? { ...prev.items } : {};
+  sentItems.forEach(i => { merged[i.sku] = (merged[i.sku] || 0) + (parseFloat(i.quantity) || 0); });
+  try { localStorage.setItem(LAST_SENT_KEY, JSON.stringify({ branchKey: currentUser?.branchKey || '', items: merged, ts: Date.now() })); } catch(e) {}
+}
+
+function onOrderSent(count, note, sentItems) {
+  try { localStorage.removeItem(PENDING_SUBMISSION_KEY); } catch(e) {}
+  if (sentItems) recordSentItems(sentItems);
+  saveOrderToHistory();
+  alert(`✅ تم إرسال الطلبية للمصنع بنجاح (${count} صنف)${note ? '\n\n' + note : ''}\n\nالطلبية وصلت المصنع فعلاً.`);
+}
+
+async function sendOrderToFactory(isRetry, onlyItems) {
   const skuMap = getActiveSkuMap();
-  const items = Object.entries(quantities)
+  let items = onlyItems || Object.entries(quantities)
     .filter(([sku, qty]) => qty > 0 && skuMap[sku])
     .map(([sku, qty]) => ({ sku, product_name: skuMap[sku].name, quantity: qty, unit: skuMap[sku].unit }));
 
   if (items.length === 0) {
-    showToast('⚠️ الطلبية فارغة — أدخل كميات أولاً', 3000);
+    showToast('⚠️ الطلبية فاضية — دخّل كميات الأول', 3000);
     return;
   }
 
   const btn = document.getElementById('sendFactoryBtn');
   const btn2 = document.getElementById('sendFactoryBtn2');
-  [btn, btn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جاري الإرسال...'; } });
+  if (btn && btn.disabled) return;
+  // زرار Enter أو ضغطتين بالماوس على الكمبيوتر كانوا بيبعتوا نفس الطلبية كذا مرة ورا بعض.
+  // نفس الطلبية بالظبط اللي اتبعتت بنجاح مش هتتبعت تاني إلا لو اتغير فيها حاجة
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const sent = !isRetry && !onlyItems ? loadSentToday() : null;
+  if (sent) {
+    // الزيادة بس: أصناف جديدة، أو كمية أكبر من اللي اتبعت قبل كده
+    const extra = items
+      .map(i => ({ ...i, quantity: +(i.quantity - (sent.items[i.sku] || 0)).toFixed(3) }))
+      .filter(i => i.quantity > 0);
+    const at = new Date(sent.ts).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    if (!extra.length) {
+      alert(`✅ كل الأصناف دي اتبعتت للمصنع بنجاح قبل كده (آخر إرسال الساعة ${at}).\n\nمش هتتبعت تاني عشان متتكررش.`);
+      return;
+    }
+    const overlap = items.filter(i => sent.items[i.sku]).length;
+    if (overlap) {
+      if (confirm(`ℹ️ فيه ${overlap} صنف من الطلبية دي اتبعتوا للمصنع قبل كده (الساعة ${at}).\n\nOK = ابعت الزيادة بس (${extra.length} صنف: الأصناف الجديدة + فرق الكميات) ✅\nCancel = اختيارات تانية`)) {
+        return sendOrderToFactory(false, extra);
+      }
+      if (!confirm(`⚠️ تبعت الطلبية كاملة (${items.length} صنف)؟\nالأصناف اللي اتبعتت قبل كده هتتكرر في المصنع.`)) return;
+      return sendOrderToFactory(true, items);
+    }
+  }
+  if (!isRetry && !confirm(`📤 هل أنت متأكد إنك عايز تبعت الطلبية للمصنع (${items.length} صنف)؟`)) return;
 
-  // منع تضاعف الطلبية: لو الإرسال فشل ظاهريًا بسبب نت بطيء (والطلبية كانت اتسجلت فعلاً على السيرفر)
-  // والموظف حاول يبعت تاني، بنستخدم نفس الـ id بتاع الطلبية والأصناف لو المحتوى مطابق لمحاولة سابقة
-  // قريبة — upsert بالـ id يضمن إنها متتسجلش مرتين بدل ما تتكرر كطلبيتين منفصلتين
-  const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
-  const submissionFingerprint = (currentUser?.branch || '') + '|' + items.map(i => i.sku + ':' + i.quantity).sort().join(',');
+  const genId = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
   let pending = null;
-  try { pending = JSON.parse(localStorage.getItem('barq_pending_order_submission') || 'null'); } catch(e) {}
-  const canReuse = pending && pending.fingerprint === submissionFingerprint && pending.itemIds && pending.itemIds.length === items.length && (Date.now() - pending.ts) < 10 * 60 * 1000;
-  const orderId = canReuse ? pending.orderId : genId();
-  const itemIds = canReuse ? pending.itemIds : items.map(genId);
-  try { localStorage.setItem('barq_pending_order_submission', JSON.stringify({ fingerprint: submissionFingerprint, orderId, itemIds, ts: Date.now() })); } catch(e) {}
+  try { pending = JSON.parse(localStorage.getItem(PENDING_SUBMISSION_KEY) || 'null'); } catch(e) {}
+  if (pending && pending.branchKey !== (currentUser?.branchKey || '')) pending = null;
+  const orderId = pending ? pending.orderId : genId();
+  const skuIds = (pending && pending.skuIds) || {};
+  items.forEach(i => { if (!skuIds[i.sku]) skuIds[i.sku] = genId(); });
+  try { localStorage.setItem(PENDING_SUBMISSION_KEY, JSON.stringify({ orderId, branchKey: currentUser?.branchKey || '', skuIds, ts: Date.now() })); } catch(e) {}
 
+  [btn, btn2].forEach(b => { if(b) { b.disabled = true; b.textContent = '⏳ جاري الإرسال...'; } });
+  let outcome = null; // 'sent' | 'failed' | 'unknown' | 'diverged'
+  let finalStepSent = false;
   try {
-    // إنشاء الطلبية
-    const orderRes = await fetch(`${SB_URL}/rest/v1/branch_orders?on_conflict=id`, {
+    // لو فيه محاولة سابقة: نشوف السيرفر وصلها فعلاً ولا لأ
+    if (pending) {
+      const rows = await sbJson(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}&select=status`);
+      const st = rows && rows[0] ? rows[0].status : null;
+      if (st && st !== 'sending') {
+        // المحاولة السابقة كانت وصلت المصنع كاملة
+        const serverItems = await sbJson(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}&select=sku,quantity`);
+        try { localStorage.removeItem(PENDING_SUBMISSION_KEY); } catch(e) {}
+        if (itemsFingerprint(serverItems) === itemsFingerprint(items)) {
+          outcome = 'sent';
+          onOrderSent(items.length, 'المحاولة اللي فاتت كانت وصلت فعلاً، ومتبعتتش مرتين.', items);
+          return;
+        }
+        recordSentItems(serverItems); // اللي وصل فعلاً يتحسب، فالإرسال الجاي يعرض يبعت الزيادة بس
+        outcome = 'diverged';
+        return;
+      }
+    }
+
+    // 1) الطلبية بحالة مخفية
+    await sbJson(`${SB_URL}/rest/v1/branch_orders?on_conflict=id`, {
       method: 'POST',
-      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=representation' },
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({
         id: orderId,
         branch_name: currentUser?.branch || 'غير محدد',
@@ -2726,33 +2821,54 @@ async function sendOrderToFactory() {
         username: currentUser?.username || '',
         department: currentUser?.dept || '',
         notes: '',
-        status: 'pending'
+        status: 'sending'
       })
     });
-
-    if (!orderRes.ok) throw new Error(await orderRes.text());
-    const order = await orderRes.json();
-    const confirmedOrderId = order[0] ? order[0].id : orderId;
-
-    // إضافة المنتجات
-    const itemsPayload = items.map((i, idx) => ({ id: itemIds[idx], order_id: confirmedOrderId, sku: i.sku, product_name: i.product_name, quantity: i.quantity, unit: i.unit }));
-    const itemsRes = await fetch(`${SB_URL}/rest/v1/branch_order_items?on_conflict=id`, {
+    // 2) الأصناف (بأرقام ثابتة لكل صنف، فإعادة الإرسال بتحدّث نفس الصفوف)
+    const ids = items.map(i => skuIds[i.sku]);
+    await sbJson(`${SB_URL}/rest/v1/branch_order_items?on_conflict=id`, {
       method: 'POST',
-      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(itemsPayload)
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(items.map(i => ({ id: skuIds[i.sku], order_id: orderId, sku: i.sku, product_name: i.product_name, quantity: i.quantity, unit: i.unit })))
     });
-
-    if (!itemsRes.ok) throw new Error(await itemsRes.text());
-
-    showToast(`✅ تم إرسال الطلبية للمصنع (${items.length} صنف)`, 4000);
-    try { localStorage.removeItem('barq_pending_order_submission'); } catch(e) {}
-    saveOrderToHistory();
-
+    // أي صنف اتشال بعد محاولة فاشلة يتمسح من الطلبية
+    await sbJson(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}&id=not.in.(${ids.join(',')})`, { method: 'DELETE' });
+    // 3) نتأكد إن كل الأصناف موجودة، وبعدين نظهرها للمصنع في خطوة واحدة
+    const check = await sbJson(`${SB_URL}/rest/v1/branch_order_items?order_id=eq.${orderId}&select=sku,quantity`);
+    if (itemsFingerprint(check) !== itemsFingerprint(items)) throw new Error('items mismatch');
+    finalStepSent = true;
+    await sbJson(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}&status=eq.sending`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: 'pending' })
+    });
+    outcome = 'sent';
+    onOrderSent(items.length, '', items);
   } catch(e) {
-    console.error(e);
-    showToast('❌ فشل الإرسال — تحقق من الاتصال، ولو تحاول تاني مش هتتبعت مرتين', 3500);
+    console.error('[sendOrderToFactory]', e);
+    // لو الفشل حصل قبل الخطوة الأخيرة: الطلبية لسه مخفية، يعني المصنع مشافهاش أكيد.
+    // لو بعدها: نسأل السيرفر هل الخطوة الأخيرة وصلت والرد بس هو اللي ضاع
+    if (!finalStepSent) outcome = 'failed';
+    else {
+      try {
+        const rows = await sbJson(`${SB_URL}/rest/v1/branch_orders?id=eq.${orderId}&select=status`);
+        if (rows && rows[0] && rows[0].status !== 'sending') { outcome = 'sent'; onOrderSent(items.length, '', items); }
+        else outcome = 'failed';
+      } catch(e2) { outcome = 'unknown'; }
+    }
   } finally {
     [btn, btn2].forEach(b => { if(b) { b.disabled = false; b.textContent = '📤 إرسال للمصنع'; } });
+  }
+
+  if (outcome === 'diverged') {
+    alert('ℹ️ الطلبية اللي كانت ظهرت "فشل" قبل كده طلعت واصلة المصنع فعلاً (بالأصناف القديمة).\n\nالطلبية اللي على الشاشة دلوقتي مختلفة عنها — هنعرض عليك تبعت الفرق بس.');
+    sendOrderToFactory();
+  } else if (outcome === 'unknown') {
+    alert('⚠️ النت فصل في آخر لحظة من الإرسال، فمش قادرين نتأكد الطلبية وصلت ولا لأ.\n\nمتعدلش في الطلبية — أول ما النت يرجع دوس "إرسال للمصنع" تاني:\nلو كانت وصلت هيقولك إنها وصلت، ولو موصلتش هيبعتها.\nفي الحالتين مستحيل تتكرر.');
+  } else if (outcome === 'failed') {
+    if (confirm('❌ الطلبية متبعتتش — المصنع مستلمش أي حاجة منها.\n\nالطلبية لسه محفوظة على الشاشة زي ما هي.\nتحاول تبعتها تاني دلوقتي؟')) {
+      sendOrderToFactory(true, items);
+    }
   }
 }
 
