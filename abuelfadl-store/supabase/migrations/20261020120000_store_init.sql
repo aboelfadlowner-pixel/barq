@@ -1,4 +1,4 @@
--- Abu El Fadl online store: first database migration.
+-- Abu El Fadl online store: first database migration (applied 2026-10-20 to the main project).
 --
 -- Everything the website owns lives in its own schema, "store", next to the tools that already use this project.
 -- Nothing outside "store" is created, changed or dropped. The only link to the other tools is one read-only view of
