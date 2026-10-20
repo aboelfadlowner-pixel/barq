@@ -2,11 +2,17 @@
 import { round2, formatWeight } from './format.js';
 import { UNIT_TYPES } from '../constants.js';
 
+/* Add-ons of one piece (like Foodics they count per piece: 2 × أرز بلبن with عسل = 2 × (أرز بلبن + عسل)). */
+export const modifiersTotal = (item) => (item.modifiers || []).reduce((s, m) => s + m.price * m.qty, 0);
+
 export function lineTotal(item) {
   return item.unitType === 'weight'
-    ? (item.price * (item.grams || 0)) / 1000
-    : item.price * (item.qty || 0);
+    ? (item.price * (item.grams || 0)) / 1000 + modifiersTotal(item)
+    : (item.price + modifiersTotal(item)) * (item.qty || 0);
 }
+
+/* «عسل ×2، مكسرات» — the add-ons of a line in one short text. */
+export const modifiersText = (mods) => (mods || []).map((m) => (m.qty > 1 ? `${m.name} ×${m.qty}` : m.name)).join('، ');
 
 /* deliveryFee: number, or null when no area is selected yet. */
 export function computeTotals(items, deliveryFee = null) {

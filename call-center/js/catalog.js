@@ -11,6 +11,7 @@ export const catalog = {
   statusesById: new Map(),
   categories: [],      // like Foodics: { id, name, productIds } — only products in the list, empty ones left out
   categoriesById: new Map(),
+  modifiersBySku: new Map(),   // add-ons like Foodics: sku → [{ id, name, min, max, options: [{ id, name, price }] }]
   agents: [],          // active employee names (picker)
   allAgents: [],       // including inactive (settings screen)
 };
@@ -25,7 +26,7 @@ const setAgents = (list) => Object.assign(catalog, {
    • the product list and categories are kept on this device, so the app opens at once with the last
      list and refreshes it quietly in the background (prices are always re-checked by the database
      when the order is sent). */
-const CACHE_KEY = 'cc-catalog-v1';
+const CACHE_KEY = 'cc-catalog-v2';
 const readCache = () => {
   if (ds.IS_MOCK) return null;
   try {
@@ -33,9 +34,9 @@ const readCache = () => {
     return Array.isArray(c?.products) && c.products.length ? c : null;
   } catch { return null; }
 };
-const writeCache = (products, categories) => {
+const writeCache = (products, categories, modifiers) => {
   if (ds.IS_MOCK) return;
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ products, categories, savedAt: Date.now() })); } catch { /* full or blocked: fine */ }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ products, categories, modifiers, savedAt: Date.now() })); } catch { /* full or blocked: fine */ }
 };
 export const clearCatalogCache = () => { try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ } };
 
@@ -52,6 +53,26 @@ function setProducts(products) {
 
 /* Categories never block the app: if they can't be loaded the screen falls back to search only. */
 const fetchCategories = () => ds.getCategories().catch(() => []);
+/* Add-ons never block the app either: without them products are added as before. */
+const fetchModifiers = () => ds.getModifiers().catch(() => ({ groups: [], links: [] }));
+
+function setModifiers(data) {
+  const groups = new Map((data?.groups || []).map((g) => [g.id, g]));
+  const bySku = new Map();
+  for (const l of data?.links || []) {
+    const g = groups.get(l.groupId);
+    if (!g || !g.options.length) continue;
+    if (!bySku.has(l.sku)) bySku.set(l.sku, []);
+    bySku.get(l.sku).push({ ...g, min: l.min, max: l.max });
+  }
+  Object.assign(catalog, { modifierGroups: [...groups.values()], modifiersBySku: bySku });
+}
+/* Add-ons again (after the admin changed a product's groups). */
+export async function reloadModifiers() {
+  setModifiers(await ds.getModifiers());
+}
+/* Add-on groups shown when this product is chosen (empty = no add-ons). */
+export const productModifiers = (productId) => catalog.modifiersBySku.get(productId) || [];
 
 function setCategories(list) {
   const categories = list
@@ -66,11 +87,12 @@ function setCategories(list) {
    (wrapped in an object so awaiting loadCatalog() does not wait for it). */
 export async function loadCatalog() {
   const cached = readCache();
-  const fresh = cached ? null : Promise.all([ds.getProducts(), fetchCategories()]);
-  const [areas, statuses, agents, [products, categories]] = await Promise.all([
-    ds.getAreas(), ds.getOrderStatuses(), ds.getAgents(), fresh ?? [cached.products, cached.categories || []],
+  const fresh = cached ? null : Promise.all([ds.getProducts(), fetchCategories(), fetchModifiers()]);
+  const [areas, statuses, agents, [products, categories, modifiers]] = await Promise.all([
+    ds.getAreas(), ds.getOrderStatuses(), ds.getAgents(), fresh ?? [cached.products, cached.categories || [], cached.modifiers],
   ]);
-  if (fresh) writeCache(products, categories);
+  if (fresh) writeCache(products, categories, modifiers);
+  setModifiers(modifiers);
   setAgents(agents);
   setProducts(products);
   Object.assign(catalog, {
@@ -99,8 +121,9 @@ export async function reloadAgents() {
 
 /* Products again (after the products sheet changed how some are sold). */
 export async function reloadProducts() {
-  const [products, categories] = await Promise.all([ds.getProducts(), fetchCategories()]);
-  writeCache(products, categories);
+  const [products, categories, modifiers] = await Promise.all([ds.getProducts(), fetchCategories(), fetchModifiers()]);
+  writeCache(products, categories, modifiers);
+  setModifiers(modifiers);
   setProducts(products);
   setCategories(categories);
 }

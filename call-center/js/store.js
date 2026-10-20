@@ -1,5 +1,5 @@
 /* App state: a tiny observable store plus the order-draft actions. */
-import { catalog } from './catalog.js';
+import { catalog, productModifiers } from './catalog.js';
 import { MAX_PIECE_QTY } from './constants.js';
 
 /* One id per draft: sending the same draft again (double click, retry after a
@@ -13,7 +13,7 @@ const newRequestId = () => (globalThis.crypto?.randomUUID
 
 const emptyDraft = () => ({
   requestId: newRequestId(),
-  cart: [],         // { lineId, productId, name, unitType, unitLabel, price, qty|grams, note }
+  cart: [],         // { lineId, productId, name, unitType, unitLabel, price, qty|grams, note, modifiers: [{ id, groupId, group, name, price, qty }] }
   customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
   address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
@@ -72,18 +72,21 @@ export function currentDeliveryFee(s = state) {
 let seq = 0;
 const newLineId = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-/* Adds a product. Unit products: whole qty (merged with the same product + same note).
+const modsKey = (mods) => (mods || []).map((m) => `${m.id}×${m.qty}`).sort().join(',');
+
+/* Adds a product. Unit products: whole qty (merged with the same product + same note + same add-ons).
    Weight products: grams, always a separate line (each cut can have its own note). */
-export function addProduct(product, { qty = 1, grams = null, note = '' } = {}) {
+export function addProduct(product, { qty = 1, grams = null, note = '', modifiers = [] } = {}) {
   const base = {
     productId: product.id, name: product.name, unitType: product.unitType,
-    unitLabel: product.unitLabel, price: product.price, note,
+    unitLabel: product.unitLabel, price: product.price, note, modifiers,
   };
   setState((s) => {
     if (product.unitType === 'weight') {
       return { cart: [...s.cart, { ...base, lineId: newLineId(), grams }] };
     }
-    const existing = s.cart.find((l) => l.productId === product.id && l.unitType !== 'weight' && (l.note || '') === note);
+    const existing = s.cart.find((l) => l.productId === product.id && l.unitType !== 'weight' && (l.note || '') === note
+      && modsKey(l.modifiers) === modsKey(modifiers));
     if (existing) {
       return { cart: s.cart.map((l) => (l === existing ? { ...l, qty: Math.min(l.qty + qty, MAX_PIECE_QTY) } : l)) };
     }
@@ -123,7 +126,7 @@ export function loadDraftForEdit(order) {
     const prod = catalog.productsById.get(it.productId);
     const base = {
       lineId: newLineId(), productId: it.productId, name: it.name, unitType: it.unitType,
-      unitLabel: prod?.unitLabel ?? it.unitLabel, price: it.price, note: it.note || '',
+      unitLabel: prod?.unitLabel ?? it.unitLabel, price: it.price, note: it.note || '', modifiers: it.modifiers || [],
     };
     return it.unitType === 'weight' ? { ...base, grams: it.grams } : { ...base, qty: it.qty };
   });
@@ -145,9 +148,16 @@ export function loadDraftFromOrder(order, todayOrders = []) {
   for (const it of order.items) {
     const prod = catalog.productsById.get(it.productId);
     if (!prod) { skipped.push(it.name); continue; }
+    // Add-ons that the product still has, at today's price (others are left out).
+    const groups = productModifiers(prod.id);
+    const modifiers = (it.modifiers || []).flatMap((m) => {
+      const g = groups.find((x) => x.options.some((o) => o.id === m.id));
+      const o = g?.options.find((x) => x.id === m.id);
+      return o ? [{ id: o.id, groupId: g.id, group: g.name, name: o.name, price: o.price, qty: Math.min(m.qty, g.max) }] : [];
+    });
     const base = {
       lineId: newLineId(), productId: prod.id, name: prod.name, unitType: prod.unitType,
-      unitLabel: prod.unitLabel, price: prod.price, note: it.note || '',
+      unitLabel: prod.unitLabel, price: prod.price, note: it.note || '', modifiers,
     };
     cart.push(prod.unitType === 'weight'
       ? { ...base, grams: it.grams ?? Math.round((it.qty ?? 1) * 1000) }

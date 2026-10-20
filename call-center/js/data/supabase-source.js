@@ -7,6 +7,7 @@
  *             cc_agents (employee names)
  *    writes : the functions cc_place_order, cc_cancel_order_as, cc_save_area, cc_save_agent
  *    products: the function cc_list_products (code, name, barcode, price, sold_by)
+ *    add-ons : cc_list_modifiers (groups, options, product links), cc_save_product_modifiers (admin)
  *  Prices, fees and totals are always computed by the database.
  *
  *  Uses the public anon key from config.js plus the signed-in session.
@@ -117,9 +118,14 @@ export const toCustomer = (r, lastOrderAt = null) => ({
   lastOrderAt,
 });
 
+/* Add-ons copied onto an order line (13_modifiers.sql). */
+export const toModifiers = (list) => (Array.isArray(list) ? list : []).map((m) => ({
+  id: m.id, groupId: m.group_id || null, group: m.group || '', name: m.name, price: Number(m.price) || 0, qty: Number(m.qty) || 1,
+}));
+
 export function toOrder(r) {
   const items = (r.cc_order_items || []).slice().sort((a, b) => a.line_no - b.line_no).map((it) => {
-    const base = { productId: it.sku, name: it.product_name, price: Number(it.unit_price) || 0, note: it.note || '' };
+    const base = { productId: it.sku, name: it.product_name, price: Number(it.unit_price) || 0, note: it.note || '', modifiers: toModifiers(it.modifiers) };
     return it.weight_grams != null
       ? { ...base, unitType: 'weight', unitLabel: 'بالكيلو', grams: it.weight_grams }
       : { ...base, unitType: 'piece', unitLabel: 'بالوحدة', qty: it.qty };
@@ -176,9 +182,15 @@ export function toCreateOrderArgs({ requestId, cart, customer, address, orderNot
   if (address.isNew || !address.id) p_address = fields;                 // new address
   else if (address.edited) p_address = { id: address.id, ...fields };  // saved address, edited
   else p_address = { id: address.id };                                  // saved address as is
-  const p_items = cart.map((l) => (l.unitType === 'weight'
-    ? { sku: l.productId, weight_grams: l.grams, ...(l.note ? { note: l.note } : {}) }
-    : { sku: l.productId, qty: l.qty, ...(l.note ? { note: l.note } : {}) }));
+  const p_items = cart.map((l) => {
+    const extra = {
+      ...(l.note ? { note: l.note } : {}),
+      ...(l.modifiers?.length ? { modifiers: l.modifiers.map((m) => ({ id: m.id, qty: m.qty })) } : {}),
+    };
+    return l.unitType === 'weight'
+      ? { sku: l.productId, weight_grams: l.grams, ...extra }
+      : { sku: l.productId, qty: l.qty, ...extra };
+  });
   return {
     p_client_request_id: requestId, p_customer, p_address, p_items,
     p_note: orderNote ? orderNote : null,
@@ -217,8 +229,8 @@ const toPrepOrder = (r) => ({
   note: r.note || '', employee: r.agent_name || '',
   editCount: r.edit_count || 0, editedAt: r.edited_at || null, editChanges: r.edit_changes || [], editSeenAt: r.edit_seen_at || null,
   items: (r.items || []).map((it) => (it.weight_grams != null
-    ? { name: it.name, unitType: 'weight', grams: it.weight_grams, note: it.note || '' }
-    : { name: it.name, unitType: 'piece', qty: it.qty, note: it.note || '' })),
+    ? { name: it.name, unitType: 'weight', grams: it.weight_grams, note: it.note || '', modifiers: toModifiers(it.modifiers) }
+    : { name: it.name, unitType: 'piece', qty: it.qty, note: it.note || '', modifiers: toModifiers(it.modifiers) })),
 });
 
 export async function listPrepOrders() {
@@ -357,6 +369,31 @@ export async function getProducts() {
     after = rows[rows.length - 1].sku;
   }
   return all;
+}
+
+/* Add-ons (like Foodics): groups with their options and which product shows which group.
+   Before 13_modifiers.sql is installed there are simply no add-ons. */
+export async function getModifiers() {
+  const c = await sb();
+  const res = await c.rpc('cc_list_modifiers');
+  if (res.error?.code === NOT_INSTALLED) return { groups: [], links: [] };
+  const d = ok(res) || {};
+  return {
+    groups: (d.groups || []).map((g) => ({
+      id: g.id, name: g.name, options: (g.options || []).map((o) => ({ id: o.id, name: o.name, price: Number(o.price) || 0 })),
+    })),
+    links: (d.links || []).map((l) => ({ sku: l.sku, groupId: l.group_id, min: Number(l.min) || 0, max: Number(l.max) || 1 })),
+  };
+}
+
+/* Admin: the add-on groups of one product, in order: [{ groupId, min, max }]. */
+export async function saveProductModifiers(sku, links) {
+  const c = await sb();
+  const res = await c.rpc('cc_save_product_modifiers', {
+    p_sku: sku, p_links: links.map((l) => ({ group_id: l.groupId, min: l.min, max: l.max })),
+  });
+  if (res.error?.code === NOT_INSTALLED) throw new Error('الإضافات غير مفعّلة على قاعدة البيانات بعد');
+  return ok(res);
 }
 
 /* Categories (like Foodics) with the codes of their products, in one call. */

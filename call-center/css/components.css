@@ -488,6 +488,30 @@
 .item-calc { margin-top: 8px; font-size: 14px; color: var(--ink-2); min-height: 20px; }
 .item-calc strong { color: var(--green-700); }
 
+/* Add-ons (like Foodics): one block per group, tap an option to add one */
+.mod-group { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.mod-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 10px; }
+.mod-rule { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.mod-rule.req { color: var(--danger); }
+.mod-count { margin-inline-start: auto; font-size: 13px; font-weight: 800; color: var(--ink-2); }
+.mod-group.full .mod-count { color: var(--green-700); }
+.mod-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.mod-opt { position: relative; display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.mod-opt.on { border-color: var(--green-600); background: var(--green-50); }
+.mod-add { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 10px;
+  border: 0; background: none; font: inherit; text-align: start; cursor: pointer; min-height: 52px; }
+.mod-add:disabled { cursor: not-allowed; opacity: .45; }
+.mod-name { font-weight: 800; font-size: 14px; }
+.mod-price { font-size: 12.5px; color: var(--muted); font-weight: 700; }
+.mod-opt.on .mod-price { color: var(--green-700); }
+.mod-qty { display: none; align-items: center; gap: 4px; padding-inline-end: 6px; }
+.mod-opt.on .mod-qty { display: flex; }
+.mod-qty .num { min-width: 18px; text-align: center; font-weight: 900; color: var(--green-700); }
+.line-mods, .item-mods { margin-top: 3px; font-size: 12.5px; color: var(--ink-2); font-weight: 700; }
+.line-mods .mods-edit { margin-inline-start: 6px; padding: 0; border: 0; background: none; color: var(--green-700); font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; }
+.pi-mods { font-size: 13px; font-weight: 800; color: var(--ink-2); margin-top: 2px; }
+.tk-mods { font-size: 12px; font-weight: 800; }
+
 /* ---------- Searchable picker (delivery area) ---------- */
 .combo { position: relative; }
 .combo-btn { width: 100%; text-align: start; font: inherit; }
@@ -654,3 +678,16 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .sync-chip.is-busy .svg-icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) { .sync-text { display: none; } }
+
+/* Settings: product add-ons */
+.mods-settings { display: flex; flex-direction: column; gap: 14px; }
+.mods-results { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.mods-results:empty { display: none; }
+.mods-result { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff; font: inherit; font-weight: 700; text-align: start; cursor: pointer; }
+.mods-result:hover { border-color: var(--green-500); }
+.mods-linked { margin-top: 8px; }
+.mods-product { font-size: 16px; margin-bottom: 8px; }
+.mods-table td .hint { margin-top: 2px; max-width: 420px; }
+.mods-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.mods-add select { flex: 1; min-width: 200px; }

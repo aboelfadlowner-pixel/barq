@@ -1,7 +1,7 @@
 /* Plain-text order summary (for pasting into WhatsApp / Facebook chats). */
 import { PAYMENT_METHOD } from '../constants.js';
 import { formatAddress, formatMoney } from './format.js';
-import { computeTotals, lineTotal, quantityLabel } from './pricing.js';
+import { computeTotals, lineTotal, quantityLabel, modifiersText } from './pricing.js';
 
 export function buildOrderSummary(order, { edited = false } = {}) {
   const t = computeTotals(order.items, order.deliveryFee);
@@ -13,7 +13,7 @@ export function buildOrderSummary(order, { edited = false } = {}) {
     '',
     'الأصناف:',
     ...order.items.map((it) =>
-      `• ${it.name} — ${quantityLabel(it)} — ${formatMoney(lineTotal(it))}${it.unitType === 'weight' ? ' (تقريبي)' : ''}${it.note ? ` [${it.note}]` : ''}`),
+      `• ${it.name}${it.modifiers?.length ? ` (+ ${modifiersText(it.modifiers)})` : ''} — ${quantityLabel(it)} — ${formatMoney(lineTotal(it))}${it.unitType === 'weight' ? ' (تقريبي)' : ''}${it.note ? ` [${it.note}]` : ''}`),
     '',
     `المجموع: ${formatMoney(t.subtotal)}`,
     `رسوم التوصيل: ${formatMoney(t.deliveryFee ?? 0)}`,

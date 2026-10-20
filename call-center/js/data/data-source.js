@@ -32,6 +32,8 @@ export const lastDataCenterSync = () => impl.lastDataCenterSync();
 export const pullDataCenter     = () => impl.pullDataCenter();
 export const publishDataCenter  = () => impl.publishDataCenter();
 export const getCategories    = () => impl.getCategories();
+export const getModifiers     = () => impl.getModifiers();       // add-ons: { groups, links }
+export const saveProductModifiers = (sku, links) => impl.saveProductModifiers(sku, links);
 export const listStaff        = () => impl.listStaff();
 export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);

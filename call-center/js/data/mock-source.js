@@ -21,6 +21,36 @@ let nextOrderNo = 1001 + orders.length;
 /* ---------- Catalog ---------- */
 export const getProducts      = () => resolve(mock.products);
 export const getCategories    = () => resolve(mock.categories);
+
+/* Add-ons: same checks as the database (13_modifiers.sql) — prices from here, never from the screen. */
+const modifiers = clone(mock.modifiers);
+export const getModifiers = () => resolve(modifiers);
+export function saveProductModifiers(sku, links) {
+  for (const l of links) {
+    if (!(l.max >= 1 && l.max <= 20) || l.min < 0 || l.min > l.max) return Promise.reject(new Error('الحد الأقصى من 1 إلى 20 ولا يقل عن الحد الأدنى'));
+  }
+  modifiers.links = [...modifiers.links.filter((l) => l.sku !== sku), ...links.map((l) => ({ sku, groupId: l.groupId, min: l.min, max: l.max }))];
+  return resolve(links.length);
+}
+/* The line's add-ons priced from the list; the price of an add-on already on the line is kept. */
+function priceModifiers(line, old = []) {
+  const links = modifiers.links.filter((l) => l.sku === line.productId);
+  const out = [];
+  for (const m of line.modifiers || []) {
+    const link = links.find((l) => modifiers.groups.find((g) => g.id === l.groupId)?.options.some((o) => o.id === m.id));
+    const group = link && modifiers.groups.find((g) => g.id === link.groupId);
+    const o = group?.options.find((x) => x.id === m.id);
+    if (!o) throw new Error(`إضافة غير متاحة لـ«${line.name}» — حدّث الصفحة واختر مرة أخرى`);
+    out.push({ id: o.id, groupId: group.id, group: group.name, name: o.name, price: old.find((x) => x.id === o.id)?.price ?? o.price, qty: m.qty });
+  }
+  for (const l of links) {
+    const g = modifiers.groups.find((x) => x.id === l.groupId);
+    const n = out.filter((m) => m.groupId === l.groupId).reduce((s, m) => s + m.qty, 0);
+    if (n < l.min) throw new Error(`اختر ${l.min} على الأقل من «${g.name}» في «${line.name}»`);
+    if (n > l.max) throw new Error(`«${g.name}» لا تزيد عن ${l.max} في «${line.name}»`);
+  }
+  return out;
+}
 export const getAreas         = () => resolve(areas);   // includes inactive areas
 export const getOrderStatuses = () => resolve(mock.orderStatuses);
 export const syncSaleUnits = () => Promise.resolve({ status: 'skipped' });
@@ -184,10 +214,14 @@ export function editOrder({ orderId, cart, address, orderNote, agent }) {
   const oldBy = new Map(o.items.map((l) => [l.productId, l]));
   const newBy = new Map(cart.map((l) => [l.productId, l]));
   const changes = [];
+  const modsKey = (l) => (l.modifiers || []).map((m) => `${m.name} ×${m.qty}`).join('، ');
+  let priced;
+  try { priced = cart.map((l) => ({ ...l, modifiers: priceModifiers(l, oldBy.get(l.productId)?.modifiers) })); } catch (e) { return Promise.reject(e); }
   for (const [id, n] of newBy) {
     const old = oldBy.get(id);
     if (!old) changes.push({ kind: 'added', name: n.name, to: amount(n) });
     else if (key(amount(old)) !== key(amount(n))) changes.push({ kind: 'amount', name: n.name, from: amount(old), to: amount(n) });
+    else if (modsKey(old) !== modsKey(n)) changes.push({ kind: 'modifiers', name: n.name, from: modsKey(old), to: modsKey(n) });
     else if ((old.note || '') !== (n.note || '')) changes.push({ kind: 'note', name: n.name, to: n.note || '' });
   }
   for (const [id, old] of oldBy) if (!newBy.has(id)) changes.push({ kind: 'removed', name: old.name, from: amount(old) });
@@ -197,7 +231,7 @@ export function editOrder({ orderId, cart, address, orderNote, agent }) {
   if (addrChanged) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
   if ((orderNote || '') !== (o.note || '')) changes.push({ kind: 'order_note', name: 'ملاحظات الطلب', to: orderNote || '' });
   if (!changes.length) return Promise.reject(new Error('لا يوجد أي تغيير في الطلب'));
-  o.items = cart.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
+  o.items = priced.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
   if (addrChanged) {
     if (address.areaId !== o.address.areaId) o.deliveryFee = area?.fee ?? o.deliveryFee;
     o.address = { ...o.address, areaId: address.areaId, areaName: area?.name ?? o.address.areaName, street: address.street,
@@ -218,6 +252,8 @@ export function createOrder(draft) {
   }
   const area = areas.find((a) => a.id === address.areaId);
   if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
+  let items;
+  try { items = cart.map(({ lineId, ...item }) => ({ ...item, modifiers: priceModifiers(item) })); } catch (e) { return Promise.reject(e); }
 
   let cust = customer.id ? customers.find((c) => c.id === customer.id) : null;
   if (!cust) {
@@ -249,7 +285,7 @@ export function createOrder(draft) {
     customer: { id: cust.id, name: cust.name, phone: customer.phone, phone2: customer.phone2 || '' },
     address: { ...addrFields, id: addrId, areaName: area.name },
     deliveryFee: area.fee,
-    items: cart.map(({ lineId, ...item }) => item),
+    items,
     note: orderNote || '',
     status: mock.orderStatuses[0].id,
     stage: 'new', preparingAt: null, atCashierAt: null, outAt: null,

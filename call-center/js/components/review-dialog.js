@@ -4,7 +4,7 @@ import { catalog } from '../catalog.js';
 import { bind, getState, setOrderNote, resetDraft, currentDeliveryFee } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress } from '../utils/format.js';
-import { computeTotals, lineTotal, quantityLabel, perUnitLabel } from '../utils/pricing.js';
+import { computeTotals, lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { openModal, showToast } from './modal.js';
@@ -74,7 +74,7 @@ export function openReviewDialog() {
               ${s.cart.map((l, i) => `
                 <tr>
                   <td class="num">${i + 1}</td>
-                  <td><strong>${esc(l.name)}</strong>${l.note ? `<div class="item-note">${icon('note')} ${esc(l.note)}</div>` : ''}</td>
+                  <td><strong>${esc(l.name)}</strong>${l.modifiers?.length ? `<div class="item-mods">+ ${esc(modifiersText(l.modifiers))} <span class="num">(${money(modifiersTotal(l))}${l.unitType === 'weight' ? '' : ' للقطعة'})</span></div>` : ''}${l.note ? `<div class="item-note">${icon('note')} ${esc(l.note)}</div>` : ''}</td>
                   <td class="nowrap"><strong class="num">${esc(quantityLabel(l))}</strong></td>
                   <td class="nowrap">${money(l.price)} / ${perUnitLabel(l.unitType)}</td>
                   <td class="nowrap"><strong>${money(lineTotal(l))}</strong>${l.unitType === 'weight' ? ' <span class="est">تقريبي</span>' : ''}</td>

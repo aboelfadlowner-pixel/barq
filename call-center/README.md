@@ -63,6 +63,11 @@ sending the same draft twice returns the same order. supabase-js 2.45.4 loads fr
 - No categories: the agent searches by the product name as written in the sheet (code/barcode also match).
 - Like Foodics (CONFIRMED, `db/12_active_products.sql`): only products that are in the current products sheet,
   active there and priced above zero are listed. Inactive / zero-price / no-longer-in-sheet rows are hidden.
+- Add-ons like Foodics (CONFIRMED, `db/13_modifiers.sql`): a product with add-on groups opens them with + / −, the
+  price of each option and the group limit («لا تزيد عن 5»); a group with a minimum must be chosen. Groups and prices
+  come from the Foodics export (الاضافات / خيارات الاضافات); the admin links groups to products in the settings
+  screen. Add-ons count per piece and are priced by the database; they show in the cart, ticket, WhatsApp text,
+  order details and the preparation screen.
 - Cash on delivery is the only payment method.
 - Order tickets print on an 80mm receipt roll, for the preparation team: customer, phones, address, items with
   quantity or weight and notes. No prices, fees or totals on the ticket.

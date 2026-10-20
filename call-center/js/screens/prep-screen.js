@@ -11,6 +11,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
+import { modifiersText } from '../utils/pricing.js';
 
 const SOUND_KEY = 'cc-prep-sound';
 const DRIVERS_KEY = 'cc-recent-drivers';   // the last drivers typed on this device (quick pick)
@@ -91,6 +92,7 @@ function itemLine(it, i, o, checks, canTick) {
   return `<li class="${done ? 'is-done' : ''} ${canTick ? 'can-tick' : ''}" ${canTick ? `data-tick="${esc(itemKey(it, i))}" role="checkbox" aria-checked="${done}" tabindex="0"` : ''}>
     ${canTick ? `<span class="pi-check" aria-hidden="true">${done ? icon('check') : ''}</span>` : ''}
     <span class="pi-amount">${amount}</span><span class="pi-name">${esc(it.name)}</span>
+    ${it.modifiers?.length ? `<div class="pi-mods">+ ${esc(modifiersText(it.modifiers))}</div>` : ''}
     ${it.note ? `<div class="pi-note">${icon('note')}${esc(it.note)}</div>` : ''}</li>`;
 }
 
@@ -101,6 +103,7 @@ function changeLine(c) {
     case 'removed': return `<li class="chg-removed"><strong>حُذف:</strong> ${esc(c.name)}</li>`;
     case 'amount': return `<li><strong>${esc(c.name)}:</strong> كان <span class="num">${esc(amountText(c.from))}</span> ← أصبح <strong class="num">${esc(amountText(c.to))}</strong></li>`;
     case 'note': return `<li><strong>${esc(c.name)}:</strong> ملاحظة «${esc(c.to)}»</li>`;
+    case 'modifiers': return `<li><strong>${esc(c.name)}:</strong> الإضافات أصبحت «${esc(c.to || 'بدون إضافات')}»</li>`;
     case 'address': return `<li><strong>تغيّر العنوان:</strong> ${esc(c.to?.area || '')} · ${esc(c.to?.street || '')}</li>`;
     case 'order_note': return `<li><strong>ملاحظات الطلب:</strong> ${esc(c.to || '—')}</li>`;
     default: return '';

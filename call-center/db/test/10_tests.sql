@@ -973,3 +973,103 @@ begin
   raise notice 'PASS T34 only active products from the sheet with a price above zero are listed';
 end $$;
 rollback;
+
+-- T35 — add-ons like Foodics (13_modifiers.sql): admin links groups to a product with min/max; prices from the
+-- database; required group; limits; repeated draft unchanged; edit keeps an add-on's price; branch sees add-ons
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into public.cc_modifier_groups (id, name) values
+  ('00000000-0000-4000-8000-0000000000a1', 'اضافة ارز بلبن'), ('00000000-0000-4000-8000-0000000000a2', 'الطعم');
+insert into public.cc_modifier_options (id, group_id, name, price, active, sort) values
+  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a1', 'عسل', 5, true, 1),
+  ('00000000-0000-4000-8000-0000000000b2', '00000000-0000-4000-8000-0000000000a1', 'مكسرات', 20, true, 2),
+  ('00000000-0000-4000-8000-0000000000b3', '00000000-0000-4000-8000-0000000000a2', 'فانيليا', 0, true, 1),
+  ('00000000-0000-4000-8000-0000000000b4', '00000000-0000-4000-8000-0000000000a2', 'موقوف', 0, false, 2);
+insert into auth.users (id, email) values (gen_random_uuid(), 'cc35@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'cc35@cc.test';
+insert into public.cc_agents (name) values ('موظف إضافات') on conflict do nothing;
+select set_config('cc.agent', (select id::text from public.cc_agents where name = 'موظف إضافات'), true);
+select set_config('cc.req', gen_random_uuid()::text, true);
+select set_config('cc.p203', (select price::text from public.products_master where sku = 'T-203'), true);
+-- call_center: can read the add-ons, cannot change the links
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc35@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_save_product_modifiers('T-203', '[]'); raise exception 'FAIL T35 call_center saved links';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_modifier_options limit 1; raise exception 'FAIL T35 table readable';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_price_modifiers('T-203', '[]', 1, null); raise exception 'FAIL T35 pricing callable';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; o2 public.cc_orders; l jsonb; d jsonb; area uuid := (select id from public.cc_delivery_areas where active order by name limit 1);
+  items jsonb := '[{"sku": "T-203", "qty": 2, "modifiers": [{"id": "00000000-0000-4000-8000-0000000000b1", "qty": 2}, {"id": "00000000-0000-4000-8000-0000000000b2", "qty": 1}, {"id": "00000000-0000-4000-8000-0000000000b3", "qty": 1}]}, {"sku": "T-201", "qty": 1}]';
+  price203 numeric := current_setting('cc.p203')::numeric;
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_save_product_modifiers('T-203', '[{"group_id": "00000000-0000-4000-8000-0000000000a1", "min": 2, "max": 1}]'); raise exception 'FAIL T35 min > max accepted';
+  exception when invalid_parameter_value then null; end;
+  if public.cc_save_product_modifiers('T-203', '[{"group_id": "00000000-0000-4000-8000-0000000000a1", "min": 0, "max": 5},
+                                               {"group_id": "00000000-0000-4000-8000-0000000000a2", "min": 1, "max": 1}]') <> 2 then raise exception 'FAIL T35 save'; end if;
+  d := public.cc_list_modifiers();
+  if jsonb_array_length(d->'links') <> 2 or jsonb_array_length(d->'groups') <> 2
+     or (select jsonb_array_length(g->'options') from jsonb_array_elements(d->'groups') g where g->>'name' = 'الطعم') <> 1 then raise exception 'FAIL T35 list %', d; end if;
+
+  -- required flavour missing / over the limit / add-on of another product / inactive option
+  begin perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميل إضافات", "phone": "01066666666"}',
+      jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'), '[{"sku": "T-203", "qty": 1}]', null);
+    raise exception 'FAIL T35 required group skipped';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميل إضافات", "phone": "01066666666"}',
+      jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'),
+      '[{"sku": "T-203", "qty": 1, "modifiers": [{"id": "00000000-0000-4000-8000-0000000000b1", "qty": 6}, {"id": "00000000-0000-4000-8000-0000000000b3", "qty": 1}]}]', null);
+    raise exception 'FAIL T35 max ignored';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميل إضافات", "phone": "01066666666"}',
+      jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'),
+      '[{"sku": "T-201", "qty": 1, "modifiers": [{"id": "00000000-0000-4000-8000-0000000000b1", "qty": 1}]}]', null);
+    raise exception 'FAIL T35 add-on of another product';
+  exception when no_data_found then null; end;
+  begin perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميل إضافات", "phone": "01066666666"}',
+      jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'),
+      '[{"sku": "T-203", "qty": 1, "modifiers": [{"id": "00000000-0000-4000-8000-0000000000b4", "qty": 1}]}]', null);
+    raise exception 'FAIL T35 inactive option';
+  exception when no_data_found then null; end;
+
+  -- 2 × (product + عسل×2 + مكسرات + فانيليا) = 2 × product + 2 × 30
+  o := public.cc_place_order(current_setting('cc.agent')::uuid, current_setting('cc.req')::uuid, '{"name": "عميل إضافات", "phone": "01066666666"}',
+         jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'), items, null);
+  select to_jsonb(i) into l from public.cc_order_items i where i.order_id = o.id and i.sku = 'T-203';
+  if (l->>'line_total')::numeric <> price203 * 2 + 60 or jsonb_array_length(l->'modifiers') <> 3 then raise exception 'FAIL T35 line %', l; end if;
+  if o.subtotal <> (select sum(line_total) from public.cc_order_items where order_id = o.id) or o.total <> o.subtotal + o.delivery_fee then raise exception 'FAIL T35 totals'; end if;
+  o2 := public.cc_place_order(current_setting('cc.agent')::uuid, current_setting('cc.req')::uuid, '{"name": "عميل إضافات", "phone": "01066666666"}',
+         jsonb_build_object('label', 'البيت', 'area_id', area, 'street', 'ش'), items, null);
+  if o2.id <> o.id or o2.total <> o.total then raise exception 'FAIL T35 repeated draft changed the order'; end if;
+  perform set_config('cc.o35', o.id::text, true);
+end $$;
+reset role;
+update public.cc_modifier_options set price = 7 where id = '00000000-0000-4000-8000-0000000000b1';   -- عسل price changes
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; oid uuid := current_setting('cc.o35')::uuid; l jsonb; x jsonb;
+  price203 numeric := (select unit_price from public.cc_order_items where order_id = current_setting('cc.o35')::uuid and sku = 'T-203');
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  -- only the add-ons change: مكسرات 1 → 2 (عسل keeps 5)
+  o := public.cc_edit_order(current_setting('cc.agent')::uuid, oid, null,
+         '[{"sku": "T-203", "qty": 2, "modifiers": [{"id": "00000000-0000-4000-8000-0000000000b1", "qty": 2}, {"id": "00000000-0000-4000-8000-0000000000b2", "qty": 2}, {"id": "00000000-0000-4000-8000-0000000000b3", "qty": 1}]}, {"sku": "T-201", "qty": 1}]', null);
+  select to_jsonb(i) into l from public.cc_order_items i where i.order_id = oid and i.sku = 'T-203';
+  if (l->>'line_total')::numeric <> price203 * 2 + 100 then raise exception 'FAIL T35 edit price %', l; end if;
+  if (select string_agg(c->>'kind', ',') from jsonb_array_elements(o.edit_changes) c) <> 'modifiers' then raise exception 'FAIL T35 edit changes %', o.edit_changes; end if;
+  if o.total <> (select sum(line_total) from public.cc_order_items where order_id = oid) + o.delivery_fee then raise exception 'FAIL T35 edit totals'; end if;
+  select y into x from public.cc_prep_orders() y where y->>'id' = oid::text;
+  if (select jsonb_array_length(i->'modifiers') from jsonb_array_elements(x->'items') i where i->>'name' = l->>'product_name') <> 3 then raise exception 'FAIL T35 prep %', x; end if;
+  raise notice 'PASS T35 add-ons: admin-only links with min/max, database prices, required group, limits, other product/inactive refused, repeat unchanged, edit keeps add-on price, prep sees add-ons';
+end $$;
+rollback;

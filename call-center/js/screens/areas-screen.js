@@ -1,5 +1,5 @@
 /* Settings (admin only): delivery areas and fees, the registration code, accounts and
-   their roles, and the employee names list (add, rename, stop/resume). */
+   their roles, the employee names list (add, rename, stop/resume) and product add-ons. */
 import * as ds from '../data/data-source.js';
 import { catalog, reloadAreas, reloadAgents } from '../catalog.js';
 import { getState } from '../store.js';
@@ -9,6 +9,7 @@ import { toWesternDigits } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 import { ROLES } from '../permissions.js';
+import { mountModifiersSettings } from '../components/modifiers-settings.js';
 
 const parseFee = (v) => {
   const n = parseFloat(toWesternDigits(v).replace(/[^\d.]/g, ''));
@@ -87,7 +88,10 @@ export function mountAreas(view) {
           <tbody data-agent-rows></tbody>
         </table>
       </div>
+
+      <div data-mods-section></div>
     </div></div>`;
+  const unmountMods = mountModifiersSettings(view.querySelector('[data-mods-section]'));
 
   const rows = view.querySelector('[data-rows]');
   const render = () => {
@@ -230,5 +234,5 @@ export function mountAreas(view) {
     }),
   ];
   view.querySelector('#newAreaName').focus();
-  return () => offs.forEach((f) => f());
+  return () => { offs.forEach((f) => f()); unmountMods(); };
 }

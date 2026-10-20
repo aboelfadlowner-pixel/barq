@@ -94,6 +94,9 @@ export const products = [
   p('M-802', 'عصير برتقال',          'pack',  'عبوة 1 لتر', 46),
   p('M-803', 'عصير مانجو',           'pack',  'عبوة 1 لتر', 46),
   p('M-804', 'شاي',                  'pack',  'علبة 100 فتلة', 95),
+
+  p('M-901', 'ارز بلبن ابو الفضل',   'piece', 'علبة', 25),
+  p('M-902', 'ايس كريم بريميم',      'piece', 'كوب', 35),
 ];
 
 /* ---------- Categories (like Foodics) — sample names; the real ones come from
@@ -108,7 +111,26 @@ export const categories = [
   cat('c06', 'مربات',               ['M-601', 'M-602', 'M-603', 'M-604', 'M-605']),
   cat('c07', 'مكرونة و ارز',        ['M-701', 'M-702', 'M-703', 'M-704', 'M-705', 'M-706']),
   cat('c08', 'شاي و قهوة',          ['M-801', 'M-802', 'M-803', 'M-804']),
+  cat('c09', 'حلويات',              ['M-901', 'M-902']),
 ];
+
+/* ---------- Add-ons (like Foodics) — from the Foodics export «الاضافات / خيارات الاضافات».
+ * links: which product shows which group, with the minimum and maximum (set by the admin). */
+const opt = (id, name, price) => ({ id, name, price });
+export const modifiers = {
+  groups: [
+    { id: 'g-rice', name: 'اضافة ارز بلبن', options: [opt('o-r1', 'قشطة بيور', 15), opt('o-r2', 'عسل', 5), opt('o-r3', 'مكسرات', 20)] },
+    { id: 'g-nuts', name: 'اضافة مكسرات ايس كريم', options: [opt('o-n1', 'عسل', 5), opt('o-n2', 'قشطة بيور', 15), opt('o-n3', 'ايس كريم بريميم', 25), opt('o-n4', 'مكسرات ايس كريم', 20)] },
+    { id: 'g-prem', name: 'ايس كريم بريميم 35', options: [opt('o-p1', 'ريد فلفلت', 0), opt('o-p2', 'موز', 0), opt('o-p3', 'كوتن كاندي', 0), opt('o-p4', 'مستكة', 0), opt('o-p5', 'فسدق', 0), opt('o-p6', 'شوكلاته ديفوجين', 0)] },
+    { id: 'g-sauce', name: 'Extra Sauce', options: [opt('o-s1', 'صوص بستاشيو', 20), opt('o-s2', 'صوص كرميل', 10), opt('o-s3', 'صوص شوكلاتة', 10), opt('o-s4', 'صوص فراولة', 10)] },
+  ],
+  links: [
+    { sku: 'm-901', groupId: 'g-rice', min: 0, max: 5 },
+    { sku: 'm-901', groupId: 'g-nuts', min: 0, max: 5 },
+    { sku: 'm-902', groupId: 'g-prem', min: 1, max: 2 },
+    { sku: 'm-902', groupId: 'g-sauce', min: 0, max: 3 },
+  ],
+};
 
 /* ---------- Delivery areas — CONFIRMED names; fees are PLACEHOLDERS ----------
  * The four delivery areas. Real fees will be entered from the "المناطق والرسوم" screen. */

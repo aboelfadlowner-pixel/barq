@@ -2,7 +2,7 @@
    what to prepare. CONFIRMED: no prices, fees or totals on the printed ticket. */
 import { esc } from '../utils/dom.js';
 import { formatAddress, formatDateTime } from '../utils/format.js';
-import { quantityLabel } from '../utils/pricing.js';
+import { quantityLabel, modifiersText } from '../utils/pricing.js';
 import { TICKET_LOGO } from '../brand-logo.js';
 import { icon } from './icons.js';
 import { openModal } from './modal.js';
@@ -45,6 +45,7 @@ export function ticketHtml(order) {
           ${order.items.map((it) => `
             <tr>
               <td>${esc(it.name)}
+                ${it.modifiers?.length ? `<div class="tk-mods">+ ${esc(modifiersText(it.modifiers))}</div>` : ''}
                 ${it.note ? `<div class="tk-note">* ${esc(it.note)}</div>` : ''}</td>
               <td class="num tk-qty">${esc(quantityLabel(it))}</td>
             </tr>`).join('')}

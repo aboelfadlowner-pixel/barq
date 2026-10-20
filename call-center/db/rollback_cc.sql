@@ -8,6 +8,9 @@ begin;
 drop function if exists public.cc_send_out(uuid, text);
 drop function if exists public.cc_ack_edit(uuid);
 drop function if exists public.cc_edit_order(uuid, uuid, jsonb, jsonb, text);
+drop function if exists public.cc_list_modifiers();
+drop function if exists public.cc_save_product_modifiers(text, jsonb);
+drop function if exists public.cc_price_modifiers(text, jsonb, integer, jsonb);
 drop function if exists public.cc_set_stage(uuid, text);
 drop function if exists public.cc_prep_orders();
 drop function if exists public.cc_set_staff(uuid, text, boolean);
@@ -32,6 +35,7 @@ drop view     if exists public.cc_products;
 drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, public.cc_settings, public.cc_join_attempts,
                         public.cc_categories, public.cc_product_categories;
 drop table    if exists public.cc_order_stage_events, public.cc_order_edits;
+drop table    if exists public.cc_product_modifiers, public.cc_modifier_options, public.cc_modifier_groups;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it

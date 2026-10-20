@@ -18,7 +18,8 @@ export const CHECK_EVERY_MS = 5 * 60000;
 export const PULL_GAP_MS = 10 * 60000;
 
 const ago = (iso) => (iso ? Date.now() - new Date(iso).getTime() : Infinity);
-const signature = () => new Map(catalog.products.map((p) => [p.id, `${p.price}|${p.name}|${p.unitType}`]));
+const signature = () => new Map(catalog.products.map((p) => [p.id,
+  `${p.price}|${p.name}|${p.unitType}|${JSON.stringify(catalog.modifiersBySku.get(p.id) ?? '')}`]));
 const patch = (p) => setState({ catalogSync: { ...getState().catalogSync, ...p } });
 
 let running = null;

@@ -4,11 +4,11 @@ import {
   bind, getState, setState, changeQty, removeLine, updateLine, clearCart, currentDeliveryFee, setOrderNote, setCustomer,
 } from '../store.js';
 import { openAddressDialog } from './address-dialog.js';
-import { catalog } from '../catalog.js';
+import { catalog, productModifiers } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress, formatWeight } from '../utils/format.js';
 import { PAYMENT_METHOD } from '../constants.js';
-import { computeTotals, lineTotal, perUnitLabel } from '../utils/pricing.js';
+import { computeTotals, lineTotal, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { confirmDialog, showToast } from './modal.js';
@@ -92,6 +92,9 @@ export function mountCartPanel(el) {
             <div>
               <div class="line-name">${esc(l.name)}</div>
               <div class="line-unit">${money(l.price)} / ${perUnitLabel(l.unitType)}${isWeight ? '' : ` · ${esc(l.unitLabel)}`}</div>
+              ${productModifiers(l.productId).length || l.modifiers?.length ? `<div class="line-mods">${l.modifiers?.length
+                ? `+ ${esc(modifiersText(l.modifiers))} <span class="num">(${money(modifiersTotal(l))}${isWeight ? '' : ' للقطعة'})</span>`
+                : 'بدون إضافات'}<button type="button" class="mods-edit" data-action="edit-mods">تعديل الإضافات</button></div>` : ''}
             </div>
             <div class="line-total">${money(lineTotal(l))}${isWeight ? '<span class="est">تقريبي</span>' : ''}</div>
           </div>
@@ -152,6 +155,7 @@ export function mountCartPanel(el) {
         case 'inc': changeQty(line.lineId, 1); break;
         case 'dec': changeQty(line.lineId, -1); break;
         case 'remove': openNotes.delete(line.lineId); removeLine(line.lineId); break;
+        case 'edit-mods':
         case 'edit-weight': {
           const product = catalog.productsById.get(line.productId) ?? { ...line, id: line.productId };
           openItemDialog({ ...product, price: line.price, unitType: line.unitType }, { line });
