@@ -4047,6 +4047,8 @@ function renderPriceCheckEntry() {
 
     '<div style="margin-top:16px">' +
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="printPriceLabels()">🏷️ طباعة ملصقات الأسعار</button>' +
+      '<button class="big-action-btn" style="background:#e67e22;color:#fff" onclick="printFruitLabels()">🍎 ملصقات فاكهة كبيرة (السعر فاضي)</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printBlankPriceBoxes()">✍️ مربعات سعر فاضية للكتابة باليد</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportPriceCheckReport()">📊 تصدير تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:#b8860b;color:#fff" onclick="printTodayPriceChanges()">💰 طباعة تغييرات الأسعار اليوم</button>' +
@@ -4147,6 +4149,88 @@ function printPriceLabels() {
     );
     win.document.close();
   });
+}
+
+// ملصقات الفاكهة: نفس الملصق العادي بس ضعف الطول والعرض (4 أضعاف المساحة) — الاسم والباركود مطبوعين،
+// ومكان السعر مربع فاضي بمقاس مربع السعر الصغير بالظبط، عشان سعر الفاكهة بيتغيّر يومياً فبنكتبه باليد
+// على المربع الصغير ونلزقه مكانه بدل ما نطبع الملصق الكبير كل يوم
+var FRUIT_BOX_W_MM = 58, FRUIT_BOX_H_MM = 30;          // مقاس مربع السعر الصغير (= مقاس الملصق العادي تقريباً)
+var FRUIT_TAG_W_MM = 116, FRUIT_TAG_H_MM = 62;         // ضعف الطول والعرض
+
+function printFruitLabels() {
+  var tags = [];
+  priceCheckItems.forEach(function(it){
+    var n = parseInt(it.label_qty)||1;
+    for (var k=0; k<n; k++) tags.push(it);
+  });
+  if (!tags.length) { toast('⚠️ امسح صنف واحد على الأقل قبل الطباعة'); return; }
+
+  toast('⏳ جاري تجهيز ملصقات الفاكهة...');
+  loadBarcodeLib(function(){
+    var cells = tags.map(function(it){
+      var bcValue = it.bc || it.sku;
+      var bcImg = generateBarcodeDataUrl(bcValue);
+      return '<div class="ftag">' +
+        '<div class="ftag-header"><img class="ftag-logo" src="'+SHOP_LOGO_DATA_URL+'"><span class="ftag-name">'+it.name+'</span></div>' +
+        '<div class="ftag-box"><span class="ftag-box-hint">مكان السعر</span></div>' +
+        (bcImg ? '<img class="ftag-bc-img" src="'+bcImg+'">' : '') +
+        '<div class="ftag-bc-num">'+bcValue+'</div>' +
+      '</div>';
+    });
+
+    var win = window.open('', '_blank');
+    if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
+    win.document.write(
+      '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الفاكهة</title>' +
+      '<style>' +
+      '@page{size:A4;margin:8mm}' +
+      'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:6mm}' +
+      '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
+      '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+FRUIT_TAG_H_MM+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
+      '.ftag-header{display:flex;align-items:center;justify-content:center;gap:8px;max-width:100%}' +
+      '.ftag-logo{width:34px;height:34px;object-fit:contain;flex-shrink:0}' +
+      '.ftag-name{font-weight:800;font-size:28px;color:#1a1a1a;line-height:1.1;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}' +
+      // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
+      '.ftag-box{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;position:relative;box-sizing:border-box}' +
+      '.ftag-box-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;color:#ccc}' +
+      '.ftag-bc-img{max-width:60%;height:22px}' +
+      '.ftag-bc-num{font-size:12px;letter-spacing:1px;color:#333}' +
+      '</style></head><body>' +
+      '<div class="wrap">'+cells.join('')+'</div>' +
+      '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+      '</body></html>'
+    );
+    win.document.close();
+  });
+}
+
+// ورقة مربعات سعر فاضية بمقاس مكان السعر في ملصق الفاكهة الكبير — بتتكتب باليد وتتلزق مكان السعر يومياً
+function printBlankPriceBoxes() {
+  var n = parseInt(prompt('عدد مربعات السعر المطلوبة؟', '24'), 10);
+  if (!n || n < 1) return;
+  if (n > 300) n = 300;
+  var boxes = [];
+  for (var i=0; i<n; i++) {
+    boxes.push('<div class="pbox"><span class="pbox-label">السعر</span><span class="pbox-unit">جنيه / كجم</span></div>');
+  }
+  var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>مربعات السعر</title>' +
+    '<style>' +
+    '@page{size:A4;margin:8mm}' +
+    'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
+    '.wrap{display:flex;flex-wrap:wrap;gap:4mm;justify-content:center}' +
+    '.pbox{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;border:1.5px dashed #777;border-radius:6px;position:relative;box-sizing:border-box;background:#fff;page-break-inside:avoid;break-inside:avoid}' +
+    '.pbox-label{position:absolute;top:1.5mm;right:2.5mm;font-size:10px;font-weight:700;color:#0f5c2e}' +
+    '.pbox-unit{position:absolute;bottom:1.5mm;left:2.5mm;font-size:10px;font-weight:700;color:#555}' +
+    '</style></head><body>' +
+    '<div class="wrap">'+boxes.join('')+'</div>' +
+    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 function printPriceCheckReport() {
