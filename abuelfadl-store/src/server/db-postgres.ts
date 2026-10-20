@@ -158,7 +158,8 @@ async function refresh(sql: Sql): Promise<StoreData> {
   const [head] = await sql`
     select (select catalog_version from store.meta)::text as version,
            (select max(updated_at) from store.master_prices)::text as prices_at,
-           (select max(updated_at) from store.orders)::text as orders_at`;
+           (select max(updated_at) from store.orders)::text as orders_at,
+           (select count(*) from store.orders)::int as orders_count`;
 
   const cached = state.catalog;
   if (!cached || cached.version !== head.version || cached.pricesAt !== head.prices_at) {
@@ -179,6 +180,12 @@ async function refresh(sql: Sql): Promise<StoreData> {
     };
   }
 
+  if (head.orders_count < state.orders.size) {
+    // Orders were deleted outside the site (the site never deletes any): start over.
+    state.orders.clear();
+    state.sortedOrders = [];
+    state.ordersAt = null;
+  }
   if (head.orders_at !== state.ordersAt) {
     // New or changed orders only (ids already seen are replaced). The boundary row is fetched again on purpose.
     const since = state.ordersAt;
