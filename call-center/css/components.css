@@ -290,7 +290,7 @@
   font-size: 12.5px; line-height: 1.5; box-shadow: var(--shadow-sm);
 }
 .tk-head { text-align: center; padding-bottom: 6px; }
-.tk-logo { display: block; width: 26mm; height: auto; margin: 0 auto 2px; }
+.tk-logo { display: block; width: 14mm; height: auto; margin: 0 auto 1px; }
 .tk-store { font-size: 18px; font-weight: 900; }
 .tk-demo { display: inline-block; margin-top: 2px; padding: 0 8px; border: 1px solid #000; border-radius: 4px; font-weight: 800; font-size: 11px; }
 .tk-no { display: block; text-align: center; font-size: 19px; font-weight: 900; letter-spacing: .5px; padding: 4px 0; border-block: 1px dashed #000; }
