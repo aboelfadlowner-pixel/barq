@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getImage, putImage, usingDatabase } from "./db";
 import { ApiError } from "./errors";
 
 /**
- * Where uploaded images (product and category photos) are kept until a real storage service is connected.
- * Files go to `.data/uploads/` (git-ignored, next to the data file) and are served by `src/app/uploads/[name]/route.ts`
- * at `/uploads/<name>`. Connecting Supabase Storage means rewriting `saveImage` / `readImage` only: the dashboard and
- * the upload API do not change. (Vercel cannot keep files on its disk, so uploads need that storage before going live.)
+ * Where uploaded images (product and category photos) are kept: the database table store.images when the database is
+ * used (Vercel cannot keep files on its disk), else `.data/uploads/` (git-ignored, next to the data file).
+ * Either way they are served by `src/app/uploads/[name]/route.ts` at `/uploads/<name>`.
  */
 const DIR = path.join(process.cwd(), ".data", "uploads");
 
@@ -28,6 +28,10 @@ export async function saveImage(data: Uint8Array, contentType: string): Promise<
   if (!type || !type.magic(bytes)) throw new ApiError(400, "هذا الملف ليس صورة (المسموح: WebP أو JPG أو PNG)");
   if (bytes.length > MAX_UPLOAD_BYTES) throw new ApiError(413, "حجم الصورة كبير جدًا (الحد الأقصى 3 ميجابايت)");
   const name = `${Date.now().toString(36)}${randomBytes(6).toString("hex")}.${type.ext}`;
+  if (usingDatabase) {
+    await putImage(name, contentType, bytes);
+    return `/uploads/${name}`;
+  }
   await mkdir(DIR, { recursive: true });
   await writeFile(path.join(DIR, name), bytes);
   return `/uploads/${name}`;
@@ -36,6 +40,7 @@ export async function saveImage(data: Uint8Array, contentType: string): Promise<
 /** The stored file for `/uploads/<name>`, or null. Only names made by `saveImage` are accepted (no paths). */
 export async function readImage(name: string): Promise<{ bytes: Buffer; contentType: string } | null> {
   if (!NAME.test(name)) return null;
+  if (usingDatabase) return getImage(name);
   const ext = name.split(".").pop();
   const contentType = Object.entries(TYPES).find(([, t]) => t.ext === ext)?.[0] ?? "application/octet-stream";
   try {

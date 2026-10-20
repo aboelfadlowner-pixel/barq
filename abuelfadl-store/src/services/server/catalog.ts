@@ -8,7 +8,7 @@ import type { CatalogService } from "../contracts";
 export const serverCatalogService: CatalogService = {
   getCategories: catalog.listCategories,
   getCategory: catalog.getCategory,
-  getProducts: (query) => catalog.listProducts(query),
+  getProducts: (query) => catalog.listProducts({ ...query, forSale: true }),
   getProduct: catalog.getProduct,
   getProductsByIds: catalog.getProductsByIds,
 };

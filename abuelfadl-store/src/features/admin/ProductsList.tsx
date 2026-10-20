@@ -171,6 +171,7 @@ export function ProductsList() {
                       </Link>
                       <div className="row" style={{ gap: 6, marginTop: 2 }}>
                         <small className="muted num">كود {product.id}</small>
+                        {product.priceMissing ? <span className="badge red" title="لا يوجد سعر لهذا الـ SKU في شيت المنتجات">مخفي: بلا سعر</span> : null}
                         {product.weighed ? <span className="badge">بالوزن</span> : null}
                         {product.bestseller ? <span className="badge gold">الأكثر مبيعًا</span> : null}
                         {isOfferActive(product) ? (

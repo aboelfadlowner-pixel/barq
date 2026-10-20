@@ -37,6 +37,10 @@ export interface Product {
   description?: string;
   /** Public path of the product photo, e.g. "/products/13221.webp". Missing when there is no photo yet. */
   imageUrl?: string;
+  /** Set by the database store: the price is the products-sheet price of the SKU (not editable in the dashboard). */
+  priceFromSheet?: boolean;
+  /** Set by the database store: the SKU has no price in the products sheet, so the product is hidden from the store. */
+  priceMissing?: boolean;
 }
 
 /** Filter for listing products. All fields are optional and combined with AND. */

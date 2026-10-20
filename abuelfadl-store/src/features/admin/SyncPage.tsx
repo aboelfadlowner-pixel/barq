@@ -51,6 +51,25 @@ export function SyncPage() {
     }
   };
 
+  if (status?.automatic) {
+    return (
+      <>
+        <div className="adm-head">
+          <div>
+            <h1>تحديث الأسعار</h1>
+          </div>
+        </div>
+        <div className="card card-pad stack" style={{ gap: 6 }}>
+          <h2>الأسعار تتحدّث تلقائيًا</h2>
+          <p className="muted">
+            الموقع يأخذ سعر كل منتج من شيت المنتجات في قاعدة البيانات حسب الـ SKU، فأي تحديث للشيت يظهر على الموقع وحده خلال دقائق.
+            المنتجات المرتبطة: {status.linkedProducts}، وغير المرتبطة: {status.unlinkedProducts}.
+          </p>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="adm-head">

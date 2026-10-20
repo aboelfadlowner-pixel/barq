@@ -2,7 +2,7 @@ import { parseCsv } from "../lib/csv";
 import { round2 } from "../lib/quantity";
 import { isValidSku, normalizeSku } from "../lib/sku";
 import type { SyncRun, UnlinkedSku } from "../types/sync";
-import { mutate, read } from "./db";
+import { mutate, pricesFromSheet, read } from "./db";
 import { ApiError } from "./errors";
 
 /** How many imports the log keeps. */
@@ -40,6 +40,9 @@ export function readProductsSheet(csv: string): SheetRow[] {
  * The same function will be called by the Supabase sync later (with `source` = "Supabase").
  */
 export function applyPrices(rows: SheetRow[], source: string): Promise<SyncRun> {
+  if (pricesFromSheet) {
+    throw new ApiError(409, "الأسعار تتحدّث تلقائيًا من شيت المنتجات في قاعدة البيانات، ولا حاجة لرفع الشيت هنا.");
+  }
   if (!rows.length) throw new ApiError(400, "لا يوجد في الشيت أي صف يحتوي على SKU وسعر صحيح");
   return mutate((data) => {
     const bySku = new Map(rows.map((row) => [row.sku, row])); // a repeated SKU: the last row wins
@@ -81,6 +84,8 @@ export function applyPrices(rows: SheetRow[], source: string): Promise<SyncRun> 
 export async function getSyncStatus() {
   const { syncLog = [], unlinkedSkus = [], products } = await read();
   return {
+    /** True with the database: prices follow the products sheet by themselves, so there is nothing to import here. */
+    automatic: pricesFromSheet,
     runs: [...syncLog].reverse(),
     unlinkedSkus,
     linkedProducts: products.filter((product) => product.sku).length,

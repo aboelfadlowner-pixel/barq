@@ -1,4 +1,4 @@
-import type { StoreData } from "../../src/server/db";
+import type { LoginAttempts, StoreData } from "../../src/server/db";
 import { seedStore, upgradeStore } from "../../src/server/seed";
 
 /**
@@ -37,6 +37,19 @@ export async function mutate<T>(fn: (data: StoreData) => T): Promise<T> {
   cache = draft;
   persist();
   return result;
+}
+
+/** The demo has no database: prices are the products' own (sheet import works), images stay in the browser. */
+export const usingDatabase = false;
+export const pricesFromSheet = false;
+
+const logins = new Map<string, LoginAttempts>();
+export async function getLoginAttempts(key: string): Promise<LoginAttempts | null> {
+  return logins.get(key) ?? null;
+}
+export async function setLoginAttempts(key: string, entry: LoginAttempts | null): Promise<void> {
+  if (entry) logins.set(key, entry);
+  else logins.delete(key);
 }
 
 /** Synchronous snapshot for the demo shell (the real app loads this on the server). */

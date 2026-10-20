@@ -79,6 +79,8 @@ export function ProductForm({ id }: { id?: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Database store: the saved SKU's sheet price (read-only here), and whether the sheet has a price for it. */
+  const [sheet, setSheet] = useState<{ sku: string; missing: boolean } | null>(null);
 
   useEffect(() => {
     api<Category[]>("/api/admin/categories").then(setCategories, (err: Error) => setMessage(err.message));
@@ -86,6 +88,7 @@ export function ProductForm({ id }: { id?: string }) {
       api<Product>(`/api/admin/products/${id}`).then(
         (product) => {
           setForm(toForm(product));
+          if (product.priceFromSheet && product.sku) setSheet({ sku: product.sku, missing: Boolean(product.priceMissing) });
           setLoaded(true);
         },
         (err: Error) => setMessage(err.message),
@@ -180,9 +183,19 @@ export function ProductForm({ id }: { id?: string }) {
                 ))}
               </select>
             </Field>
-            <Field label={form.weighed ? "سعر الكيلو (ج.م)" : "السعر (ج.م)"} error={errors.price}>
-              <input className="input num" inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" />
-            </Field>
+            {sheet && sheet.sku === normalizeSku(form.sku) ? (
+              <Field
+                label={form.weighed ? "سعر الكيلو (ج.م)" : "السعر (ج.م)"}
+                error={sheet.missing ? "لا يوجد سعر لهذا الـ SKU في شيت المنتجات، لذلك المنتج مخفي من المتجر" : undefined}
+                hint="من شيت المنتجات: يتغيّر تلقائيًا عند تحديث الشيت"
+              >
+                <input className="input num" value={sheet.missing ? "—" : form.price} readOnly disabled />
+              </Field>
+            ) : (
+              <Field label={form.weighed ? "سعر الكيلو (ج.م)" : "السعر (ج.م)"} error={errors.price}>
+                <input className="input num" inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" />
+              </Field>
+            )}
           </div>
           <Field
             label="SKU (من شيت Foodics)"

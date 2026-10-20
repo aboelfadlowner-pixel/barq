@@ -10,11 +10,11 @@ import { assertNotLocked, clientKey, recordFailure, recordSuccess } from "@/serv
  */
 export const POST = handle(async (request) => {
   const key = clientKey(request);
-  assertNotLocked(key);
+  await assertNotLocked(key);
   const { password } = await readJson<{ password?: unknown }>(request);
   const role = typeof password === "string" ? checkPassword(password) : null;
-  if (!role) throw new ApiError(401, recordFailure(key));
-  recordSuccess(key);
+  if (!role) throw new ApiError(401, await recordFailure(key));
+  await recordSuccess(key);
   const { value, maxAge } = createSessionToken(role);
   const response = NextResponse.json({ ok: true, role });
   response.cookies.set(SESSION_COOKIE, value, {

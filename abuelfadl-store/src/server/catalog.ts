@@ -4,7 +4,7 @@ import { DEFAULT_MAX_WEIGHT, DEFAULT_WEIGHT_STEP, roundQty } from "../lib/quanti
 import { isValidSku, normalizeSku } from "../lib/sku";
 import type { Category, CategoryId } from "../types/category";
 import type { Product, ProductId, ProductQuery } from "../types/product";
-import { mutate, read } from "./db";
+import { mutate, pricesFromSheet, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
 
 /** Image address: a site path (/uploads/…, /products/…), an https link, or (demo uploads) an inline data URL. */
@@ -25,6 +25,8 @@ export interface AdminProductQuery extends ProductQuery {
   inStock?: boolean;
   /** true: only products with a SKU; false: only products without one. */
   linked?: boolean;
+  /** Store pages: leaves out products that cannot be sold because the sheet has no price for their SKU. */
+  forSale?: boolean;
 }
 
 /** Products in catalog order. Search keeps the v29 rule: the normalized text must appear in "<product name> <category name>". */
@@ -36,6 +38,7 @@ export async function listProducts(query: AdminProductQuery = {}): Promise<Produ
     if (query.categoryId && product.categoryId !== query.categoryId) return false;
     if (query.inStock !== undefined && product.inStock !== query.inStock) return false;
     if (query.linked !== undefined && Boolean(product.sku) !== query.linked) return false;
+    if (query.forSale && product.priceMissing) return false;
     if (search && !normalizeArabic(`${product.name} ${categoryName.get(product.categoryId) ?? ""} ${product.sku ?? ""}`).includes(search)) return false;
     return true;
   });
@@ -79,8 +82,10 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
   const categoryId = merged.categoryId ?? "";
   if (!categories.some((category) => category.id === categoryId)) fields.categoryId = "اختر قسمًا موجودًا";
 
-  const price = Number(merged.price);
-  if (!Number.isFinite(price) || price <= 0 || price > 100000) fields.price = "يجب أن يكون السعر رقمًا أكبر من صفر";
+  // With the database, a product with a SKU takes the sheet price: the form's price is not used (nor checked).
+  const sheetPriced = pricesFromSheet && Boolean(normalizeSku(merged.sku));
+  const price = sheetPriced ? (existing?.sku === normalizeSku(merged.sku) ? existing.price : 0) : Number(merged.price);
+  if (!sheetPriced && (!Number.isFinite(price) || price <= 0 || price > 100000)) fields.price = "يجب أن يكون السعر رقمًا أكبر من صفر";
 
   // Weight settings (like WooCommerce's weight-based pricing): from minWeight, in steps of weightStep, up to maxWeight.
   const weighed = Boolean(merged.weighed);
@@ -111,7 +116,7 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     const hasSale = merged.salePrice !== undefined && merged.salePrice !== null && String(merged.salePrice) !== "";
     const salePrice = hasSale ? Number(merged.salePrice) : undefined;
     if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice <= 0)) fields.salePrice = "يجب أن يكون سعر العرض رقمًا أكبر من صفر";
-    else if (salePrice !== undefined && !fields.price && salePrice >= price) fields.salePrice = "يجب أن يكون سعر العرض أقل من السعر الأصلي";
+    else if (salePrice !== undefined && !fields.price && price > 0 && salePrice >= price) fields.salePrice = "يجب أن يكون سعر العرض أقل من السعر الأصلي";
     const offerStart = cleanDate(merged.offerStart);
     const offerEnd = cleanDate(merged.offerEnd);
     if (offerStart === null) fields.offerStart = "التاريخ غير صحيح";
@@ -200,7 +205,7 @@ export function bulkUpdateProducts(ids: unknown, patch: BulkPatch): Promise<Prod
       if (patch.inStock !== undefined) product.inStock = Boolean(patch.inStock);
       if (patch.bestseller !== undefined) product.bestseller = Boolean(patch.bestseller);
       if (patch.categoryId !== undefined) product.categoryId = patch.categoryId;
-      if (percent !== undefined) {
+      if (percent !== undefined && product.price > 0) {
         product.offer = true;
         product.salePrice = Math.round(product.price * (100 - percent)) / 100;
         delete product.offerStart;
