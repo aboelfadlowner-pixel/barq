@@ -22,8 +22,8 @@ export function mountPos(view) {
           <button type="button" class="back-link link-btn" data-cancel-order>${icon('arrowRight')}${getState().editing ? 'إلغاء التعديل' : 'إلغاء'}</button>
           <h1>${getState().editing ? `تعديل طلب <span class="ltr-inline">${esc(getState().editing.number)}</span>` : 'طلب جديد لمركز الاتصال'}</h1>
         </div>
-        ${getState().editing ? `<div class="alert alert-warn edit-banner">${icon('edit')}<span>بتعدّل طلب اتبعت للفرع. التعديل مسموح لحد «على الكاشير»،
-          والفرع هيشوف علامة «اتعدّل». بعد الحفظ اطبع الورقة الجديدة وابعتها بدل القديمة.</span></div>` : ''}
+        ${getState().editing ? `<div class="alert alert-warn edit-banner">${icon('edit')}<span>أنت تعدّل طلبًا أُرسل للفرع. التعديل مسموح حتى مرحلة «على الكاشير»،
+          وستظهر للفرع علامة «تم التعديل». بعد الحفظ اطبع الورقة الجديدة وأرسلها بدلًا من السابقة.</span></div>` : ''}
         <div class="products-head">
           <div class="search-row">
           <div class="search" data-search>
@@ -81,14 +81,14 @@ export function mountPos(view) {
     on(root, 'click', '[data-cancel-order]', async () => {
       const s = getState();
       if (s.editing) {
-        if (!(await confirmDialog({ title: 'إلغاء التعديل', message: 'الطلب هيفضل زي ما هو من غير أي تغيير.', confirmLabel: 'إلغاء التعديل', cancelLabel: 'رجوع' }))) return;
+        if (!(await confirmDialog({ title: 'إلغاء التعديل', message: 'سيبقى الطلب كما هو دون أي تغيير.', confirmLabel: 'إلغاء التعديل', cancelLabel: 'رجوع' }))) return;
         const id = s.editing.orderId;
         resetDraft();
         location.hash = `#/orders/${encodeURIComponent(id)}`;
         return;
       }
       if ((s.cart.length || s.customer) && !(await confirmDialog({
-        title: 'إلغاء الطلب', message: 'هيتمسح العميل والأصناف اللي في الطلب ده. لو عايز تكمّله بعدين اختار «حفظ كمسودة».',
+        title: 'إلغاء الطلب', message: 'سيتم حذف العميل والأصناف في هذا الطلب. لاستكماله لاحقًا اختر «حفظ كمسودة».',
         confirmLabel: 'إلغاء الطلب', cancelLabel: 'رجوع', danger: true,
       }))) return;
       resetDraft();

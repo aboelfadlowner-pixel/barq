@@ -11,7 +11,7 @@ const ALLOWED = {
 };
 
 export const ROLES = [
-  { id: 'admin',       label: 'أدمن' },
+  { id: 'admin',       label: 'مسؤول' },
   { id: 'call_center', label: 'كول سنتر' },
   { id: 'prep',        label: 'تجهيز' },
 ];

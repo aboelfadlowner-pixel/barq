@@ -49,7 +49,7 @@ export function initAgentSelect(root) {
 
   const label = () => {
     const cur = getState().agent;
-    box.querySelector('[data-as-label]').textContent = cur ? cur.name : 'اختار اسمك';
+    box.querySelector('[data-as-label]').textContent = cur ? cur.name : 'اختر اسمك';
     btn.classList.toggle('has-value', !!cur);
     btn.classList.toggle('needs-value', !cur);
   };
@@ -59,7 +59,7 @@ export function initAgentSelect(root) {
     const shown = catalog.agents.filter((a) => !q || normalizeArabic(a.name).includes(q));
     list.innerHTML = shown.map((a) => `
       <li role="option" data-agent="${esc(a.id)}" aria-selected="${cur?.id === a.id}">${esc(a.name)}</li>`).join('')
-      || `<li class="combo-empty">${catalog.agents.length ? 'مفيش اسم كده' : 'لسه مفيش أسماء — ضيفها من «المناطق والموظفين»'}</li>`;
+      || `<li class="combo-empty">${catalog.agents.length ? 'لا يوجد اسم مطابق' : 'لا توجد أسماء بعد — أضفها من «المناطق والموظفين»'}</li>`;
   };
   const open = () => { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); search.value = ''; renderList(); search.focus(); };
   const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -77,7 +77,7 @@ export function initAgentSelect(root) {
     chooseAgent(agent);
     close();
     label();
-    showToast(`أهلًا ${agent.name} — الطلبات هتتسجل باسمك`);
+    showToast(`أهلًا ${agent.name} — سيتم تسجيل الطلبات باسمك`);
   });
   const outside = (e) => { if (!pop.hidden && !box.contains(e.target)) close(); };
   document.addEventListener('pointerdown', outside);
@@ -88,6 +88,6 @@ export function initAgentSelect(root) {
 /* Used before sending or cancelling: true when a name is picked, otherwise explains. */
 export function requireAgent() {
   if (getState().agent) return true;
-  showToast('اختار اسمك الأول من قايمة «اختار اسمك» في شاشة مركز الاتصال');
+  showToast('اختر اسمك أولًا من قائمة «اختر اسمك» في شاشة مركز الاتصال');
   return false;
 }

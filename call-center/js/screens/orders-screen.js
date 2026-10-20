@@ -104,7 +104,7 @@ export function mountOrders(view) {
           <td class="col-opt">${esc(o.employee)}</td>
           <td class="nowrap"><strong>${money(t.total)}</strong>${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</td>
           <td>${orderStateChip(o)}</td>
-          <td><button type="button" class="btn btn-ghost btn-icon btn-sm" data-print-order="${esc(o.id)}" title="طباعة الطلب تاني" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></td>
+          <td><button type="button" class="btn btn-ghost btn-icon btn-sm" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></td>
         </tr>`;
     }).join('') : `<tr><td colspan="9" class="table-empty">لا توجد طلبات مطابقة.
         ${filters.date !== 'all' ? '<button type="button" class="btn btn-soft btn-sm" data-all-dates>عرض كل التواريخ</button>' : ''}</td></tr>`;

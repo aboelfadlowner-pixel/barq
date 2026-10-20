@@ -24,7 +24,7 @@ export const ADDRESS_LIMITS = {
 };
 /* CONFIRMED: housing type options, as in Foodics. */
 export const HOUSING_TYPES = [
-  { id: '',         label: 'لاشيء' },
+  { id: '',         label: 'لا شيء' },
   { id: 'building', label: 'عمارة' },
   { id: 'villa',    label: 'فيلا' },
   { id: 'office',   label: 'مكتب' },
@@ -36,8 +36,8 @@ export const WEIGHT_PRESETS = [
   { grams: 125,  label: 'تُمن كيلو' },
   { grams: 250,  label: 'ربع كيلو' },
   { grams: 375,  label: '375 جم' },
-  { grams: 500,  label: 'نص كيلو' },
-  { grams: 750,  label: 'تلت أرباع' },
+  { grams: 500,  label: 'نصف كيلو' },
+  { grams: 750,  label: 'ثلاثة أرباع كيلو' },
   { grams: 1000, label: '1 كيلو' },
   { grams: 2000, label: '2 كيلو' },
 ];
@@ -49,8 +49,8 @@ export const MAX_PIECE_QTY = 999;
 /* CONFIRMED: order statuses are new and cancelled only (same values as the database). */
 /* CONFIRMED: preparation stages, moved on by the branch (prep account) one tap at a time. */
 export const STAGES = [
-  { id: 'new',        label: 'جديد',          tone: 'blue',   next: 'استلمت وبدأت التجهيز' },
-  { id: 'preparing',  label: 'بيتجهز',        tone: 'amber',  next: 'وصل الكاشير' },
+  { id: 'new',        label: 'جديد',          tone: 'blue',   next: 'بدء التجهيز' },
+  { id: 'preparing',  label: 'قيد التجهيز',   tone: 'amber',  next: 'وصل إلى الكاشير' },
   { id: 'at_cashier', label: 'على الكاشير',   tone: 'purple', next: 'خرج مع الطيار' },
   { id: 'out',        label: 'خرج مع الطيار', tone: 'green',  next: null },
 ];

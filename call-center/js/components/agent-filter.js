@@ -44,7 +44,7 @@ export function initAgentFilter(root, { selected, getOrders, onChange }) {
       ${q ? '' : `<li><label class="af-row"><input type="checkbox" data-af-all ${selected.size ? '' : 'checked'}><span>كل الموظفين</span></label></li>`}
       ${shown.map((n) => `
         <li><label class="af-row"><input type="checkbox" data-af-name="${esc(n)}" ${selected.has(n) ? 'checked' : ''}><span>${esc(n)}</span></label></li>`).join('')}
-      ${shown.length ? '' : '<li class="combo-empty">مفيش اسم كده</li>'}`;
+      ${shown.length ? '' : '<li class="combo-empty">لا يوجد اسم مطابق</li>'}`;
   };
   const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
 

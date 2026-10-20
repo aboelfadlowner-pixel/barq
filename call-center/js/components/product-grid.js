@@ -60,7 +60,7 @@ function categoryCard(c, inCart) {
   const picked = c.productIds.filter((id) => inCart[id]).length;
   return `
     <button type="button" class="c-card" data-cat="${esc(c.id)}" role="listitem" aria-label="${esc(c.name)}">
-      ${picked ? `<span class="p-badge num" title="أصناف من التصنيف ده في الطلب">${picked}</span>` : ''}
+      ${picked ? `<span class="p-badge num" title="أصناف من هذا التصنيف في الطلب">${picked}</span>` : ''}
       <div class="c-tile">${icon('grid')}</div>
       <div class="c-name">${esc(c.name)}</div>
       <div class="c-count"><span class="num">${c.productIds.length}</span> صنف</div>
@@ -106,7 +106,7 @@ export function mountProductGrid(gridEl, metaEl) {
       }
       if (!query && catalog.categories.length) {
         visible = [];
-        metaEl.innerHTML = `<span>اختار تصنيف أو ابحث باسم الصنف · <span class="num">${catalog.products.length}</span> صنف متاح</span>
+        metaEl.innerHTML = `<span>اختر تصنيفًا أو ابحث باسم الصنف · <span class="num">${catalog.products.length}</span> صنف متاح</span>
           <span class="muted demo-only">الأسعار والمنتجات تجريبية</span>`;
         gridEl.innerHTML = catalog.categories.map((c) => categoryCard(c, inCart)).join('');
         return;
@@ -116,13 +116,13 @@ export function mountProductGrid(gridEl, metaEl) {
         metaEl.innerHTML = `<span><span class="num">${catalog.products.length}</span> صنف متاح</span>
           <span class="muted demo-only">الأسعار والمنتجات تجريبية</span>`;
         gridEl.innerHTML = `<div class="grid-empty grid-start">${icon('search')}
-          <h3>اكتب اسم الصنف زي ما هو في الشيت</h3>
-          <p>مثال: «رومي» أو «لبن» — تقدر كمان تبحث بالكود أو الباركود</p></div>`;
+          <h3>اكتب اسم الصنف كما هو في قائمة المنتجات</h3>
+          <p>مثال: «رومي» أو «لبن» — يمكنك أيضًا البحث بالكود أو الباركود</p></div>`;
         return;
       }
       metaEl.innerHTML = `
         <span>نتائج «<strong>${esc(query)}</strong>»: <strong class="num">${all.length}</strong>
-          ${all.length > MAX_RESULTS ? `<span class="muted">(أول ${MAX_RESULTS} — اكتب أكتر لتضييق النتايج)</span>` : ''}</span>
+          ${all.length > MAX_RESULTS ? `<span class="muted">(أول ${MAX_RESULTS} — اكتب أكثر لتضييق النتائج)</span>` : ''}</span>
         ${visible.length ? '<span>اضغط <span class="kbd">Enter</span> لاختيار أول نتيجة</span>' : ''}`;
       gridEl.innerHTML = visible.length
         ? visible.map((p) => card(p, inCart[p.id])).join('')

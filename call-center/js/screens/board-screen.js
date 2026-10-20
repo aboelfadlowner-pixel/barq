@@ -32,9 +32,9 @@ export async function startNewOrder() {
   const s = getState();
   if (s.customer || s.cart.length) {
     const ok = await confirmDialog({
-      title: 'فيه طلب قيد الإنشاء',
-      message: 'لو بدأت طلب جديد، الطلب اللي لسه ما اتأكدش هيتمسح. تقدر تكمّله من كارت «مسودة».',
-      confirmLabel: 'امسح وابدأ طلب جديد', danger: true,
+      title: 'يوجد طلب قيد الإنشاء',
+      message: 'إذا بدأت طلبًا جديدًا سيتم حذف الطلب غير المؤكد. يمكنك استكماله من بطاقة «مسودة».',
+      confirmLabel: 'حذف وبدء طلب جديد', danger: true,
     });
     if (!ok) return;
     resetDraft();
@@ -60,9 +60,9 @@ function orderCard(o) {
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
         <span class="o-head-end">${orderStateChip(o)}
           ${o.status !== 'cancelled' ? `<button type="button" class="btn btn-ghost btn-icon btn-sm o-wa" data-wa-order="${esc(o.id)}" title="واتساب للعميل" aria-label="واتساب للعميل — طلب ${esc(o.number)}">${icon('whatsapp')}</button>` : ''}
-          <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="طباعة الطلب تاني" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
-      ${o.editCount ? `<div class="o-edited">${icon('edit')}اتعدّل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · الفرع شافه' : ' · لسه الفرع ما شافوش'}</div>` : ''}
+      ${o.editCount ? `<div class="o-edited">${icon('edit')}تم التعديل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · اطّلع عليه الفرع' : ' · لم يطّلع عليه الفرع بعد'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
       <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}${stageSince(o)}</span></div>
@@ -77,7 +77,7 @@ function orderCard(o) {
 function stageSince(o) {
   if (o.status === 'cancelled') return '';
   const at = { preparing: o.preparingAt, at_cashier: o.atCashierAt, out: o.outAt }[o.stage];
-  return at ? ` · <span class="o-stage-since">${o.stage === 'out' ? 'خرج' : 'من'} ${formatRelative(at)}</span>` : '';
+  return at ? ` · <span class="o-stage-since">${o.stage === 'out' ? 'خرج' : 'في هذه المرحلة'} ${formatRelative(at)}</span>` : '';
 }
 
 function draftCard() {
@@ -115,7 +115,7 @@ export function mountBoard(view) {
       <div class="page-head">
         <div>
           <h1 class="title-icon">${icon('headset')}مركز الاتصال</h1>
-          <div class="page-sub"><span>طلبات التوصيل اللي بيعملها مركز الاتصال</span>
+          <div class="page-sub"><span>طلبات التوصيل التي يسجلها مركز الاتصال</span>
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
         <div class="board-actions">
@@ -140,14 +140,14 @@ export function mountBoard(view) {
     const active = today.filter((o) => o.status !== 'cancelled');
     const cancelled = today.filter((o) => o.status === 'cancelled');
     const draft = draftCard();
-    const empty = { new: 'مفيش طلبات جديدة', preparing: 'مفيش طلبات بتتجهز', at_cashier: 'مفيش طلبات على الكاشير', out: 'لسه مفيش طلبات خرجت' };
+    const empty = { new: 'لا توجد طلبات جديدة', preparing: 'لا توجد طلبات قيد التجهيز', at_cashier: 'لا توجد طلبات على الكاشير', out: 'لم يخرج أي طلب بعد' };
     cols.innerHTML =
-      column('مسودة', draft ? 1 : 0, draft, 'مفيش طلب قيد الإنشاء') +
+      column('مسودة', draft ? 1 : 0, draft, 'لا يوجد طلب قيد الإنشاء') +
       STAGES.map((st) => {
         const list = active.filter((o) => (o.stage || 'new') === st.id);
         return column(st.label, list.length, list.map(orderCard).join(''), empty[st.id], `is-${st.id}`);
       }).join('') +
-      column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'مفيش طلبات ملغية النهارده', 'is-cancelled');
+      column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'لا توجد طلبات ملغاة اليوم', 'is-cancelled');
   };
 
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
@@ -173,7 +173,7 @@ export function mountBoard(view) {
       if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`; }
     }),
     on(view, 'click', '[data-discard]', async () => {
-      if (await confirmDialog({ title: 'إلغاء المسودة', message: 'هيتمسح العميل والأصناف اللي في الطلب اللي لسه ما اتأكدش.', confirmLabel: 'إلغاء المسودة', danger: true })) {
+      if (await confirmDialog({ title: 'إلغاء المسودة', message: 'سيتم حذف العميل والأصناف في الطلب غير المؤكد.', confirmLabel: 'إلغاء المسودة', danger: true })) {
         resetDraft();
         render();
       }

@@ -38,7 +38,7 @@ export function openItemDialog(product, { line = null } = {}) {
                 value="${esc(startQty)}" placeholder="${byWeight ? '0.5' : '1'}">
               ${byWeight ? '<span class="suffix">كجم</span>' : ''}
             </div>
-            <button type="button" class="btn btn-secondary" data-step="-1" aria-label="نقص">${icon('minus')}</button>
+            <button type="button" class="btn btn-secondary" data-step="-1" aria-label="إنقاص">${icon('minus')}</button>
             <button type="button" class="btn btn-secondary" data-step="1" aria-label="زيادة">${icon('plus')}</button>
           </div>
           ${byWeight ? `<div class="chips">${WEIGHT_PRESETS.map((p) => `
@@ -67,7 +67,7 @@ export function openItemDialog(product, { line = null } = {}) {
   function check() {
     const raw = qtyInput.value.trim();
     const n = parseQty(raw);
-    if (!raw || Number.isNaN(n) || n <= 0) return { ok: false, msg: 'اكتب كمية أكبر من صفر.' };
+    if (!raw || Number.isNaN(n) || n <= 0) return { ok: false, msg: 'أدخل كمية أكبر من صفر.' };
     if (!byWeight) {
       if (!Number.isInteger(n)) return { ok: false, msg: DECIMAL_RULE };
       if (n > MAX_PIECE_QTY) return { ok: false, msg: `أقصى كمية ${MAX_PIECE_QTY}.` };
@@ -75,7 +75,7 @@ export function openItemDialog(product, { line = null } = {}) {
     }
     const grams = Math.round(n * 1000);
     if (grams < WEIGHT_MIN_GRAMS || grams > WEIGHT_MAX_GRAMS) {
-      return { ok: false, msg: `الوزن لازم يكون بين ${formatWeight(WEIGHT_MIN_GRAMS)} و${formatWeight(WEIGHT_MAX_GRAMS)}.` };
+      return { ok: false, msg: `يجب أن يكون الوزن بين ${formatWeight(WEIGHT_MIN_GRAMS)} و${formatWeight(WEIGHT_MAX_GRAMS)}.` };
     }
     return { ok: true, grams };
   }

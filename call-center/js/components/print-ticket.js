@@ -3,6 +3,7 @@
 import { esc } from '../utils/dom.js';
 import { formatAddress, formatDateTime } from '../utils/format.js';
 import { quantityLabel } from '../utils/pricing.js';
+import { TICKET_LOGO } from '../brand-logo.js';
 import { icon } from './icons.js';
 import { openModal } from './modal.js';
 
@@ -12,12 +13,13 @@ export function ticketHtml(order) {
   return `
     <div class="ticket" dir="rtl">
       <div class="tk-head">
+        <img class="tk-logo" src="${TICKET_LOGO}" alt="">
         <div class="tk-store">أبو الفضل</div>
         <div>طلب توصيل — مركز الاتصال</div>
         ${order.isDemo ? '<div class="tk-demo">طلب تجريبي</div>' : ''}
       </div>
       <div class="tk-no ltr-inline">${esc(order.number)}</div>
-      ${order.editCount ? `<div class="tk-edited">معدّل${order.editCount > 1 ? ` (${order.editCount})` : ''} — بدل الورقة القديمة</div>` : ''}
+      ${order.editCount ? `<div class="tk-edited">معدّل${order.editCount > 1 ? ` (${order.editCount})` : ''} — بدلًا من الورقة السابقة</div>` : ''}
       <div class="tk-rows">
         <div><span>التاريخ</span><span class="num">${formatDateTime(order.createdAt)}</span></div>
         <div><span>الموظف</span><span>${esc(order.employee)}</span></div>
@@ -26,7 +28,7 @@ export function ticketHtml(order) {
       <div class="tk-sec">
         <div class="tk-title">العميل</div>
         <div class="tk-strong">${esc(order.customer.name)}</div>
-        ${phones.map((p, i) => `<div class="tk-phone"><span class="tk-phone-label">${i === 0 ? 'موبايل' : 'رقم تاني'}:</span> <bdi dir="ltr">${esc(p)}</bdi></div>`).join('')}
+        ${phones.map((p, i) => `<div class="tk-phone"><span class="tk-phone-label">${i === 0 ? 'موبايل' : 'رقم إضافي'}:</span> <bdi dir="ltr">${esc(p)}</bdi></div>`).join('')}
       </div>
 
       <div class="tk-sec">
@@ -71,7 +73,7 @@ export function openPrintPreview(order) {
     size: 'sm',
     body: `
       <div class="ticket-preview">${ticketHtml(order)}</div>
-      <p class="hint">الطباعة تشتغل لما البرنامج يتفتح من الجهاز أو السيرفر. في لينك العرض على Claude بتظهر المعاينة بس.</p>`,
+      <p class="hint">تعمل الطباعة عند فتح البرنامج من الجهاز أو الخادم. في رابط العرض تظهر المعاينة فقط.</p>`,
     footer: `
       <button type="button" class="btn btn-primary btn-lg" data-print>${icon('note')}طباعة</button>
       <button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>`,

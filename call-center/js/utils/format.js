@@ -105,12 +105,15 @@ export function formatAddress(a) {
   return housing ? `${text} (${housing})` : text;
 }
 
+/* Arabic counting: 1 → «دقيقة», 2 → «دقيقتين», 3–10 → «5 دقائق», 11+ → «15 دقيقة». */
+const count = (n, one, two, few) => (n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${one}`);
+
 /* "منذ 5 دقائق" style time for order cards. */
 export function formatRelative(iso, now = new Date()) {
   const mins = Math.round((now - new Date(iso)) / 60000);
   if (mins < 1) return 'منذ لحظات';
-  if (mins < 60) return `منذ ${mins} ${mins <= 10 ? 'دقائق' : 'دقيقة'}`;
+  if (mins < 60) return `منذ ${count(mins, 'دقيقة', 'دقيقتين', 'دقائق')}`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24 && isSameDay(iso, now)) return `منذ ${hrs} ${hrs === 1 ? 'ساعة' : hrs <= 10 ? 'ساعات' : 'ساعة'}`;
+  if (hrs < 24 && isSameDay(iso, now)) return `منذ ${count(hrs, 'ساعة', 'ساعتين', 'ساعات')}`;
   return formatDateTime(iso);
 }

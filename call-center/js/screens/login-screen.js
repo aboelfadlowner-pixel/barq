@@ -14,7 +14,7 @@ export function mountLogin(view, onSignedIn, { codeStep = false, email: pendingE
     <div class="login-page">
       <form class="login-card card" novalidate>
         <div class="brand login-brand">
-          <div class="brand-mark" aria-hidden="true">أ</div>
+          <img class="login-logo" src="assets/logo.png" alt="أبو الفضل">
           <div><div class="brand-name">أبو الفضل</div><div class="muted">مركز الاتصال · طلبات التوصيل</div></div>
         </div>
         <h1>تسجيل الدخول</h1>
@@ -24,13 +24,13 @@ export function mountLogin(view, onSignedIn, { codeStep = false, email: pendingE
           <input id="lg-email" class="input ltr" name="email" type="email" autocomplete="username" required>
         </div>`}
         <div class="field">
-          <label for="lg-password">كلمة السر</label>
+          <label for="lg-password">كلمة المرور</label>
           <input id="lg-password" class="input ltr" name="password" type="password" autocomplete="current-password" required>
         </div>
         <div class="field-error" data-err="login" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-lg btn-block" data-submit>${icon('check')}دخول</button>
-        <p class="muted login-note">بتدخل مرة واحدة على الجهاز ده، وبعدها البرنامج بيفتح على طول.</p>
-        ${ALLOW_SIGNUP ? '<button type="button" class="link-btn signup-link" data-show-signup>أول مرة؟ إنشاء أكونت</button>' : ''}
+        <p class="muted login-note">تسجّل الدخول مرة واحدة على هذا الجهاز، وبعدها يفتح البرنامج مباشرة.</p>
+        ${ALLOW_SIGNUP ? '<button type="button" class="link-btn signup-link" data-show-signup>أول مرة؟ إنشاء حساب</button>' : ''}
       </form>
       ${ALLOW_SIGNUP ? signupFormHtml() : ''}
     </div>`;
@@ -46,7 +46,7 @@ export function mountLogin(view, onSignedIn, { codeStep = false, email: pendingE
     e.preventDefault();
     const email = form.querySelector('#lg-email')?.value.trim() ?? ACCOUNT_EMAIL;
     const password = form.querySelector('#lg-password').value;
-    if (!email || !password) { err.textContent = 'اكتب كلمة السر'; return; }
+    if (!email || !password) { err.textContent = 'أدخل كلمة المرور'; return; }
     err.textContent = '';
     btn.disabled = true;
     btn.textContent = 'جارٍ الدخول…';
@@ -69,18 +69,18 @@ function mountCodeStep(view, onSignedIn, email) {
     <div class="login-page">
       <form class="login-card card" data-code-form novalidate>
         <div class="brand login-brand">
-          <div class="brand-mark" aria-hidden="true">أ</div>
+          <img class="login-logo" src="assets/logo.png" alt="أبو الفضل">
           <div><div class="brand-name">أبو الفضل</div><div class="muted">مركز الاتصال · طلبات التوصيل</div></div>
         </div>
         <h1>كود التسجيل</h1>
-        <p class="muted">${email ? `الأكونت <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}اكتب كود التسجيل اللي خدته من المسؤول — مرة واحدة بس.</p>
+        <p class="muted">${email ? `الحساب <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}أدخل كود التسجيل الذي حصلت عليه من المسؤول — مرة واحدة فقط.</p>
         <div class="field">
           <label for="cd-code">الكود</label>
           <input id="cd-code" class="input ltr-center" name="code" autocomplete="off" required>
         </div>
         <div class="field-error" data-err="code" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-lg btn-block" data-code-submit>${icon('check')}تأكيد</button>
-        <button type="button" class="link-btn signup-link" data-code-signout>خروج والدخول بأكونت تاني</button>
+        <button type="button" class="link-btn signup-link" data-code-signout>الخروج والدخول بحساب آخر</button>
       </form>
     </div>`;
   const form = view.querySelector('[data-code-form]');
@@ -90,12 +90,12 @@ function mountCodeStep(view, onSignedIn, email) {
   input.focus();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!input.value.trim()) { err.textContent = 'اكتب الكود'; input.focus(); return; }
+    if (!input.value.trim()) { err.textContent = 'أدخل الكود'; input.focus(); return; }
     err.textContent = '';
     btn.disabled = true;
     try {
       const account = await ds.joinWithCode(input.value.trim());
-      if (!account || account.pendingCode) throw new Error('كود التسجيل غلط');
+      if (!account || account.pendingCode) throw new Error('كود التسجيل غير صحيح');
       onSignedIn(account);
     } catch (ex) {
       err.textContent = ex.message;
@@ -113,24 +113,24 @@ function mountCodeStep(view, onSignedIn, email) {
 function signupFormHtml() {
   return `
       <form class="login-card card" data-signup hidden novalidate>
-        <h1>إنشاء أكونت</h1>
-        <p class="muted">مرة واحدة على الجهاز ده. بعد الأكونت هتكتب كود التسجيل اللي خدته من المسؤول.</p>
+        <h1>إنشاء حساب</h1>
+        <p class="muted">مرة واحدة على هذا الجهاز. بعد إنشاء الحساب ستُدخل كود التسجيل الذي حصلت عليه من المسؤول.</p>
         <div class="field">
-          <label for="su-email">الإيميل</label>
+          <label for="su-email">البريد الإلكتروني</label>
           <input id="su-email" class="input ltr" name="email" type="email" autocomplete="username" required>
         </div>
         <div class="field">
-          <label for="su-password">كلمة السر (8 على الأقل)</label>
+          <label for="su-password">كلمة المرور (8 أحرف على الأقل)</label>
           <input id="su-password" class="input ltr" name="password" type="password" autocomplete="new-password" minlength="8" required>
         </div>
         <div class="field">
-          <label for="su-password2">تأكيد كلمة السر</label>
+          <label for="su-password2">تأكيد كلمة المرور</label>
           <input id="su-password2" class="input ltr" name="password2" type="password" autocomplete="new-password" required>
         </div>
         <div class="field-error" data-err="signup" role="alert"></div>
         <div class="alert alert-success" data-signup-done hidden></div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" data-signup-submit>${icon('plus')}إنشاء الأكونت</button>
-        <button type="button" class="link-btn signup-link" data-show-login>رجوع لتسجيل الدخول</button>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" data-signup-submit>${icon('plus')}إنشاء الحساب</button>
+        <button type="button" class="link-btn signup-link" data-show-login>العودة لتسجيل الدخول</button>
       </form>`;
 }
 
@@ -153,15 +153,15 @@ function wireSignup(view, loginForm, onSignedIn) {
     const password = su.querySelector('#su-password').value;
     const password2 = su.querySelector('#su-password2').value;
     err.textContent = '';
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'اكتب إيميل صحيح'; return; }
-    if (password.length < 8) { err.textContent = 'كلمة السر لازم تكون 8 حروف/أرقام على الأقل'; return; }
-    if (password !== password2) { err.textContent = 'كلمتين السر مش زي بعض'; return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'أدخل بريدًا إلكترونيًا صحيحًا'; return; }
+    if (password.length < 8) { err.textContent = 'يجب أن تتكون كلمة المرور من 8 أحرف أو أرقام على الأقل'; return; }
+    if (password !== password2) { err.textContent = 'كلمتا المرور غير متطابقتين'; return; }
     btn.disabled = true;
     try {
       const { needsConfirmation } = await ds.signUp(email, password);
       if (!needsConfirmation) { mountCodeStep(view, onSignedIn, email); return; }   // signed in already → code
       done.hidden = false;
-      done.textContent = `الأكونت اتعمل ✔ افتح إيميل ${email} واضغط رابط التأكيد اللي في رسالة Supabase. بعدها ارجع هنا وادخل بالإيميل وكلمة السر، وهيطلب منك كود التسجيل مرة واحدة.`;
+      done.textContent = `تم إنشاء الحساب ✔ افتح بريد ${email} واضغط رابط التأكيد في رسالة Supabase. بعدها عد إلى هنا وسجّل الدخول بالبريد وكلمة المرور، وسيُطلب منك كود التسجيل مرة واحدة.`;
       su.querySelectorAll('input').forEach((i) => { i.value = ''; i.disabled = true; });
       btn.hidden = true;
     } catch (ex) {

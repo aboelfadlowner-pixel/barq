@@ -34,10 +34,10 @@ export const publishDataCenter = () => { dcLog.publishedAt = new Date().toISOStr
 export const getAgents = () => resolve(agents);
 export function saveAgent({ id = null, name, active = true }) {
   const clean = String(name ?? '').trim();
-  if (!clean || clean.length > 40) return Promise.reject(new Error('اكتب الاسم (بحد أقصى 40 حرف)'));
+  if (!clean || clean.length > 40) return Promise.reject(new Error('أدخل الاسم (بحد أقصى 40 حرفًا)'));
   const key = clean.toLowerCase();
   if (agents.some((a) => a.id !== id && a.name.trim().toLowerCase() === key)) {
-    return Promise.reject(new Error('الاسم ده موجود بالفعل في القايمة'));
+    return Promise.reject(new Error('هذا الاسم موجود بالفعل في القائمة'));
   }
   if (id) {
     const a = agents.find((x) => x.id === id);
@@ -59,9 +59,9 @@ export const signIn = () => resolve(demoAccount);
 const staff = clone(mock.staff);
 export const listStaff = () => resolve(staff);
 export function setStaff({ id, role, active }) {
-  if (id === demoAccount.id) return Promise.reject(new Error('مش هتقدر تغيّر صلاحية أكونتك إنت'));
+  if (id === demoAccount.id) return Promise.reject(new Error('لا يمكنك تغيير صلاحية حسابك'));
   const s = staff.find((x) => x.id === id);
-  if (!s) return Promise.reject(new Error('الأكونت غير موجود'));
+  if (!s) return Promise.reject(new Error('الحساب غير موجود'));
   Object.assign(s, { role, active });
   return Promise.resolve(true);
 }
@@ -71,7 +71,7 @@ export const signUp = () => Promise.resolve({ needsConfirmation: false });
 export const joinWithCode = () => resolve(demoAccount);
 let demoCodeAt = new Date().toISOString();
 export const setSignupCode = (code) => (String(code || '').trim().length < 8
-  ? Promise.reject(new Error('الكود لازم يكون من 8 لـ 40 حرف/رقم'))
+  ? Promise.reject(new Error('يجب أن يتكون الكود من 8 إلى 40 حرفًا أو رقمًا'))
   : Promise.resolve((demoCodeAt = new Date().toISOString())));
 export const getSignupCodeStatus = () => Promise.resolve({ isSet: true, updatedAt: demoCodeAt });
 
@@ -144,12 +144,12 @@ export const listPrepOrders = () => resolve(orders
 export function setStage(orderId, stage) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
-  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى — متكملش تجهيزه'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('تم إلغاء هذا الطلب، يرجى إيقاف تجهيزه'));
   const from = STAGE_IDS.indexOf(o.stage || 'new');
   const to = STAGE_IDS.indexOf(stage);
   if (to < 0) return Promise.reject(new Error('حالة غير معروفة'));
   if (to === from) return resolve({ id: o.id, stage: o.stage });
-  if (Math.abs(to - from) !== 1) return Promise.reject(new Error('الطلب اتغيرت حالته من جهاز تاني — اعمل تحديث'));
+  if (Math.abs(to - from) !== 1) return Promise.reject(new Error('تغيّرت حالة الطلب من جهاز آخر — يرجى التحديث'));
   const now = new Date().toISOString();
   o.stage = stage;
   if (to > from) o[['', 'preparingAt', 'atCashierAt', 'outAt'][to]] = now;
@@ -159,7 +159,7 @@ export function setStage(orderId, stage) {
 
 export async function sendOut(orderId, driver) {
   const d = String(driver || '').replace(/\s+/g, ' ').trim();
-  if (d.length < 2 || d.length > 80) throw new Error('اكتب اسم الطيار ورقمه — مثال: محمد (01012345678)');
+  if (d.length < 2 || d.length > 80) throw new Error('أدخل اسم الطيار ورقمه — مثال: محمد (01012345678)');
   const o = orders.find((x) => x.id === orderId);
   if (o?.stage === 'out') throw new Error('الطلب خرج بالفعل');
   const r = await setStage(orderId, 'out');
@@ -177,8 +177,8 @@ export function ackEdit(orderId) {
 export function editOrder({ orderId, cart, address, orderNote, agent }) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
-  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده ملغي — مينفعش يتعدّل'));
-  if (!['new', 'preparing'].includes(o.stage || 'new')) return Promise.reject(new Error('الطلب وصل الكاشير — أي تعديل يبقى بالتليفون مع الفرع'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('هذا الطلب ملغي ولا يمكن تعديله'));
+  if (!['new', 'preparing'].includes(o.stage || 'new')) return Promise.reject(new Error('الطلب وصل إلى الكاشير — أي تعديل يتم بالتليفون مع الفرع'));
   const amount = (l) => (l.unitType === 'weight' ? { qty: null, grams: l.grams } : { qty: l.qty, grams: null });
   const key = (a) => `${a.qty}|${a.grams}`;
   const oldBy = new Map(o.items.map((l) => [l.productId, l]));
@@ -196,7 +196,7 @@ export function editOrder({ orderId, cart, address, orderNote, agent }) {
     || (address.housingType || '') !== (o.address.housingType || '') || (address.notes || '') !== (o.address.notes || '');
   if (addrChanged) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
   if ((orderNote || '') !== (o.note || '')) changes.push({ kind: 'order_note', name: 'ملاحظات الطلب', to: orderNote || '' });
-  if (!changes.length) return Promise.reject(new Error('مفيش أي تغيير في الطلب'));
+  if (!changes.length) return Promise.reject(new Error('لا يوجد أي تغيير في الطلب'));
   o.items = cart.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
   if (addrChanged) {
     if (address.areaId !== o.address.areaId) o.deliveryFee = area?.fee ?? o.deliveryFee;
@@ -214,7 +214,7 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 export function createOrder(draft) {
   const { cart, customer, address, orderNote, agent } = draft;
   if (!agent || !agents.some((a) => a.id === agent.id && a.active)) {
-    return Promise.reject(new Error('اختار اسمك من قايمة الموظفين الأول'));
+    return Promise.reject(new Error('اختر اسمك من قائمة الموظفين أولًا'));
   }
   const area = areas.find((a) => a.id === address.areaId);
   if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
@@ -264,7 +264,7 @@ export function createOrder(draft) {
 }
 
 export function cancelOrder(orderId, reason, agent) {
-  if (!agent) return Promise.reject(new Error('اختار اسمك من قايمة الموظفين الأول'));
+  if (!agent) return Promise.reject(new Error('اختر اسمك من قائمة الموظفين أولًا'));
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
   if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ملغي بالفعل'));

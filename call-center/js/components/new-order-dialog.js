@@ -71,20 +71,20 @@ export function openNewOrderDialog({ edit = false } = {}) {
   function renderPhone2() {
     $('[data-phone2]').innerHTML = st.showPhone2 ? `
       <div class="field">
-        <label for="no-phone2">رقم تاني</label>
+        <label for="no-phone2">رقم إضافي</label>
         <div class="input-row">
           <input id="no-phone2" class="input ltr" name="phone2" type="tel" inputmode="tel" autocomplete="off"
             placeholder="01xxxxxxxxx" value="${esc(st.phone2)}">
-          <button type="button" class="btn btn-ghost btn-icon" data-remove-phone2 aria-label="إزالة الرقم التاني">${icon('x')}</button>
+          <button type="button" class="btn btn-ghost btn-icon" data-remove-phone2 aria-label="إزالة الرقم الإضافي">${icon('x')}</button>
         </div>
         <div class="field-error" data-err="phone2"></div>
       </div>`
-      : `<button type="button" class="link-btn" data-add-phone2>${icon('plus')}إضافة رقم تاني</button>`;
+      : `<button type="button" class="link-btn" data-add-phone2>${icon('plus')}إضافة رقم إضافي</button>`;
   }
 
   function addressCards() {
     if (!st.addresses.length) {
-      return `<div class="addr-empty">${icon('pin')}<span>مفيش عناوين محفوظة — اضغط «إضافة عنوان جديد».</span></div>`;
+      return `<div class="addr-empty">${icon('pin')}<span>لا توجد عناوين محفوظة — اضغط «إضافة عنوان جديد».</span></div>`;
     }
     return st.addresses.map((a) => {
       const area = areaOf(a.areaId);
@@ -109,13 +109,13 @@ export function openNewOrderDialog({ edit = false } = {}) {
   function renderDetails() {
     const box = $('[data-details]');
     if (st.status === 'idle') {
-      box.innerHTML = `<p class="hint">ابدأ اكتب رقم الموبايل — من أول 3 أرقام هتظهر العملاء المسجلين، اختار منهم أو كمّل الرقم لعميل جديد.</p>`;
+      box.innerHTML = `<p class="hint">اكتب رقم الموبايل — بعد أول 3 أرقام سيظهر العملاء المسجلون، اختر منهم أو أكمل الرقم لعميل جديد.</p>`;
       return;
     }
     if (st.status === 'searching') { box.innerHTML = '<p class="hint">جارٍ البحث…</p>'; return; }
     if (st.status === 'choose') {
       box.innerHTML = `
-        <div class="alert alert-warn">${icon('alert')}<span>الرقم ده مسجل عند ${st.matches.length} عملاء. اتأكد من الاسم والعنوان مع العميل واختار الصح.</span></div>
+        <div class="alert alert-warn">${icon('alert')}<span>هذا الرقم مسجل لدى ${st.matches.length} عملاء. تأكد من الاسم والعنوان مع العميل واختر الصحيح.</span></div>
         <div class="results">${st.matches.map((c) => {
           const main = normalizePhone(c.phones[0]) === normalizePhone(st.phone);
           return `
@@ -134,7 +134,7 @@ export function openNewOrderDialog({ edit = false } = {}) {
 
     const existing = st.status === 'found';
     box.innerHTML = `
-      ${existing && st.matches.length > 1 ? `<button type="button" class="link-btn" data-rechoose>${icon('arrowRight')}اختيار عميل تاني بنفس الرقم</button>` : ''}
+      ${existing && st.matches.length > 1 ? `<button type="button" class="link-btn" data-rechoose>${icon('arrowRight')}اختيار عميل آخر بنفس الرقم</button>` : ''}
       <div class="field">
         <div class="label-row">
           <label for="no-name">اسم العميل${existing ? '' : '<span class="req">*</span>'}</label>
@@ -249,12 +249,12 @@ export function openNewOrderDialog({ edit = false } = {}) {
     const phone = normalizePhone(st.phone);
     const phone2 = st.showPhone2 && st.phone2.trim() ? normalizePhone(st.phone2) : '';
     if (!isValidPhone(phone)) errors.phone = 'رقم غير صحيح — مثال: 01012345678';
-    if (phone2 && !isValidPhone(phone2)) errors.phone2 = 'الرقم التاني غير صحيح';
-    if (phone2 && phone2 === phone) errors.phone2 = 'الرقم التاني نفس الرقم الأساسي';
-    if (st.status === 'choose') errors.phone = 'اختار العميل الصح من القائمة';
-    if (st.status === 'new' && !st.name.trim()) errors.name = 'اكتب اسم العميل';
+    if (phone2 && !isValidPhone(phone2)) errors.phone2 = 'الرقم الإضافي غير صحيح';
+    if (phone2 && phone2 === phone) errors.phone2 = 'الرقم الإضافي مطابق للرقم الأساسي';
+    if (st.status === 'choose') errors.phone = 'اختر العميل الصحيح من القائمة';
+    if (st.status === 'new' && !st.name.trim()) errors.name = 'أدخل اسم العميل';
     const address = st.addresses.find((a) => a.id === st.addressId);
-    if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختار عنوان أو أضف عنوان جديد';
+    if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختر عنوانًا أو أضف عنوانًا جديدًا';
 
     m.el.querySelectorAll('[data-err]').forEach((el) => { el.textContent = errors[el.dataset.err] ?? ''; });
     if (Object.keys(errors).length) {
@@ -376,7 +376,7 @@ async function openRecentOrders(customer, parent) {
             <div class="addr-extra">${formatDateTime(o.createdAt)} · ${o.items.length} أصناف · ${esc(o.address.areaName)}</div></div>
           <strong>${money(t.total)}</strong>
         </a>`;
-    }).join('')}</div>` : '<p class="muted">مفيش طلبات سابقة للعميل ده.</p>',
+    }).join('')}</div>` : '<p class="muted">لا توجد طلبات سابقة لهذا العميل.</p>',
     footer: '<button type="button" class="btn btn-secondary" data-close>رجوع</button>',
   });
   on(m.el, 'click', '[data-go]', () => { m.close(); parent.close(); });

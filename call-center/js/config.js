@@ -27,6 +27,6 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const ACCOUNT_EMAIL = '';
 
 /* CONFIRMED: new devices/people create their own account from the sign-in
-   screen ("أول مرة؟ إنشاء أكونت"). The account sees nothing until it enters
+   screen ("أول مرة؟ إنشاء حساب"). The account sees nothing until it enters
    the registration code (set from «المناطق والموظفين»). */
 export const ALLOW_SIGNUP = true;

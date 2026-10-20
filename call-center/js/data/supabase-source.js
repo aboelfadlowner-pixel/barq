@@ -36,9 +36,54 @@ async function sb() {
 /* Tests only: run the adapter against another client (e.g. a local PostgREST). */
 export function _useClient(c) { client = c; }
 
+/* Database messages that are still in Egyptian dialect, shown in simple standard
+   Arabic. Only the text on screen changes; the database functions stay as they are. */
+const DB_WORDING = [
+  [/^أسماء الموظفين للأدمن بس$/, 'أسماء الموظفين للمسؤول فقط'],
+  [/^اختار اسمك من قايمة الموظفين الأول$/, 'اختر اسمك من قائمة الموظفين أولًا'],
+  [/^اسم العميل مطلوب وبحد أقصى 120 حرف$/, 'اسم العميل مطلوب وبحد أقصى 120 حرفًا'],
+  [/^اسم العنوان مطلوب وبحد أقصى 40 حرف$/, 'اسم العنوان مطلوب وبحد أقصى 40 حرفًا'],
+  [/^اسم المنطقة مطلوب وبحد أقصى 80 حرف$/, 'اسم المنطقة مطلوب وبحد أقصى 80 حرفًا'],
+  [/^اكتب اسم الطيار ورقمه/, 'أدخل اسم الطيار ورقمه — مثال: محمد (01012345678)'],
+  [/^اكتب الاسم \(بحد أقصى 40 حرف\)$/, 'أدخل الاسم (بحد أقصى 40 حرفًا)'],
+  [/^الأكونت ده متوقف — كلّم المسؤول$/, 'هذا الحساب موقوف — تواصل مع المسؤول'],
+  [/^الأكونت غير موجود$/, 'الحساب غير موجود'],
+  [/^الاسم ده موجود بالفعل في القايمة$/, 'هذا الاسم موجود بالفعل في القائمة'],
+  [/^التسجيل متوقف مؤقتًا بسبب محاولات كتير غلط — جرّب تاني بعد ساعة$/, 'التسجيل متوقف مؤقتًا بسبب محاولات خاطئة كثيرة — حاول مرة أخرى بعد ساعة'],
+  [/^محاولات كتير غلط — جرّب تاني بعد ساعة$/, 'محاولات خاطئة كثيرة — حاول مرة أخرى بعد ساعة'],
+  [/^الحسابات للأدمن بس$/, 'الحسابات للمسؤول فقط'],
+  [/^الرسوم لازم تكون رقم صفر أو أكتر$/, 'يجب أن تكون الرسوم صفرًا أو أكثر'],
+  [/^السطر (\d+) لازم يكون بالكمية أو بالوزن$/, 'يجب أن يكون السطر $1 بالكمية أو بالوزن'],
+  [/^الشارع مطلوب وبحد أقصى 150 حرف$/, 'الشارع مطلوب وبحد أقصى 150 حرفًا'],
+  [/^الصنف «(.+)» بيتباع بالوحدة — اكتب الكمية بالعدد$/, 'الصنف «$1» يُباع بالوحدة — أدخل الكمية بالعدد'],
+  [/^الصنف «(.+)» بيتباع بالوزن — اكتب الوزن بالكيلو$/, 'الصنف «$1» يُباع بالوزن — أدخل الوزن بالكيلو'],
+  [/^الطلب اتغيرت حالته من جهاز تاني — اعمل تحديث$/, 'تغيّرت حالة الطلب من جهاز آخر — يرجى التحديث'],
+  [/^الطلب ده اتلغى — متكملش تجهيزه$/, 'تم إلغاء هذا الطلب، يرجى إيقاف تجهيزه'],
+  [/^الطلب ده ملغي — مينفعش يتعدّل$/, 'هذا الطلب ملغي ولا يمكن تعديله'],
+  [/^الطلب وصل الكاشير — أي تعديل يبقى بالتليفون مع الفرع$/, 'الطلب وصل إلى الكاشير — أي تعديل يتم بالتليفون مع الفرع'],
+  [/^الكود لازم يكون من 8 لـ 40 حرف\/رقم$/, 'يجب أن يتكون الكود من 8 إلى 40 حرفًا أو رقمًا'],
+  [/^المعلومات الإضافية بحد أقصى 200 حرف$/, 'المعلومات الإضافية بحد أقصى 200 حرف'],
+  [/^المناطق والرسوم للأدمن بس$/, 'المناطق والرسوم للمسؤول فقط'],
+  [/^تغيير حالة التجهيز للفرع بس$/, 'تغيير حالة التجهيز للفرع فقط'],
+  [/^شاشة التجهيز للفرع بس$/, 'شاشة التجهيز للفرع فقط'],
+  [/^للفرع بس$/, 'للفرع فقط'],
+  [/^كود التسجيل للأدمن بس$/, 'كود التسجيل للمسؤول فقط'],
+  [/^سجّل دخول الأول$/, 'سجّل الدخول أولًا'],
+  [/^فيه منطقة بنفس الاسم$/, 'توجد منطقة بنفس الاسم'],
+  [/^كود الصنف (.+) مكرر في شيت المنتجات — لازم يتصلح في الشيت الأول$/, 'كود الصنف $1 مكرر في شيت المنتجات — يجب تصحيحه في الشيت أولًا'],
+  [/^لسه مفيش كود تسجيل — اطلبه من المسؤول$/, 'لا يوجد كود تسجيل بعد — اطلبه من المسؤول'],
+  [/^مش هتقدر تغيّر صلاحية أكونتك إنت$/, 'لا يمكنك تغيير صلاحية حسابك'],
+  [/^مفيش أي تغيير في الطلب$/, 'لا يوجد أي تغيير في الطلب'],
+  [/^رقم الموبايل مسجل لعميل آخر — اختاره من نتائج البحث$/, 'رقم الموبايل مسجل لعميل آخر — اختره من نتائج البحث'],
+];
+export const dbWording = (msg) => {
+  for (const [re, to] of DB_WORDING) if (re.test(msg)) return msg.replace(re, to);
+  return msg;
+};
+
 /* Database errors carry an Arabic message; HINT names the form field (street, phone, …). */
-function fail(error, fallback = 'حصلت مشكلة في الاتصال بقاعدة البيانات') {
-  const err = new Error(error?.message || fallback);
+function fail(error, fallback = 'حدثت مشكلة في الاتصال بقاعدة البيانات') {
+  const err = new Error(error?.message ? dbWording(error.message) : fallback);
   err.field = error?.hint || null;
   err.code = error?.code || null;
   return err;
@@ -179,7 +224,7 @@ const toPrepOrder = (r) => ({
 export async function listPrepOrders() {
   const c = await sb();
   const res = await c.rpc('cc_prep_orders');
-  if (res.error?.code === NOT_INSTALLED) throw new Error('شاشة التجهيز لسه مش متفعّلة على قاعدة البيانات');
+  if (res.error?.code === NOT_INSTALLED) throw new Error('شاشة التجهيز غير مفعّلة على قاعدة البيانات بعد');
   return ok(res).map(toPrepOrder);
 }
 
@@ -187,7 +232,7 @@ export async function listPrepOrders() {
 export async function sendOut(orderId, driver) {
   const c = await sb();
   const res = await c.rpc('cc_send_out', { p_order_id: orderId, p_driver: driver });
-  if (res.error?.code === NOT_INSTALLED) throw new Error('خانة الطيار لسه مش متفعّلة على قاعدة البيانات');
+  if (res.error?.code === NOT_INSTALLED) throw new Error('خانة الطيار غير مفعّلة على قاعدة البيانات بعد');
   return ok(res);
 }
 
@@ -202,7 +247,7 @@ export async function editOrder({ orderId, cart, address, orderNote, agent }) {
   const { p_items } = toCreateOrderArgs({ requestId: null, cart, customer: { id: 'x' }, address, orderNote });
   const p_address = { area_id: address.areaId, street: address.street, housing_type: address.housingType || null, notes: address.notes || null };
   const res = await c.rpc('cc_edit_order', { p_agent_id: agent?.id ?? null, p_order_id: orderId, p_address, p_items, p_note: orderNote || null });
-  if (res.error?.code === NOT_INSTALLED) throw new Error('تعديل الطلبات لسه مش متفعّل على قاعدة البيانات');
+  if (res.error?.code === NOT_INSTALLED) throw new Error('تعديل الطلبات غير مفعّل على قاعدة البيانات بعد');
   ok(res);
   return getOrder(orderId);
 }
@@ -229,12 +274,12 @@ export async function signIn(email, password) {
   const { error } = await c.auth.signInWithPassword({ email: (email || ACCOUNT_EMAIL).trim(), password });
   if (error) {
     if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message || '')) {
-      throw new Error('لازم تأكد الإيميل الأول — افتح رسالة Supabase على الإيميل واضغط رابط التأكيد');
+      throw new Error('يجب تأكيد البريد الإلكتروني أولًا — افتح رسالة Supabase في بريدك واضغط رابط التأكيد');
     }
-    throw new Error(error.status === 400 ? 'كلمة السر أو البريد غير صحيح' : 'تعذر تسجيل الدخول — تأكد من الإنترنت وحاول تاني');
+    throw new Error(error.status === 400 ? 'كلمة المرور غير صحيحة' : 'تعذر تسجيل الدخول — تأكد من الاتصال بالإنترنت وحاول مرة أخرى');
   }
   const account = await getAccount();
-  if (!account) throw new Error('الأكونت ده متوقف — كلّم المسؤول');
+  if (!account) throw new Error('هذا الحساب موقوف — تواصل مع المسؤول');
   return account;   // may be { pendingCode: true } → the screen asks for the registration code
 }
 
@@ -245,9 +290,9 @@ const NOT_INSTALLED = 'PGRST202';
 export async function joinWithCode(code) {
   const c = await sb();
   const res = await c.rpc('cc_join_with_code', { p_code: String(code || '') });
-  if (res.error?.code === NOT_INSTALLED) throw new Error('التسجيل بالكود لسه مش متفعّل — كلّم المسؤول');
+  if (res.error?.code === NOT_INSTALLED) throw new Error('التسجيل بالكود غير مفعّل بعد — تواصل مع المسؤول');
   const linked = ok(res);
-  if (!linked) throw new Error('كود التسجيل غلط');
+  if (!linked) throw new Error('كود التسجيل غير صحيح');
   return getAccount();
 }
 
@@ -275,10 +320,10 @@ export async function signUp(email, password) {
   });
   if (error) {
     const m = String(error.message || '').toLowerCase();
-    if (m.includes('already')) throw new Error('الإيميل ده عنده أكونت بالفعل — ادخل بيه');
-    if (m.includes('not allowed') || m.includes('disabled')) throw new Error('إنشاء الأكونتات مقفول في المشروع — لازم يتعمل من لوحة Supabase');
-    if (m.includes('password')) throw new Error('كلمة السر ضعيفة — خليها 8 حروف/أرقام على الأقل');
-    throw new Error('تعذر إنشاء الأكونت — تأكد من الإنترنت وحاول تاني');
+    if (m.includes('already')) throw new Error('هذا البريد الإلكتروني له حساب بالفعل — سجّل الدخول به');
+    if (m.includes('not allowed') || m.includes('disabled')) throw new Error('إنشاء الحسابات مغلق في المشروع — يجب إنشاؤها من لوحة Supabase');
+    if (m.includes('password')) throw new Error('كلمة المرور ضعيفة — اجعلها 8 أحرف أو أرقام على الأقل');
+    throw new Error('تعذر إنشاء الحساب — تأكد من الاتصال بالإنترنت وحاول مرة أخرى');
   }
   return { needsConfirmation: !data.session };
 }
@@ -288,9 +333,9 @@ export async function changePassword(password) {
   const c = await sb();
   const { error } = await c.auth.updateUser({ password });
   if (error) {
-    if (/different from the old|same/i.test(error.message)) throw new Error('كلمة السر الجديدة لازم تكون مختلفة عن القديمة');
-    if (/weak|short|at least/i.test(error.message)) throw new Error('كلمة السر ضعيفة — خليها 8 حروف/أرقام على الأقل');
-    throw fail(error, 'تعذر تغيير كلمة السر');
+    if (/different from the old|same/i.test(error.message)) throw new Error('يجب أن تختلف كلمة المرور الجديدة عن القديمة');
+    if (/weak|short|at least/i.test(error.message)) throw new Error('كلمة المرور ضعيفة — اجعلها 8 أحرف أو أرقام على الأقل');
+    throw fail(error, 'تعذر تغيير كلمة المرور');
   }
   return true;
 }
@@ -352,7 +397,7 @@ export async function lastDataCenterSync() {
 export async function pullDataCenter() {
   const c = await sb();
   const { data, error } = await c.functions.invoke('dc-sync', { body: {} });
-  if (error) throw new Error(`تعذّر السحب من الدرايف: ${error.message}`);
+  if (error) throw new Error(`تعذّر التحديث من الدرايف: ${error.message}`);
   const products = (data?.results || []).find((r) => r.table === 'dc_products');
   return { products: products ?? null, failed: (data?.results || []).filter((r) => r.status === 'failed').map((r) => r.table) };
 }
@@ -452,14 +497,14 @@ export async function getOrder(id) {
    The employee who took it is saved with it (cc_place_order). */
 export async function createOrder(draft) {
   if (!draft.requestId) throw new Error('رقم المسودة مفقود — أعد فتح الطلب');
-  if (!draft.agent?.id) throw new Error('اختار اسمك من قايمة الموظفين الأول');
+  if (!draft.agent?.id) throw new Error('اختر اسمك من قائمة الموظفين أولًا');
   const c = await sb();
   const created = ok(await c.rpc('cc_place_order', { p_agent_id: draft.agent.id, ...toCreateOrderArgs(draft) }));
   return getOrder(created.id);
 }
 
 export async function cancelOrder(orderId, reason, agent) {
-  if (!agent?.id) throw new Error('اختار اسمك من قايمة الموظفين الأول');
+  if (!agent?.id) throw new Error('اختر اسمك من قائمة الموظفين أولًا');
   const c = await sb();
   ok(await c.rpc('cc_cancel_order_as', { p_agent_id: agent.id, p_order_id: orderId, p_reason: reason }));
   return getOrder(orderId);

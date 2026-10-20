@@ -41,7 +41,7 @@ function askDriver(order) {
     const input = m.body.querySelector('#driver');
     const save = () => {
       const v = input.value.replace(/\s+/g, ' ').trim();
-      if (v.length < 2) { m.body.querySelector('[data-err="driver"]').textContent = 'اكتب اسم الطيار ورقمه — مثال: محمد (01012345678)'; input.focus(); return; }
+      if (v.length < 2) { m.body.querySelector('[data-err="driver"]').textContent = 'أدخل اسم الطيار ورقمه — مثال: محمد (01012345678)'; input.focus(); return; }
       result = v;
       m.close();
     };
@@ -97,11 +97,11 @@ function itemLine(it, i, o, checks, canTick) {
 const amountText = (a) => (a?.grams ? formatWeight(a.grams) : a?.qty != null ? `${a.qty}` : '');
 function changeLine(c) {
   switch (c.kind) {
-    case 'added': return `<li><strong>اتضاف:</strong> ${esc(c.name)} <span class="num">${esc(amountText(c.to))}</span></li>`;
-    case 'removed': return `<li class="chg-removed"><strong>اتشال:</strong> ${esc(c.name)}</li>`;
-    case 'amount': return `<li><strong>${esc(c.name)}:</strong> كان <span class="num">${esc(amountText(c.from))}</span> ← بقى <strong class="num">${esc(amountText(c.to))}</strong></li>`;
+    case 'added': return `<li><strong>أُضيف:</strong> ${esc(c.name)} <span class="num">${esc(amountText(c.to))}</span></li>`;
+    case 'removed': return `<li class="chg-removed"><strong>حُذف:</strong> ${esc(c.name)}</li>`;
+    case 'amount': return `<li><strong>${esc(c.name)}:</strong> كان <span class="num">${esc(amountText(c.from))}</span> ← أصبح <strong class="num">${esc(amountText(c.to))}</strong></li>`;
     case 'note': return `<li><strong>${esc(c.name)}:</strong> ملاحظة «${esc(c.to)}»</li>`;
-    case 'address': return `<li><strong>العنوان اتغيّر:</strong> ${esc(c.to?.area || '')} · ${esc(c.to?.street || '')}</li>`;
+    case 'address': return `<li><strong>تغيّر العنوان:</strong> ${esc(c.to?.area || '')} · ${esc(c.to?.street || '')}</li>`;
     case 'order_note': return `<li><strong>ملاحظات الطلب:</strong> ${esc(c.to || '—')}</li>`;
     default: return '';
   }
@@ -123,12 +123,12 @@ function prepCard(o, busy, checks = {}) {
         ${canTick && o.items.length ? `<span class="po-progress ${checkedCount(o, checks) === o.items.length ? 'is-full' : ''}">تم <span class="num">${checkedCount(o, checks)}</span> من <span class="num">${o.items.length}</span></span>` : ''}
         <span class="po-time">${icon('clock')}<span class="num">${formatTime(o.createdAt)}</span> · ${formatRelative(o.createdAt)}</span>
       </header>
-      ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>الطلب ده اتلغى — متكملش تجهيزه</strong>
+      ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>تم إلغاء هذا الطلب، يرجى إيقاف تجهيزه</strong>
         ${o.cancelReason ? `<div>السبب: ${esc(o.cancelReason)}</div>` : ''}</div></div>` : ''}
       ${editUnseen(o) ? `<div class="po-edited">
-        <div class="po-edited-head">${icon('edit')}<strong>اتعدّل${o.editCount > 1 ? ` (${o.editCount})` : ''} — الكول سنتر هيبعت ورقة جديدة</strong></div>
+        <div class="po-edited-head">${icon('edit')}<strong>تم التعديل${o.editCount > 1 ? ` (${o.editCount})` : ''} — سيرسل الكول سنتر ورقة جديدة</strong></div>
         <ul>${(o.editChanges || []).map(changeLine).join('')}</ul>
-        <button type="button" class="btn btn-soft po-ack" data-ack ${busy ? 'disabled' : ''}>${icon('check')}شُفت التعديل</button>
+        <button type="button" class="btn btn-soft po-ack" data-ack ${busy ? 'disabled' : ''}>${icon('check')}تم الاطلاع على التعديل</button>
       </div>` : ''}
       <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, canTick)).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
@@ -136,7 +136,7 @@ function prepCard(o, busy, checks = {}) {
         ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
-      ${since ? `<div class="po-since muted">${stageOf(o.stage).label} من ${formatRelative(since)}</div>` : ''}
+      ${since ? `<div class="po-since muted">${stageOf(o.stage).label} ${formatRelative(since)}</div>` : ''}
       ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
@@ -149,7 +149,7 @@ function column(stage, list, busyId) {
   return `
     <section class="p-col">
       <header class="b-col-head p-col-head tone-head-${st.id}"><h2>${st.label}</h2><span class="b-count num">${list.length}</span></header>
-      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks())).join('') : '<div class="b-empty">مفيش طلبات</div>'}</div>
+      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks())).join('') : '<div class="b-empty">لا توجد طلبات</div>'}</div>
     </section>`;
 }
 
@@ -181,7 +181,7 @@ export function mountPrep(view) {
   let stopped = false;
 
   const paintSound = () => {
-    soundBtn.innerHTML = soundOn() ? `${icon('check')}صوت التنبيه شغال` : `${icon('alert')}شغّل صوت التنبيه`;
+    soundBtn.innerHTML = soundOn() ? `${icon('check')}صوت التنبيه مفعّل` : `${icon('alert')}تفعيل صوت التنبيه`;
     soundBtn.classList.toggle('needs-value', !soundOn());
   };
   paintSound();
@@ -222,11 +222,11 @@ export function mountPrep(view) {
       if (fresh.length || edited.length) {
         if (soundOn()) ring();
         showToast([fresh.length ? (fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`) : '',
-          edited.length ? `اتعدّل: ${edited.map((o) => `#${o.number}`).join('، ')}` : ''].filter(Boolean).join(' · '));
+          edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : ''].filter(Boolean).join(' · '));
       }
     } catch (err) {
       if (stopped) return;
-      view.querySelector('[data-updated]').textContent = 'تعذر التحديث — بنحاول تاني';
+      view.querySelector('[data-updated]').textContent = 'تعذر التحديث — جارٍ المحاولة مرة أخرى';
       if (!known) cols.innerHTML = `<div class="card card-pad center-note">${icon('alert')}<h3>${esc(err.message)}</h3></div>`;
     }
   };
@@ -270,9 +270,9 @@ export function mountPrep(view) {
       // Before «وصل الكاشير»: a reminder if some items are not ticked (a reminder only, not a block).
       const left = o ? o.items.length - checkedCount(o, readChecks()) : 0;
       if (btn.dataset.next === 'at_cashier' && left > 0 && !(await confirmDialog({
-        title: 'فيه أصناف لسه ما اتعلّمش عليها',
-        message: `${left === 1 ? 'صنف واحد' : `${left} أصناف`} لسه ما اتعلّمش عليه. متأكد إن الطلب كله اتجهز؟`,
-        confirmLabel: 'أيوه، وصل الكاشير', cancelLabel: 'رجوع',
+        title: 'توجد أصناف لم يتم تعليمها',
+        message: `${left === 1 ? 'صنف واحد' : `${left} أصناف`} لم يتم تعليمه بعد. هل أنت متأكد من تجهيز الطلب بالكامل؟`,
+        confirmLabel: 'نعم، وصل إلى الكاشير', cancelLabel: 'رجوع',
       }))) return;
       move(id, btn.dataset.next);
     }),
@@ -280,7 +280,7 @@ export function mountPrep(view) {
     on(view, 'keydown', '[data-tick]', (e, li) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleTick(li); } }),
     on(view, 'click', '[data-back]', async (e, btn) => {
       const st = stageOf(btn.dataset.back);
-      if (!(await confirmDialog({ title: 'رجوع خطوة', message: `الطلب هيرجع لـ «${st.label}». ده لو دوست غلط بس.`, confirmLabel: 'رجّعه' }))) return;
+      if (!(await confirmDialog({ title: 'رجوع خطوة', message: `سيعود الطلب إلى «${st.label}». استخدم هذا فقط عند الضغط بالخطأ.`, confirmLabel: 'إرجاع' }))) return;
       move(btn.closest('[data-oid]').dataset.oid, btn.dataset.back);
     }),
     on(view, 'click', '[data-refresh]', () => load()),

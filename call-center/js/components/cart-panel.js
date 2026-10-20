@@ -40,7 +40,7 @@ export function mountCartPanel(el) {
     if (!customer) {
       box.innerHTML = `
         <div class="sum-empty">
-          <p>ابدأ برقم موبايل العميل — لو مسجل، بياناته وعناوينه هتظهر لوحدها.</p>
+          <p>ابدأ برقم موبايل العميل — إذا كان مسجلًا ستظهر بياناته وعناوينه تلقائيًا.</p>
           <button type="button" class="btn btn-primary btn-block" data-action="edit-customer">${icon('headset')}بيانات العميل والعنوان</button>
         </div>`;
       return;
@@ -80,7 +80,7 @@ export function mountCartPanel(el) {
       </div>`;
     if (!cart.length) {
       box.innerHTML = `${head}
-        <div class="cart-empty">${icon('cart')}<strong>لسه مفيش أصناف</strong>اختار تصنيف أو ابحث باسم الصنف واضغط عليه لإضافته</div>`;
+        <div class="cart-empty">${icon('cart')}<strong>لا توجد أصناف بعد</strong>اختر تصنيفًا أو ابحث باسم الصنف واضغط عليه لإضافته</div>`;
       return;
     }
     box.innerHTML = head + cart.map((l) => {
@@ -103,7 +103,7 @@ export function mountCartPanel(el) {
                    <div class="stepper" role="group" aria-label="الكمية">
                      <button type="button" data-action="inc" aria-label="زيادة">${icon('plus')}</button>
                      <span class="val">${l.qty}</span>
-                     <button type="button" data-action="dec" aria-label="${l.qty === 1 ? 'حذف' : 'نقص'}">${icon(l.qty === 1 ? 'trash' : 'minus')}</button>
+                     <button type="button" data-action="dec" aria-label="${l.qty === 1 ? 'حذف' : 'إنقاص'}">${icon(l.qty === 1 ? 'trash' : 'minus')}</button>
                    </div>
                  </div>`}
             <div class="line-actions">
@@ -171,7 +171,7 @@ export function mountCartPanel(el) {
         case 'edit-note': noteOpen = true; renderSummary(getState()); break;
         case 'save-draft':
           location.hash = '#/board';
-          showToast('اتحفظ الطلب كمسودة — تقدر تكمّله من كارت «مسودة»');
+          showToast('تم حفظ الطلب كمسودة — يمكنك استكماله من بطاقة «مسودة»');
           break;
         case 'review': openReviewDialog(); break;
         case 'clear':

@@ -43,20 +43,20 @@ export function openWhatsAppDialog(order) {
     body: phones.length ? `
       <div class="wa-form">
         <div class="field">
-          <label for="wa-to">هيتبعت على</label>
+          <label for="wa-to">سيتم الإرسال إلى</label>
           ${phones.length > 1
             ? `<select id="wa-to" class="input ltr">${phones.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select>`
             : `<div class="wa-to ltr">${esc(phones[0])}</div>`}
         </div>
         <div class="field">
-          <label for="wa-text">الرسالة (تقدر تعدّل فيها)</label>
+          <label for="wa-text">الرسالة (يمكنك تعديلها)</label>
           <textarea id="wa-text" class="input wa-text" rows="11" dir="rtl">${esc(buildWhatsAppMessage(order))}</textarea>
         </div>
-        <p class="hint">${icon('info')}هيفتح الواتساب اللي على الجهاز ده والرسالة جاهزة — راجعها واضغط «إرسال» جوه الواتساب.</p>
+        <p class="hint">${icon('info')}سيفتح واتساب على هذا الجهاز والرسالة جاهزة — راجعها ثم اضغط «إرسال» داخل واتساب.</p>
       </div>`
-      : `<div class="alert alert-warn">${icon('alert')}<span>رقم العميل مش رقم موبايل (لازم يبدأ بـ 010 أو 011 أو 012 أو 015) — مينفعش واتساب.</span></div>`,
+      : `<div class="alert alert-warn">${icon('alert')}<span>رقم العميل ليس رقم موبايل (يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015)، لا يمكن الإرسال عبر واتساب.</span></div>`,
     footer: phones.length ? `
-      <a class="btn btn-whatsapp btn-lg" data-wa-open target="_blank" rel="noopener">${icon('whatsapp')}افتح الواتساب</a>
+      <a class="btn btn-whatsapp btn-lg" data-wa-open target="_blank" rel="noopener">${icon('whatsapp')}فتح واتساب</a>
       <button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>`
       : '<button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>',
   });

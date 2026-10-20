@@ -34,7 +34,7 @@ export function mountOrderDetails(view, orderId) {
     if (!order) {
       view.innerHTML = `
         <div class="page"><div class="page-inner">
-          <a href="#/orders" class="back-link">${icon('arrowRight')}رجوع للطلبات</a>
+          <a href="#/orders" class="back-link">${icon('arrowRight')}العودة إلى الطلبات</a>
           <div class="card card-pad"><h2>الطلب غير موجود</h2>
             <p class="muted demo-only">الطلبات التجريبية الجديدة تُحذف عند تحديث الصفحة.</p></div>
         </div></div>`;
@@ -45,17 +45,17 @@ export function mountOrderDetails(view, orderId) {
 
     view.innerHTML = `
       <div class="page"><div class="page-inner">
-        <a href="#/orders" class="back-link">${icon('arrowRight')}رجوع للطلبات</a>
+        <a href="#/orders" class="back-link">${icon('arrowRight')}العودة إلى الطلبات</a>
         <div class="page-head">
           <div>
             <h1>طلب <span class="ltr-inline">${esc(order.number)}</span></h1>
             <div class="meta-row">
               ${orderStateChip(order)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
-              <span>${icon('headset')} أخد الطلب: <strong>${esc(order.employee)}</strong></span>
+              <span>${icon('headset')} سجّل الطلب: <strong>${esc(order.employee)}</strong></span>
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
               ${order.isDemo ? '<span class="demo-pill">طلب تجريبي</span>' : ''}
-              ${order.editCount ? `<span class="tag tag-amber">${icon('edit')}اتعدّل${order.editCount > 1 ? ` ${order.editCount} مرات` : ''}${order.editedBy ? ` — آخر تعديل: ${esc(order.editedBy)}` : ''}</span>` : ''}
+              ${order.editCount ? `<span class="tag tag-amber">${icon('edit')}تم التعديل${order.editCount > 1 ? ` ${order.editCount} مرات` : ''}${order.editedBy ? ` — آخر تعديل: ${esc(order.editedBy)}` : ''}</span>` : ''}
             </div>
           </div>
           <div class="page-actions">
@@ -64,7 +64,7 @@ export function mountOrderDetails(view, orderId) {
             ${order.status !== 'cancelled' && can(getState().user, 'createOrder')
               ? (['new', 'preparing'].includes(order.stage || 'new')
                 ? `<button type="button" class="btn btn-soft" data-edit-order>${icon('edit')}تعديل الطلب</button>`
-                : `<span class="muted edit-locked" title="الفاتورة اتعملت على فوديكس">${icon('info')}وصل الكاشير — التعديل بالتليفون مع الفرع</span>`)
+                : `<span class="muted edit-locked" title="تم إصدار الفاتورة على فوديكس">${icon('info')}وصل إلى الكاشير — التعديل بالتليفون مع الفرع</span>`)
               : ''}
             <button type="button" class="btn btn-soft" data-repeat>${icon('repeat')}تكرار الطلب</button>
             <button type="button" class="btn btn-secondary" data-copy>${icon('copy')}نسخ الملخص</button>
@@ -75,7 +75,7 @@ export function mountOrderDetails(view, orderId) {
 
         ${order.status === 'cancelled' ? `
           <div class="alert alert-danger" style="margin-bottom:14px">${icon('alert')}
-            <span>الطلب ده ملغي. السبب: ${esc(order.cancelReason || '—')}</span></div>` : ''}
+            <span>هذا الطلب ملغي. السبب: ${esc(order.cancelReason || '—')}</span></div>` : ''}
         <div class="details-grid">
           <div class="card">
             <div class="table-wrap">
@@ -142,12 +142,12 @@ export function mountOrderDetails(view, orderId) {
         const s = getState();
         if ((s.cart.length || s.customer) && !s.editing && !(await confirmDialog({
           title: 'تعديل الطلب',
-          message: 'فيه طلب قيد الإنشاء — هيتشال من الشاشة عشان تعدّل الطلب ده.',
-          confirmLabel: 'كمّل للتعديل',
+          message: 'يوجد طلب قيد الإنشاء — سيُزال من الشاشة لتعديل هذا الطلب.',
+          confirmLabel: 'متابعة التعديل',
         }))) return;
         loadDraftForEdit(order);
         location.hash = '#/pos';
-        showToast(`بتعدّل طلب ${order.number} — غيّر اللي محتاجه واضغط «حفظ التعديل»`);
+        showToast(`جارٍ تعديل الطلب ${order.number} — غيّر ما تريد ثم اضغط «حفظ التعديل»`);
       }),
       on(view, 'click', '[data-repeat]', async () => {
         const s = getState();
@@ -177,10 +177,10 @@ function openCancelDialog(order) {
     body: `
       <div class="field">
         <label for="cancelReason">سبب الإلغاء<span class="req">*</span></label>
-        <textarea id="cancelReason" class="textarea" maxlength="200" placeholder="مثال: العميل لغى الطلب"></textarea>
+        <textarea id="cancelReason" class="textarea" maxlength="200" placeholder="مثال: العميل ألغى الطلب"></textarea>
         <div class="field-error" data-err="reason"></div>
       </div>
-      <p class="hint">الإلغاء نهائي، والطلب هيفضل ظاهر في القائمة بحالة «ملغي».</p>`,
+      <p class="hint">الإلغاء نهائي، وسيبقى الطلب ظاهرًا في القائمة بحالة «ملغي».</p>`,
     footer: `
       <button type="button" class="btn btn-danger btn-lg" data-ok>${icon('x')}إلغاء الطلب</button>
       <button type="button" class="btn btn-secondary btn-lg" data-close>رجوع</button>`,
@@ -190,7 +190,7 @@ function openCancelDialog(order) {
   m.foot.querySelector('[data-ok]').addEventListener('click', async (e) => {
     const reason = ta.value.trim();
     if (!requireAgent()) return;
-    if (!reason) { m.body.querySelector('[data-err="reason"]').textContent = 'اكتب سبب الإلغاء'; ta.focus(); return; }
+    if (!reason) { m.body.querySelector('[data-err="reason"]').textContent = 'أدخل سبب الإلغاء'; ta.focus(); return; }
     e.currentTarget.disabled = true;
     try {
       await ds.cancelOrder(order.id, reason, getState().agent);

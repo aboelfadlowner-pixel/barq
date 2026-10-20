@@ -18,15 +18,15 @@ export function openSuccessDialog(order, { edited = false } = {}) {
     body: `
       <div class="success">
         <div class="success-icon">${icon('check')}</div>
-        <h3>${edited ? 'الطلب اتعدّل' : (order.isDemo ? 'تم إنشاء طلب تجريبي' : 'تم حفظ الطلب')}</h3>
-        ${edited ? `<div class="alert alert-warn">${icon('note')}<span>اطبع الورقة الجديدة وابعتها للي بيجهّز بدل القديمة — الفرع شايف علامة «اتعدّل».</span></div>` : ''}
+        <h3>${edited ? 'تم تعديل الطلب' : (order.isDemo ? 'تم إنشاء طلب تجريبي' : 'تم حفظ الطلب')}</h3>
+        ${edited ? `<div class="alert alert-warn">${icon('note')}<span>اطبع الورقة الجديدة وأرسلها لفريق التجهيز بدلًا من السابقة — تظهر للفرع علامة «تم التعديل».</span></div>` : ''}
         <div class="order-no ltr-inline">${esc(order.number)}</div>
         <div>الحالة: ${statusChip(order.status)}</div>
         <div class="muted">${esc(order.customer.name)} · ${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'} ${money(t.total)}</div>
         ${wa
-          ? `<a class="btn btn-whatsapp btn-lg success-wa" href="${esc(wa)}" target="_blank" rel="noopener" data-wa-send>${icon('whatsapp')}${edited ? 'ابعت التعديل للعميل على واتساب' : 'ابعت الطلب للعميل على واتساب'}</a>
-             <div class="hint">عشان يراجعه ولو عايز يعدّل حاجة يلحق قبل ما يتجهز — اضغط «إرسال» جوه الواتساب.</div>`
-          : `<div class="muted">${icon('info')}رقم العميل مش موبايل — مينفعش واتساب.</div>`}
+          ? `<a class="btn btn-whatsapp btn-lg success-wa" href="${esc(wa)}" target="_blank" rel="noopener" data-wa-send>${icon('whatsapp')}${edited ? 'إرسال التعديل للعميل عبر واتساب' : 'إرسال الطلب للعميل عبر واتساب'}</a>
+             <div class="hint">ليراجعه العميل ويطلب أي تعديل قبل التجهيز — اضغط «إرسال» داخل واتساب.</div>`
+          : `<div class="muted">${icon('info')}رقم العميل ليس رقم موبايل، لا يمكن الإرسال عبر واتساب.</div>`}
         <div class="alert alert-warn demo-only">${icon('info')}<span>طلب تجريبي محفوظ في ذاكرة المتصفح فقط. لم يُرسل إلى أي نظام، ويُحذف عند تحديث الصفحة.</span></div>
       </div>`,
     footer: `
@@ -42,7 +42,7 @@ export function openSuccessDialog(order, { edited = false } = {}) {
   m.foot.querySelector('[data-print]').addEventListener('click', () => openPrintPreview(order));
   m.body.querySelector('[data-wa-send]')?.addEventListener('click', (e) => {
     e.currentTarget.classList.add('is-sent');
-    e.currentTarget.lastChild.textContent = 'اتفتح الواتساب ✓ — ابعت تاني';
+    e.currentTarget.lastChild.textContent = 'تم فتح واتساب ✓ — إرسال مرة أخرى';
   });
   m.foot.querySelector('[data-view]').addEventListener('click', () => m.close());
   m.foot.querySelector('[data-new]').addEventListener('click', () => {

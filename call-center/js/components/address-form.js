@@ -30,7 +30,7 @@ function areaPickerHtml(selectedId) {
         <ul class="combo-list" role="listbox" aria-label="منطقة التوصيل">
           ${areaOptions(selectedId).map((a) => `
             <li role="option" data-value="${esc(a.id)}" data-search="${esc(normalizeArabic(a.name))}" aria-selected="${a.id === selectedId}">${esc(areaText(a))}</li>`).join('')}
-          <li class="combo-empty" hidden>مفيش منطقة بالاسم ده</li>
+          <li class="combo-empty" hidden>لا توجد منطقة بهذا الاسم</li>
         </ul>
       </div>
     </div>`;
