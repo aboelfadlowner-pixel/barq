@@ -14,11 +14,13 @@ const CATEGORY_IMAGES: Record<string, string> = {
   dairy: "/covers/dairy/tile.webp",
   cheese: "/covers/cheese/tile.webp",
   kiri: "/covers/kiri/tile.webp",
+  deli: "/covers/deli/tile.webp",
 };
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
   cheese: "/covers/cheese/icon.webp",
   kiri: "/covers/kiri/icon.webp",
+  deli: "/covers/deli/icon.webp",
 };
 /** Lines under the names of the categories that have a cover (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
@@ -62,7 +64,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 13;
+const SCHEMA = 14;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -142,6 +144,12 @@ export function upgradeStore(data: StoreData): StoreData {
     const kiri = data.categories.find((category) => category.id === "kiri");
     if (kiri && !kiri.imageUrl) kiri.imageUrl = CATEGORY_IMAGES.kiri;
     if (kiri && !kiri.iconUrl) kiri.iconUrl = CATEGORY_ICONS.kiri;
+  }
+  if ((data.schema ?? 1) < 14) {
+    // Cover of «مخللات ومقبلات»: its home-page card and icon, unless the category already has its own.
+    const deli = data.categories.find((category) => category.id === "deli");
+    if (deli && !deli.imageUrl) deli.imageUrl = CATEGORY_IMAGES.deli;
+    if (deli && !deli.iconUrl) deli.iconUrl = CATEGORY_ICONS.deli;
   }
   data.schema = SCHEMA;
   return data;

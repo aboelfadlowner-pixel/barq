@@ -176,12 +176,31 @@ function KiriCover() {
   );
 }
 
+/**
+ * "deli" cover (pickles and starters): four Abu El Fadl tubs — sliced and kalamata olives at the back, mixed pickles and
+ * stuffed lemons in front — as one piece (public/covers/deli/group.webp), since they overlap in the photo.
+ * It rises in with a contact shadow like the dairy cover; position is the `.cvdl-group` rule.
+ */
+function DeliCover() {
+  return (
+    <div className="cvd" role="img" aria-label="مخللات ومقبلات: زيتون شرائح وزيتون كالاماتا ومخلل مشكل وليمون معصفر">
+      <div className="cvd-s" aria-hidden="true">
+        <span className="cvd-p cvdl-group">
+          <i className="sh" />
+          <img src="/covers/deli/group.webp" alt="" decoding="async" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
   dairy: DairyCover,
   cheese: CheeseCover,
   kiri: KiriCover,
+  deli: DeliCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
