@@ -30,11 +30,14 @@ const CATEGORY_TAGLINES: Record<string, string> = {
   imported: "Imported Cheese, Hand-Picked",
 };
 
+const DRINKS_NOTICE = "تنبيه: قسم العصائر والآيس كريم والقهوة للعرض فقط ولا يوجد طلب مباشر من هذا القسم.";
+
 const withImages = (category: Category): Category => ({
   ...category,
   ...(CATEGORY_IMAGES[category.id] ? { imageUrl: CATEGORY_IMAGES[category.id] } : {}),
   ...(CATEGORY_ICONS[category.id] ? { iconUrl: CATEGORY_ICONS[category.id] } : {}),
   ...(CATEGORY_TAGLINES[category.id] ? { tagline: CATEGORY_TAGLINES[category.id] } : {}),
+  ...(category.id === "drinks" ? { notice: DRINKS_NOTICE, displayOnly: true } : {}),
 });
 
 /** The product's photo in public/products when it has none yet. */
@@ -64,7 +67,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 14;
+const SCHEMA = 15;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -150,6 +153,12 @@ export function upgradeStore(data: StoreData): StoreData {
     const deli = data.categories.find((category) => category.id === "deli");
     if (deli && !deli.imageUrl) deli.imageUrl = CATEGORY_IMAGES.deli;
     if (deli && !deli.iconUrl) deli.iconUrl = CATEGORY_ICONS.deli;
+  }
+  if ((data.schema ?? 1) < 15) {
+    // «عصائر وآيس كريم وقهوة» is shown on the site but ordered in the store only: notice and no cart (owner's wording).
+    const drinks = data.categories.find((category) => category.id === "drinks");
+    if (drinks && drinks.notice === undefined) drinks.notice = DRINKS_NOTICE;
+    if (drinks && drinks.notice === DRINKS_NOTICE) drinks.displayOnly = true;
   }
   data.schema = SCHEMA;
   return data;

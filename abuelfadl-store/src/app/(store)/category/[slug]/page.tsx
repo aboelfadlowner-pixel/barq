@@ -65,6 +65,12 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
             </div>
           </div>
         )}
+        {category.notice ? (
+          <p className="cat-notice" role="note">
+            <Icon id="i-info" />
+            <span>{category.notice}</span>
+          </p>
+        ) : null}
         <CategoryProducts categoryId={category.id} />
       </div>
     </div>

@@ -68,6 +68,8 @@ function toCategory(row: Record<string, unknown>): Category {
     ...(row.image_url ? { imageUrl: String(row.image_url) } : {}),
     ...(row.icon_url ? { iconUrl: String(row.icon_url) } : {}),
     ...(row.tagline ? { tagline: String(row.tagline) } : {}),
+    ...(row.notice ? { notice: String(row.notice) } : {}),
+    ...(row.display_only ? { displayOnly: true } : {}),
   };
 }
 
@@ -126,6 +128,8 @@ const categoryRow = (category: Category, position: number) => ({
   image_url: category.imageUrl || null,
   icon_url: category.iconUrl || null,
   tagline: category.tagline || null,
+  notice: category.notice || null,
+  display_only: category.displayOnly === true,
 });
 
 /** The product's own price is kept only while it has no SKU; linked products take the sheet price. */
@@ -240,7 +244,7 @@ async function writeChanges(tx: postgres.TransactionSql, base: StoreData, draft:
     const row = categoryRow(category, i);
     const old = baseCategories.get(category.id);
     if (!old) await tx`insert into store.categories ${tx(row)}`;
-    else if (!same(old, row)) await tx`update store.categories set ${tx(row, "name", "position", "art", "tint", "image_url", "icon_url", "tagline")} where id = ${row.id}`;
+    else if (!same(old, row)) await tx`update store.categories set ${tx(row, "name", "position", "art", "tint", "image_url", "icon_url", "tagline", "notice", "display_only")} where id = ${row.id}`;
   }
 
   const baseProducts = new Map(base.products.map((product, i) => [product.id, productRow(product, i)]));

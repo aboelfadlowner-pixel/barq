@@ -264,6 +264,7 @@ function checkCategoryFields(category: Category) {
   if (!/^#[0-9a-fA-F]{6}$/.test(category.tint)) fields.tint = "يجب أن يكون اللون بالشكل #RRGGBB";
   if (category.imageUrl && !IMAGE_URL.test(category.imageUrl)) fields.imageUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
   if (category.tagline && category.tagline.length > 80) fields.tagline = "الحد الأقصى 80 حرفًا";
+  if (category.notice && category.notice.length > 200) fields.notice = "الحد الأقصى 200 حرف";
   if (category.iconUrl && !IMAGE_URL.test(category.iconUrl)) fields.iconUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
   assertValid(fields);
 }
@@ -281,6 +282,8 @@ export function createCategory(input: CategoryInput): Promise<Category> {
       ...(cleanText(input.imageUrl) ? { imageUrl: cleanText(input.imageUrl) } : {}),
       ...(cleanText(input.iconUrl) ? { iconUrl: cleanText(input.iconUrl) } : {}),
       ...(cleanText(input.tagline) ? { tagline: cleanText(input.tagline) } : {}),
+      ...(cleanText(input.notice) ? { notice: cleanText(input.notice) } : {}),
+      ...(input.displayOnly === true ? { displayOnly: true } : {}),
     };
     checkCategoryFields(category);
     if (category.id === "all" || category.id === "deals" || data.categories.some((c) => c.id === category.id)) {
@@ -309,6 +312,9 @@ export function updateCategory(id: CategoryId, input: CategoryInput): Promise<Ca
     if (iconUrl) category.iconUrl = iconUrl;
     const tagline = input.tagline !== undefined ? cleanText(input.tagline) : current.tagline;
     if (tagline) category.tagline = tagline;
+    const notice = input.notice !== undefined ? cleanText(input.notice) : current.notice;
+    if (notice) category.notice = notice;
+    if (input.displayOnly !== undefined ? input.displayOnly === true : current.displayOnly) category.displayOnly = true;
     checkCategoryFields(category);
     data.categories.splice(index, 1);
     const position = input.position === undefined ? index : Math.max(0, Math.min(data.categories.length, Math.trunc(input.position)));

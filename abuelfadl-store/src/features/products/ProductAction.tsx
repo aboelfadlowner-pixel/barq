@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useCart } from "@/features/cart/CartProvider";
 import { flyToCart } from "@/lib/cart-effects";
 import { decreaseQuantity, increaseQuantity, weightLabel } from "@/lib/quantity";
-import type { CatalogProduct } from "@/features/catalog/CatalogProvider";
+import { useCatalog, type CatalogProduct } from "@/features/catalog/CatalogProvider";
 import { useProductSheet } from "./ProductSheet";
 
 /** After the card's controls change (add button <-> stepper), keeps keyboard focus on the matching control, as v29 does. */
@@ -22,13 +22,16 @@ function focusInCard(from: HTMLElement, selectors: string[]) {
 /**
  * The control inside a product card's photo (v29 `actionHTML`):
  * unavailable -> disabled add button; weighed -> opens the product sheet (button shows the chosen weight);
- * piece product -> add button, then a +/- stepper once it is in the cart.
+ * piece product -> add button, then a +/- stepper once it is in the cart. Display-only categories: no control.
  */
 export function ProductAction({ product }: { product: CatalogProduct }) {
   const { quantityOf, setQuantity } = useCart();
   const { showToast } = useChrome();
   const { openProduct } = useProductSheet();
+  const { getCategory } = useCatalog();
   const quantity = quantityOf(product.id);
+
+  if (getCategory(product.categoryId)?.displayOnly) return null;
 
   if (!product.inStock) {
     return (

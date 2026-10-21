@@ -109,8 +109,12 @@ function CategoryRow({
   const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
   const [iconUrl, setIconUrl] = useState(category.iconUrl ?? "");
   const [tagline, setTagline] = useState(category.tagline ?? "");
+  const [notice, setNotice] = useState(category.notice ?? "");
+  const [displayOnly, setDisplayOnly] = useState(Boolean(category.displayOnly));
   const dirty =
     tagline.trim() !== (category.tagline ?? "") ||
+    notice.trim() !== (category.notice ?? "") ||
+    displayOnly !== Boolean(category.displayOnly) ||
     name !== category.name ||
     imageUrl.trim() !== (category.imageUrl ?? "") ||
     iconUrl.trim() !== (category.iconUrl ?? "");
@@ -145,6 +149,20 @@ function CategoryRow({
           aria-label="جملة القسم تحت اسمه في صفحته"
           maxLength={80}
         />
+        <small className="muted cat-tagline-label">تنبيه القسم (يظهر فوق منتجاته)</small>
+        <textarea
+          className="input cat-tagline"
+          rows={2}
+          placeholder="اختياري، مثلًا: هذا القسم للعرض فقط"
+          value={notice}
+          onChange={(e) => setNotice(e.target.value)}
+          aria-label="تنبيه القسم فوق منتجاته"
+          maxLength={200}
+        />
+        <label className="check">
+          <input type="checkbox" checked={displayOnly} onChange={(e) => setDisplayOnly(e.target.checked)} />
+          للعرض فقط: منتجاته تظهر ولا تُضاف إلى السلة
+        </label>
         <div className="cat-images">
           <div>
             <small className="muted">صورة الكارت في الرئيسية (طولية 4:5)</small>
@@ -156,7 +174,7 @@ function CategoryRow({
           </div>
         </div>
       </div>
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim() })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim(), notice: notice.trim(), displayOnly })}>
         حفظ
       </button>
       <button
@@ -174,7 +192,7 @@ function CategoryRow({
 }
 
 function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
-  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "", iconUrl: "", tagline: "" });
+  const [form, setForm] = useState({ id: "", name: "", art: "a-bowl", tint: "#EEF6EC", imageUrl: "", iconUrl: "", tagline: "", notice: "", displayOnly: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -204,6 +222,13 @@ function NewCategory({ onDone }: { onDone: (created: boolean) => void }) {
       <Field label="جملة القسم" error={errors.tagline} hint="اختياري: تظهر تحت اسم القسم في صفحته، بالعربي أو بالإنجليزي.">
         <input className="input" dir="auto" value={form.tagline} maxLength={80} onChange={(e) => setForm({ ...form, tagline: e.target.value })} placeholder="مثلًا: Fresh Dairy, Every Day" />
       </Field>
+      <Field label="تنبيه القسم" error={errors.notice} hint="اختياري: يظهر فوق منتجات القسم في صفحته.">
+        <textarea className="input" rows={2} value={form.notice} maxLength={200} onChange={(e) => setForm({ ...form, notice: e.target.value })} placeholder="مثلًا: هذا القسم للعرض فقط" />
+      </Field>
+      <label className="check">
+        <input type="checkbox" checked={form.displayOnly} onChange={(e) => setForm({ ...form, displayOnly: e.target.checked })} />
+        للعرض فقط: منتجاته تظهر ولا تُضاف إلى السلة
+      </label>
       <div className="grid2">
         <Field label="صورة الكارت في الرئيسية" error={errors.imageUrl} hint="اختياري: طولية 4:5، تظهر في «تسوّق حسب القسم».">
           <ImagePicker value={form.imageUrl} onChange={(url) => setForm({ ...form, imageUrl: url })} shape="tall" compact />

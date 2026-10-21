@@ -64,6 +64,7 @@ export function ProductSheetProvider({ children }: { children: React.ReactNode }
   const product = productId === null ? undefined : getProduct(productId);
   const category = product ? getCategory(product.categoryId) : undefined;
   const inCart = product ? quantityOf(product.id) : 0;
+  const displayOnly = Boolean(category?.displayOnly);
 
   const step = product ? stepOf(product) : 1;
   const min = product ? minQuantityOf(product) : 1;
@@ -146,7 +147,12 @@ export function ProductSheetProvider({ children }: { children: React.ReactNode }
           </div>
         )}
         <p className="desc">يُحضَّر ويُحفظ بعناية ليصلك طازجًا. التفاصيل الكاملة (الوزن والمكوّنات) تُضاف من بيانات المتجر.</p>
-        <div className="wpick" id="pdW" hidden={!product?.weighed}>
+        {displayOnly ? (
+          <p className="pd-notice" role="note">
+            {category?.notice || "هذا المنتج للعرض فقط ولا يُطلب من الموقع."}
+          </p>
+        ) : null}
+        <div className="wpick" id="pdW" hidden={!product?.weighed || displayOnly}>
           <p>اختر الوزن</p>
           {product?.weighed && qtyControl}
           <div className="wchips" id="pdWc">
@@ -161,7 +167,7 @@ export function ProductSheetProvider({ children }: { children: React.ReactNode }
               })}
           </div>
         </div>
-        <div className="sh-row">
+        <div className="sh-row" hidden={displayOnly}>
           {!product?.weighed && qtyControl}
           <button className="btn btn-primary" type="button" id="pdAdd" ref={addRef} disabled={!product?.inStock} onClick={addToCart}>
             {addLabel}

@@ -18,4 +18,8 @@ export interface Category {
   iconUrl?: string;
   /** Short line under the category name on its page, e.g. "Fresh Dairy, Every Day" (dashboard «جملة القسم»). */
   tagline?: string;
+  /** Notice shown at the top of the category page, e.g. «للعرض فقط» (dashboard «تنبيه القسم»). */
+  notice?: string;
+  /** Products of this category are shown but cannot be added to the cart or ordered from the site. */
+  displayOnly?: boolean;
 }

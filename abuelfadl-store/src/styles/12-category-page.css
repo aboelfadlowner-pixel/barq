@@ -34,3 +34,7 @@
 .wchips button{display:grid;gap:1px;justify-items:center;padding:8px 4px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:center;line-height:1.35}
 .wchips button b{font-size:.84rem;font-weight:600}.wchips small{color:var(--muted);font-size:.74rem}
 .wchips button[aria-pressed="true"]{border-color:var(--brand);background:var(--bg-tint);color:var(--brand-ink)}
+
+/* category notice (dashboard «تنبيه القسم»), e.g. a display-only category */
+.cat-notice{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:12px 16px;border-radius:16px;background:var(--gold-soft);border:1px solid #F1DDAE;color:#5C4210;font-size:.9375rem;font-weight:500;line-height:1.6}
+.cat-notice svg{flex:none;width:20px;height:20px;margin-top:2px}

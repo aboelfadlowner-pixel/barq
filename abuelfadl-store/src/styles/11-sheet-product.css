@@ -19,3 +19,6 @@
 .foot-grid{grid-template-columns:1fr}
 @media(min-width:800px){.foot-grid{grid-template-columns:1.3fr 1fr 1fr 1fr}}
 .foot ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;color:var(--muted)}
+
+/* display-only product: the category notice instead of the quantity and add button */
+.sheet .pd-notice{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--gold-soft);border:1px solid #F1DDAE;color:#5C4210;font-weight:500;line-height:1.6}

@@ -182,6 +182,12 @@ function CategoryPage({ slug, categories, offersTitle }: { slug: string; categor
             </div>
           </div>
         )}
+        {category.notice ? (
+          <p className="cat-notice" role="note">
+            <Icon id="i-info" />
+            <span>{category.notice}</span>
+          </p>
+        ) : null}
         <CategoryProducts categoryId={category.id} />
       </div>
     </div>

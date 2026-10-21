@@ -39,7 +39,12 @@ type Quantities = Record<number, number>;
  * and the first client render match; products that no longer exist or are unavailable are dropped.
  */
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { getProduct } = useCatalog();
+  const { getProduct, getCategory } = useCatalog();
+  /** In stock and not in a display-only category (those are shown on the site but not ordered from it). */
+  const orderable = useCallback(
+    (product: { inStock: boolean; categoryId: string }) => product.inStock && !getCategory(product.categoryId)?.displayOnly,
+    [getCategory],
+  );
   const [quantities, setQuantities] = useState<Quantities>({});
   const [restored, setRestored] = useState(false);
 
@@ -50,14 +55,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       for (const [key, raw] of Object.entries(stored)) {
         const product = getProduct(Number(key));
         const quantity = Number(raw);
-        if (product && product.inStock && quantity > 0) next[product.id] = Math.min(quantity, MAX_RESTORED_QUANTITY);
+        if (product && orderable(product) && quantity > 0) next[product.id] = Math.min(quantity, MAX_RESTORED_QUANTITY);
       }
     } catch {
       // unreadable or blocked storage: start with an empty cart
     }
     setQuantities(next);
     setRestored(true);
-  }, [getProduct]);
+  }, [getProduct, orderable]);
 
   useEffect(() => {
     if (!restored) return;
@@ -74,12 +79,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (!product) return;
       setQuantities((current) => {
         const next = { ...current };
-        if (quantity <= 0 || !product.inStock) delete next[id];
+        if (quantity <= 0 || !orderable(product)) delete next[id];
         else next[id] = Math.min(roundQty(quantity), maxQuantityOf(product));
         return next;
       });
     },
-    [getProduct],
+    [getProduct, orderable],
   );
 
   const clear = useCallback(() => setQuantities({}), []);

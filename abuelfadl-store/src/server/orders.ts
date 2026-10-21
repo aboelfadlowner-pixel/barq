@@ -54,11 +54,13 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     if (!items.length || items.length > 200) throw new ApiError(400, "السلة فارغة");
 
     const byId = new Map(data.products.map((product) => [product.id, product]));
+    const displayOnly = new Set(data.categories.filter((category) => category.displayOnly).map((category) => category.id));
     const today = cairoToday();
     const lines: OrderLine[] = [];
     for (const item of items) {
       const product = byId.get(Number(item.productId));
       if (!product || product.priceMissing) throw new ApiError(409, "أحد المنتجات في السلة لم يعد متوفرًا. حدّث الصفحة وحاول مرة أخرى.");
+      if (displayOnly.has(product.categoryId)) throw new ApiError(409, `«${product.name}» للعرض فقط ولا يُطلب من الموقع. احذفه من السلة وأكمل طلبك.`);
       if (!product.inStock) throw new ApiError(409, `«${product.name}» غير متوفر حاليًا. احذفه من السلة وأكمل طلبك.`);
       const quantity = Number(item.quantity);
       // Pieces: 1 to 20. Weighed: from the product's minimum, in its steps, up to its maximum (dashboard settings).
