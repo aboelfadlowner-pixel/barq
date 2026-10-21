@@ -46,8 +46,6 @@ function load(): StoreData {
   return applySnapshot(seedStore());
 }
 
-let cache: StoreData = load();
-
 function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(cache));
@@ -55,6 +53,10 @@ function persist() {
     // storage blocked: changes stay in memory until the page is closed
   }
 }
+
+// Saved right away so the snapshot's SKUs and prices survive the next visit (the marker alone would skip them).
+let cache: StoreData = load();
+persist();
 
 export async function read(): Promise<StoreData> {
   return cache;
