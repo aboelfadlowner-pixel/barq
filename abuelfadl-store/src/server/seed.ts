@@ -1,8 +1,10 @@
 import { categories as seedCategories } from "../data/categories";
 import { DEFAULT_SETTINGS, OLD_DEFAULT_TEXTS, OLD_NOTICE } from "../lib/settings";
 import { products as seedProducts } from "../data/products";
+import { productPhotoIds } from "../data/photos";
 import { productSkus } from "../data/skus";
 import type { Category } from "../types/category";
+import type { Product } from "../types/product";
 import type { StoreData } from "./db";
 
 /** Photos of the categories that already have one: home-page card (4:5) and, when different, the small round icon. */
@@ -29,6 +31,10 @@ const withImages = (category: Category): Category => ({
   ...(CATEGORY_TAGLINES[category.id] ? { tagline: CATEGORY_TAGLINES[category.id] } : {}),
 });
 
+/** The product's photo in public/products when it has none yet. */
+const withPhoto = (product: Product): Product =>
+  product.imageUrl || !productPhotoIds.has(product.id) ? product : { ...product, imageUrl: `/products/${product.id}.webp` };
+
 /** First contents of the data store: the v29 catalog with the Foodics SKUs from the WooCommerce export. */
 /**
  * The old static «العروض» category (28 products) from the WooCommerce store, removed at the owner's request: offers now
@@ -41,7 +47,8 @@ export function seedStore(): StoreData {
     categories: seedCategories.filter((category) => category.id !== REMOVED_CATEGORY).map(withImages),
     products: seedProducts
       .filter((product) => product.categoryId !== REMOVED_CATEGORY)
-      .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product })),
+      .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product }))
+      .map(withPhoto),
     orders: [],
     orderSeq: 0,
     syncLog: [],
@@ -51,7 +58,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 10;
+const SCHEMA = 11;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -115,6 +122,10 @@ export function upgradeStore(data: StoreData): StoreData {
       if (category.imageUrl?.startsWith("/covers/imported/")) category.imageUrl = "";
       if (category.iconUrl?.startsWith("/covers/imported/")) category.iconUrl = "";
     }
+  }
+  if ((data.schema ?? 1) < 11) {
+    // Photos of 553 products, taken from the old store (public/products): only for products that have none.
+    data.products = data.products.map(withPhoto);
   }
   data.schema = SCHEMA;
   return data;
