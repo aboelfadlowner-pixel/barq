@@ -1,5 +1,6 @@
 import type { LoginAttempts, StoreData } from "../../src/server/db";
 import { seedStore, upgradeStore } from "../../src/server/seed";
+import { DB_SNAPSHOT } from "../db-snapshot";
 
 /**
  * Browser version of `src/server/db.ts` for the demo build: same `read` / `mutate` API,
@@ -7,14 +8,42 @@ import { seedStore, upgradeStore } from "../../src/server/seed";
  */
 const KEY = "abuelfadl_demo_db_v1"; // older saved data is upgraded by `upgradeStore`
 
+const SNAPSHOT_KEY = "abuelfadl_demo_db_snapshot";
+
+/** SKUs and prices from the database snapshot (demo/db-snapshot.ts), applied once per snapshot version. */
+function applySnapshot(data: StoreData): StoreData {
+  try {
+    if (localStorage.getItem(SNAPSHOT_KEY) === DB_SNAPSHOT.version) return data;
+  } catch {
+    // no storage: apply every time (the data is not kept anyway)
+  }
+  const rows = new Map(DB_SNAPSHOT.rows.split(";").map((row) => {
+    const [id, sku, price] = row.split(",");
+    return [Number(id), { sku, price: Number(price) }] as const;
+  }));
+  for (const product of data.products) {
+    const row = rows.get(product.id);
+    if (!row) continue;
+    if (row.sku) product.sku = row.sku;
+    else delete product.sku;
+    product.price = row.price;
+  }
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, DB_SNAPSHOT.version);
+  } catch {
+    // ignore
+  }
+  return data;
+}
+
 function load(): StoreData {
   try {
     const saved = localStorage.getItem(KEY);
-    if (saved) return upgradeStore(JSON.parse(saved) as StoreData);
+    if (saved) return applySnapshot(upgradeStore(JSON.parse(saved) as StoreData));
   } catch {
     // unreadable or blocked storage: start from the original data
   }
-  return seedStore();
+  return applySnapshot(seedStore());
 }
 
 let cache: StoreData = load();
@@ -59,6 +88,11 @@ export function snapshot(): StoreData {
 
 /** Back to the original 621 products and no orders. */
 export function resetData() {
-  cache = seedStore();
+  try {
+    localStorage.removeItem(SNAPSHOT_KEY);
+  } catch {
+    // ignore
+  }
+  cache = applySnapshot(seedStore());
   persist();
 }
