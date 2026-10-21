@@ -133,10 +133,33 @@ function DairyCover() {
   );
 }
 
+/**
+ * "cheese" cover: four cheeses on wooden plates (public/covers/cheese/*.webp) — the pepper and white blocks at the back,
+ * shredded cheddar and mozzarella in front — each with a contact shadow; they rise in like the dairy cover.
+ * Same scene and animation as `.cvd`; positions are the `.cvch-*` rules in 24-category-covers.css.
+ */
+const CHEESE_PIECES = ["feta-pepper", "white-block", "cheddar-shred", "mozz-shred"] as const;
+
+function CheeseCover() {
+  return (
+    <div className="cvd" role="img" aria-label="أجبان: جبنة بالفلفل وجبنة بيضاء وشيدر وموتزاريلا مبشورة على أطباق خشب">
+      <div className="cvd-s" aria-hidden="true">
+        {CHEESE_PIECES.map((name) => (
+          <span key={name} className={`cvd-p cvch-${name}`}>
+            <i className="sh" />
+            <img src={`/covers/cheese/${name}.webp`} alt="" decoding="async" />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
   dairy: DairyCover,
+  cheese: CheeseCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */

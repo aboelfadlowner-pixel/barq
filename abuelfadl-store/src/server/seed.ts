@@ -12,9 +12,11 @@ const CATEGORY_IMAGES: Record<string, string> = {
   sandwich: "/covers/sandwich/tile.webp",
   juice: "/covers/juice/tile.webp",
   dairy: "/covers/dairy/tile.webp",
+  cheese: "/covers/cheese/tile.webp",
 };
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
+  cheese: "/covers/cheese/icon.webp",
 };
 /** Lines under the names of the categories that have a cover (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
@@ -58,7 +60,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 11;
+const SCHEMA = 12;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -126,6 +128,12 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 11) {
     // Photos of 553 products, taken from the old store (public/products): only for products that have none.
     data.products = data.products.map(withPhoto);
+  }
+  if ((data.schema ?? 1) < 12) {
+    // Cover of «أجبان»: its home-page card and icon, unless the category already has its own.
+    const cheese = data.categories.find((category) => category.id === "cheese");
+    if (cheese && !cheese.imageUrl) cheese.imageUrl = CATEGORY_IMAGES.cheese;
+    if (cheese && !cheese.iconUrl) cheese.iconUrl = CATEGORY_ICONS.cheese;
   }
   data.schema = SCHEMA;
   return data;
