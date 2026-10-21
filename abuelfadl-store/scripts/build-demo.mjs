@@ -12,10 +12,14 @@ const OUT = r("demo/dist/abuelfadl-demo.html");
 // ---- public/ files as data URIs
 const MIME = { ".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".woff": "font/woff", ".woff2": "font/woff2" };
 const assets = {};
+// Product photos: only the ones the demo's starting catalog uses (the database store has photos for every product;
+// embedding them all would make the page several times larger).
+const catalogSource = readFileSync(r("src/data/products.ts"), "utf8");
 (function walk(dir) {
   for (const name of readdirSync(dir)) {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) walk(full);
+    else if (path.basename(dir) === "products" && !catalogSource.includes(`/products/${name}`)) continue;
     else if (MIME[path.extname(name)]) {
       assets["/" + path.relative(r("public"), full).split(path.sep).join("/")] = `data:${MIME[path.extname(name)]};base64,${readFileSync(full).toString("base64")}`;
     }
