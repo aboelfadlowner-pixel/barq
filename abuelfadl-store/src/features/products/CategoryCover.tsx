@@ -155,11 +155,33 @@ function CheeseCover() {
   );
 }
 
+/**
+ * "kiri" cover (spreads and creations): four Abu El Fadl spread tubs (public/covers/kiri/*.webp), two at the back and two
+ * in front, each with a contact shadow; they rise in like the dairy cover. Positions are the `.cvk-*` rules.
+ */
+const KIRI_PIECES = ["tub-tl", "tub-tr", "tub-bl", "tub-br"] as const;
+
+function KiriCover() {
+  return (
+    <div className="cvd" role="img" aria-label="كيريهات وابتكارات: أربع علب سبريد أبو الفضل">
+      <div className="cvd-s" aria-hidden="true">
+        {KIRI_PIECES.map((name) => (
+          <span key={name} className={`cvd-p cvk-${name}`}>
+            <i className="sh" />
+            <img src={`/covers/kiri/${name}.webp`} alt="" decoding="async" />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
   dairy: DairyCover,
   cheese: CheeseCover,
+  kiri: KiriCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */

@@ -79,6 +79,11 @@
 .cvch-white-block{left:46.88%;top:27.50%;width:35.00%;z-index:1;--dl:0.22s}
 .cvch-cheddar-shred{left:13.44%;top:61.10%;width:38.12%;z-index:3;--dl:0.4s}
 .cvch-mozz-shred{left:49.69%;top:62.20%;width:36.88%;z-index:3;--dl:0.52s}
+/* kiri cover (KiriCover): four Abu El Fadl spread tubs, same scene and rise as the dairy cover */
+.cvk-tub-tl{left:21.88%;top:29.40%;width:32.50%;z-index:1;--dl:0.1s}
+.cvk-tub-tr{left:46.88%;top:26.90%;width:32.50%;z-index:1;--dl:0.22s}
+.cvk-tub-bl{left:16.88%;top:59.20%;width:33.75%;z-index:3;--dl:0.4s}
+.cvk-tub-br{left:50.62%;top:57.90%;width:33.75%;z-index:3;--dl:0.52s}
 @keyframes cvdRise{from{opacity:0;transform:translateY(16%)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.cvd-p{animation:none;opacity:1}}
 /* Banner layout for every category with a cover: phone = scene on top, title and line below;
