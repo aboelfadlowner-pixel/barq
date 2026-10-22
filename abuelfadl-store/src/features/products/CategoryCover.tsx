@@ -194,24 +194,6 @@ function DeliCover() {
   );
 }
 
-/**
- * "imported" cover (imported cheese): Jacks Herbs and Lavender, Amanti Avocado, Dutch Touch and Grana Padano wheels with
- * their wedges, as one piece (public/covers/imported/group.webp) since they overlap in the photo. Same entrance as the
- * deli cover; position is the `.cvim-group` rule.
- */
-function ImportedCover() {
-  return (
-    <div className="cvd" role="img" aria-label="أجبان مستوردة: جاكس بالأعشاب وباللافندر وأمانتي بالأفوكادو وداتش تاتش وجرانا بادانو">
-      <div className="cvd-s" aria-hidden="true">
-        <span className="cvd-p cvim-group">
-          <i className="sh" />
-          <img src="/covers/imported/group.webp" alt="" decoding="async" />
-        </span>
-      </div>
-    </div>
-  );
-}
-
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
@@ -219,7 +201,6 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   cheese: CheeseCover,
   kiri: KiriCover,
   deli: DeliCover,
-  imported: ImportedCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
