@@ -4048,7 +4048,7 @@ function renderPriceCheckEntry() {
     '<div style="margin-top:16px">' +
       '<button class="big-action-btn" style="background:var(--accent);color:#fff" onclick="printPriceLabels()">🏷️ طباعة ملصقات الأسعار</button>' +
       '<button class="big-action-btn" style="background:#e67e22;color:#fff" onclick="printFruitLabels()">🍎 ملصقات فاكهة كبيرة (السعر فاضي)</button>' +
-      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printBlankPriceBoxes()">✍️ مربعات سعر فاضية للكتابة باليد</button>' +
+      '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="openFruitPricePanel()">💰 أسعار الفاكهة النهارده (طباعة مربعات السعر)</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="exportPriceCheckReport()">📊 تصدير تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="printPriceCheckReport()">🖨️ طباعة تقرير المشاكل</button>' +
       '<button class="big-action-btn" style="background:#b8860b;color:#fff" onclick="printTodayPriceChanges()">💰 طباعة تغييرات الأسعار اليوم</button>' +
@@ -4151,11 +4151,26 @@ function printPriceLabels() {
   });
 }
 
-// ملصقات الفاكهة: نفس الملصق العادي بس ضعف الطول والعرض (4 أضعاف المساحة) — الاسم والباركود مطبوعين،
-// ومكان السعر مربع فاضي بمقاس مربع السعر الصغير بالظبط، عشان سعر الفاكهة بيتغيّر يومياً فبنكتبه باليد
-// على المربع الصغير ونلزقه مكانه بدل ما نطبع الملصق الكبير كل يوم
-var FRUIT_BOX_W_MM = 58, FRUIT_BOX_H_MM = 30;          // مقاس مربع السعر الصغير (= مقاس الملصق العادي تقريباً)
-var FRUIT_TAG_W_MM = 116, FRUIT_TAG_H_MM = 62;         // ضعف الطول والعرض
+// ملصقات الفاكهة: ضعف طول وعرض الملصق العادي تقريباً — اللوجو كبير فوق في النص، تحته اسم الصنف كبير،
+// وتحته مربع فاضي مكان السعر. سعر الفاكهة بيتغيّر يومياً، فبنطبع السعر لوحده على "مربع سعر" صغير
+// بنفس مقاس المربع الفاضي بالظبط (من شاشة أسعار الفاكهة) ونلزقه مكانه بدل ما نطبع الملصق الكبير كل يوم
+var FRUIT_BOX_W_MM = 58, FRUIT_BOX_H_MM = 30;          // مقاس مربع السعر الصغير
+var FRUIT_TAG_W_MM = 116, FRUIT_TAG_H_MM = 66;         // مقاس ملصق الفاكهة الكبير
+var FRUIT_PRICE_STEP = 0.5;                            // كل ضغطة على السهم بتزوّد/تنقّص نص جنيه
+var LS_FRUIT_PRICES = 'barq_fruit_prices_v1';          // آخر سعر اتطبع لكل صنف — عشان بكرة يبدأ من سعر النهارده
+// لوجو أبو الفضل بدقة أعلى (260×400) للملصق الكبير — النسخة الصغيرة بتطلع مشوشة لما تتكبّر
+var FRUIT_LOGO_DATA_URL = 'data:image/jpeg;base64,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';
+
+function fruitItems() {
+  var seen = {}, out = [];
+  priceCheckItems.forEach(function(it){
+    var key = it.sku || it.bc || it.name;
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push(it);
+  });
+  return out;
+}
 
 function printFruitLabels() {
   var tags = [];
@@ -4165,55 +4180,129 @@ function printFruitLabels() {
   });
   if (!tags.length) { toast('⚠️ امسح صنف واحد على الأقل قبل الطباعة'); return; }
 
-  toast('⏳ جاري تجهيز ملصقات الفاكهة...');
-  loadBarcodeLib(function(){
-    var cells = tags.map(function(it){
-      var bcValue = it.bc || it.sku;
-      var bcImg = generateBarcodeDataUrl(bcValue);
-      return '<div class="ftag">' +
-        '<div class="ftag-header"><img class="ftag-logo" src="'+SHOP_LOGO_DATA_URL+'"><span class="ftag-name">'+it.name+'</span></div>' +
-        '<div class="ftag-box"><span class="ftag-box-hint">مكان السعر</span></div>' +
-        (bcImg ? '<img class="ftag-bc-img" src="'+bcImg+'">' : '') +
-        '<div class="ftag-bc-num">'+bcValue+'</div>' +
-      '</div>';
-    });
-
-    var win = window.open('', '_blank');
-    if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
-    win.document.write(
-      '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الفاكهة</title>' +
-      '<style>' +
-      '@page{size:A4;margin:8mm}' +
-      'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:6mm}' +
-      '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
-      '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+FRUIT_TAG_H_MM+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
-        'display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
-      '.ftag-header{display:flex;align-items:center;justify-content:center;gap:8px;max-width:100%}' +
-      '.ftag-logo{width:34px;height:34px;object-fit:contain;flex-shrink:0}' +
-      '.ftag-name{font-weight:800;font-size:28px;color:#1a1a1a;line-height:1.1;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}' +
-      // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
-      '.ftag-box{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;position:relative;box-sizing:border-box}' +
-      '.ftag-box-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;color:#ccc}' +
-      '.ftag-bc-img{max-width:60%;height:22px}' +
-      '.ftag-bc-num{font-size:12px;letter-spacing:1px;color:#333}' +
-      '</style></head><body>' +
-      '<div class="wrap">'+cells.join('')+'</div>' +
-      '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
-      '</body></html>'
-    );
-    win.document.close();
+  var cells = tags.map(function(it){
+    return '<div class="ftag">' +
+      '<img class="ftag-logo" src="'+FRUIT_LOGO_DATA_URL+'">' +
+      '<div class="ftag-name">'+it.name+'</div>' +
+      '<div class="ftag-box"></div>' +
+    '</div>';
   });
+
+  var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الفاكهة</title>' +
+    '<style>' +
+    '@page{size:A4;margin:8mm}' +
+    'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
+    '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
+    '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+FRUIT_TAG_H_MM+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:2mm 3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
+    '.ftag-logo{height:18mm;width:auto;object-fit:contain;flex-shrink:0}' +
+    '.ftag-name{font-weight:900;font-size:36px;color:#1a1a1a;line-height:1.05;text-align:center;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}' +
+    // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
+    '.ftag-box{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box}' +
+    '</style></head><body>' +
+    '<div class="wrap">'+cells.join('')+'</div>' +
+    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
-// ورقة مربعات سعر فاضية بمقاس مكان السعر في ملصق الفاكهة الكبير — بتتكتب باليد وتتلزق مكان السعر يومياً
-function printBlankPriceBoxes() {
-  var n = parseInt(prompt('عدد مربعات السعر المطلوبة؟', '24'), 10);
-  if (!n || n < 1) return;
-  if (n > 300) n = 300;
-  var boxes = [];
-  for (var i=0; i<n; i++) {
-    boxes.push('<div class="pbox"><span class="pbox-label">السعر</span><span class="pbox-unit">جنيه / كجم</span></div>');
-  }
+function loadFruitPrices() {
+  try { return JSON.parse(localStorage.getItem(LS_FRUIT_PRICES) || '{}'); } catch(e) { return {}; }
+}
+
+// شاشة أسعار الفاكهة: لكل صنف ممسوح، خانة سعر بأسهم (+/−) أو كتابة مباشرة، وعدد المربعات المطلوبة
+function openFruitPricePanel() {
+  var items = fruitItems();
+  if (!items.length) { toast('⚠️ امسح أصناف الفاكهة الأول'); return; }
+  var saved = loadFruitPrices();
+  closeFruitPricePanel();
+
+  var rows = items.map(function(it, i){
+    var key = it.sku || it.bc || it.name;
+    var price = saved[key] != null ? saved[key] : (it.system_price || '');
+    return '<div class="fp-row" data-key="'+key+'">' +
+      '<div class="fp-name">'+it.name+'</div>' +
+      '<div class="fp-ctrl">' +
+        '<button type="button" class="fp-step" onclick="fruitPriceStep('+i+',-1)">−</button>' +
+        '<input type="number" inputmode="decimal" step="'+FRUIT_PRICE_STEP+'" min="0" class="fp-price" id="fp-price-'+i+'" value="'+price+'">' +
+        '<button type="button" class="fp-step" onclick="fruitPriceStep('+i+',1)">+</button>' +
+        '<span class="fp-x">×</span>' +
+        '<input type="number" inputmode="numeric" min="0" class="fp-qty" id="fp-qty-'+i+'" value="'+(parseInt(it.label_qty)||1)+'" title="عدد المربعات">' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  var ov = document.createElement('div');
+  ov.id = 'fruit-price-panel';
+  ov.innerHTML =
+    '<style>' +
+    '#fruit-price-panel{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto}' +
+    '#fruit-price-panel .fp-card{background:#fff;border-radius:14px;width:100%;max-width:520px;padding:16px}' +
+    '#fruit-price-panel h3{margin:0 0 4px;font-size:17px}' +
+    '#fruit-price-panel .fp-sub{font-size:12px;color:#777;margin-bottom:12px}' +
+    '#fruit-price-panel .fp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee;flex-wrap:wrap}' +
+    '#fruit-price-panel .fp-name{font-weight:800;font-size:15px;flex:1;min-width:120px}' +
+    '#fruit-price-panel .fp-ctrl{display:flex;align-items:center;gap:4px;direction:ltr}' +
+    '#fruit-price-panel .fp-step{width:42px;height:42px;border-radius:10px;border:1px solid #ccc;background:#f4f4f4;font-size:22px;font-weight:800;cursor:pointer}' +
+    '#fruit-price-panel .fp-price{width:84px;height:42px;font-size:20px;font-weight:800;text-align:center;border:2px solid #2d8653;border-radius:10px}' +
+    '#fruit-price-panel .fp-x{color:#999;margin:0 2px}' +
+    '#fruit-price-panel .fp-qty{width:52px;height:42px;font-size:16px;text-align:center;border:1px solid #ccc;border-radius:10px}' +
+    '#fruit-price-panel .fp-actions{display:flex;gap:8px;margin-top:14px}' +
+    '#fruit-price-panel .fp-actions button{flex:1;padding:12px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;border:none}' +
+    '</style>' +
+    '<div class="fp-card">' +
+      '<h3>💰 أسعار الفاكهة النهارده</h3>' +
+      '<div class="fp-sub">عدّل السعر بالأسهم (نص جنيه كل ضغطة) أو اكتبه، وجنبه عدد المربعات. السعر بيتحفظ لبكرة.</div>' +
+      rows +
+      '<div class="fp-actions">' +
+        '<button type="button" style="background:#2d8653;color:#fff" onclick="printFruitPriceStickers()">🖨️ طباعة مربعات السعر</button>' +
+        '<button type="button" style="background:#eee;color:#333" onclick="closeFruitPricePanel()">إغلاق</button>' +
+      '</div>' +
+    '</div>';
+  ov.addEventListener('click', function(e){ if (e.target === ov) closeFruitPricePanel(); });
+  document.body.appendChild(ov);
+}
+
+function closeFruitPricePanel() {
+  var ov = document.getElementById('fruit-price-panel');
+  if (ov) ov.remove();
+}
+
+function fruitPriceStep(i, dir) {
+  var inp = document.getElementById('fp-price-'+i);
+  if (!inp) return;
+  var v = parseFloat(inp.value) || 0;
+  v = Math.max(0, Math.round((v + dir*FRUIT_PRICE_STEP) / FRUIT_PRICE_STEP) * FRUIT_PRICE_STEP);
+  inp.value = v;
+}
+
+// مربعات السعر المطبوعة: نفس مقاس المربع الفاضي في ملصق الفاكهة، فيها السعر كبير + اسم الصنف صغير
+// فوق عشان تعرف كل مربع يتلزق على أنهي ملصق
+function printFruitPriceStickers() {
+  var rows = document.querySelectorAll('#fruit-price-panel .fp-row');
+  var saved = loadFruitPrices();
+  var items = fruitItems();
+  var boxes = [], missing = 0;
+  rows.forEach(function(row, i){
+    var price = parseFloat(document.getElementById('fp-price-'+i).value);
+    var qty = parseInt(document.getElementById('fp-qty-'+i).value) || 0;
+    if (!(price > 0)) { if (qty > 0) missing++; return; }
+    saved[row.getAttribute('data-key')] = price;
+    for (var k=0; k<qty; k++) {
+      boxes.push('<div class="pbox">' +
+        '<span class="pbox-name">'+items[i].name+'</span>' +
+        '<span class="pbox-price">'+fmt(price)+'</span>' +
+        '<span class="pbox-unit">جنيه / كجم</span>' +
+      '</div>');
+    }
+  });
+  try { localStorage.setItem(LS_FRUIT_PRICES, JSON.stringify(saved)); } catch(e) {}
+  if (!boxes.length) { toast('⚠️ اكتب سعر صنف واحد على الأقل'); return; }
+
   var win = window.open('', '_blank');
   if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
@@ -4222,15 +4311,18 @@ function printBlankPriceBoxes() {
     '@page{size:A4;margin:8mm}' +
     'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
     '.wrap{display:flex;flex-wrap:wrap;gap:4mm;justify-content:center}' +
-    '.pbox{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;border:1.5px dashed #777;border-radius:6px;position:relative;box-sizing:border-box;background:#fff;page-break-inside:avoid;break-inside:avoid}' +
-    '.pbox-label{position:absolute;top:1.5mm;right:2.5mm;font-size:10px;font-weight:700;color:#0f5c2e}' +
-    '.pbox-unit{position:absolute;bottom:1.5mm;left:2.5mm;font-size:10px;font-weight:700;color:#555}' +
+    '.pbox{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;border:1.5px dashed #777;border-radius:6px;position:relative;box-sizing:border-box;background:#fff;' +
+      'display:flex;align-items:center;justify-content:center;page-break-inside:avoid;break-inside:avoid}' +
+    '.pbox-name{position:absolute;top:1.2mm;right:2.5mm;left:2.5mm;font-size:10px;font-weight:700;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}' +
+    '.pbox-price{font-family:Arial,sans-serif;font-size:58px;font-weight:900;color:#0f5c2e;line-height:1;margin-top:2mm}' +
+    '.pbox-unit{position:absolute;bottom:1.2mm;left:2.5mm;font-size:10px;font-weight:700;color:#555}' +
     '</style></head><body>' +
     '<div class="wrap">'+boxes.join('')+'</div>' +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
     '</body></html>'
   );
   win.document.close();
+  if (missing) toast('⚠️ '+missing+' صنف من غير سعر — اتشالوا من الطباعة');
 }
 
 function printPriceCheckReport() {
