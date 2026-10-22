@@ -97,6 +97,7 @@ export const products = [
 
   p('M-901', 'ارز بلبن ابو الفضل',   'piece', 'علبة', 25),
   p('M-902', 'ايس كريم بريميم',      'piece', 'كوب', 35),
+  p('M-903', 'Matcha Latte',         'piece', 'كوب', 99),
 ];
 
 /* ---------- Categories (like Foodics) — sample names; the real ones come from
@@ -112,6 +113,7 @@ export const categories = [
   cat('c07', 'مكرونة و ارز',        ['M-701', 'M-702', 'M-703', 'M-704', 'M-705', 'M-706']),
   cat('c08', 'شاي و قهوة',          ['M-801', 'M-802', 'M-803', 'M-804']),
   cat('c09', 'حلويات',              ['M-901', 'M-902']),
+  cat('c10', 'COFFEE',               ['M-903']),
 ];
 
 /* ---------- Add-ons (like Foodics) — from the Foodics export «الاضافات / خيارات الاضافات».
@@ -122,6 +124,9 @@ export const modifiers = {
     { id: 'g-rice', name: 'اضافة ارز بلبن', options: [opt('o-r1', 'قشطة بيور', 15), opt('o-r2', 'عسل', 5), opt('o-r3', 'مكسرات', 20)] },
     { id: 'g-nuts', name: 'اضافة مكسرات ايس كريم', options: [opt('o-n1', 'عسل', 5), opt('o-n2', 'قشطة بيور', 15), opt('o-n3', 'ايس كريم بريميم', 25), opt('o-n4', 'مكسرات ايس كريم', 20)] },
     { id: 'g-prem', name: 'ايس كريم بريميم 35', options: [opt('o-p1', 'ريد فلفلت', 0), opt('o-p2', 'موز', 0), opt('o-p3', 'كوتن كاندي', 0), opt('o-p4', 'مستكة', 0), opt('o-p5', 'فسدق', 0), opt('o-p6', 'شوكلاته ديفوجين', 0)] },
+    { id: 'g-milkxl', name: 'حليب XL', options: [opt('o-m1', 'Lactose Free', 30), opt('o-m2', 'Oat Milk', 32), opt('o-m3', 'Almond Milk', 35), opt('o-m4', 'Coconut Milk', 30)] },
+    { id: 'g-freexl', name: 'حليب XL مجاني', options: [opt('o-f1', 'Full Cream Milk', 0), opt('o-f2', 'Skimmed Milk', 0)] },
+    { id: 'g-cup', name: 'اضافة كوب', options: [opt('o-c1', 'كوب اونز 12', 0), opt('o-c2', 'كوب اونز 8', 0), opt('o-c3', 'كوب 18 اونز', 0), opt('o-c4', 'كوب اونز 14', 0)] },
     { id: 'g-sauce', name: 'Extra Sauce', options: [opt('o-s1', 'صوص بستاشيو', 20), opt('o-s2', 'صوص كرميل', 10), opt('o-s3', 'صوص شوكلاتة', 10), opt('o-s4', 'صوص فراولة', 10)] },
   ],
   links: [
@@ -129,6 +134,9 @@ export const modifiers = {
     { sku: 'm-901', groupId: 'g-nuts', min: 0, max: 5 },
     { sku: 'm-902', groupId: 'g-prem', min: 1, max: 2 },
     { sku: 'm-902', groupId: 'g-sauce', min: 0, max: 3 },
+    { sku: 'm-903', groupId: 'g-milkxl', min: 0, max: 1 },
+    { sku: 'm-903', groupId: 'g-freexl', min: 0, max: 1, defaultId: 'o-f1' },
+    { sku: 'm-903', groupId: 'g-cup', min: 0, max: 1, defaultId: 'o-c1' },
   ],
 };
 

@@ -382,15 +382,15 @@ export async function getModifiers() {
     groups: (d.groups || []).map((g) => ({
       id: g.id, name: g.name, options: (g.options || []).map((o) => ({ id: o.id, name: o.name, price: Number(o.price) || 0 })),
     })),
-    links: (d.links || []).map((l) => ({ sku: l.sku, groupId: l.group_id, min: Number(l.min) || 0, max: Number(l.max) || 1 })),
+    links: (d.links || []).map((l) => ({ sku: l.sku, groupId: l.group_id, min: Number(l.min) || 0, max: Number(l.max) || 1, defaultId: l.default || null })),
   };
 }
 
-/* Admin: the add-on groups of one product, in order: [{ groupId, min, max }]. */
+/* Admin: the add-on groups of one product, in order: [{ groupId, min, max, defaultId }]. */
 export async function saveProductModifiers(sku, links) {
   const c = await sb();
   const res = await c.rpc('cc_save_product_modifiers', {
-    p_sku: sku, p_links: links.map((l) => ({ group_id: l.groupId, min: l.min, max: l.max })),
+    p_sku: sku, p_links: links.map((l) => ({ group_id: l.groupId, min: l.min, max: l.max, default: l.defaultId || null })),
   });
   if (res.error?.code === NOT_INSTALLED) throw new Error('الإضافات غير مفعّلة على قاعدة البيانات بعد');
   return ok(res);

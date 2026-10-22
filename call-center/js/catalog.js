@@ -11,7 +11,7 @@ export const catalog = {
   statusesById: new Map(),
   categories: [],      // like Foodics: { id, name, productIds } — only products in the list, empty ones left out
   categoriesById: new Map(),
-  modifiersBySku: new Map(),   // add-ons like Foodics: sku → [{ id, name, min, max, options: [{ id, name, price }] }]
+  modifiersBySku: new Map(),   // add-ons like Foodics: sku → [{ id, name, min, max, defaultId, options: [{ id, name, price }] }]
   agents: [],          // active employee names (picker)
   allAgents: [],       // including inactive (settings screen)
 };
@@ -63,7 +63,7 @@ function setModifiers(data) {
     const g = groups.get(l.groupId);
     if (!g || !g.options.length) continue;
     if (!bySku.has(l.sku)) bySku.set(l.sku, []);
-    bySku.get(l.sku).push({ ...g, min: l.min, max: l.max });
+    bySku.get(l.sku).push({ ...g, min: l.min, max: l.max, defaultId: g.options.some((o) => o.id === l.defaultId) ? l.defaultId : null });
   }
   Object.assign(catalog, { modifierGroups: [...groups.values()], modifiersBySku: bySku });
 }

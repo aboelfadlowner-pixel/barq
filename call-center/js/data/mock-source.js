@@ -29,7 +29,7 @@ export function saveProductModifiers(sku, links) {
   for (const l of links) {
     if (!(l.max >= 1 && l.max <= 20) || l.min < 0 || l.min > l.max) return Promise.reject(new Error('الحد الأقصى من 1 إلى 20 ولا يقل عن الحد الأدنى'));
   }
-  modifiers.links = [...modifiers.links.filter((l) => l.sku !== sku), ...links.map((l) => ({ sku, groupId: l.groupId, min: l.min, max: l.max }))];
+  modifiers.links = [...modifiers.links.filter((l) => l.sku !== sku), ...links.map((l) => ({ sku, groupId: l.groupId, min: l.min, max: l.max, defaultId: l.defaultId || null }))];
   return resolve(links.length);
 }
 /* The line's add-ons priced from the list; the price of an add-on already on the line is kept. */

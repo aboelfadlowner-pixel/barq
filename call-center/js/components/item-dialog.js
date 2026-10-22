@@ -28,7 +28,8 @@ export function openItemDialog(product, { line = null } = {}) {
   const startQty = line ? (byWeight ? kgText(line.grams) : String(line.qty)) : (byWeight ? '' : '1');
   const groups = productModifiers(product.id);
   // Chosen add-ons: option id → count. On a cart line the price it already has is kept (edit keeps prices).
-  const chosen = new Map((line?.modifiers || []).map((m) => [m.id, m.qty]));
+  // A new product starts with the options chosen in advance (like Foodics: Full Cream Milk, كوب 12 أونز).
+  const chosen = new Map(line ? line.modifiers?.map((m) => [m.id, m.qty]) ?? [] : groups.filter((g) => g.defaultId).map((g) => [g.defaultId, 1]));
   const keptPrice = new Map((line?.modifiers || []).map((m) => [m.id, m.price]));
   const priceOf = (o) => keptPrice.get(o.id) ?? o.price;
   const groupCount = (g) => g.options.reduce((s, o) => s + (chosen.get(o.id) || 0), 0);

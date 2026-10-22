@@ -17,11 +17,12 @@ const optionsText = (g) => g.options.map((o) => `${o.name}${o.price ? ` ${format
 
 export function mountModifiersSettings(box) {
   let product = null;   // the product being set
-  let links = [];       // [{ groupId, min, max }] for that product, in order
+  let links = [];       // [{ groupId, min, max, defaultId }] for that product, in order
 
   box.innerHTML = `
     <h2 class="section-title">${icon('package')}إضافات الأصناف</h2>
     <p class="muted section-sub">مثل فودكس: عند اختيار الصنف تظهر مجموعات الإضافات التي تحددها هنا، بأسعارها من شيت الإضافات.
+      <strong>اختيار جاهز</strong> = يظهر مختارًا من البداية ويمكن تغييره (مثل Full Cream Milk) ·
       <strong>الحد الأدنى</strong> 0 = اختياري، 1 أو أكثر = يجب الاختيار (مثل طعم الآيس كريم) · <strong>الحد الأقصى</strong> = لا تزيد عن.</p>
     <div class="card card-pad mods-settings">
       <div class="field">
@@ -53,17 +54,21 @@ export function mountModifiersSettings(box) {
       <div class="mods-product"><strong>${esc(product.name)}</strong> <span class="muted num">${esc(product.code ?? product.id)}</span></div>
       <div class="table-wrap">
         <table class="table mods-table">
-          <thead><tr><th>مجموعة الإضافات</th><th>الحد الأدنى</th><th>الحد الأقصى</th><th></th></tr></thead>
+          <thead><tr><th>مجموعة الإضافات</th><th>اختيار جاهز</th><th>الحد الأدنى</th><th>الحد الأقصى</th><th></th></tr></thead>
           <tbody>${links.length ? links.map((l, i) => {
             const g = byId.get(l.groupId);
             return `
             <tr data-i="${i}">
               <td><strong>${esc(g?.name ?? '—')}</strong><div class="hint">${esc(g ? optionsText(g) : '')}</div></td>
+              <td><select class="input" name="def" aria-label="اختيار جاهز">
+                <option value="">—</option>
+                ${(g?.options || []).map((o) => `<option value="${esc(o.id)}" ${o.id === l.defaultId ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}
+              </select></td>
               <td class="fee-cell"><input class="input ltr-center" name="min" inputmode="numeric" value="${l.min}" aria-label="الحد الأدنى"></td>
               <td class="fee-cell"><input class="input ltr-center" name="max" inputmode="numeric" value="${l.max}" aria-label="الحد الأقصى"></td>
               <td><button type="button" class="btn btn-danger-ghost btn-icon btn-sm" data-remove aria-label="إزالة">${icon('trash')}</button></td>
             </tr>`;
-          }).join('') : '<tr><td colspan="4" class="table-empty">لا توجد إضافات لهذا الصنف</td></tr>'}</tbody>
+          }).join('') : '<tr><td colspan="5" class="table-empty">لا توجد إضافات لهذا الصنف</td></tr>'}</tbody>
         </table>
       </div>
       <div class="mods-add">
@@ -79,7 +84,7 @@ export function mountModifiersSettings(box) {
 
   const pick = (id) => {
     product = catalog.productsById.get(id) || null;
-    links = productModifiers(id).map((g) => ({ groupId: g.id, min: g.min, max: g.max }));
+    links = productModifiers(id).map((g) => ({ groupId: g.id, min: g.min, max: g.max, defaultId: g.defaultId }));
     $('[data-results]').innerHTML = '';
     $('#modsSearch').value = product?.name ?? '';
     renderLinked();
@@ -92,6 +97,7 @@ export function mountModifiersSettings(box) {
       const l = links[Number(tr.dataset.i)];
       l.min = toInt(tr.querySelector('[name="min"]').value);
       l.max = toInt(tr.querySelector('[name="max"]').value);
+      l.defaultId = tr.querySelector('[name="def"]').value || null;
     });
   };
 

@@ -1932,8 +1932,9 @@ grant execute on function public.cc_list_products(text, int) to authenticated;
 --
 --    • cc_modifier_groups / cc_modifier_options : the add-ons and their prices,
 --      imported from the Foodics export (الاضافات / خيارات الاضافات);
---    • cc_product_modifiers : which product shows which group, with min / max —
---      set by the admin in «الإعدادات ← الإضافات»;
+--    • cc_product_modifiers : which product shows which group, with min / max and
+--      an option chosen in advance (like Foodics: Full Cream Milk, كوب 12 أونز) —
+--      set by the admin in «الإعدادات ← إضافات الأصناف»;
 --    • cc_order_items.modifiers : the add-ons of each order line (name, price,
 --      quantity copied in, so a later price change never alters an order).
 --
@@ -1972,11 +1973,14 @@ create table if not exists public.cc_product_modifiers (
   min_qty    integer not null default 0 check (min_qty between 0 and 20),
   max_qty    integer not null default 5 check (max_qty between 1 and 20),
   sort       integer not null default 0,
+  default_option_id uuid references public.cc_modifier_options(id),   -- chosen in advance on the screen (can be changed)
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id),
   primary key (sku, group_id),
   constraint cc_product_modifiers_min_max check (min_qty <= max_qty)
 );
+
+alter table public.cc_product_modifiers add column if not exists default_option_id uuid references public.cc_modifier_options(id);
 
 -- [{id, group_id, group, name, price, qty}] per line; null = no add-ons.
 alter table public.cc_order_items add column if not exists modifiers jsonb;
@@ -2009,7 +2013,8 @@ begin
             from public.cc_modifier_options x where x.group_id = g.id and x.active) o
        where g.active and jsonb_array_length(o.list) > 0), '[]'::jsonb),
     'links', coalesce((
-      select jsonb_agg(jsonb_build_object('sku', l.sku, 'group_id', l.group_id, 'min', l.min_qty, 'max', l.max_qty) order by l.sku, l.sort)
+      select jsonb_agg(jsonb_build_object('sku', l.sku, 'group_id', l.group_id, 'min', l.min_qty, 'max', l.max_qty,
+                                          'default', l.default_option_id) order by l.sku, l.sort)
         from public.cc_product_modifiers l
         join public.cc_modifier_groups g on g.id = l.group_id and g.active), '[]'::jsonb));
 end;
@@ -2017,7 +2022,7 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- Admin: the add-on groups of one product (replaces its list).
---   p_links : [{"group_id": uuid, "min": int, "max": int}, ...] in display order; [] = none.
+--   p_links : [{"group_id": uuid, "min": int, "max": int, "default"?: option uuid}, ...] in display order; [] = none.
 -- ---------------------------------------------------------------------
 create or replace function public.cc_save_product_modifiers(p_sku text, p_links jsonb)
 returns integer
@@ -2054,9 +2059,14 @@ begin
     if not exists (select 1 from public.cc_modifier_groups g where g.id::text = v_link->>'group_id' and g.active) then
       raise exception 'مجموعة إضافات غير موجودة' using errcode = 'P0002', hint = 'links';
     end if;
+    if nullif(v_link->>'default', '') is not null and not exists (
+         select 1 from public.cc_modifier_options o
+          where o.id::text = v_link->>'default' and o.group_id::text = v_link->>'group_id' and o.active) then
+      raise exception 'الاختيار الجاهز لازم يكون من نفس المجموعة' using errcode = '22023', hint = 'links';
+    end if;
     begin
-      insert into public.cc_product_modifiers (sku, group_id, min_qty, max_qty, sort, updated_by)
-      values (p_sku, (v_link->>'group_id')::uuid, v_min, v_max, v_n, auth.uid());
+      insert into public.cc_product_modifiers (sku, group_id, min_qty, max_qty, sort, default_option_id, updated_by)
+      values (p_sku, (v_link->>'group_id')::uuid, v_min, v_max, v_n, nullif(v_link->>'default', '')::uuid, auth.uid());
     exception when unique_violation then
       raise exception 'المجموعة مكررة لنفس الصنف' using errcode = '23505', hint = 'links';
     end;

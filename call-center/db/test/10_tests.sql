@@ -1017,7 +1017,13 @@ begin
   exception when invalid_parameter_value then null; end;
   if public.cc_save_product_modifiers('T-203', '[{"group_id": "00000000-0000-4000-8000-0000000000a1", "min": 0, "max": 5},
                                                {"group_id": "00000000-0000-4000-8000-0000000000a2", "min": 1, "max": 1}]') <> 2 then raise exception 'FAIL T35 save'; end if;
+  begin perform public.cc_save_product_modifiers('T-203', '[{"group_id": "00000000-0000-4000-8000-0000000000a1", "min": 0, "max": 5, "default": "00000000-0000-4000-8000-0000000000b3"}]');
+    raise exception 'FAIL T35 default from another group accepted';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_save_product_modifiers('T-203', '[{"group_id": "00000000-0000-4000-8000-0000000000a1", "min": 0, "max": 5},
+                                               {"group_id": "00000000-0000-4000-8000-0000000000a2", "min": 1, "max": 1, "default": "00000000-0000-4000-8000-0000000000b3"}]');
   d := public.cc_list_modifiers();
+  if (select x->>'default' from jsonb_array_elements(d->'links') x where x->>'group_id' = '00000000-0000-4000-8000-0000000000a2') <> '00000000-0000-4000-8000-0000000000b3' then raise exception 'FAIL T35 default %', d->'links'; end if;
   if jsonb_array_length(d->'links') <> 2 or jsonb_array_length(d->'groups') <> 2
      or (select jsonb_array_length(g->'options') from jsonb_array_elements(d->'groups') g where g->>'name' = 'الطعم') <> 1 then raise exception 'FAIL T35 list %', d; end if;
 
@@ -1070,6 +1076,6 @@ begin
   if o.total <> (select sum(line_total) from public.cc_order_items where order_id = oid) + o.delivery_fee then raise exception 'FAIL T35 edit totals'; end if;
   select y into x from public.cc_prep_orders() y where y->>'id' = oid::text;
   if (select jsonb_array_length(i->'modifiers') from jsonb_array_elements(x->'items') i where i->>'name' = l->>'product_name') <> 3 then raise exception 'FAIL T35 prep %', x; end if;
-  raise notice 'PASS T35 add-ons: admin-only links with min/max, database prices, required group, limits, other product/inactive refused, repeat unchanged, edit keeps add-on price, prep sees add-ons';
+  raise notice 'PASS T35 add-ons: admin-only links with min/max, database prices, option chosen in advance, required group, limits, other product/inactive refused, repeat unchanged, edit keeps add-on price, prep sees add-ons';
 end $$;
 rollback;
