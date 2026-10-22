@@ -534,5 +534,7 @@ $$;
 revoke all on function public.cc_list_modifiers()                              from public, anon;
 revoke all on function public.cc_save_product_modifiers(text, jsonb)           from public, anon;
 revoke all on function public.cc_price_modifiers(text, jsonb, integer, jsonb) from public, anon, authenticated;
+revoke all on function public.cc_edit_order(uuid, uuid, jsonb, jsonb, text) from public, anon;
 grant execute on function public.cc_list_modifiers()                    to authenticated;
+grant execute on function public.cc_edit_order(uuid, uuid, jsonb, jsonb, text) to authenticated;
 grant execute on function public.cc_save_product_modifiers(text, jsonb) to authenticated;
