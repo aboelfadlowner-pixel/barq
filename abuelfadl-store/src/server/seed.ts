@@ -15,12 +15,14 @@ const CATEGORY_IMAGES: Record<string, string> = {
   cheese: "/covers/cheese/tile.webp",
   kiri: "/covers/kiri/tile.webp",
   deli: "/covers/deli/tile.webp",
+  imported: "/covers/imported/tile.webp",
 };
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
   cheese: "/covers/cheese/icon.webp",
   kiri: "/covers/kiri/icon.webp",
   deli: "/covers/deli/icon.webp",
+  imported: "/covers/imported/icon.webp",
 };
 /** Lines under the names of the categories that have a cover (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
@@ -71,7 +73,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 16;
+const SCHEMA = 17;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -167,6 +169,12 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 16) {
     // Duplicates of products linked to the sheet, hidden at the owner's request: «تونه» and «مختوم فلسطيني».
     for (const product of data.products) if (DUPLICATES.includes(product.id) && !product.sku) product.hidden = true;
+  }
+  if ((data.schema ?? 1) < 17) {
+    // New cover of «أجبان مستوردة»: its home-page card and icon, unless the category already has its own.
+    const imported = data.categories.find((category) => category.id === "imported");
+    if (imported && !imported.imageUrl) imported.imageUrl = CATEGORY_IMAGES.imported;
+    if (imported && !imported.iconUrl) imported.iconUrl = CATEGORY_ICONS.imported;
   }
   data.schema = SCHEMA;
   return data;
