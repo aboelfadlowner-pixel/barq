@@ -4280,12 +4280,10 @@ function fruitPriceStep(i, dir) {
   inp.value = v;
 }
 
-// مربعات السعر المطبوعة: نفس مقاس المربع الفاضي في ملصق الفاكهة، فيها السعر كبير + اسم الصنف صغير
-// فوق عشان تعرف كل مربع يتلزق على أنهي ملصق
+// مربعات السعر المطبوعة: نفس مقاس المربع الفاضي في ملصق الفاكهة، فيها السعر بس بخط كبير
 function printFruitPriceStickers() {
   var rows = document.querySelectorAll('#fruit-price-panel .fp-row');
   var saved = loadFruitPrices();
-  var items = fruitItems();
   var boxes = [], missing = 0;
   rows.forEach(function(row, i){
     var price = parseFloat(document.getElementById('fp-price-'+i).value);
@@ -4293,11 +4291,7 @@ function printFruitPriceStickers() {
     if (!(price > 0)) { if (qty > 0) missing++; return; }
     saved[row.getAttribute('data-key')] = price;
     for (var k=0; k<qty; k++) {
-      boxes.push('<div class="pbox">' +
-        '<span class="pbox-name">'+items[i].name+'</span>' +
-        '<span class="pbox-price">'+fmt(price)+'</span>' +
-        '<span class="pbox-unit">جنيه / كجم</span>' +
-      '</div>');
+      boxes.push('<div class="pbox"><span class="pbox-price">'+fmt(price)+'</span></div>');
     }
   });
   try { localStorage.setItem(LS_FRUIT_PRICES, JSON.stringify(saved)); } catch(e) {}
@@ -4313,9 +4307,7 @@ function printFruitPriceStickers() {
     '.wrap{display:flex;flex-wrap:wrap;gap:4mm;justify-content:center}' +
     '.pbox{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;border:1.5px dashed #777;border-radius:6px;position:relative;box-sizing:border-box;background:#fff;' +
       'display:flex;align-items:center;justify-content:center;page-break-inside:avoid;break-inside:avoid}' +
-    '.pbox-name{position:absolute;top:1.2mm;right:2.5mm;left:2.5mm;font-size:10px;font-weight:700;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}' +
-    '.pbox-price{font-family:Arial,sans-serif;font-size:58px;font-weight:900;color:#0f5c2e;line-height:1;margin-top:2mm}' +
-    '.pbox-unit{position:absolute;bottom:1.2mm;left:2.5mm;font-size:10px;font-weight:700;color:#555}' +
+    '.pbox-price{font-family:Arial,sans-serif;font-size:64px;font-weight:900;color:#0f5c2e;line-height:1}' +
     '</style></head><body>' +
     '<div class="wrap">'+boxes.join('')+'</div>' +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
