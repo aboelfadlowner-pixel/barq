@@ -264,3 +264,6 @@ revoke all on function public.cc_save_product_modifiers(text, jsonb) from public
 revoke all on function public.cc_edit_order(uuid, uuid, jsonb, jsonb, text) from public, anon;
 grant execute on function public.cc_save_product_modifiers(text, jsonb) to authenticated;
 grant execute on function public.cc_edit_order(uuid, uuid, jsonb, jsonb, text) to authenticated;
+
+-- «ارز بلبن بالمكسرات صغير» من غير إضافات (زي فودكس): يشيل ربطه بس.
+delete from public.cc_product_modifiers where sku = 'sk-11894';
