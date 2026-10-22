@@ -41,6 +41,8 @@ export interface Product {
   priceFromSheet?: boolean;
   /** Set by the database store: the SKU has no price in the products sheet, so the product is hidden from the store. */
   priceMissing?: boolean;
+  /** Hidden from the store (still listed in the dashboard), e.g. a duplicate of another product. */
+  hidden?: boolean;
 }
 
 /** Filter for listing products. All fields are optional and combined with AND. */

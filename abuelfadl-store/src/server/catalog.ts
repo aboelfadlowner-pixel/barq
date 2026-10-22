@@ -25,7 +25,7 @@ export interface AdminProductQuery extends ProductQuery {
   inStock?: boolean;
   /** true: only products with a SKU; false: only products without one. */
   linked?: boolean;
-  /** Store pages: leaves out products that cannot be sold because the sheet has no price for their SKU. */
+  /** Store pages: leaves out hidden products and those that cannot be sold because the sheet has no price for their SKU. */
   forSale?: boolean;
 }
 
@@ -38,7 +38,7 @@ export async function listProducts(query: AdminProductQuery = {}): Promise<Produ
     if (query.categoryId && product.categoryId !== query.categoryId) return false;
     if (query.inStock !== undefined && product.inStock !== query.inStock) return false;
     if (query.linked !== undefined && Boolean(product.sku) !== query.linked) return false;
-    if (query.forSale && product.priceMissing) return false;
+    if (query.forSale && (product.priceMissing || product.hidden)) return false;
     if (search && !normalizeArabic(`${product.name} ${categoryName.get(product.categoryId) ?? ""} ${product.sku ?? ""}`).includes(search)) return false;
     return true;
   });
@@ -145,6 +145,7 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     ...(sku ? { sku } : {}),
     inStock: merged.inStock === undefined ? true : Boolean(merged.inStock),
     bestseller: Boolean(merged.bestseller),
+    ...(merged.hidden === true ? { hidden: true } : {}),
     offer,
     ...offerFields,
     ...(description ? { description } : {}),

@@ -30,6 +30,9 @@ const CATEGORY_TAGLINES: Record<string, string> = {
   imported: "Imported Cheese, Hand-Picked",
 };
 
+/** «تونه» (= «تونة بالمايونيز») and «مختوم فلسطيني» (= «برطمان مختوم فلسطيني 425جم»). */
+const DUPLICATES = [51425, 51694];
+
 const DRINKS_NOTICE = "تنبيه: قسم العصائر والآيس كريم والقهوة للعرض فقط ولا يوجد طلب مباشر من هذا القسم.";
 
 const withImages = (category: Category): Category => ({
@@ -57,7 +60,8 @@ export function seedStore(): StoreData {
     products: seedProducts
       .filter((product) => product.categoryId !== REMOVED_CATEGORY)
       .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product }))
-      .map(withPhoto),
+      .map(withPhoto)
+      .map((product) => (DUPLICATES.includes(product.id) && !product.sku ? { ...product, hidden: true } : product)),
     orders: [],
     orderSeq: 0,
     syncLog: [],
@@ -67,7 +71,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 15;
+const SCHEMA = 16;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -159,6 +163,10 @@ export function upgradeStore(data: StoreData): StoreData {
     const drinks = data.categories.find((category) => category.id === "drinks");
     if (drinks && drinks.notice === undefined) drinks.notice = DRINKS_NOTICE;
     if (drinks && drinks.notice === DRINKS_NOTICE) drinks.displayOnly = true;
+  }
+  if ((data.schema ?? 1) < 16) {
+    // Duplicates of products linked to the sheet, hidden at the owner's request: «تونه» and «مختوم فلسطيني».
+    for (const product of data.products) if (DUPLICATES.includes(product.id) && !product.sku) product.hidden = true;
   }
   data.schema = SCHEMA;
   return data;

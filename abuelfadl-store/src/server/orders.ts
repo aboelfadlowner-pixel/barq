@@ -59,7 +59,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     const lines: OrderLine[] = [];
     for (const item of items) {
       const product = byId.get(Number(item.productId));
-      if (!product || product.priceMissing) throw new ApiError(409, "أحد المنتجات في السلة لم يعد متوفرًا. حدّث الصفحة وحاول مرة أخرى.");
+      if (!product || product.priceMissing || product.hidden) throw new ApiError(409, "أحد المنتجات في السلة لم يعد متوفرًا. حدّث الصفحة وحاول مرة أخرى.");
       if (displayOnly.has(product.categoryId)) throw new ApiError(409, `«${product.name}» للعرض فقط ولا يُطلب من الموقع. احذفه من السلة وأكمل طلبك.`);
       if (!product.inStock) throw new ApiError(409, `«${product.name}» غير متوفر حاليًا. احذفه من السلة وأكمل طلبك.`);
       const quantity = Number(item.quantity);

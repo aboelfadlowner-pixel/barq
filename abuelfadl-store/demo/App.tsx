@@ -84,7 +84,8 @@ function StoreApp({ pathname }: { pathname: string }) {
   // Read once per visit to the store, the way the server renders the layout (dashboard edits show on the next visit).
   const { categories, products, settings: saved } = useMemo(() => snapshot(), []);
   const settings = useMemo(() => withDefaults(saved), [saved]);
-  const catalogProducts = useMemo(() => products.map((product) => toCatalogProduct(product)), [products]);
+  // Same rule as the server's `forSale`: hidden products are left out of the store.
+  const catalogProducts = useMemo(() => products.filter((product) => !product.hidden && !product.priceMissing).map((product) => toCatalogProduct(product)), [products]);
   const category = pathname.match(/^\/category\/([^/]+)$/)?.[1];
 
   return (

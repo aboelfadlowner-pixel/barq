@@ -22,6 +22,7 @@ interface FormState {
   maxWeight: string;
   sku: string;
   inStock: boolean;
+  hidden: boolean;
   bestseller: boolean;
   offer: boolean;
   salePrice: string;
@@ -41,6 +42,7 @@ const EMPTY: FormState = {
   maxWeight: String(DEFAULT_MAX_WEIGHT),
   sku: "",
   inStock: true,
+  hidden: false,
   bestseller: false,
   offer: false,
   salePrice: "",
@@ -60,6 +62,7 @@ const toForm = (p: Product): FormState => ({
   maxWeight: String(p.maxWeight ?? DEFAULT_MAX_WEIGHT),
   sku: p.sku ?? "",
   inStock: p.inStock,
+  hidden: Boolean(p.hidden),
   bestseller: p.bestseller,
   offer: p.offer,
   salePrice: p.salePrice === undefined ? "" : String(p.salePrice),
@@ -217,6 +220,10 @@ export function ProductForm({ id }: { id?: string }) {
           <label className="check">
             <input type="checkbox" checked={form.inStock} onChange={(e) => set("inStock", e.target.checked)} />
             متوفر للبيع
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={form.hidden} onChange={(e) => set("hidden", e.target.checked)} />
+            مخفي من المتجر (يظل هنا في لوحة التحكم)
           </label>
           <label className="check">
             <input type="checkbox" checked={form.bestseller} onChange={(e) => set("bestseller", e.target.checked)} />

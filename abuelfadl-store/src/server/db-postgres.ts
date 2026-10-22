@@ -86,6 +86,7 @@ function toProduct(row: Record<string, unknown>): Product {
     ...(row.max_weight !== null ? { maxWeight: num(row.max_weight) } : {}),
     ...(row.sku ? { sku: String(row.sku), priceFromSheet: true } : {}),
     ...(price === undefined ? { priceMissing: true } : {}),
+    ...(row.hidden ? { hidden: true } : {}),
     inStock: Boolean(row.in_stock),
     bestseller: Boolean(row.bestseller),
     offer: Boolean(row.offer),
@@ -151,6 +152,7 @@ const productRow = (product: Product, position: number) => ({
   offer_end: product.offerEnd ?? null,
   description: product.description ?? null,
   image_url: product.imageUrl ?? null,
+  hidden: product.hidden === true,
   position,
 });
 
@@ -170,7 +172,7 @@ async function refresh(sql: Sql): Promise<StoreData> {
     const [categories, products, settings] = await Promise.all([
       sql`select * from store.categories order by position, id`,
       sql`select id, sku, category_id, name, weighed, weight_step, min_weight, max_weight, in_stock, bestseller, offer,
-                 sale_price, offer_start::text, offer_end::text, description, image_url, current_price
+                 sale_price, offer_start::text, offer_end::text, description, image_url, current_price, hidden
           from store.catalog order by position, id`,
       sql`select data from store.settings where id = 1`,
     ]);
