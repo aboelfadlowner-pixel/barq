@@ -121,7 +121,7 @@ td input[type="date"]{width:120px}
 
 <div class="header">
   <div class="logo">⚡ برق <span>طباعة الباركود</span></div>
-  <div style="font-size:11px;opacity:.7">إصدار v21</div>
+  <div style="font-size:11px;opacity:.7">إصدار v22</div>
 </div>
 
 <div class="wrap">
@@ -234,6 +234,24 @@ td input[type="date"]{width:120px}
         </div>
       </div>
       <button class="btn btn-primary" onclick="addManualItem()">➕ إضافة للطباعة</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🍎 أسعار الفاكهة (السعر بس)</h2>
+    <div class="sub">ليبل عليه السعر بس، بيتلزق مكان السعر في ملصق الفاكهة الكبير. بيتطبع بمقاس الليبل المختار فوق. الأسعار بتتحفظ لبكرة — عدّل اللي اتغير بس.</div>
+    <div id="fruitRows"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="field">
+        <label>اسم الصنف (ليك بس — مش بيتطبع)</label>
+        <input id="fruit-new-name" placeholder="مثلاً: تفاح أحمر" onkeydown="if(event.key==='Enter')addFruitRow()">
+      </div>
+      <div class="field" style="flex:0 0 auto;align-self:flex-end">
+        <button class="btn btn-ghost" onclick="addFruitRow()">➕ إضافة صنف</button>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn btn-primary" onclick="printFruitPrices()">🖨️ طباعة الأسعار</button>
     </div>
   </div>
 
@@ -871,12 +889,118 @@ function doPrint(){
   win.document.close();
 }
 
+// ── أسعار الفاكهة: ليبل عليه السعر بس ──────────────────
+// سعر الفاكهة بيتغيّر يومياً، فملصق الفاكهة الكبير على الرف فيه مربع فاضي مكان السعر،
+// وده بيطبع ليبل صغير عليه السعر بس يتلزق فوقه. القايمة والأسعار بتتحفظ على الجهاز لبكرة.
+var LS_FRUIT_ROWS = 'barq_bc_fruit_rows_v1';
+var FRUIT_PRICE_STEP = 0.5;
+var FRUIT_ROWS = [];
+
+function loadFruitRows(){
+  try { FRUIT_ROWS = JSON.parse(localStorage.getItem(LS_FRUIT_ROWS) || '[]') || []; } catch(e){ FRUIT_ROWS = []; }
+}
+function saveFruitRows(){
+  try { localStorage.setItem(LS_FRUIT_ROWS, JSON.stringify(FRUIT_ROWS)); } catch(e){}
+}
+
+function renderFruitRows(){
+  var wrap = document.getElementById('fruitRows');
+  if (!FRUIT_ROWS.length) {
+    wrap.innerHTML = '<div class="empty-hint">ضيف أصناف الفاكهة مرة واحدة تحت، وبعد كده كل يوم عدّل السعر واطبع</div>';
+    return;
+  }
+  var html = '<table><thead><tr><th>الصنف</th><th>السعر</th><th>العدد</th><th></th></tr></thead><tbody>';
+  FRUIT_ROWS.forEach(function(r, i){
+    html += '<tr>' +
+      '<td style="font-weight:700">' + escapeHtml(r.name) + '</td>' +
+      '<td><div style="display:flex;align-items:center;gap:4px;direction:ltr;justify-content:flex-end">' +
+        '<button class="btn btn-ghost" style="padding:6px 12px" onclick="stepFruitPrice(' + i + ',-1)">−</button>' +
+        '<input type="number" inputmode="decimal" step="' + FRUIT_PRICE_STEP + '" min="0" id="fruit-price-' + i + '" value="' + (r.price || '') + '" ' +
+          'style="width:80px;font-size:16px;font-weight:800" oninput="setFruitField(' + i + ',\'price\',this.value)">' +
+        '<button class="btn btn-ghost" style="padding:6px 12px" onclick="stepFruitPrice(' + i + ',1)">+</button>' +
+      '</div></td>' +
+      '<td><input type="number" class="qty-input" min="0" value="' + (r.qty != null ? r.qty : 1) + '" oninput="setFruitField(' + i + ',\'qty\',this.value)"></td>' +
+      '<td><button class="rm-btn" onclick="removeFruitRow(' + i + ')">✕</button></td>' +
+    '</tr>';
+  });
+  wrap.innerHTML = html + '</tbody></table>';
+}
+
+function addFruitRow(){
+  var inp = document.getElementById('fruit-new-name');
+  var name = inp.value.trim();
+  if (!name) { toast('⚠️ اكتب اسم الصنف'); return; }
+  FRUIT_ROWS.push({ name: name, price: '', qty: 1 });
+  inp.value = '';
+  saveFruitRows();
+  renderFruitRows();
+  var p = document.getElementById('fruit-price-' + (FRUIT_ROWS.length - 1));
+  if (p) p.focus();
+}
+
+function removeFruitRow(i){
+  FRUIT_ROWS.splice(i, 1);
+  saveFruitRows();
+  renderFruitRows();
+}
+
+function setFruitField(i, key, val){
+  if (!FRUIT_ROWS[i]) return;
+  FRUIT_ROWS[i][key] = key === 'qty' ? (parseInt(val, 10) || 0) : val;
+  saveFruitRows();
+}
+
+function stepFruitPrice(i, dir){
+  var v = parseFloat(FRUIT_ROWS[i].price) || 0;
+  v = Math.max(0, Math.round((v + dir * FRUIT_PRICE_STEP) / FRUIT_PRICE_STEP) * FRUIT_PRICE_STEP);
+  FRUIT_ROWS[i].price = v;
+  document.getElementById('fruit-price-' + i).value = v;
+  saveFruitRows();
+}
+
+function printFruitPrices(){
+  var dims = getLabelDims();
+  var labels = [], missing = 0;
+  FRUIT_ROWS.forEach(function(r){
+    var price = parseFloat(r.price);
+    var qty = r.qty != null ? r.qty : 1;
+    if (!(price > 0)) { if (qty > 0) missing++; return; }
+    var txt = String(Math.round(price * 100) / 100);
+    // الرقم على قد الليبل: مايعديش 62% من الارتفاع، ولا يخرج من العرض لو السعر طويل (زي 122.5)
+    var fs = Math.min(dims.h * 0.62, (dims.w * 0.9) / (0.58 * Math.max(2, txt.length)));
+    for (var k = 0; k < qty; k++) {
+      labels.push('<div class="label"><span class="lprice" style="font-size:' + fs.toFixed(1) + 'mm">' + txt + '</span></div>');
+    }
+  });
+  if (!labels.length) { toast('⚠️ اكتب سعر صنف واحد على الأقل'); return; }
+
+  var win = window.open('', '_blank');
+  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة'); return; }
+  win.document.write(
+    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>أسعار الفاكهة</title>' +
+    '<style>' +
+    '@page{size:' + dims.w + 'mm ' + dims.h + 'mm;margin:0}' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    '.label{width:' + dims.w + 'mm;height:' + dims.h + 'mm;display:flex;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;break-after:page}' +
+    '.label:last-child{page-break-after:auto;break-after:auto}' +
+    '.lprice{font-family:Arial,sans-serif;font-weight:900;line-height:1;color:#000}' +
+    '</style></head><body>' +
+    labels.join('') +
+    '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();}, 200);};</scr' + 'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
+  if (missing) toast('⚠️ ' + missing + ' صنف من غير سعر — اتشالوا من الطباعة');
+}
+
 function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 loadMasterFromStorage();
 renderTable();
+loadFruitRows();
+renderFruitRows();
 renderBakeryStatus();
 loadMasterFromSupabaseAuto();
 </script>
