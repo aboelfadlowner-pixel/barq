@@ -22,6 +22,8 @@ export interface OrderDraft {
   /** Total in EGP, as shown in the browser. The server recomputes it from its own prices. */
   total: number;
   paymentMethod: PaymentMethod;
+  /** Made once per checkout by the browser: sending the same order twice (double tap, retry) records it once. */
+  requestId?: string;
 }
 
 /** A submitted order. */
@@ -77,4 +79,6 @@ export interface StoredOrder {
   updatedAt: string;
   /** Internal note written by the staff (not shown to the customer). */
   staffNote: string;
+  /** `OrderDraft.requestId` of the checkout that placed it. */
+  clientRef?: string;
 }

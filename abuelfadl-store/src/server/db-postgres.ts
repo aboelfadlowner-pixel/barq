@@ -117,6 +117,7 @@ function toOrder(row: Record<string, unknown>, lines: OrderLine[]): StoredOrder 
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     staffNote: String(row.staff_note),
+    ...(row.client_ref ? { clientRef: String(row.client_ref) } : {}),
   };
 }
 
@@ -299,6 +300,7 @@ async function writeChanges(tx: postgres.TransactionSql, base: StoreData, draft:
         status: order.status,
         staff_note: order.staffNote,
         created_at: order.createdAt,
+        client_ref: order.clientRef ?? null,
       })}`;
       const items = order.lines.map((line) => ({
         order_id: order.id,

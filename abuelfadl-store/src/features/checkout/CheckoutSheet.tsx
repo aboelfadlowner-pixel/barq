@@ -10,6 +10,10 @@ import { formatMoney } from "@/lib/format";
 import { orderService } from "@/services/client";
 import type { Order } from "@/types/order";
 
+/** Random id for one checkout (crypto.randomUUID needs a secure page; the fallback is enough to tell retries apart). */
+const newRequestId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
 export const CHECKOUT_SHEET_ID = "co";
 
 interface Errors {
@@ -42,6 +46,8 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
   const deliveryFee = area?.fee ?? 0;
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
+  /** One id per opening of the form: a retry after a lost answer is recognised by the server as the same order. */
+  const requestId = useRef("");
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLTextAreaElement>(null);
@@ -60,6 +66,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
     }
     setErrors({});
     setBusy(false);
+    requestId.current = newRequestId();
     const focusName = () => nameRef.current?.focus({ preventScroll: true });
     // Second pass: the cart drawer restores focus to the header button while it closes.
     const timers = [setTimeout(focusName, 60), setTimeout(focusName, 380)];
@@ -96,6 +103,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
         areaId: area?.id,
         total: total + deliveryFee,
         paymentMethod: "cash",
+        requestId: requestId.current,
       });
       clear();
       onPlaced(placed);

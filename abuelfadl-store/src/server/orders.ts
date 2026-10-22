@@ -22,16 +22,35 @@ export interface OrderRequest {
   items?: { productId?: unknown; quantity?: unknown }[];
   areaId?: unknown;
   paymentMethod?: unknown;
+  requestId?: unknown;
 }
+
+/** Limits against fake or repeated orders. */
+const PHONE_LIMIT = 3; // orders per phone number (cancelled ones not counted)...
+const PHONE_WINDOW_MS = 60 * 60 * 1000; // ...in one hour
+const REPEAT_WINDOW_MS = 5 * 60 * 1000; // the same phone and basket again within 5 minutes is the same order
+const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
+
+/** Same products and quantities, in any order. */
+const sameBasket = (a: OrderLine[], b: OrderLine[]) => {
+  const key = (lines: OrderLine[]) => lines.map((line) => `${line.productId}:${line.quantity}`).sort().join(",");
+  return key(a) === key(b);
+};
 
 /**
  * Places an order. Everything the browser sends is checked again here:
  * customer fields use the checkout form rules, prices come from the catalog (never from the browser),
  * unavailable or unknown products are refused, the minimum order (dashboard settings) applies to the server total,
  * and nothing is accepted while orders are paused.
+ * The same order sent twice (same `requestId`, or same phone and basket within a few minutes) returns the first one,
+ * and one phone number cannot place more than a few orders an hour.
  */
 export function createOrder(request: OrderRequest): Promise<StoredOrder> {
   return mutate((data) => {
+    const requestId = typeof request.requestId === "string" && REQUEST_ID.test(request.requestId) ? request.requestId : undefined;
+    const resent = requestId && data.orders.find((order) => order.clientRef === requestId);
+    if (resent) return resent;
+
     const settings = withDefaults(data.settings);
     if (!settings.ordersOpen) throw new ApiError(409, settings.closedMessage);
     if (!isWithinHours(settings.orderHours)) throw new ApiError(409, outsideHoursMessage(settings.orderHours));
@@ -77,6 +96,16 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
         lineTotal: round2(price * quantity),
       });
     }
+    const nowMs = Date.now();
+    const recent = data.orders.filter(
+      (order) => order.customer.phone === phone && order.status !== "cancelled" && nowMs - Date.parse(order.createdAt) < PHONE_WINDOW_MS,
+    );
+    const repeated = recent.find((order) => nowMs - Date.parse(order.createdAt) < REPEAT_WINDOW_MS && sameBasket(order.lines, lines));
+    if (repeated) return repeated;
+    if (recent.length >= PHONE_LIMIT) {
+      throw new ApiError(429, "تم إرسال عدة طلبات من هذا الرقم خلال ساعة. لو محتاج تعدّل طلبك أو تضيف عليه، كلّمنا على التليفون أو واتساب.");
+    }
+
     const subtotal = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0));
     if (subtotal < settings.minOrder) throw new ApiError(400, `الحد الأدنى للطلب ${settings.minOrder} جنيه`);
     const deliveryFee = area?.fee ?? 0;
@@ -96,6 +125,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
       createdAt: now,
       updatedAt: now,
       staffNote: "",
+      ...(requestId ? { clientRef: requestId } : {}),
     };
     data.orders.push(order);
     return order;
