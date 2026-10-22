@@ -194,6 +194,28 @@ function DeliCover() {
   );
 }
 
+/**
+ * "syrian" cover (Syrian products): four tubs of Abu El Fadl labneh balls (public/covers/syrian/*.webp) — zaatar and
+ * makdous at the back, black seed and pistachio in front — each with a contact shadow, rising in like the kiri cover.
+ * Positions are the `.cvsy-*` rules.
+ */
+const SYRIAN_PIECES = ["zaatar", "makdous", "blackseed", "pistachio"] as const;
+
+function SyrianCover() {
+  return (
+    <div className="cvd" role="img" aria-label="منتجات سورية: كرات لبنة شامية بالزعتر والمكدوس وحبة البركة والفستق">
+      <div className="cvd-s" aria-hidden="true">
+        {SYRIAN_PIECES.map((name) => (
+          <span key={name} className={`cvd-p cvsy-${name}`}>
+            <i className="sh" />
+            <img src={`/covers/syrian/${name}.webp`} alt="" decoding="async" />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
@@ -201,6 +223,7 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   cheese: CheeseCover,
   kiri: KiriCover,
   deli: DeliCover,
+  syrian: SyrianCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
