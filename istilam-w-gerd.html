@@ -4154,8 +4154,29 @@ function printPriceLabels() {
 // ملصقات الفاكهة: ضعف طول وعرض الملصق العادي تقريباً — اللوجو كبير فوق في النص، تحته اسم الصنف كبير،
 // وتحته مربع فاضي مكان السعر. سعر الفاكهة بيتغيّر يومياً، فبنطبع السعر لوحده على "مربع سعر" صغير
 // بنفس مقاس المربع الفاضي بالظبط (من شاشة أسعار الفاكهة) ونلزقه مكانه بدل ما نطبع الملصق الكبير كل يوم
-var FRUIT_BOX_W_MM = 58, FRUIT_BOX_H_MM = 30;          // مقاس مربع السعر الصغير
-var FRUIT_TAG_W_MM = 116, FRUIT_TAG_H_MM = 66;         // مقاس ملصق الفاكهة الكبير
+// مربع السعر بيتطبع على طابعة الإكس برنتر (استيكر واحد لكل ليبل) أو على A4. المربع الفاضي في الملصق الكبير
+// بياخد نفس مقاس الاستيكر المختار، عشان الاستيكر يتلزق فوقه مظبوط
+var FRUIT_STICKER_SIZES = [
+  { v:'55x40', label:'إكس برنتر 55 × 40 مم' },
+  { v:'50x30', label:'إكس برنتر 50 × 30 مم' },
+  { v:'40x30', label:'إكس برنتر 40 × 30 مم' },
+  { v:'60x40', label:'إكس برنتر 60 × 40 مم' },
+  { v:'a4',    label:'ورقة A4 عادية (58 × 30 مم)' }
+];
+var LS_FRUIT_STICKER_SIZE = 'barq_fruit_sticker_size_v1';
+var FRUIT_TAG_W_MM = 116;                              // عرض ملصق الفاكهة الكبير
+
+function getFruitStickerSize() {
+  var v = '55x40';
+  try { v = localStorage.getItem(LS_FRUIT_STICKER_SIZE) || v; } catch(e) {}
+  if (v === 'a4') return { v:v, w:58, h:30, thermal:false };
+  var parts = v.split('x');
+  return { v:v, w:parseFloat(parts[0])||55, h:parseFloat(parts[1])||40, thermal:true };
+}
+
+function setFruitStickerSize(v) {
+  try { localStorage.setItem(LS_FRUIT_STICKER_SIZE, v); } catch(e) {}
+}
 var FRUIT_PRICE_STEP = 0.5;                            // كل ضغطة على السهم بتزوّد/تنقّص نص جنيه
 var LS_FRUIT_PRICES = 'barq_fruit_prices_v1';          // آخر سعر اتطبع لكل صنف — عشان بكرة يبدأ من سعر النهارده
 // لوجو أبو الفضل بدقة أعلى (260×400) للملصق الكبير — النسخة الصغيرة بتطلع مشوشة لما تتكبّر
@@ -4188,6 +4209,9 @@ function printFruitLabels() {
     '</div>';
   });
 
+  var box = getFruitStickerSize();
+  // الملصق بيطول على قد مربع السعر: لوجو + اسم + مسافات ≈ 32 مم فوق المربع
+  var tagH = Math.max(66, box.h + 32);
   var win = window.open('', '_blank');
   if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
@@ -4196,12 +4220,12 @@ function printFruitLabels() {
     '@page{size:A4;margin:8mm}' +
     'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
     '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
-    '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+FRUIT_TAG_H_MM+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
+    '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+tagH+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
       'display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:2mm 3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
     '.ftag-logo{height:14mm;width:auto;object-fit:contain;flex-shrink:0}' +
     '.ftag-name{font-weight:900;font-size:36px;color:#1a1a1a;line-height:1.05;margin-bottom:3mm;text-align:center;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}' +
     // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
-    '.ftag-box{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box}' +
+    '.ftag-box{width:'+box.w+'mm;height:'+box.h+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box}' +
     '</style></head><body>' +
     '<div class="wrap">'+cells.join('')+'</div>' +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
@@ -4251,6 +4275,8 @@ function openFruitPricePanel() {
     '#fruit-price-panel .fp-price{width:84px;height:42px;font-size:20px;font-weight:800;text-align:center;border:2px solid #2d8653;border-radius:10px}' +
     '#fruit-price-panel .fp-x{color:#999;margin:0 2px}' +
     '#fruit-price-panel .fp-qty{width:52px;height:42px;font-size:16px;text-align:center;border:1px solid #ccc;border-radius:10px}' +
+    '#fruit-price-panel .fp-size{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:700}' +
+    '#fruit-price-panel .fp-size select{flex:1;padding:9px;border:1px solid #ccc;border-radius:10px;font-size:14px}' +
     '#fruit-price-panel .fp-actions{display:flex;gap:8px;margin-top:14px}' +
     '#fruit-price-panel .fp-actions button{flex:1;padding:12px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;border:none}' +
     '</style>' +
@@ -4258,6 +4284,11 @@ function openFruitPricePanel() {
       '<h3>💰 أسعار الفاكهة النهارده</h3>' +
       '<div class="fp-sub">عدّل السعر بالأسهم (نص جنيه كل ضغطة) أو اكتبه، وجنبه عدد المربعات. السعر بيتحفظ لبكرة.</div>' +
       rows +
+      '<div class="fp-size"><label>مقاس الاستيكر</label><select onchange="setFruitStickerSize(this.value)">' +
+        FRUIT_STICKER_SIZES.map(function(o){
+          return '<option value="'+o.v+'"'+(o.v===getFruitStickerSize().v?' selected':'')+'>'+o.label+'</option>';
+        }).join('') +
+      '</select></div>' +
       '<div class="fp-actions">' +
         '<button type="button" style="background:#2d8653;color:#fff" onclick="printFruitPriceStickers()">🖨️ طباعة مربعات السعر</button>' +
         '<button type="button" style="background:#eee;color:#333" onclick="closeFruitPricePanel()">إغلاق</button>' +
@@ -4280,7 +4311,8 @@ function fruitPriceStep(i, dir) {
   inp.value = v;
 }
 
-// مربعات السعر المطبوعة: نفس مقاس المربع الفاضي في ملصق الفاكهة، فيها السعر بس بخط كبير
+// مربعات السعر المطبوعة: نفس مقاس المربع الفاضي في ملصق الفاكهة، فيها السعر بس بخط كبير.
+// على الإكس برنتر كل سعر بياخد ليبل لوحده (@page بمقاس الليبل وmargin صفر، زي شاشة طباعة الباركود)
 function printFruitPriceStickers() {
   var rows = document.querySelectorAll('#fruit-price-panel .fp-row');
   var saved = loadFruitPrices();
@@ -4291,25 +4323,43 @@ function printFruitPriceStickers() {
     if (!(price > 0)) { if (qty > 0) missing++; return; }
     saved[row.getAttribute('data-key')] = price;
     for (var k=0; k<qty; k++) {
-      boxes.push('<div class="pbox"><span class="pbox-price">'+fmt(price)+'</span></div>');
+      boxes.push(fmt(price));
     }
   });
   try { localStorage.setItem(LS_FRUIT_PRICES, JSON.stringify(saved)); } catch(e) {}
   if (!boxes.length) { toast('⚠️ اكتب سعر صنف واحد على الأقل'); return; }
+
+  var size = getFruitStickerSize();
+  // حجم الرقم على قد الاستيكر: مايعديش 62% من الارتفاع، ولا يخرج من العرض لو السعر فيه أرقام كتير (زي 122.5)
+  var html = boxes.map(function(txt){
+    var fs = Math.min(size.h * 0.62, (size.w * 0.9) / (0.58 * Math.max(2, txt.length)));
+    return '<div class="pbox"><span class="pbox-price" style="font-size:'+fs.toFixed(1)+'mm">'+txt+'</span></div>';
+  }).join('');
+  var css = size.thermal ?
+    '@page{size:'+size.w+'mm '+size.h+'mm;margin:0}' +
+    'body{margin:0;padding:0}' +
+    '.pbox{width:'+size.w+'mm;height:'+size.h+'mm;display:flex;align-items:center;justify-content:center;overflow:hidden;page-break-after:always;break-after:page}' +
+    '.pbox:last-child{page-break-after:auto;break-after:auto}' +
+    '.pbox-price{color:#000}'
+    :
+    '@page{size:A4;margin:8mm}' +
+    'body{margin:0;padding:4mm}' +
+    '.wrap{display:flex;flex-wrap:wrap;gap:4mm;justify-content:center}' +
+    '.pbox{width:'+size.w+'mm;height:'+size.h+'mm;border:1.5px dashed #777;border-radius:6px;box-sizing:border-box;background:#fff;' +
+      'display:flex;align-items:center;justify-content:center;page-break-inside:avoid;break-inside:avoid}' +
+    '.pbox-price{color:#0f5c2e}';
 
   var win = window.open('', '_blank');
   if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
   win.document.write(
     '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>مربعات السعر</title>' +
     '<style>' +
-    '@page{size:A4;margin:8mm}' +
-    'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
-    '.wrap{display:flex;flex-wrap:wrap;gap:4mm;justify-content:center}' +
-    '.pbox{width:'+FRUIT_BOX_W_MM+'mm;height:'+FRUIT_BOX_H_MM+'mm;border:1.5px dashed #777;border-radius:6px;position:relative;box-sizing:border-box;background:#fff;' +
-      'display:flex;align-items:center;justify-content:center;page-break-inside:avoid;break-inside:avoid}' +
-    '.pbox-price{font-family:Arial,sans-serif;font-size:64px;font-weight:900;color:#0f5c2e;line-height:1}' +
+    '*{box-sizing:border-box}' +
+    'body{font-family:Tahoma,Arial,sans-serif}' +
+    '.pbox-price{font-family:Arial,sans-serif;font-weight:900;line-height:1}' +
+    css +
     '</style></head><body>' +
-    '<div class="wrap">'+boxes.join('')+'</div>' +
+    (size.thermal ? html : '<div class="wrap">'+html+'</div>') +
     '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
     '</body></html>'
   );
