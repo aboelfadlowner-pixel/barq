@@ -215,7 +215,13 @@ export async function getAccount() {
     return null;
   }
   if (!row) return { pendingCode: true, email: session.user.email || '' };
-  return { id: session.user.id, name: row.display_name, role: row.role || 'admin', email: session.user.email || '' };
+  // One account per person (14_account_names.sql): the account's own name goes on its orders.
+  // An account from before writes its name once (needsName).
+  const named = 'agent_id' in row;
+  return {
+    id: session.user.id, name: row.display_name, role: row.role || 'admin', email: session.user.email || '',
+    agentId: row.agent_id || null, needsName: named && !row.agent_id,
+  };
 }
 
 /* Accounts and roles (admin). null = not installed on the database yet. */
@@ -271,9 +277,17 @@ export async function setStage(orderId, stage) {
 
 export async function listStaff() {
   const c = await sb();
-  const res = await c.rpc('cc_list_staff');
+  let res = await c.rpc('cc_list_accounts');               // with each person's name (14_account_names.sql)
+  if (res.error?.code === NOT_INSTALLED) res = await c.rpc('cc_list_staff');
   if (res.error?.code === NOT_INSTALLED) return null;
-  return ok(res).map((r) => ({ id: r.user_id, email: r.email, role: r.role, active: !!r.active, createdAt: r.created_at }));
+  return ok(res).map((r) => ({ id: r.user_id, email: r.email, name: r.name || '', role: r.role, active: !!r.active, createdAt: r.created_at }));
+}
+
+/* An account from before writes its name once. */
+export async function setMyName(name) {
+  const c = await sb();
+  ok(await c.rpc('cc_set_my_name', { p_name: String(name || '').trim() }));
+  return getAccount();
 }
 
 export async function setStaff({ id, role, active }) {
@@ -299,9 +313,10 @@ export async function signIn(email, password) {
 // PGRST202 = the function is not on the database yet (06_signup_code.sql not applied).
 const NOT_INSTALLED = 'PGRST202';
 
-export async function joinWithCode(code) {
+export async function joinWithCode(code, name = '') {
   const c = await sb();
-  const res = await c.rpc('cc_join_with_code', { p_code: String(code || '') });
+  let res = await c.rpc('cc_join_with_code', { p_code: String(code || ''), p_name: String(name || '').trim() });
+  if (res.error?.code === NOT_INSTALLED) res = await c.rpc('cc_join_with_code', { p_code: String(code || '') });
   if (res.error?.code === NOT_INSTALLED) throw new Error('التسجيل بالكود غير مفعّل بعد — تواصل مع المسؤول');
   const linked = ok(res);
   if (!linked) throw new Error('كود التسجيل غير صحيح');

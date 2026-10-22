@@ -19,7 +19,8 @@ export const signOut    = () => impl.signOut();
 export const changePassword = (p) => impl.changePassword(p);
 export const signUp     = (email, password) => impl.signUp(email, password);
 /* Registration code: a new account types it once to become the call-center account. */
-export const joinWithCode        = (code) => impl.joinWithCode(code);
+export const joinWithCode        = (code, name) => impl.joinWithCode(code, name);
+export const setMyName           = (name) => impl.setMyName(name);
 export const setSignupCode       = (code) => impl.setSignupCode(code);
 export const getSignupCodeStatus = () => impl.getSignupCodeStatus();
 

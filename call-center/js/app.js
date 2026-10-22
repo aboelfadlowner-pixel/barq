@@ -5,12 +5,12 @@
    then the session is remembered. */
 import { loadCatalog } from './catalog.js';
 import { startCatalogSync } from './catalog-sync.js';
-import { getState, setState, setUser } from './store.js';
+import { getState, setState, setUser, setAgent } from './store.js';
 import * as ds from './data/data-source.js';
 import { can, isPrepOnly } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
 import { restoreAgent } from './components/agent-select.js';
-import { mountLogin } from './screens/login-screen.js';
+import { mountLogin, mountNameStep } from './screens/login-screen.js';
 import { mountBoard } from './screens/board-screen.js';
 import { mountPos } from './screens/pos-screen.js';
 import { mountOrders } from './screens/orders-screen.js';
@@ -55,6 +55,7 @@ function showError(title, err) {
 }
 
 async function startSignedIn(user) {
+  if (user.needsName) { mountNameStep(view, startSignedIn, user); return; }   // an account from before: its name once
   setUser(user);
   if (isPrepOnly(user)) {               // the preparation account loads no products, customers or settings
     window.addEventListener('hashchange', render);
@@ -69,7 +70,9 @@ async function startSignedIn(user) {
     return;
   }
   window.addEventListener('hashchange', render);
-  restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
+  // An account with its own name: that name goes on its orders. A shared account picks a name, as before.
+  if (user.agentId) setAgent({ id: user.agentId, name: user.name });
+  else restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   render();
   // Opened with the product list saved on this device → bring it up to date quietly.
   refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});

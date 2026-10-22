@@ -73,7 +73,11 @@ function mountCodeStep(view, onSignedIn, email) {
           <div><div class="brand-name">أبو الفضل</div><div class="muted">مركز الاتصال · طلبات التوصيل</div></div>
         </div>
         <h1>كود التسجيل</h1>
-        <p class="muted">${email ? `الحساب <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}أدخل كود التسجيل الذي حصلت عليه من المسؤول — مرة واحدة فقط.</p>
+        <p class="muted">${email ? `الحساب <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}أدخل اسمك وكود التسجيل الذي حصلت عليه من المسؤول — مرة واحدة فقط.</p>
+        <div class="field">
+          <label for="cd-name">اسمك (يظهر على الطلبات)</label>
+          <input id="cd-name" class="input" name="name" maxlength="40" autocomplete="name" placeholder="مثال: عمر محمد" required>
+        </div>
         <div class="field">
           <label for="cd-code">الكود</label>
           <input id="cd-code" class="input ltr-center" name="code" autocomplete="off" required>
@@ -87,14 +91,16 @@ function mountCodeStep(view, onSignedIn, email) {
   const err = form.querySelector('[data-err="code"]');
   const btn = form.querySelector('[data-code-submit]');
   const input = form.querySelector('#cd-code');
-  input.focus();
+  const nameInput = form.querySelector('#cd-name');
+  nameInput.focus();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (nameInput.value.trim().length < 2) { err.textContent = 'أدخل اسمك'; nameInput.focus(); return; }
     if (!input.value.trim()) { err.textContent = 'أدخل الكود'; input.focus(); return; }
     err.textContent = '';
     btn.disabled = true;
     try {
-      const account = await ds.joinWithCode(input.value.trim());
+      const account = await ds.joinWithCode(input.value.trim(), nameInput.value.trim());
       if (!account || account.pendingCode) throw new Error('كود التسجيل غير صحيح');
       onSignedIn(account);
     } catch (ex) {
@@ -106,6 +112,50 @@ function mountCodeStep(view, onSignedIn, email) {
   form.querySelector('[data-code-signout]').addEventListener('click', async () => {
     await ds.signOut();
     mountLogin(view, onSignedIn);
+  });
+}
+
+/* ---------- Name: asked once for an account made before names (14_account_names.sql) ---------- */
+export function mountNameStep(view, onDone, account) {
+  view.innerHTML = `
+    <div class="login-page">
+      <form class="login-card card" data-name-form novalidate>
+        <div class="brand login-brand">
+          <img class="login-logo" src="assets/logo.png" alt="أبو الفضل">
+          <div><div class="brand-name">أبو الفضل</div><div class="muted">مركز الاتصال · طلبات التوصيل</div></div>
+        </div>
+        <h1>اكتب اسمك</h1>
+        <p class="muted">${account?.email ? `الحساب <span class="ltr-inline">${esc(account.email)}</span>. ` : ''}اسمك يُسجَّل على حسابك ويظهر على الطلبات التي ترسلها — مرة واحدة فقط.</p>
+        <div class="field">
+          <label for="nm-name">اسمك</label>
+          <input id="nm-name" class="input" name="name" maxlength="40" autocomplete="name" placeholder="مثال: عمر محمد" required>
+        </div>
+        <div class="field-error" data-err="name" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" data-name-submit>${icon('check')}حفظ</button>
+        <button type="button" class="link-btn signup-link" data-name-signout>الخروج والدخول بحساب آخر</button>
+      </form>
+    </div>`;
+  const form = view.querySelector('[data-name-form]');
+  const err = form.querySelector('[data-err="name"]');
+  const btn = form.querySelector('[data-name-submit]');
+  const input = form.querySelector('#nm-name');
+  input.focus();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (input.value.trim().length < 2) { err.textContent = 'أدخل اسمك'; input.focus(); return; }
+    err.textContent = '';
+    btn.disabled = true;
+    try {
+      onDone(await ds.setMyName(input.value.trim()));
+    } catch (ex) {
+      err.textContent = ex.message;
+      btn.disabled = false;
+      input.select();
+    }
+  });
+  form.querySelector('[data-name-signout]').addEventListener('click', async () => {
+    await ds.signOut();
+    mountLogin(view, onDone);
   });
 }
 

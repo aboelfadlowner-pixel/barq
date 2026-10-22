@@ -1079,3 +1079,59 @@ begin
   raise notice 'PASS T35 add-ons: admin-only links with min/max, database prices, option chosen in advance, required group, limits, other product/inactive refused, repeat unchanged, edit keeps add-on price, prep sees add-ons';
 end $$;
 rollback;
+
+-- T36 — one account per person (14_account_names.sql): the code + a name links the account with that name;
+-- the name is used on orders whatever the app sends; old accounts write their name once; admin sees names
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'new36@cc.test'), (gen_random_uuid(), 'other36@cc.test');
+insert into public.cc_agents (name) values ('كريم 36') on conflict do nothing;   -- a name added earlier from the list
+select set_config('cc.other_agent', (select id::text from public.cc_agents where name = 'كريم 36'), true);
+-- the admin sets a code
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_set_signup_code('code-3636'); end $$;
+reset role;
+-- a new person: wrong code → false; no name → refused; right code + name → linked with that name
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'new36@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if public.cc_join_with_code('wrong-code', 'سارة 36') then raise exception 'FAIL T36 wrong code joined'; end if;
+  begin perform public.cc_join_with_code('code-3636', ' '); raise exception 'FAIL T36 empty name';
+  exception when invalid_parameter_value then null; end;
+  if not public.cc_join_with_code('code-3636', '  سارة   36 ') then raise exception 'FAIL T36 right code'; end if;
+  if public.cc_my_role() <> 'call_center' then raise exception 'FAIL T36 role'; end if;
+  begin perform public.cc_set_my_name('اسم تاني'); raise exception 'FAIL T36 renamed itself';
+  exception when invalid_parameter_value then null; end;
+  -- the app sends another person's name: the order is still saved with this account's name
+  o := public.cc_place_order(current_setting('cc.other_agent')::uuid, gen_random_uuid(), '{"name": "عميل 36", "phone": "01036363636"}',
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 36'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  if o.agent_name <> 'سارة 36' then raise exception 'FAIL T36 order name %', o.agent_name; end if;
+end $$;
+reset role;
+-- another new person cannot take a name already used by an account; can take a list name nobody uses
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'other36@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_join_with_code('code-3636', 'سارة 36'); raise exception 'FAIL T36 same name twice';
+  exception when unique_violation then null; end;
+  if not public.cc_join_with_code('code-3636', 'كريم 36') then raise exception 'FAIL T36 list name'; end if;
+end $$;
+reset role;
+-- an old account without a name writes it once; the admin list shows names
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare n text; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if (public.cc_set_my_name('المسؤول 36')).name <> 'المسؤول 36' then raise exception 'FAIL T36 set my name'; end if;
+  select string_agg(coalesce(a.name, '-'), ',' order by a.name) into n from public.cc_list_accounts() a where a.email like '%36@cc.test' or a.email = 'staff@cc.test';
+  if n <> 'المسؤول 36,سارة 36,كريم 36' then raise exception 'FAIL T36 list %', n; end if;
+  if (select other_agent from (select (select agent_id from public.cc_staff where user_id = auth.uid()) other_agent) x) is null then raise exception 'FAIL T36 link'; end if;
+  raise notice 'PASS T36 accounts with names: code + name links the account, orders always carry the account''s own name, no duplicate names, list names taken over, old accounts name themselves once, admin list shows names';
+end $$;
+rollback;

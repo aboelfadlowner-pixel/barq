@@ -47,6 +47,12 @@ export function initAgentSelect(root) {
   const search = pop.querySelector('.combo-search');
   const list = pop.querySelector('[data-as-list]');
 
+  // An account with its own name shows that name only (nothing to pick).
+  if (getState().user?.agentId) {
+    btn.disabled = true;
+    btn.classList.add('is-own');
+    btn.title = 'اسمك مسجل على حسابك';
+  }
   const label = () => {
     const cur = getState().agent;
     box.querySelector('[data-as-label]').textContent = cur ? cur.name : 'اختر اسمك';
@@ -64,7 +70,7 @@ export function initAgentSelect(root) {
   const open = () => { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); search.value = ''; renderList(); search.focus(); };
   const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
 
-  btn.addEventListener('click', () => (pop.hidden ? open() : close()));
+  btn.addEventListener('click', () => { if (!btn.disabled) (pop.hidden ? open() : close()); });
   search.addEventListener('input', renderList);
   search.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }

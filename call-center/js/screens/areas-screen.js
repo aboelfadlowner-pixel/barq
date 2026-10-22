@@ -66,7 +66,7 @@ export function mountAreas(view) {
         <strong>تجهيز</strong>: شاشة التجهيز في الفرع فقط. يبدأ الحساب الجديد بصلاحية «كول سنتر».</p>
       <div class="card table-wrap">
         <table class="table areas-table">
-          <thead><tr><th>الحساب</th><th>الصلاحية</th><th>الحالة</th><th></th></tr></thead>
+          <thead><tr><th>الموظف</th><th>الصلاحية</th><th>الحالة</th><th></th></tr></thead>
           <tbody data-staff-rows></tbody>
         </table>
       </div>
@@ -125,7 +125,8 @@ export function mountAreas(view) {
     if (!list) return;
     staffRows.innerHTML = list.map((s) => `
       <tr data-staff-id="${esc(s.id)}" class="${s.active ? '' : 'row-off'}">
-        <td class="ltr-cell">${esc(s.email)}${s.id === me ? ' <span class="muted">(أنت)</span>' : ''}</td>
+        <td><strong>${esc(s.name || 'بدون اسم بعد')}</strong>${s.id === me ? ' <span class="muted">(أنت)</span>' : ''}
+          <div class="muted ltr-cell staff-email">${esc(s.email)}</div></td>
         <td><select class="input" name="staffRole" ${s.id === me ? 'disabled' : ''} aria-label="الصلاحية">
           ${ROLES.map((r) => `<option value="${r.id}" ${r.id === s.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select></td>
         <td><label class="switch"><input type="checkbox" name="staffActive" ${s.active ? 'checked' : ''} ${s.id === me ? 'disabled' : ''}>

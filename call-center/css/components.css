@@ -691,3 +691,7 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .mods-table td .hint { margin-top: 2px; max-width: 420px; }
 .mods-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .mods-add select { flex: 1; min-width: 200px; }
+
+/* An account with its own name: the name is fixed */
+.agent-select .combo-btn.is-own { cursor: default; opacity: 1; border-color: var(--green-600); color: var(--green-700); background: var(--green-50); }
+.staff-email { font-size: 12px; margin-top: 2px; }

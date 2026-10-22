@@ -83,6 +83,8 @@ export function saveAgent({ id = null, name, active = true }) {
 /* ---------- Account (the demo is always signed in) ---------- */
 const demoRole = new URLSearchParams(location.search).get('role');
 const demoAccount = { ...mock.account, role: ['admin', 'call_center', 'prep'].includes(demoRole) ? demoRole : 'admin' };
+// «?own» in the link: an account with its own name (عمر) — no «اختر اسمك».
+if (new URLSearchParams(location.search).has('own')) Object.assign(demoAccount, { agentId: 'ag-1', name: 'عمر' });
 export const getAccount = () => resolve(demoAccount);
 export const signIn = () => resolve(demoAccount);
 
@@ -99,6 +101,7 @@ export const signOut = () => Promise.resolve();
 export const changePassword = () => Promise.resolve(true);
 export const signUp = () => Promise.resolve({ needsConfirmation: false });
 export const joinWithCode = () => resolve(demoAccount);
+export const setMyName = () => resolve(demoAccount);
 let demoCodeAt = new Date().toISOString();
 export const setSignupCode = (code) => (String(code || '').trim().length < 8
   ? Promise.reject(new Error('يجب أن يتكون الكود من 8 إلى 40 حرفًا أو رقمًا'))
