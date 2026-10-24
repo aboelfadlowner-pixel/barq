@@ -146,7 +146,6 @@ export function ProductSheetProvider({ children }: { children: React.ReactNode }
             متوفر
           </div>
         )}
-        <p className="desc">يُحضَّر ويُحفظ بعناية ليصلك طازجًا. التفاصيل الكاملة (الوزن والمكوّنات) تُضاف من بيانات المتجر.</p>
         {displayOnly ? (
           <p className="pd-notice" role="note">
             {category?.notice || "هذا المنتج للعرض فقط ولا يُطلب من الموقع."}
