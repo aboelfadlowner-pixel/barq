@@ -37,6 +37,9 @@ const CATEGORY_TAGLINES: Record<string, string> = {
 /** «تونه» (= «تونة بالمايونيز») and «مختوم فلسطيني» (= «برطمان مختوم فلسطيني 425جم»). */
 const DUPLICATES = [51425, 51694];
 
+/** Dates the store stopped selling for now (shown as unavailable). */
+const DATES_PAUSED = [51698, 51701, 51727, 51709];
+
 const DRINKS_NOTICE = "تنبيه: قسم العصائر والآيس كريم والقهوة للعرض فقط ولا يوجد طلب مباشر من هذا القسم.";
 
 const withImages = (category: Category): Category => ({
@@ -65,7 +68,8 @@ export function seedStore(): StoreData {
       .filter((product) => product.categoryId !== REMOVED_CATEGORY)
       .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product }))
       .map(withPhoto)
-      .map((product) => (DUPLICATES.includes(product.id) && !product.sku ? { ...product, hidden: true } : product)),
+      .map((product) => (DUPLICATES.includes(product.id) && !product.sku ? { ...product, hidden: true } : product))
+      .map((product) => (DATES_PAUSED.includes(product.id) ? { ...product, inStock: false } : product)),
     orders: [],
     orderSeq: 0,
     syncLog: [],
@@ -75,7 +79,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 20;
+const SCHEMA = 21;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -190,6 +194,10 @@ export function upgradeStore(data: StoreData): StoreData {
     const fresh = data.categories.find((category) => category.id === "fresh");
     if (fresh && !fresh.imageUrl) fresh.imageUrl = CATEGORY_IMAGES.fresh;
     if (fresh && !fresh.iconUrl) fresh.iconUrl = CATEGORY_ICONS.fresh;
+  }
+  if ((data.schema ?? 1) < 21) {
+    // Dates no longer sold for now (owner): Egyptian medjool small / medium, medjool with nuts, Saudi rashodia.
+    for (const product of data.products) if (DATES_PAUSED.includes(product.id)) product.inStock = false;
   }
   data.schema = SCHEMA;
   return data;
