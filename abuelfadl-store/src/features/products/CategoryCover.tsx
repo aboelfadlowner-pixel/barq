@@ -217,21 +217,18 @@ function SyrianCover() {
 }
 
 /**
- * "fresh" cover (fresh bakery): five items from the owner's photos, each on its baking paper
- * (public/covers/fresh/*.webp) — croissant, country loaf and a large pain au chocolat at the back, pain au chocolat and
- * a cheese fatayer in front. They rise in one after another; positions are the `.cvfb-*` rules.
+ * "fresh" cover (fresh bakery): the owner's photo of five pastries — cheese fatayer, pain au chocolat, cinnamon roll,
+ * seeded croissant and croissant — cut out as one piece (public/covers/fresh/group.webp) since they sit close together.
+ * It rises in with a contact shadow like the deli cover; position is the `.cvfr-group` rule.
  */
-const FRESH_PIECES = ["croissant", "bigpain", "loaf", "painchoc", "fatayer"] as const;
-
 function FreshCover() {
   return (
-    <div className="cvd" role="img" aria-label="مخبوزات فريش: كرواسون وعيش بلدي مخمّر وبان أو شوكولا وفطيرة جبنة">
+    <div className="cvd" role="img" aria-label="مخبوزات فريش: فطيرة جبنة وبان أو شوكولا وسينابون وكرواسون بالحبوب وكرواسون">
       <div className="cvd-s" aria-hidden="true">
-        {FRESH_PIECES.map((name) => (
-          <span key={name} className={`cvd-p cvfb-${name}`}>
-            <img src={`/covers/fresh/${name}.webp`} alt="" decoding="async" />
-          </span>
-        ))}
+        <span className="cvd-p cvfr-group">
+          <i className="sh" />
+          <img src="/covers/fresh/group.webp" alt="" decoding="async" />
+        </span>
       </div>
     </div>
   );

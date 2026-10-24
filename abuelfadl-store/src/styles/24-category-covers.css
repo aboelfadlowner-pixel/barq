@@ -107,9 +107,5 @@
 .cvsy-blackseed{left:24.69%;top:59.40%;width:25.62%;z-index:3;--dl:0.4s}
 .cvsy-pistachio{left:50.81%;top:59.00%;width:27.19%;z-index:3;--dl:0.52s}
 
-/* fresh bakery cover (FreshCover): five items on baking paper, three at the back and two in front */
-.cvfb-croissant{left:11.88%;top:29.50%;width:32.50%;z-index:1;--dl:0.1s}
-.cvfb-bigpain{left:56.25%;top:33.60%;width:31.25%;z-index:1;--dl:0.34s}
-.cvfb-loaf{left:36.56%;top:25.50%;width:26.88%;z-index:2;--dl:0.22s}
-.cvfb-painchoc{left:24.06%;top:62.10%;width:29.38%;z-index:3;--dl:0.5s}
-.cvfb-fatayer{left:47.81%;top:59.20%;width:28.12%;z-index:3;--dl:0.62s}
+/* fresh bakery cover (FreshCover): five pastries as one group (they sit close together in the photo) */
+.cvfr-group{left:6.00%;top:30.00%;width:88.00%;z-index:1;--dl:0.1s}
