@@ -4234,12 +4234,20 @@ function printFruitLabels() {
     '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+tagH+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
       'display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:2mm 3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
     '.ftag-logo{height:14mm;width:auto;object-fit:contain;flex-shrink:0}' +
-    '.ftag-name{font-weight:900;font-size:36px;color:#1a1a1a;line-height:1.05;margin-bottom:3mm;text-align:center;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}' +
+    '.ftag-name{font-weight:900;font-size:36px;color:#1a1a1a;line-height:1.1;margin-bottom:3mm;text-align:center;width:100%;white-space:nowrap}' +
     // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
     '.ftag-box{width:'+box.w+'mm;height:'+box.h+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box}' +
     '</style></head><body>' +
     '<div class="wrap">'+cells.join('')+'</div>' +
-    '<scr'+'ipt>window.onload=function(){window.print();}</scr'+'ipt>' +
+    // الاسم الطويل: بنصغّر الخط لحد ما ييجي في سطر واحد، ولو لسه أطول من الملصق بيتقسم على سطرين — من غير ما يتقص
+    '<scr'+'ipt>window.onload=function(){' +
+      'document.querySelectorAll(".ftag-name").forEach(function(el){' +
+        'var fs=36;' +
+        'while(el.scrollWidth>el.clientWidth&&fs>22){fs--;el.style.fontSize=fs+"px";}' +
+        'if(el.scrollWidth>el.clientWidth){el.style.whiteSpace="normal";}' +
+      '});' +
+      'window.print();' +
+    '}</scr'+'ipt>' +
     '</body></html>'
   );
   win.document.close();
