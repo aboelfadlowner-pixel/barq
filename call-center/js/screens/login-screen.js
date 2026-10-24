@@ -76,7 +76,7 @@ function mountCodeStep(view, onSignedIn, email) {
         <p class="muted">${email ? `الحساب <span class="ltr-inline">${esc(email)}</span> جديد. ` : ''}أدخل اسمك وكود التسجيل الذي حصلت عليه من المسؤول — مرة واحدة فقط.</p>
         <div class="field">
           <label for="cd-name">اسمك (يظهر على الطلبات)</label>
-          <input id="cd-name" class="input" name="name" maxlength="40" autocomplete="name" placeholder="مثال: عمر محمد" required>
+          <input id="cd-name" class="input" name="cc-agent-label" maxlength="40" autocomplete="off" data-lpignore="true" placeholder="مثال: عمر محمد" required>
         </div>
         <div class="field">
           <label for="cd-code">الكود</label>
@@ -128,7 +128,7 @@ export function mountNameStep(view, onDone, account) {
         <p class="muted">${account?.email ? `الحساب <span class="ltr-inline">${esc(account.email)}</span>. ` : ''}اسمك يُسجَّل على حسابك ويظهر على الطلبات التي ترسلها — مرة واحدة فقط.</p>
         <div class="field">
           <label for="nm-name">اسمك</label>
-          <input id="nm-name" class="input" name="name" maxlength="40" autocomplete="name" placeholder="مثال: عمر محمد" required>
+          <input id="nm-name" class="input" name="cc-agent-label" maxlength="40" autocomplete="off" data-lpignore="true" placeholder="مثال: عمر محمد" required>
         </div>
         <div class="field-error" data-err="name" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-lg btn-block" data-name-submit>${icon('check')}حفظ</button>

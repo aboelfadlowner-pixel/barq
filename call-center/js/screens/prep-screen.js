@@ -5,7 +5,6 @@
    center prints the ticket and hands it over). It checks for changes every few seconds and
    rings when a new order arrives. */
 import * as ds from '../data/data-source.js';
-import { getState } from '../store.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } from '../utils/format.js';
@@ -157,13 +156,12 @@ function column(stage, list, busyId) {
 }
 
 export function mountPrep(view) {
-  const { user } = getState();
   view.innerHTML = `
     <div class="page prep-page"><div class="page-inner">
       <div class="page-head">
         <div>
           <h1 class="title-icon">${icon('clipboard')}شاشة التجهيز</h1>
-          <div class="page-sub"><span>${esc(user?.email || '')}</span><span class="muted" data-updated></span>
+          <div class="page-sub"><span class="muted" data-updated></span>
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
         <div class="board-actions">
