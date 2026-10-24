@@ -69,10 +69,9 @@ function cleanDate(value: unknown): string | undefined | null {
 const isWeight = (value: number, max: number) => Number.isFinite(value) && value > 0 && value <= max && Math.abs(roundQty(value) - value) < 1e-9;
 
 /**
- * Checks and cleans product fields. `existing` is the current product for updates (missing fields keep their value);
- * `products` is the whole catalog, used to keep SKUs unique.
+ * Checks and cleans product fields. `existing` is the current product for updates (missing fields keep their value).
  */
-function buildProduct(input: ProductInput, categories: Category[], products: Product[], existing?: Product): Omit<Product, "id"> {
+function buildProduct(input: ProductInput, categories: Category[], existing?: Product): Omit<Product, "id"> {
   const fields: Record<string, string> = {};
   const merged = { ...existing, ...input };
 
@@ -101,13 +100,10 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
     weights = { weightStep, minWeight, maxWeight };
   }
 
-  // SKU: optional, "sk-" + digits, and never used by another product (one sheet row updates one product).
+  // SKU: optional, "sk-" + digits. Several products may share one (e.g. three manakish sold under one sheet item):
+  // they all take that sheet row's price.
   const sku = normalizeSku(merged.sku);
   if (sku && !isValidSku(sku)) fields.sku = "يجب أن يكون الـ SKU بالشكل sk-1234";
-  else if (sku) {
-    const owner = products.find((product) => product.sku === sku && product.id !== existing?.id);
-    if (owner) fields.sku = `هذا الـ SKU مرتبط بمنتج آخر: «${owner.name}»`;
-  }
 
   // Offer: optional sale price below the price, with optional first / last day ("YYYY-MM-DD").
   const offer = Boolean(merged.offer);
@@ -156,7 +152,7 @@ function buildProduct(input: ProductInput, categories: Category[], products: Pro
 /** Creates a product with the next free id (ids continue the old WooCommerce numbering). */
 export function createProduct(input: ProductInput): Promise<Product> {
   return mutate((data) => {
-    const product: Product = { id: Math.max(0, ...data.products.map((p) => p.id)) + 1, ...buildProduct(input, data.categories, data.products) };
+    const product: Product = { id: Math.max(0, ...data.products.map((p) => p.id)) + 1, ...buildProduct(input, data.categories) };
     data.products.push(product);
     return product;
   });
@@ -166,7 +162,7 @@ export function updateProduct(id: ProductId, input: ProductInput): Promise<Produ
   return mutate((data) => {
     const index = data.products.findIndex((product) => product.id === id);
     if (index < 0) throw notFound("المنتج");
-    const product: Product = { id, ...buildProduct(input, data.categories, data.products, data.products[index]) };
+    const product: Product = { id, ...buildProduct(input, data.categories, data.products[index]) };
     data.products[index] = product;
     return product;
   });
