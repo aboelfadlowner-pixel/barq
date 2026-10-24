@@ -217,18 +217,21 @@ function SyrianCover() {
 }
 
 /**
- * "fresh" cover (fresh bakery): four items from the owner's top-down photo — croissant basket, pain au chocolat, cheese
- * swirl and manakish — in two rows. The white plates match the floor, so instead of cut-outs the picture is multiplied
- * onto the banner (its white turns into the banner colour, shadows stay soft).
- * Position is the `.cvfr-group` rule.
+ * "fresh" cover (fresh bakery): five items from the owner's photos, each on its baking paper
+ * (public/covers/fresh/*.webp) — croissant, country loaf and a large pain au chocolat at the back, pain au chocolat and
+ * a cheese fatayer in front. They rise in one after another; positions are the `.cvfb-*` rules.
  */
+const FRESH_PIECES = ["croissant", "bigpain", "loaf", "painchoc", "fatayer"] as const;
+
 function FreshCover() {
   return (
-    <div className="cvd" role="img" aria-label="مخبوزات فريش: كرواسون وبان أو شوكولا وفطيرة جبنة ومناقيش">
+    <div className="cvd" role="img" aria-label="مخبوزات فريش: كرواسون وعيش بلدي مخمّر وبان أو شوكولا وفطيرة جبنة">
       <div className="cvd-s" aria-hidden="true">
-        <span className="cvd-p cvfr-group">
-          <img src="/covers/fresh/group.webp" alt="" decoding="async" />
-        </span>
+        {FRESH_PIECES.map((name) => (
+          <span key={name} className={`cvd-p cvfb-${name}`}>
+            <img src={`/covers/fresh/${name}.webp`} alt="" decoding="async" />
+          </span>
+        ))}
       </div>
     </div>
   );
