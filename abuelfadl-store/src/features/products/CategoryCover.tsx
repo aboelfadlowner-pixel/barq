@@ -217,14 +217,14 @@ function SyrianCover() {
 }
 
 /**
- * "fresh" cover (fresh bakery): the owner's top-down photo of baskets and plates (croissants, pain au chocolat,
- * cinnamon rolls, a cheese swirl, danishes, manakish) kept whole: the white plates match the floor, so instead of a
- * cut-out the photo is multiplied onto the banner (its white turns into the banner colour, shadows stay soft).
+ * "fresh" cover (fresh bakery): four items from the owner's top-down photo — croissant basket, pain au chocolat, cheese
+ * swirl and manakish — in two rows. The white plates match the floor, so instead of cut-outs the picture is multiplied
+ * onto the banner (its white turns into the banner colour, shadows stay soft).
  * Position is the `.cvfr-group` rule.
  */
 function FreshCover() {
   return (
-    <div className="cvd" role="img" aria-label="مخبوزات فريش: كرواسون وبان أو شوكولا وسينابون ودانش ومناقيش">
+    <div className="cvd" role="img" aria-label="مخبوزات فريش: كرواسون وبان أو شوكولا وفطيرة جبنة ومناقيش">
       <div className="cvd-s" aria-hidden="true">
         <span className="cvd-p cvfr-group">
           <img src="/covers/fresh/group.webp" alt="" decoding="async" />

@@ -108,5 +108,5 @@
 .cvsy-pistachio{left:50.81%;top:59.00%;width:27.19%;z-index:3;--dl:0.52s}
 
 /* fresh bakery cover (FreshCover): one whole photo multiplied onto the banner, so no drop shadow on its box */
-.cvfr-group{left:5.00%;top:27.00%;width:90.00%;z-index:1;--dl:0.1s;mix-blend-mode:multiply}
+.cvfr-group{left:24.00%;top:18.00%;width:52.00%;z-index:1;--dl:0.1s;mix-blend-mode:multiply}
 .cvfr-group img{filter:none}
