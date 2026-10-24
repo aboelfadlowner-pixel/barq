@@ -707,5 +707,3 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .fav-list li .muted { font-size: 12.5px; margin-inline-start: 4px; }
 .fav-list li.top strong { color: var(--green-700); }
 .more-row { display: flex; justify-content: center; margin: 12px 0; }
-.fav-hint { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; background: var(--green-50);
-  color: var(--green-700); font-weight: 700; font-size: 13.5px; margin-top: 8px; }

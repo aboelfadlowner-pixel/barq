@@ -8,7 +8,7 @@ import { getState, setState } from '../store.js';
 import { CUSTOMER_NAME_MAX } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import {
-  formatAddress, formatMoney, formatTime, formatDateTime, formatRelative, normalizePhone, isValidPhone,
+  formatAddress, formatMoney, formatTime, formatDateTime, normalizePhone, isValidPhone,
 } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from './icons.js';
@@ -147,7 +147,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
         </div>
         <div class="field-error" data-err="name"></div>
       </div>
-      ${existing ? st.hint || '' : ''}
       ${todayWarning(st.todayOrders)}
 
       <div class="field">
@@ -241,16 +240,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     st.addressId = (preferAddressId && st.addresses.some((a) => a.id === preferAddressId))
       ? preferAddressId : usable[0]?.id ?? null;
     st.todayOrders = await todayOrdersFor(c.phones);
-    st.hint = '';
     renderDetails();
-    // What this customer usually orders (customers page numbers) — a quick suggestion for the agent.
-    ds.getCustomerStats(c.id).then((s) => {
-      if (st.customer !== c || !s?.orders) return;
-      const fav = s.topProducts[0];
-      st.hint = `<div class="fav-hint">⭐ <span>${fav ? `يطلب عادةً: <strong>${esc(fav.name)}</strong> · ` : ''}${s.orders} ${s.orders === 1 ? 'طلب' : 'طلبات'}${s.lastOrderAt ? ` · آخر طلب ${esc(formatRelative(s.lastOrderAt))}` : ''}</span>
-        <a href="#/customers/${encodeURIComponent(c.id)}" class="link-btn" data-profile>صفحة العميل</a></div>`;
-      renderDetails();
-    }).catch(() => {});
   }
 
   /* ---------- Save ---------- */
@@ -321,7 +311,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));
-  on(m.el, 'click', '[data-profile]', () => m.close());
   on(m.el, 'click', '[data-add-addr]', () => openAddressDialog({
     onSave: (a) => {
       const id = `tmp-${++tempSeq}`;

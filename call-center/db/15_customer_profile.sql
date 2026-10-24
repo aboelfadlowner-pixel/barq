@@ -5,8 +5,7 @@
 --  (search, sort by most orders / most spent / latest order) and a customer page:
 --  orders, total paid, average order, last order, favourite products and
 --  add-ons, usual area, cancelled orders, and the Foodics order count / last
---  order from the Foodics customers export. The order screen shows the
---  customer's usual product when the number is typed.
+--  order from the Foodics customers export.
 --
 --  CALL-CENTER ONLY. Additive: two columns on cc_customers (from the Foodics
 --  export, filled separately) and two read-only functions. Nothing is dropped
