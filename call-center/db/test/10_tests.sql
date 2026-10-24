@@ -1135,3 +1135,49 @@ do $$ declare n text; begin
   raise notice 'PASS T36 accounts with names: code + name links the account, orders always carry the account''s own name, no duplicate names, list names taken over, old accounts name themselves once, admin list shows names';
 end $$;
 rollback;
+
+-- T37 — customers page (15_customer_profile.sql): list with totals, search, sort; a customer's numbers and favourites
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into public.cc_agents (name) values ('موظف 37') on conflict do nothing;
+insert into auth.users (id, email) values (gen_random_uuid(), 'prep37@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'prep37@cc.test';
+select set_config('cc.agent', (select id::text from public.cc_agents where name = 'موظف 37'), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o1 public.cc_orders; o3 public.cc_orders; s jsonb; cid uuid; r record;
+  addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 37');
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  o1 := public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "عميلة المفضل", "phone": "01037373737"}', addr,
+          '[{"sku": "T-201", "qty": 2}, {"sku": "T-203", "qty": 1}]', null);
+  cid := o1.customer_id;
+  perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), jsonb_build_object('id', cid), jsonb_build_object('id', o1.address_id),
+          '[{"sku": "T-201", "qty": 1}]', null);
+  o3 := public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), jsonb_build_object('id', cid), jsonb_build_object('id', o1.address_id),
+          '[{"sku": "T-203", "qty": 5}]', null);
+  perform public.cc_cancel_order_as(current_setting('cc.agent')::uuid, o3.id, 'تجربة');
+  s := public.cc_customer_stats(cid);
+  if (s->>'orders')::int <> 2 or (s->>'cancelled')::int <> 1 then raise exception 'FAIL T37 counts %', s; end if;
+  if (s->>'total')::numeric <> (select sum(total) from public.cc_orders where customer_id = cid and status <> 'cancelled') then raise exception 'FAIL T37 total %', s; end if;
+  if s->'top_products'->0->>'sku' <> 'T-201' or (s->'top_products'->0->>'orders')::int <> 2 then raise exception 'FAIL T37 favourite %', s->'top_products'; end if;
+  if s->'top_area'->>'name' is null then raise exception 'FAIL T37 area'; end if;
+  select * into r from public.cc_list_customers('7373', 'orders', 50, 0) limit 1;
+  if r.id <> cid or r.orders <> 2 then raise exception 'FAIL T37 search by phone'; end if;
+  select * into r from public.cc_list_customers('المفضل', 'last', 50, 0) limit 1;
+  if r.id <> cid then raise exception 'FAIL T37 search by name'; end if;
+  select * into r from public.cc_list_customers(null, 'orders', 1, 0);
+  if r.orders < 2 then raise exception 'FAIL T37 sort by orders'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep37@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_list_customers(null, 'last', 10, 0); raise exception 'FAIL T37 prep listed customers';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T37 customers page: list with call-center totals, search by name/phone, sort, customer numbers (orders, cancelled, total, favourite product, usual area), prep blocked';
+end $$;
+rollback;

@@ -499,6 +499,46 @@ export async function suggestCustomersByPhone(prefix) {
 }
 
 /* Customers whose main or second number equals this number (phone2 is not unique — L6). */
+/* ---------- Customers page (15_customer_profile.sql) ---------- */
+const toStats = (s) => ({
+  orders: Number(s.orders) || 0, cancelled: Number(s.cancelled) || 0,
+  total: Number(s.total) || 0, average: Number(s.average) || 0,
+  firstOrderAt: s.first_order_at || null, lastOrderAt: s.last_order_at || null,
+  foodicsOrders: s.foodics_total_orders ?? null, foodicsLastOrderAt: s.foodics_last_order_at || null,
+  topProducts: (s.top_products || []).map((p) => ({ id: p.sku, name: p.name, orders: Number(p.orders) || 0, qty: p.qty == null ? null : Number(p.qty), grams: p.grams == null ? null : Number(p.grams) })),
+  topModifiers: (s.top_modifiers || []).map((m) => ({ name: m.name, times: Number(m.times) || 0 })),
+  topArea: s.top_area ? { name: s.top_area.name, orders: Number(s.top_area.orders) || 0 } : null,
+});
+
+/* Customers with their totals: { rows, total }. null = not installed on the database yet. */
+export async function listCustomerSummaries({ q = '', sort = 'last', limit = 50, offset = 0 } = {}) {
+  const c = await sb();
+  const res = await c.rpc('cc_list_customers', { p_q: q || null, p_sort: sort, p_limit: limit, p_offset: offset });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  const rows = ok(res);
+  return {
+    total: rows.length ? Number(rows[0].full_count) : 0,
+    rows: rows.map((r) => ({
+      id: r.id, name: r.name, phones: [r.phone, r.phone2].filter(Boolean),
+      orders: Number(r.orders) || 0, total: Number(r.total) || 0, lastOrderAt: r.last_order_at || null,
+      foodicsOrders: r.foodics_total_orders ?? null, foodicsLastOrderAt: r.foodics_last_order_at || null,
+    })),
+  };
+}
+
+export async function getCustomerStats(customerId) {
+  const c = await sb();
+  const res = await c.rpc('cc_customer_stats', { p_customer_id: customerId });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return toStats(ok(res) || {});
+}
+
+export async function getCustomer(id) {
+  const c = await sb();
+  const row = ok(await c.from('cc_customers').select(CUSTOMER_SELECT).eq('id', id).maybeSingle());
+  return row ? toCustomer(row) : null;
+}
+
 export async function findCustomersByExactPhone(phone) {
   const q = digits(phone);
   if (!q) return [];

@@ -16,6 +16,7 @@ import { mountPos } from './screens/pos-screen.js';
 import { mountOrders } from './screens/orders-screen.js';
 import { mountOrderDetails } from './screens/order-details-screen.js';
 import { mountAreas } from './screens/areas-screen.js';
+import { mountCustomers } from './screens/customers-screen.js';
 import { mountPrep } from './screens/prep-screen.js';
 
 const view = document.getElementById('view');
@@ -26,6 +27,7 @@ function parseRoute() {
   if (section === 'orders' && param) return { route: 'order', param: decodeURIComponent(param) };
   if (section === 'orders') return { route: 'orders', param: null };
   if (section === 'areas') return { route: 'areas', param: null };
+  if (section === 'customers') return { route: 'customers', param: param ? decodeURIComponent(param) : null };
   if (section === 'pos') return { route: 'pos', param: null };
   if (section === 'prep') return { route: 'prep', param: null };
   return { route: 'board', param: null };
@@ -38,6 +40,7 @@ function render() {
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
+  else if (route === 'customers' && !can(user, 'customers')) route = 'board';
 
   if (unmount) unmount();
   view.innerHTML = '';
@@ -45,6 +48,7 @@ function render() {
   if (route === 'orders') unmount = mountOrders(view);
   else if (route === 'order') unmount = mountOrderDetails(view, param);
   else if (route === 'areas') unmount = mountAreas(view);
+  else if (route === 'customers') unmount = mountCustomers(view, param);
   else if (route === 'pos') unmount = mountPos(view);
   else if (route === 'prep') unmount = mountPrep(view);
   else unmount = mountBoard(view);

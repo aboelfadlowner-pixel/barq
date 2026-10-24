@@ -82,6 +82,7 @@ export function mountTopbar(el) {
         <a href="#/board" title="مركز الاتصال" class="${route === 'board' ? 'active' : ''}">${icon('headset')}<span>مركز الاتصال</span></a>
         <a href="#/pos" title="الطلب الحالي" class="${isPos ? 'active' : ''}">${icon('cart')}<span>الطلب الحالي</span></a>
         ${can(user, 'ordersLog') ? `<a href="#/orders" title="سجل الطلبات" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>سجل الطلبات</span></a>` : ''}
+        ${can(user, 'customers') ? `<a href="#/customers" title="العملاء" class="${route === 'customers' ? 'active' : ''}">${icon('user')}<span>العملاء</span></a>` : ''}
         ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والموظفين" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والموظفين</span></a>` : ''}
       </nav>
       <div class="spacer"></div>

@@ -10,6 +10,8 @@ drop function if exists public.cc_ack_edit(uuid);
 drop function if exists public.cc_edit_order(uuid, uuid, jsonb, jsonb, text);
 drop function if exists public.cc_list_modifiers();
 drop function if exists public.cc_list_accounts();
+drop function if exists public.cc_list_customers(text, text, integer, integer);
+drop function if exists public.cc_customer_stats(uuid);
 drop function if exists public.cc_set_my_name(text);
 drop function if exists public.cc_join_with_code(text, text);
 drop function if exists public.cc_link_my_name(text);

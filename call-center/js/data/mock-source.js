@@ -143,6 +143,54 @@ export function findCustomersByExactPhone(phone) {
   return resolve(found);
 }
 
+/* ---------- Customers page (same numbers as cc_customer_stats / cc_list_customers) ---------- */
+const orderTotal = (o) => o.items.reduce((s, it) => s + (it.unitType === 'weight'
+  ? it.price * it.grams / 1000 + (it.modifiers || []).reduce((t, m) => t + m.price * m.qty, 0)
+  : (it.price + (it.modifiers || []).reduce((t, m) => t + m.price * m.qty, 0)) * it.qty), 0) + (o.deliveryFee || 0);
+function statsOf(customerId) {
+  const all = orders.filter((o) => o.customer.id === customerId);
+  const okOrders = all.filter((o) => o.status !== 'cancelled');
+  const total = okOrders.reduce((s, o) => s + orderTotal(o), 0);
+  const byProduct = new Map(); const byMod = new Map(); const byArea = new Map();
+  for (const o of okOrders) {
+    const seen = new Set();
+    for (const it of o.items) {
+      const p = byProduct.get(it.productId) ?? { id: it.productId, name: it.name, orders: 0, qty: 0, grams: 0 };
+      if (!seen.has(it.productId)) { p.orders += 1; seen.add(it.productId); }
+      if (it.unitType === 'weight') p.grams += it.grams; else p.qty += it.qty;
+      byProduct.set(it.productId, p);
+      for (const m of it.modifiers || []) byMod.set(m.name, (byMod.get(m.name) || 0) + 1);
+    }
+    byArea.set(o.address.areaName, (byArea.get(o.address.areaName) || 0) + 1);
+  }
+  const dates = okOrders.map((o) => o.createdAt).sort();
+  const area = [...byArea].sort((a, b) => b[1] - a[1])[0];
+  return {
+    orders: okOrders.length, cancelled: all.length - okOrders.length,
+    total, average: okOrders.length ? Math.round((total / okOrders.length) * 100) / 100 : 0,
+    firstOrderAt: dates[0] ?? null, lastOrderAt: dates[dates.length - 1] ?? null,
+    foodicsOrders: null, foodicsLastOrderAt: null,
+    topProducts: [...byProduct.values()].sort((a, b) => b.orders - a.orders || b.qty - a.qty).slice(0, 3)
+      .map((p) => ({ ...p, qty: p.qty || null, grams: p.grams || null })),
+    topModifiers: [...byMod].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, times]) => ({ name, times })),
+    topArea: area ? { name: area[0], orders: area[1] } : null,
+  };
+}
+export const getCustomerStats = (customerId) => resolve(statsOf(customerId));
+export const getCustomer = (id) => resolve(customers.find((c) => c.id === id) ?? null);
+export function listCustomerSummaries({ q = '', sort = 'last', limit = 50, offset = 0 } = {}) {
+  const qq = String(q).trim().toLowerCase(); const dq = normalizePhone(q);
+  const rows = customers
+    .filter((c) => !qq || c.name.toLowerCase().includes(qq) || (dq.length >= 3 && c.phones.some((ph) => normalizePhone(ph).includes(dq))))
+    .map((c) => { const s = statsOf(c.id); return { id: c.id, name: c.name, phones: c.phones, orders: s.orders, total: s.total, lastOrderAt: s.lastOrderAt, foodicsOrders: null, foodicsLastOrderAt: null }; });
+  const by = {
+    orders: (a, b) => b.orders - a.orders, total: (a, b) => b.total - a.total,
+    name: (a, b) => a.name.localeCompare(b.name, 'ar'), last: (a, b) => String(b.lastOrderAt ?? '').localeCompare(String(a.lastOrderAt ?? '')),
+  }[sort] ?? ((a, b) => 0);
+  rows.sort(by);
+  return resolve({ total: rows.length, rows: rows.slice(offset, offset + limit) });
+}
+
 /* Latest orders of one customer ("عرض الطلبات الأخيرة"). */
 export const listCustomerOrders = (customerId, limit = 5) =>
   resolve(orders.filter((o) => o.customer.id === customerId)

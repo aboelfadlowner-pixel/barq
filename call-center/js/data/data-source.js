@@ -50,6 +50,9 @@ export const findCustomersByPhone      = (query) => impl.findCustomersByPhone(qu
 export const findCustomersByExactPhone = (phone) => impl.findCustomersByExactPhone(phone);
 export const suggestCustomersByPhone = (p) => impl.suggestCustomersByPhone(p);
 export const listCustomerOrders        = (customerId, limit = 5) => impl.listCustomerOrders(customerId, limit);
+export const listCustomerSummaries     = (opts) => impl.listCustomerSummaries(opts);   // customers page
+export const getCustomerStats          = (customerId) => impl.getCustomerStats(customerId);
+export const getCustomer               = (id) => impl.getCustomer(id);
 export const findTodayOrdersByPhone    = (phone) => impl.findTodayOrdersByPhone(phone);
 export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(phone);
 

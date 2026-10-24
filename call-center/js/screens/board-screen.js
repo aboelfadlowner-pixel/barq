@@ -21,7 +21,7 @@ const filters = { q: '' };
 let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
-export async function startNewOrder() {
+export async function startNewOrder({ phone = '' } = {}) {
   if (!getState().agent) {
     requireAgent();
     openNameListOnBoard = true;
@@ -40,7 +40,7 @@ export async function startNewOrder() {
     resetDraft();
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   }
-  openNewOrderDialog();
+  openNewOrderDialog({ phone });
 }
 
 function matches(o) {
