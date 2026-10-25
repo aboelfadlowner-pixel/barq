@@ -21,7 +21,7 @@ const PAGE = 60;
 /** Why an offer that is switched on does not show in the store (tooltip of the «عرض غير ظاهر» badge). */
 function offerHiddenReason(product: Product): string {
   const today = cairoToday();
-  if (product.salePrice === undefined || product.salePrice <= 0) return "لا يوجد سعر عرض: افتح المنتج واكتب سعر العرض";
+  if (product.salePrice === undefined || product.salePrice <= 0) return "لا يوجد سعر عرض، افتح المنتج واكتبه";
   if (product.salePrice >= product.price) return "سعر العرض ليس أقل من السعر الأصلي";
   if (product.offerStart && product.offerStart > today) return `يبدأ العرض يوم ${product.offerStart}`;
   if (product.offerEnd && today > product.offerEnd) return `انتهى العرض يوم ${product.offerEnd}`;
@@ -188,9 +188,7 @@ export function ProductsList() {
                         {isOfferActive(product) ? (
                           <span className="badge red">عرض {discountPercent(product.price, product.salePrice!)}%</span>
                         ) : product.offer ? (
-                          <span className="badge" title={offerHiddenReason(product)}>
-                            عرض غير ظاهر
-                          </span>
+                          <span className="badge red">عرض غير ظاهر: {offerHiddenReason(product)}</span>
                         ) : null}
                       </div>
                     </td>
