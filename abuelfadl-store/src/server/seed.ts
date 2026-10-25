@@ -69,7 +69,8 @@ export function seedStore(): StoreData {
       .map((product) => (productSkus[product.id] ? { ...product, sku: productSkus[product.id] } : { ...product }))
       .map(withPhoto)
       .map((product) => (DUPLICATES.includes(product.id) && !product.sku ? { ...product, hidden: true } : product))
-      .map((product) => (DATES_PAUSED.includes(product.id) ? { ...product, inStock: false } : product)),
+      .map((product) => (DATES_PAUSED.includes(product.id) ? { ...product, inStock: false } : product))
+      .map((product) => (product.offer && product.salePrice === undefined ? { ...product, offer: false } : product)),
     orders: [],
     orderSeq: 0,
     syncLog: [],
@@ -79,7 +80,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 21;
+const SCHEMA = 22;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -198,6 +199,10 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 21) {
     // Dates no longer sold for now (owner): Egyptian medjool small / medium, medjool with nuts, Saudi rashodia.
     for (const product of data.products) if (DATES_PAUSED.includes(product.id)) product.inStock = false;
+  }
+  if ((data.schema ?? 1) < 22) {
+    // The old site's «offer» flag without a sale price never showed an offer: cleared so the list shows no stale badge.
+    for (const product of data.products) if (product.offer && product.salePrice === undefined) product.offer = false;
   }
   data.schema = SCHEMA;
   return data;
