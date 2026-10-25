@@ -13,7 +13,7 @@ import {
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, statusChip } from './chips.js';
-import { openModal, confirmDialog, showToast } from './modal.js';
+import { openModal } from './modal.js';
 import { openAddressDialog } from './address-dialog.js';
 import { clearErrorsOnEdit } from './address-form.js';
 
@@ -179,7 +179,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
           <div><strong>الرقم <span class="ltr-inline">${esc(ph)}</span> ممنوع من الطلب</strong>
             <span class="muted">— ${b.source === 'foodics' ? 'محظور على فودكس' : `حظره ${esc(b.by || 'موظف')}`}${b.at ? ` · ${esc(formatDateTime(b.at))}` : ''}</span></div>`).join('')}
         </div>
-        <button type="button" class="btn btn-soft btn-sm" data-unblock>فك الحظر</button>
       </div>`;
   }
   let blockSeq = 0;
@@ -339,19 +338,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
 
   on(m.el, 'click', '[data-add-phone2]', () => { st.showPhone2 = true; renderPhone2(); $('#no-phone2')?.focus(); });
   on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); checkBlocked(); });
-  on(m.el, 'click', '[data-unblock]', async () => {
-    const phones = st.blocked.map(([ph]) => ph);
-    if (!(await confirmDialog({
-      title: 'فك الحظر',
-      message: `هيتشال ${phones.length === 1 ? 'الرقم' : 'الأرقام'} ${phones.join(' و ')} من القائمة السوداء ويقدر يطلب تاني.`,
-      confirmLabel: 'فك الحظر',
-    }))) return;
-    try {
-      await ds.setBlocked(phones, false);
-      showToast('تم فك الحظر');
-      checkBlocked();
-    } catch (err) { showToast(err.message); }
-  });
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));
