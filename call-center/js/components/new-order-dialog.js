@@ -58,7 +58,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
             placeholder="01xxxxxxxxx" role="combobox" aria-autocomplete="list" aria-controls="no-suggest">
           <div class="phone-suggest" id="no-suggest" data-suggest role="listbox" hidden></div>
           <div class="field-error" data-err="phone"></div>
-          <div data-block-link></div>
         </div>
         <div data-phone2></div>
         <div data-details></div>
@@ -172,10 +171,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   /* ---------- Black list (16_blocked_numbers.sql): a blocked number cannot order ---------- */
   function renderBlock() {
     const box = $('[data-block]');
-    const ph = normalizePhone(st.phone);
-    // «حظر الرقم ده»: a fake or abusive call can be blocked while on the phone.
-    $('[data-block-link]').innerHTML = !st.blocked.length && blockReady && isValidPhone(ph)
-      ? `<button type="button" class="link-btn link-danger" data-block-phone>${icon('alert')}حظر الرقم ده</button>` : '';
     if (!st.blocked.length) { box.innerHTML = ''; return; }
     box.innerHTML = `
       <div class="block-banner" role="alert">
@@ -188,14 +183,12 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
       </div>`;
   }
   let blockSeq = 0;
-  let blockReady = false;
   async function checkBlocked() {
     const phones = [st.phone, st.showPhone2 ? st.phone2 : '', ...(st.customer?.phones ?? [])]
       .map(normalizePhone).filter((ph) => isValidPhone(ph));
     const seq = ++blockSeq;
     const res = phones.length ? await ds.getBlocked(phones).catch(() => null) : null;
     if (seq !== blockSeq) return;
-    blockReady = !!res;          // null = black list not installed on the database → no link
     st.blocked = res ? [...res] : [];
     renderBlock();
   }
@@ -346,19 +339,6 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
 
   on(m.el, 'click', '[data-add-phone2]', () => { st.showPhone2 = true; renderPhone2(); $('#no-phone2')?.focus(); });
   on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); checkBlocked(); });
-  on(m.el, 'click', '[data-block-phone]', async () => {
-    const phone = normalizePhone(st.phone);
-    if (!(await confirmDialog({
-      title: 'حظر الرقم',
-      message: `الرقم ${phone} هيتحط في القائمة السوداء ومش هيقدر يطلب لحد ما حد يفك الحظر.`,
-      confirmLabel: 'حظر', danger: true,
-    }))) return;
-    try {
-      await ds.setBlocked([phone], true);
-      showToast('تم حظر الرقم');
-      checkBlocked();
-    } catch (err) { showToast(err.message); }
-  });
   on(m.el, 'click', '[data-unblock]', async () => {
     const phones = st.blocked.map(([ph]) => ph);
     if (!(await confirmDialog({

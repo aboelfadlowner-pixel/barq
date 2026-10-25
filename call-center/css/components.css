@@ -722,4 +722,3 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .block-add label { font-weight: 700; }
 .block-add .input { flex: 1 1 200px; max-width: 280px; }
 .block-add .field-error { flex-basis: 100%; }
-.link-btn.link-danger { color: var(--danger); margin-top: 6px; }
