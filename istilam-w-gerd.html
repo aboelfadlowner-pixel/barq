@@ -4212,45 +4212,56 @@ function printFruitLabels() {
   });
   if (!tags.length) { toast('⚠️ امسح صنف واحد على الأقل قبل الطباعة'); return; }
 
-  var cells = tags.map(function(it){
-    return '<div class="ftag">' +
-      '<img class="ftag-logo" src="'+FRUIT_LOGO_DATA_URL+'">' +
-      '<div class="ftag-name">'+it.name+'</div>' +
-      '<div class="ftag-box"></div>' +
-    '</div>';
-  });
+  toast('⏳ جاري تجهيز ملصقات الفاكهة...');
+  loadBarcodeLib(function(){
+    // الشكل: اللوجو جنب الاسم في سطر واحد فوق، تحته مربع السعر الفاضي، وتحته الباركود ورقمه
+    var cells = tags.map(function(it){
+      var bcValue = it.bc || it.sku;
+      var bcImg = generateBarcodeDataUrl(bcValue);
+      return '<div class="ftag">' +
+        '<div class="ftag-header"><img class="ftag-logo" src="'+FRUIT_LOGO_DATA_URL+'"><span class="ftag-name">'+it.name+'</span></div>' +
+        '<div class="ftag-box"><span class="ftag-box-hint">مكان السعر</span></div>' +
+        (bcImg ? '<img class="ftag-bc-img" src="'+bcImg+'">' : '') +
+        (bcValue ? '<div class="ftag-bc-num">'+bcValue+'</div>' : '') +
+      '</div>';
+    });
 
-  var box = getFruitStickerSize();
-  // الملصق بيطول على قد مربع السعر: لوجو + اسم + مسافات ≈ 32 مم فوق المربع
-  var tagH = Math.max(66, box.h + 32);
-  var win = window.open('', '_blank');
-  if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
-  win.document.write(
-    '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الفاكهة</title>' +
-    '<style>' +
-    '@page{size:A4;margin:8mm}' +
-    'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
-    '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
-    '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+tagH+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
-      'display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:2mm 3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
-    '.ftag-logo{height:14mm;width:auto;object-fit:contain;flex-shrink:0}' +
-    '.ftag-name{font-weight:900;font-size:36px;color:#1a1a1a;line-height:1.1;margin-bottom:3mm;text-align:center;width:100%;white-space:nowrap}' +
-    // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
-    '.ftag-box{width:'+box.w+'mm;height:'+box.h+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box}' +
-    '</style></head><body>' +
-    '<div class="wrap">'+cells.join('')+'</div>' +
-    // الاسم الطويل: بنصغّر الخط لحد ما ييجي في سطر واحد، ولو لسه أطول من الملصق بيتقسم على سطرين — من غير ما يتقص
-    '<scr'+'ipt>window.onload=function(){' +
-      'document.querySelectorAll(".ftag-name").forEach(function(el){' +
-        'var fs=36;' +
-        'while(el.scrollWidth>el.clientWidth&&fs>22){fs--;el.style.fontSize=fs+"px";}' +
-        'if(el.scrollWidth>el.clientWidth){el.style.whiteSpace="normal";}' +
-      '});' +
-      'window.print();' +
-    '}</scr'+'ipt>' +
-    '</body></html>'
-  );
-  win.document.close();
+    var box = getFruitStickerSize();
+    // الملصق بيطول على قد مربع السعر: سطر الاسم + الباركود + مسافات ≈ 30 مم حوالين المربع
+    var tagH = Math.max(62, box.h + 30);
+    var win = window.open('', '_blank');
+    if (!win) { toast('⚠️ المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني'); return; }
+    win.document.write(
+      '<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>ملصقات الفاكهة</title>' +
+      '<style>' +
+      '@page{size:A4;margin:8mm}' +
+      'body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:4mm}' +
+      '.wrap{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' +
+      '.ftag{width:'+FRUIT_TAG_W_MM+'mm;height:'+tagH+'mm;border:1.5px dashed #999;border-radius:8px;background:#fff;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3mm;box-sizing:border-box;page-break-inside:avoid;break-inside:avoid}' +
+      '.ftag-header{display:flex;align-items:center;justify-content:center;gap:8px;width:100%}' +
+      '.ftag-logo{height:10mm;width:auto;object-fit:contain;flex-shrink:0}' +
+      '.ftag-name{font-weight:800;font-size:28px;color:#1a1a1a;line-height:1.1;text-align:center;white-space:nowrap;min-width:0}' +
+      // المربع الفاضي بنفس مقاس مربع السعر الصغير بالظبط عشان يتلزق فوقه مظبوط
+      '.ftag-box{width:'+box.w+'mm;height:'+box.h+'mm;flex-shrink:0;border:1.5px solid #bbb;border-radius:6px;box-sizing:border-box;position:relative}' +
+      '.ftag-box-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;color:#ccc}' +
+      '.ftag-bc-img{max-width:60%;height:22px}' +
+      '.ftag-bc-num{font-size:12px;letter-spacing:1px;color:#333}' +
+      '</style></head><body>' +
+      '<div class="wrap">'+cells.join('')+'</div>' +
+      // الاسم الطويل: بنصغّر الخط لحد ما ييجي جنب اللوجو في سطر واحد، ولو لسه أطول بيتقسم على سطرين — من غير ما يتقص
+      '<scr'+'ipt>window.onload=function(){' +
+        'document.querySelectorAll(".ftag-header").forEach(function(h){' +
+          'var el=h.querySelector(".ftag-name"),fs=28;' +
+          'while(h.scrollWidth>h.clientWidth&&fs>18){fs--;el.style.fontSize=fs+"px";}' +
+          'if(h.scrollWidth>h.clientWidth){el.style.whiteSpace="normal";}' +
+        '});' +
+        'window.print();' +
+      '}</scr'+'ipt>' +
+      '</body></html>'
+    );
+    win.document.close();
+  });
 }
 
 function loadFruitPrices() {
