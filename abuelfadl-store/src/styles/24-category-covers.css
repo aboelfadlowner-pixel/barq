@@ -69,7 +69,7 @@
 .cvd-p{position:absolute;display:block;opacity:0;animation:cvdRise .7s var(--dl,0s) cubic-bezier(.22,.8,.3,1) both}
 .cvd-p img{display:block;width:100%;height:auto;filter:drop-shadow(0 4px 6px rgba(20,40,26,.12))}
 .cvd-p .sh{position:absolute;left:8%;right:8%;bottom:-3%;height:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(16,40,24,.28),transparent);z-index:-1}
-.cvd-milk{left:43.82%;top:12.00%;width:12.36%;z-index:1;--dl:0.1s}
+.cvd-milk{left:43.50%;top:12.00%;width:13.00%;z-index:1;--dl:0.1s}
 .cvd-ghee-cow{left:24.22%;top:27.00%;width:21.56%;z-index:2;--dl:0.22s}
 .cvd-ghee-buffalo{left:54.94%;top:27.00%;width:20.12%;z-index:2;--dl:0.34s}
 .cvd-murta{left:17.09%;top:64.50%;width:24.56%;z-index:4;--dl:0.5s}
