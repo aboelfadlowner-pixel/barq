@@ -26,6 +26,8 @@ const SORTS = [
   { id: 'total', label: 'الأكثر شراءً' },
   { id: 'name', label: 'الاسم' },
 ];
+// CONFIRMED: the call center and the admin block; only the admin unblocks (17_admin_unblock.sql).
+const isAdmin = () => getState().user?.role === 'admin';
 const listState = { q: '', sort: 'last', blockedOnly: false };   // kept while going to a customer and back
 
 export function mountCustomers(view, customerId) {
@@ -95,7 +97,7 @@ function mountList(view) {
       <td class="ltr-cell">${esc(b.phone)}</td>
       <td>${b.source === 'foodics' ? 'فودكس' : esc(b.by || '—')}</td>
       <td>${esc(when(b.at))}</td>
-      <td><button type="button" class="btn btn-soft btn-sm" data-unblock="${esc(b.phone)}">فك الحظر</button></td>
+      <td>${isAdmin() ? `<button type="button" class="btn btn-soft btn-sm" data-unblock="${esc(b.phone)}">فك الحظر</button>` : ''}</td>
     </tr>`;
 
   function paintBlockedToggle() {
@@ -217,7 +219,7 @@ function mountProfile(view, customerId) {
               ${blocks.length ? '' : `<button type="button" class="btn btn-primary btn-lg" data-new>${icon('headset')}طلب جديد</button>
               ${orders.some((o) => o.status !== 'cancelled') ? `<button type="button" class="btn btn-soft btn-lg" data-repeat>${icon('repeat')}تكرار آخر طلب</button>` : ''}`}
               ${blockMap ? (blocks.length
-                ? `<button type="button" class="btn btn-secondary btn-lg" data-block="off">فك الحظر</button>`
+                ? (isAdmin() ? `<button type="button" class="btn btn-secondary btn-lg" data-block="off">فك الحظر</button>` : '')
                 : `<button type="button" class="btn btn-danger-soft btn-lg" data-block="on">${icon('alert')}حظر العميل</button>`) : ''}
             </div>
           </div>

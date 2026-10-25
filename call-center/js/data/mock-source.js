@@ -203,6 +203,7 @@ export const listBlocked = () => resolve([...blocked].map(([phone, b]) => {
 export function setBlocked(phones, on) {
   const list = [...new Set((phones || []).map(normalizePhone).filter(Boolean))];
   if (!list.length || list.some((ph) => !/^0[0-9]{8,10}$/.test(ph))) return Promise.reject(new Error('رقم غير صحيح'));
+  if (!on && demoAccount.role !== 'admin') return Promise.reject(new Error('فك الحظر للأدمن بس'));
   let n = 0;
   for (const ph of list) {
     if (on && !blocked.has(ph)) { blocked.set(ph, { source: 'call_center', by: demoAccount.name || 'أنت', at: new Date().toISOString() }); n += 1; }
