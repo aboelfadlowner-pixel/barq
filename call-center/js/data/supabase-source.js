@@ -350,6 +350,9 @@ export async function signUp(email, password) {
     if (m.includes('already')) throw new Error('هذا البريد الإلكتروني له حساب بالفعل — سجّل الدخول به');
     if (m.includes('not allowed') || m.includes('disabled')) throw new Error('إنشاء الحسابات مغلق في المشروع — يجب إنشاؤها من لوحة Supabase');
     if (m.includes('password')) throw new Error('كلمة المرور ضعيفة — اجعلها 8 أحرف أو أرقام على الأقل');
+    if (error.status === 429 || error.code === 'over_email_send_rate_limit' || m.includes('rate limit')) {
+      throw new Error('وصلنا للحد المسموح لإيميلات التسجيل — حاول بعد ساعة، أو اطلب من المسؤول تأكيد حسابك');
+    }
     throw new Error('تعذر إنشاء الحساب — تأكد من الاتصال بالإنترنت وحاول مرة أخرى');
   }
   return { needsConfirmation: !data.session };
