@@ -1181,3 +1181,74 @@ do $$ begin
   raise notice 'PASS T37 customers page: list with call-center totals, search by name/phone, sort, customer numbers (orders, cancelled, total, favourite product, usual area), prep blocked';
 end $$;
 rollback;
+
+-- T38 — blocked numbers (16_blocked_numbers.sql): blocked number refused, who/when kept, unblock, list; prep cannot
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into public.cc_agents (name) values ('موظف 38') on conflict do nothing;
+insert into auth.users (id, email) values (gen_random_uuid(), 'prep38@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'prep38@cc.test';
+insert into public.cc_blocked_phones (phone, source) values ('01038383800', 'foodics');
+select set_config('cc.agent', (select id::text from public.cc_agents where name = 'موظف 38'), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o1 public.cc_orders; o2 public.cc_orders; cid uuid; r record; n int; req uuid := gen_random_uuid();
+  addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 38');
+begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  -- a number blocked on Foodics cannot order, even as a new customer
+  begin
+    perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), '{"name": "محظور فودكس", "phone": "01038383800"}', addr, '[{"sku": "T-201", "qty": 1}]', null);
+    raise exception 'FAIL T38 Foodics-blocked number ordered';
+  exception when invalid_parameter_value then
+    if sqlerrm not like '%القائمة السوداء%' then raise; end if;
+  end;
+  if exists (select 1 from public.cc_customers where phone = '01038383800') then raise exception 'FAIL T38 customer created for a blocked number'; end if;
+  -- a customer with a second number; block them from the call center → both numbers blocked
+  o1 := public.cc_place_order(current_setting('cc.agent')::uuid, req, '{"name": "عميل 38", "phone": "01038383801", "phone2": "01038383802"}', addr, '[{"sku": "T-201", "qty": 1}]', null);
+  cid := o1.customer_id;
+  n := public.cc_set_blocked(array['01038383801', '01038383802'], true);
+  if n <> 2 then raise exception 'FAIL T38 block count %', n; end if;
+  select * into r from public.cc_blocked_of(array['01038383802', '01099999999']);
+  if r.phone <> '01038383802' or r.blocked_by_name is null or r.blocked_at is null or r.source <> 'call_center' then raise exception 'FAIL T38 who/when %', r; end if;
+  if (select count(*) from public.cc_blocked_of(array['01038383802', '01099999999'])) <> 1 then raise exception 'FAIL T38 only blocked numbers returned'; end if;
+  begin
+    perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), jsonb_build_object('id', cid), jsonb_build_object('id', o1.address_id), '[{"sku": "T-201", "qty": 1}]', null);
+    raise exception 'FAIL T38 blocked customer ordered';
+  exception when invalid_parameter_value then
+    if sqlerrm not like '%القائمة السوداء%' then raise; end if;
+  end;
+  -- the draft that was already sent still comes back (no error, no second order)
+  o2 := public.cc_place_order(current_setting('cc.agent')::uuid, req, jsonb_build_object('id', cid), jsonb_build_object('id', o1.address_id), '[{"sku": "T-201", "qty": 1}]', null);
+  if o2.id <> o1.id then raise exception 'FAIL T38 resent draft'; end if;
+  -- list shows the customer's name; unknown number has none
+  select * into r from public.cc_list_blocked() where phone = '01038383801';
+  if r.customer_id <> cid or r.customer_name <> 'عميل 38' then raise exception 'FAIL T38 list %', r; end if;
+  select * into r from public.cc_list_blocked() where phone = '01038383800';
+  if r.customer_id is not null or r.source <> 'foodics' then raise exception 'FAIL T38 Foodics row %', r; end if;
+  -- blocking again changes nothing; bad number refused
+  if public.cc_set_blocked(array['01038383801'], true) <> 0 then raise exception 'FAIL T38 double block'; end if;
+  begin perform public.cc_set_blocked(array['123'], true); raise exception 'FAIL T38 bad number';
+  exception when invalid_parameter_value then null; end;
+  -- unblock → can order again
+  if public.cc_set_blocked(array['01038383801', '01038383802'], false) <> 2 then raise exception 'FAIL T38 unblock'; end if;
+  perform public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(), jsonb_build_object('id', cid), jsonb_build_object('id', o1.address_id), '[{"sku": "T-201", "qty": 1}]', null);
+end $$;
+do $$ begin
+  begin perform 1 from public.cc_blocked_phones; raise exception 'FAIL T38 table readable directly';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep38@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_set_blocked(array['01038383801'], true); raise exception 'FAIL T38 prep blocked a number';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_list_blocked(); raise exception 'FAIL T38 prep listed blocked';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T38 blocked numbers: Foodics/call-center blocked number refused (new and saved customer), both numbers blocked together, who/when kept, list with customer name, unblock, resent draft unaffected, prep cannot';
+end $$;
+rollback;

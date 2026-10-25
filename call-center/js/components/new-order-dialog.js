@@ -43,6 +43,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     addresses: [],           // working list: saved copies + new/edited ones
     addressId: null,
     todayOrders: [],
+    blocked: [],             // [[phone, { source, by, at }]] — numbers on the black list
   };
 
   const m = openModal({
@@ -50,6 +51,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     size: 'md',
     body: `
       <div class="no-form">
+        <div data-block></div>
         <div class="field has-suggest">
           <label for="no-phone">هاتف العميل<span class="req">*</span></label>
           <input id="no-phone" class="input input-lg ltr" name="phone" type="tel" inputmode="tel" autocomplete="off"
@@ -166,6 +168,30 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
 
   const render = () => { renderPhone2(); renderDetails(); };
 
+  /* ---------- Black list (16_blocked_numbers.sql): a blocked number cannot order ---------- */
+  function renderBlock() {
+    const box = $('[data-block]');
+    if (!st.blocked.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+      <div class="block-banner" role="alert">
+        <span class="block-tag">القائمة السوداء</span>
+        <div class="grow">${st.blocked.map(([ph, b]) => `
+          <div><strong>الرقم <span class="ltr-inline">${esc(ph)}</span> ممنوع من الطلب</strong>
+            <span class="muted">— ${b.source === 'foodics' ? 'محظور على فودكس' : `حظره ${esc(b.by || 'موظف')}`}${b.at ? ` · ${esc(formatDateTime(b.at))}` : ''}</span></div>`).join('')}
+        </div>
+      </div>`;
+  }
+  let blockSeq = 0;
+  async function checkBlocked() {
+    const phones = [st.phone, st.showPhone2 ? st.phone2 : '', ...(st.customer?.phones ?? [])]
+      .map(normalizePhone).filter((ph) => isValidPhone(ph));
+    const seq = ++blockSeq;
+    const res = phones.length ? await ds.getBlocked(phones).catch(() => null) : null;
+    if (seq !== blockSeq) return;
+    st.blocked = res ? [...res] : [];
+    renderBlock();
+  }
+
   /* ---------- Suggestions while typing (CONFIRMED): from 3 digits, «الاسم (الرقم)» in one line ---------- */
   const suggestBox = $('[data-suggest]');
   let suggestions = [];
@@ -211,7 +237,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     const norm = normalizePhone(st.phone);
     if (!isValidPhone(norm)) {
       st.status = 'idle'; st.customer = null;
-      renderDetails();
+      renderDetails(); checkBlocked();
       return;
     }
     const seq = ++lookupSeq;
@@ -228,6 +254,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
       st.todayOrders = [];
       renderDetails();
     }
+    checkBlocked();
   }
 
   async function choose(c, preferAddressId = null) {
@@ -241,6 +268,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
       ? preferAddressId : usable[0]?.id ?? null;
     st.todayOrders = await todayOrdersFor(c.phones);
     renderDetails();
+    checkBlocked();
   }
 
   /* ---------- Save ---------- */
@@ -252,6 +280,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     if (phone2 && !isValidPhone(phone2)) errors.phone2 = 'الرقم الإضافي غير صحيح';
     if (phone2 && phone2 === phone) errors.phone2 = 'الرقم الإضافي مطابق للرقم الأساسي';
     if (st.status === 'choose') errors.phone = 'اختر العميل الصحيح من القائمة';
+    if (st.blocked.length) errors.phone = 'هذا الرقم في القائمة السوداء — ممنوع من الطلب';
     if (st.status === 'new' && !st.name.trim()) errors.name = 'أدخل اسم العميل';
     const address = st.addresses.find((a) => a.id === st.addressId);
     if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختر عنوانًا أو أضف عنوانًا جديدًا';
@@ -277,6 +306,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
 
   /* ---------- Events ---------- */
   let timer;
+  let timer2;
   let suggestTimer;
   phoneInput.addEventListener('input', () => {
     st.phone = phoneInput.value;
@@ -301,13 +331,13 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   });
 
   m.el.addEventListener('input', (e) => {
-    if (e.target.name === 'phone2') st.phone2 = e.target.value;
+    if (e.target.name === 'phone2') { st.phone2 = e.target.value; clearTimeout(timer2); timer2 = setTimeout(checkBlocked, 250); }
     if (e.target.name === 'name' && st.status === 'new') st.name = e.target.value;
   });
   m.el.addEventListener('change', (e) => { if (e.target.name === 'addr') st.addressId = e.target.value; });
 
   on(m.el, 'click', '[data-add-phone2]', () => { st.showPhone2 = true; renderPhone2(); $('#no-phone2')?.focus(); });
-  on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); });
+  on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); checkBlocked(); });
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));

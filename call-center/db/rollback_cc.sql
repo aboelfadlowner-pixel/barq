@@ -12,6 +12,9 @@ drop function if exists public.cc_list_modifiers();
 drop function if exists public.cc_list_accounts();
 drop function if exists public.cc_list_customers(text, text, integer, integer);
 drop function if exists public.cc_customer_stats(uuid);
+drop function if exists public.cc_blocked_of(text[]);
+drop function if exists public.cc_list_blocked();
+drop function if exists public.cc_set_blocked(text[], boolean);
 drop function if exists public.cc_set_my_name(text);
 drop function if exists public.cc_join_with_code(text, text);
 drop function if exists public.cc_link_my_name(text);
@@ -42,6 +45,7 @@ drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, publ
                         public.cc_categories, public.cc_product_categories;
 drop table    if exists public.cc_order_stage_events, public.cc_order_edits;
 drop table    if exists public.cc_product_modifiers, public.cc_modifier_options, public.cc_modifier_groups;
+drop table    if exists public.cc_blocked_phones;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it

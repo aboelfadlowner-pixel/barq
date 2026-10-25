@@ -536,6 +536,29 @@ export async function getCustomerStats(customerId) {
   return toStats(ok(res) || {});
 }
 
+/* ---------- Blocked numbers (16_blocked_numbers.sql) ---------- */
+const toBlock = (r) => ({ source: r.source, by: r.blocked_by_name || '', at: r.blocked_at });
+
+export async function getBlocked(phones) {
+  const list = [...new Set((phones || []).map(digits).filter(Boolean))];
+  const c = await sb();
+  const res = await c.rpc('cc_blocked_of', { p_phones: list });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return new Map(ok(res).map((r) => [r.phone, toBlock(r)]));
+}
+
+export async function listBlocked() {
+  const c = await sb();
+  const res = await c.rpc('cc_list_blocked');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({ phone: r.phone, customerId: r.customer_id || null, customerName: r.customer_name || '', ...toBlock(r) }));
+}
+
+export async function setBlocked(phones, blocked) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_blocked', { p_phones: (phones || []).map(digits).filter(Boolean), p_blocked: !!blocked }));
+}
+
 export async function getCustomer(id) {
   const c = await sb();
   const row = ok(await c.from('cc_customers').select(CUSTOMER_SELECT).eq('id', id).maybeSingle());
