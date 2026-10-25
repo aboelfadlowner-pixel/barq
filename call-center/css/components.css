@@ -718,3 +718,8 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .btn-danger-soft:hover:not(:disabled) { background: var(--danger); color: #fff; }
 .blocked-toggle.is-on { background: var(--danger); color: #fff; border-color: var(--danger); }
 @media (max-width: 560px) { .block-banner { flex-wrap: wrap; } }
+.block-add { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.block-add label { font-weight: 700; }
+.block-add .input { flex: 1 1 200px; max-width: 280px; }
+.block-add .field-error { flex-basis: 100%; }
+.link-btn.link-danger { color: var(--danger); margin-top: 6px; }

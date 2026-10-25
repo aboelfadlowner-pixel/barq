@@ -10,7 +10,9 @@ import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder } from '../store.js';
 import { esc, on } from '../utils/dom.js';
-import { formatAddress, formatDateTime, formatRelative, formatWeight, housingLabel, isSameDay } from '../utils/format.js';
+import {
+  formatAddress, formatDateTime, formatRelative, formatWeight, housingLabel, isSameDay, isValidPhone, normalizePhone,
+} from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
@@ -52,6 +54,12 @@ function mountList(view) {
         </select>
         <button type="button" class="btn btn-secondary blocked-toggle" data-blocked-only aria-pressed="false" hidden>${icon('alert')}المحظورين <span data-blocked-count></span></button>
       </div>
+      <form class="card block-add" data-block-add hidden novalidate>
+        <label for="cuBlockPhone">حظر رقم</label>
+        <input id="cuBlockPhone" class="input ltr" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="01xxxxxxxxx">
+        <button type="submit" class="btn btn-danger">${icon('alert')}حظر</button>
+        <div class="field-error" data-err="block"></div>
+      </form>
       <div class="list-meta" data-meta></div>
       <div class="card table-wrap">
         <table class="table customers-table">
@@ -97,6 +105,7 @@ function mountList(view) {
     $('[data-blocked-count]').textContent = `(${blocked.length})`;
     btn.setAttribute('aria-pressed', String(listState.blockedOnly));
     btn.classList.toggle('is-on', listState.blockedOnly);
+    $('[data-block-add]').hidden = !listState.blockedOnly;
   }
 
   function showBlocked() {
@@ -141,6 +150,22 @@ function mountList(view) {
     on(view, 'change', '#cuSort', (e, sel) => { listState.sort = sel.value; load(); }),
     on(view, 'click', '[data-more]', () => load({ append: true })),
     on(view, 'click', '[data-blocked-only]', () => { listState.blockedOnly = !listState.blockedOnly; paintBlockedToggle(); load(); }),
+    on(view, 'submit', '[data-block-add]', async (e, form) => {
+      e.preventDefault();
+      const err = form.querySelector('[data-err="block"]');
+      const phone = normalizePhone(form.phone.value);
+      if (!isValidPhone(phone)) { err.textContent = 'رقم غير صحيح — مثال: 01012345678'; form.phone.focus(); return; }
+      if (blocked?.some((b) => b.phone === phone)) { err.textContent = 'الرقم ده محظور بالفعل'; return; }
+      err.textContent = '';
+      if (!(await confirmDialog({ title: 'حظر رقم', message: `الرقم ${phone} هيتحط في القائمة السوداء ومش هيقدر يطلب لحد ما حد يفك الحظر.`, confirmLabel: 'حظر', danger: true }))) return;
+      try {
+        await ds.setBlocked([phone], true);
+        form.reset();
+        showToast('تم حظر الرقم');
+        await loadBlocked();
+        load();
+      } catch (ex) { err.textContent = ex.message; }
+    }),
     on(view, 'click', '[data-unblock]', async (e, btn) => {
       const phone = btn.dataset.unblock;
       if (!(await confirmDialog({ title: 'فك الحظر', message: `هيتشال الرقم ${phone} من القائمة السوداء ويقدر يطلب تاني.`, confirmLabel: 'فك الحظر' }))) return;
