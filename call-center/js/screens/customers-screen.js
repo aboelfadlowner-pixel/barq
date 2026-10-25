@@ -3,7 +3,9 @@
    Customer page: call-center numbers (orders, total paid, average, last order, cancelled),
    favourite products and add-ons, usual area, the Foodics order count and last order
    (from the Foodics customers export), addresses and all orders, with «طلب جديد» and
-   «تكرار آخر طلب». The numbers come from the database (15_customer_profile.sql). */
+   «تكرار آخر طلب». The numbers come from the database (15_customer_profile.sql).
+   Black list (16_blocked_numbers.sql): «محظور» on the list, «المحظورين» shows every
+   blocked number; the customer page blocks / unblocks the customer's numbers. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder } from '../store.js';
@@ -22,7 +24,7 @@ const SORTS = [
   { id: 'total', label: 'الأكثر شراءً' },
   { id: 'name', label: 'الاسم' },
 ];
-const listState = { q: '', sort: 'last' };   // kept while going to a customer and back
+const listState = { q: '', sort: 'last', blockedOnly: false };   // kept while going to a customer and back
 
 export function mountCustomers(view, customerId) {
   return customerId ? mountProfile(view, customerId) : mountList(view);
@@ -48,6 +50,7 @@ function mountList(view) {
         <select class="select" id="cuSort" aria-label="الترتيب">
           ${SORTS.map((s) => `<option value="${s.id}" ${s.id === listState.sort ? 'selected' : ''}>ترتيب: ${s.label}</option>`).join('')}
         </select>
+        <button type="button" class="btn btn-secondary blocked-toggle" data-blocked-only aria-pressed="false" hidden>${icon('alert')}المحظورين <span data-blocked-count></span></button>
       </div>
       <div class="list-meta" data-meta></div>
       <div class="card table-wrap">
@@ -65,10 +68,12 @@ function mountList(view) {
   let rows = [];
   let total = 0;
   let seq = 0;
+  let blocked = null;        // [{ phone, customerId, customerName, source, by, at }] — null = not installed
+  const isBlocked = (c) => !!blocked?.some((b) => c.phones.includes(b.phone));
 
   const rowHtml = (c) => `
     <tr data-id="${esc(c.id)}" tabindex="0">
-      <td><strong>${esc(c.name)}</strong></td>
+      <td><strong>${esc(c.name)}</strong>${isBlocked(c) ? ' <span class="tag tag-danger">محظور</span>' : ''}</td>
       <td class="col-opt ltr-cell">${c.phones.map(esc).join(' / ')}</td>
       <td class="num">${c.orders}</td>
       <td>${c.orders ? money(c.total) : '—'}</td>
@@ -76,7 +81,44 @@ function mountList(view) {
       <td class="col-opt num">${c.foodicsOrders ?? '—'}</td>
     </tr>`;
 
+  const blockedRowHtml = (b) => `
+    <tr ${b.customerId ? `data-id="${esc(b.customerId)}" tabindex="0"` : ''}>
+      <td>${b.customerId ? `<strong>${esc(b.customerName)}</strong>` : '<span class="muted">غير مسجل عندنا</span>'}</td>
+      <td class="ltr-cell">${esc(b.phone)}</td>
+      <td>${b.source === 'foodics' ? 'فودكس' : esc(b.by || '—')}</td>
+      <td>${esc(when(b.at))}</td>
+      <td><button type="button" class="btn btn-soft btn-sm" data-unblock="${esc(b.phone)}">فك الحظر</button></td>
+    </tr>`;
+
+  function paintBlockedToggle() {
+    const btn = $('[data-blocked-only]');
+    btn.hidden = !blocked;
+    if (!blocked) return;
+    $('[data-blocked-count]').textContent = `(${blocked.length})`;
+    btn.setAttribute('aria-pressed', String(listState.blockedOnly));
+    btn.classList.toggle('is-on', listState.blockedOnly);
+  }
+
+  function showBlocked() {
+    const q = listState.q.trim();
+    const dq = q.replace(/\D/g, '');
+    const shown = blocked.filter((b) => !q || b.customerName.includes(q) || (dq.length >= 3 && b.phone.includes(dq)));
+    $('[data-meta]').textContent = `${shown.length} رقم في القائمة السوداء`;
+    view.querySelector('.customers-table thead').innerHTML = '<tr><th>العميل</th><th>الرقم</th><th>حظره</th><th>إمتى</th><th></th></tr>';
+    $('[data-body]').innerHTML = shown.length ? shown.map(blockedRowHtml).join('')
+      : '<tr><td colspan="5" class="table-empty">لا توجد أرقام محظورة</td></tr>';
+    $('[data-more]').hidden = true;
+  }
+  const HEAD = view.querySelector('.customers-table thead').innerHTML;
+
+  async function loadBlocked() {
+    blocked = await ds.listBlocked().catch(() => null);
+    paintBlockedToggle();
+  }
+
   async function load({ append = false } = {}) {
+    if (listState.blockedOnly && blocked) { showBlocked(); return; }
+    view.querySelector('.customers-table thead').innerHTML = HEAD;
     const mySeq = ++seq;
     const res = await ds.listCustomerSummaries({ q: listState.q, sort: listState.sort, limit: PAGE, offset: append ? rows.length : 0 })
       .catch((err) => { showToast(err.message); return { rows: [], total: 0 }; });
@@ -98,12 +140,26 @@ function mountList(view) {
     on(view, 'input', '#cuQ', (e, input) => { listState.q = input.value; clearTimeout(timer); timer = setTimeout(() => load(), 250); }),
     on(view, 'change', '#cuSort', (e, sel) => { listState.sort = sel.value; load(); }),
     on(view, 'click', '[data-more]', () => load({ append: true })),
-    on(view, 'click', 'tr[data-id]', (e, tr) => { location.hash = `#/customers/${encodeURIComponent(tr.dataset.id)}`; }),
+    on(view, 'click', '[data-blocked-only]', () => { listState.blockedOnly = !listState.blockedOnly; paintBlockedToggle(); load(); }),
+    on(view, 'click', '[data-unblock]', async (e, btn) => {
+      const phone = btn.dataset.unblock;
+      if (!(await confirmDialog({ title: 'فك الحظر', message: `هيتشال الرقم ${phone} من القائمة السوداء ويقدر يطلب تاني.`, confirmLabel: 'فك الحظر' }))) return;
+      try {
+        await ds.setBlocked([phone], false);
+        showToast('تم فك الحظر');
+        await loadBlocked();
+        load();
+      } catch (err) { showToast(err.message); }
+    }),
+    on(view, 'click', 'tr[data-id]', (e, tr) => {
+      if (e.target.closest('[data-unblock]')) return;   // «فك الحظر» on the black list stays on the list
+      location.hash = `#/customers/${encodeURIComponent(tr.dataset.id)}`;
+    }),
     on(view, 'keydown', 'tr[data-id]', (e, tr) => {
       if (e.key === 'Enter') location.hash = `#/customers/${encodeURIComponent(tr.dataset.id)}`;
     }),
   ];
-  load();
+  loadBlocked().then(() => load());
   $('#cuQ').focus();
   return () => { clearTimeout(timer); offs.forEach((f) => f()); };
 }
@@ -116,9 +172,12 @@ function mountProfile(view, customerId) {
   let offs = [];
   let gone = false;
 
-  Promise.all([ds.getCustomer(customerId), ds.getCustomerStats(customerId).catch(() => null), ds.listCustomerOrders(customerId, 100)])
-    .then(([c, s, orders]) => {
+  const load = () => Promise.all([ds.getCustomer(customerId), ds.getCustomerStats(customerId).catch(() => null), ds.listCustomerOrders(customerId, 100)])
+    .then(async ([c, s, orders]) => {
       if (gone) return;
+      const blockMap = c ? await ds.getBlocked(c.phones).catch(() => null) : null;
+      if (gone) return;
+      const blocks = blockMap ? [...blockMap] : [];
       if (!c) { view.innerHTML = '<div class="center-state"><div><h2>العميل غير موجود</h2><a href="#/customers" class="btn btn-secondary">رجوع للعملاء</a></div></div>'; return; }
       const stat = (k, v, cls = '') => `<div class="stat card"><span class="k">${k}</span><strong class="v ${cls}">${v}</strong></div>`;
       view.innerHTML = `
@@ -130,10 +189,21 @@ function mountProfile(view, customerId) {
               <div class="page-sub"><span class="ltr-inline">${c.phones.map(esc).join(' / ')}</span></div>
             </div>
             <div class="head-actions">
-              <button type="button" class="btn btn-primary btn-lg" data-new>${icon('headset')}طلب جديد</button>
-              ${orders.some((o) => o.status !== 'cancelled') ? `<button type="button" class="btn btn-soft btn-lg" data-repeat>${icon('repeat')}تكرار آخر طلب</button>` : ''}
+              ${blocks.length ? '' : `<button type="button" class="btn btn-primary btn-lg" data-new>${icon('headset')}طلب جديد</button>
+              ${orders.some((o) => o.status !== 'cancelled') ? `<button type="button" class="btn btn-soft btn-lg" data-repeat>${icon('repeat')}تكرار آخر طلب</button>` : ''}`}
+              ${blockMap ? (blocks.length
+                ? `<button type="button" class="btn btn-secondary btn-lg" data-block="off">فك الحظر</button>`
+                : `<button type="button" class="btn btn-danger-soft btn-lg" data-block="on">${icon('alert')}حظر العميل</button>`) : ''}
             </div>
           </div>
+          ${blocks.length ? `
+          <div class="block-banner" role="alert">
+            <span class="block-tag">القائمة السوداء</span>
+            <div class="grow">${blocks.map(([ph, b]) => `
+              <div><strong>الرقم <span class="ltr-inline">${esc(ph)}</span> ممنوع من الطلب</strong>
+                <span class="muted">— ${b.source === 'foodics' ? 'محظور على فودكس' : `حظره ${esc(b.by || 'موظف')}`}${b.at ? ` · ${esc(formatDateTime(b.at))}` : ''}</span></div>`).join('')}
+            </div>
+          </div>` : ''}
 
           ${s ? `
           <div class="summary-row cust-stats">
@@ -215,10 +285,26 @@ function mountProfile(view, customerId) {
           showToast(skipped.length ? `تم نسخ الأصناف — ${skipped.length} صنف غير متاح حاليًا` : 'تم نسخ أصناف آخر طلب بالأسعار الحالية — راجع قبل الإرسال');
         }),
         on(view, 'click', 'tr[data-order]', (e, tr) => { location.hash = `#/orders/${encodeURIComponent(tr.dataset.order)}`; }),
+        on(view, 'click', '[data-block]', async (e, btn) => {
+          const on_ = btn.dataset.block === 'on';
+          const phones = on_ ? c.phones : blocks.map(([ph]) => ph);
+          if (!(await confirmDialog(on_ ? {
+            title: 'حظر العميل',
+            message: `${c.name} (${c.phones.join(' / ')}) هيتحط في القائمة السوداء ومش هيقدر يطلب لحد ما حد يفك الحظر.`,
+            confirmLabel: 'حظر', danger: true,
+          } : { title: 'فك الحظر', message: `${c.name} هيقدر يطلب تاني.`, confirmLabel: 'فك الحظر' }))) return;
+          try {
+            await ds.setBlocked(phones, on_);
+            showToast(on_ ? 'تم حظر العميل' : 'تم فك الحظر');
+            offs.forEach((f) => f()); offs = [];
+            load();
+          } catch (err) { showToast(err.message); }
+        }),
         on(view, 'keydown', 'tr[data-order]', (e, tr) => { if (e.key === 'Enter') location.hash = `#/orders/${encodeURIComponent(tr.dataset.order)}`; }),
       ];
     })
     .catch((err) => { if (!gone) view.innerHTML = `<div class="center-state"><div><h2>تعذر تحميل العميل</h2><p>${esc(err.message)}</p></div></div>`; });
+  load();
 
   return () => { gone = true; offs.forEach((f) => f()); };
 }

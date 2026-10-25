@@ -52,6 +52,10 @@ export const suggestCustomersByPhone = (p) => impl.suggestCustomersByPhone(p);
 export const listCustomerOrders        = (customerId, limit = 5) => impl.listCustomerOrders(customerId, limit);
 export const listCustomerSummaries     = (opts) => impl.listCustomerSummaries(opts);   // customers page
 export const getCustomerStats          = (customerId) => impl.getCustomerStats(customerId);
+/* Blocked numbers (16_blocked_numbers.sql): Map phone → { source, by, at }; null = not installed */
+export const getBlocked                = (phones) => impl.getBlocked(phones);
+export const listBlocked               = () => impl.listBlocked();
+export const setBlocked                = (phones, blocked) => impl.setBlocked(phones, blocked);
 export const getCustomer               = (id) => impl.getCustomer(id);
 export const findTodayOrdersByPhone    = (phone) => impl.findTodayOrdersByPhone(phone);
 export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(phone);

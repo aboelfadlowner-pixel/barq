@@ -191,6 +191,26 @@ export function listCustomerSummaries({ q = '', sort = 'last', limit = 50, offse
   return resolve({ total: rows.length, rows: rows.slice(offset, offset + limit) });
 }
 
+/* ---------- Blocked numbers (same rules as 16_blocked_numbers.sql) ---------- */
+// DEMO: one number blocked on Foodics, so the red «القائمة السوداء» can be tried.
+const blocked = new Map([['01099990000', { source: 'foodics', by: '', at: new Date(Date.now() - 86400000 * 3).toISOString() }]]);
+export const getBlocked = (phones) => resolve(new Map((phones || []).map(normalizePhone)
+  .filter((ph) => blocked.has(ph)).map((ph) => [ph, blocked.get(ph)])));
+export const listBlocked = () => resolve([...blocked].map(([phone, b]) => {
+  const c = customers.find((x) => x.phones.some((ph) => normalizePhone(ph) === phone));
+  return { phone, customerId: c?.id ?? null, customerName: c?.name ?? '', ...b };
+}).sort((a, b) => String(b.at).localeCompare(String(a.at))));
+export function setBlocked(phones, on) {
+  const list = [...new Set((phones || []).map(normalizePhone).filter(Boolean))];
+  if (!list.length || list.some((ph) => !/^0[0-9]{8,10}$/.test(ph))) return Promise.reject(new Error('رقم غير صحيح'));
+  let n = 0;
+  for (const ph of list) {
+    if (on && !blocked.has(ph)) { blocked.set(ph, { source: 'call_center', by: demoAccount.name || 'أنت', at: new Date().toISOString() }); n += 1; }
+    if (!on && blocked.delete(ph)) n += 1;
+  }
+  return resolve(n);
+}
+
 /* Latest orders of one customer ("عرض الطلبات الأخيرة"). */
 export const listCustomerOrders = (customerId, limit = 5) =>
   resolve(orders.filter((o) => o.customer.id === customerId)
@@ -307,6 +327,8 @@ export function createOrder(draft) {
   try { items = cart.map(({ lineId, ...item }) => ({ ...item, modifiers: priceModifiers(item) })); } catch (e) { return Promise.reject(e); }
 
   let cust = customer.id ? customers.find((c) => c.id === customer.id) : null;
+  const hit = [...(cust?.phones ?? []), customer.phone, customer.phone2].map(normalizePhone).find((ph) => ph && blocked.has(ph));
+  if (hit) return Promise.reject(new Error(`الرقم ${hit} في القائمة السوداء — ممنوع من الطلب`));
   if (!cust) {
     cust = { id: `c-demo-${Date.now()}`, name: customer.name, phones: [customer.phone, customer.phone2].filter(Boolean), addresses: [] };
     customers.push(cust);

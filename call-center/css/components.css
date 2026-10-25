@@ -707,3 +707,14 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .fav-list li .muted { font-size: 12.5px; margin-inline-start: 4px; }
 .fav-list li.top strong { color: var(--green-700); }
 .more-row { display: flex; justify-content: center; margin: 12px 0; }
+
+/* Black list (16_blocked_numbers.sql) — red like Foodics «القائمة السوداء» */
+.block-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 14px;
+  border: 1px solid var(--danger); border-radius: var(--radius, 10px); background: var(--danger-50); color: var(--danger); }
+.block-banner .grow { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.block-banner .muted { color: inherit; opacity: .8; }
+.block-tag { flex: none; padding: 4px 10px; border-radius: 6px; background: var(--danger); color: #fff; font-weight: 700; font-size: .9rem; }
+.btn-danger-soft { background: var(--danger-50); color: var(--danger); }
+.btn-danger-soft:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.blocked-toggle.is-on { background: var(--danger); color: #fff; border-color: var(--danger); }
+@media (max-width: 560px) { .block-banner { flex-wrap: wrap; } }
