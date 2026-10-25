@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeArabic } from "@/lib/arabic";
-import { discountPercent, isOfferActive } from "@/lib/pricing";
+import { cairoToday, discountPercent, isOfferActive } from "@/lib/pricing";
 import { isValidSku, normalizeSku } from "@/lib/sku";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
@@ -18,6 +18,16 @@ const PAGE = 60;
  * Products table: search, category and stock filters, quick edits (price, in stock) without opening the form,
  * and bulk edits on the ticked rows. The whole list is loaded once and filtered in the browser, so typing is instant.
  */
+/** Why an offer that is switched on does not show in the store (tooltip of the «عرض غير ظاهر» badge). */
+function offerHiddenReason(product: Product): string {
+  const today = cairoToday();
+  if (product.salePrice === undefined || product.salePrice <= 0) return "لا يوجد سعر عرض: افتح المنتج واكتب سعر العرض";
+  if (product.salePrice >= product.price) return "سعر العرض ليس أقل من السعر الأصلي";
+  if (product.offerStart && product.offerStart > today) return `يبدأ العرض يوم ${product.offerStart}`;
+  if (product.offerEnd && today > product.offerEnd) return `انتهى العرض يوم ${product.offerEnd}`;
+  return "العرض غير مفعّل";
+}
+
 export function ProductsList() {
   const router = useRouter();
   const params = useSearchParams();
@@ -178,7 +188,9 @@ export function ProductsList() {
                         {isOfferActive(product) ? (
                           <span className="badge red">عرض {discountPercent(product.price, product.salePrice!)}%</span>
                         ) : product.offer ? (
-                          <span className="badge">عرض غير ظاهر</span>
+                          <span className="badge" title={offerHiddenReason(product)}>
+                            عرض غير ظاهر
+                          </span>
                         ) : null}
                       </div>
                     </td>

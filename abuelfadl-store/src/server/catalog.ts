@@ -111,8 +111,12 @@ function buildProduct(input: ProductInput, categories: Category[], existing?: Pr
   if (offer) {
     const hasSale = merged.salePrice !== undefined && merged.salePrice !== null && String(merged.salePrice) !== "";
     const salePrice = hasSale ? Number(merged.salePrice) : undefined;
-    if (salePrice !== undefined && (!Number.isFinite(salePrice) || salePrice <= 0)) fields.salePrice = "يجب أن يكون سعر العرض رقمًا أكبر من صفر";
-    else if (salePrice !== undefined && !fields.price && price > 0 && salePrice >= price) fields.salePrice = "يجب أن يكون سعر العرض أقل من السعر الأصلي";
+    // Required when the offer itself is being set (product form); quick edits of an old offer without a price still save.
+    const settingOffer = input.offer !== undefined || input.salePrice !== undefined;
+    if (salePrice === undefined) {
+      if (settingOffer) fields.salePrice = "اكتب سعر العرض: بدونه العرض لا يظهر في المتجر";
+    } else if (!Number.isFinite(salePrice) || salePrice <= 0) fields.salePrice = "يجب أن يكون سعر العرض رقمًا أكبر من صفر";
+    else if (!fields.price && price > 0 && salePrice >= price) fields.salePrice = "يجب أن يكون سعر العرض أقل من السعر الأصلي";
     const offerStart = cleanDate(merged.offerStart);
     const offerEnd = cleanDate(merged.offerEnd);
     if (offerStart === null) fields.offerStart = "التاريخ غير صحيح";
