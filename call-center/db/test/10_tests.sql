@@ -1252,3 +1252,30 @@ do $$ begin
   raise notice 'PASS T38 blocked numbers: Foodics/call-center blocked number refused (new and saved customer), both numbers blocked together, who/when kept, list with customer name, unblock, resent draft unaffected, prep cannot';
 end $$;
 rollback;
+
+-- T39 — only the admin unblocks (17_admin_unblock.sql); the call center still blocks
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'cc39@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'cc39@cc.test';
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc39@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if public.cc_set_blocked(array['01039393900'], true) <> 1 then raise exception 'FAIL T39 call center could not block'; end if;
+  begin perform public.cc_set_blocked(array['01039393900'], false); raise exception 'FAIL T39 call center unblocked';
+  exception when insufficient_privilege then null; end;
+  if (select count(*) from public.cc_blocked_of(array['01039393900'])) <> 1 then raise exception 'FAIL T39 number unblocked'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if not public.cc_is_admin() then raise exception 'FAIL T39 staff@cc.test is not admin'; end if;
+  if public.cc_set_blocked(array['01039393900'], false) <> 1 then raise exception 'FAIL T39 admin could not unblock'; end if;
+  raise notice 'PASS T39 only the admin unblocks; the call center blocks but cannot unblock';
+end $$;
+rollback;
