@@ -15,6 +15,20 @@ drop function if exists public.cc_customer_stats(uuid);
 drop function if exists public.cc_blocked_of(text[]);
 drop function if exists public.cc_list_blocked();
 drop function if exists public.cc_set_blocked(text[], boolean);
+drop function if exists public.cc_list_phones();
+drop function if exists public.cc_set_phone(uuid, text);
+drop function if exists public.cc_driver_orders();
+drop function if exists public.cc_driver_take(uuid[]);
+drop function if exists public.cc_driver_untake(uuid);
+drop function if exists public.cc_driver_delivered(uuid, text, double precision, double precision, double precision);
+drop function if exists public.cc_drivers_out();
+drop function if exists public.cc_driver_returned(uuid);
+drop function if exists public.cc_admin_delivery(uuid, text, uuid);
+drop function if exists public.cc_list_drivers();
+drop function if exists public.cc_delivery_report(date, date);
+drop function if exists public.cc_order_delivery_of(uuid);
+drop function if exists public.cc_require_driver();
+drop function if exists public.cc_driver_label(uuid);
 drop function if exists public.cc_set_my_name(text);
 drop function if exists public.cc_join_with_code(text, text);
 drop function if exists public.cc_link_my_name(text);
@@ -46,6 +60,7 @@ drop table    if exists public.cc_product_sale_unit, public.cc_sync_status, publ
 drop table    if exists public.cc_order_stage_events, public.cc_order_edits;
 drop table    if exists public.cc_product_modifiers, public.cc_modifier_options, public.cc_modifier_groups;
 drop table    if exists public.cc_blocked_phones;
+drop table    if exists public.cc_order_delivery;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it

@@ -12,12 +12,14 @@
 
 export const MOCK_LABEL = 'بيانات تجريبية';
 
-/* The demo opens directly as the admin (add ?role=call_center or ?role=prep to the link to see the others). */
+/* The demo opens directly as the admin (add ?role=call_center, ?role=prep or ?role=driver to the link to see the others). */
 export const account = { id: 'acc-cc', name: 'مركز الاتصال', role: 'admin', email: 'admin@demo' };
 export const staff = [
   { id: 'acc-cc',   email: 'admin@demo',       name: 'عمر',        role: 'admin',       active: true, createdAt: '2026-10-01T09:00:00Z' },
   { id: 'acc-cc2',  email: 'callcenter@demo',  name: 'كريم',       role: 'call_center', active: true, createdAt: '2026-10-05T09:00:00Z' },
   { id: 'acc-prep', email: 'betash.prep@demo', name: 'فرع البيطاش', role: 'prep',        active: true, createdAt: '2026-10-10T09:00:00Z' },
+  { id: 'drv-1',    email: 'ahmed.driver@demo', name: 'أحمد',       role: 'driver',      active: true, createdAt: '2026-10-12T09:00:00Z', phone: '01011112222' },
+  { id: 'drv-2',    email: 'mahmoud.driver@demo', name: 'محمود',    role: 'driver',      active: true, createdAt: '2026-10-12T09:00:00Z', phone: '01033334444' },
 ];
 
 /* CONFIRMED: after signing in, the person picks their name from this list
@@ -243,7 +245,7 @@ export function buildSampleOrders(now = new Date()) {
 
     // Demo preparation stages for today's orders (new → preparing → at_cashier → out).
     const stage = t.st === 'cancelled' || t.day !== 0 ? (t.day !== 0 && t.st !== 'cancelled' ? 'out' : 'new')
-      : ['new', 'preparing', 'at_cashier', 'out'][(todayCount - todayIndex) % 4];   // the newest order is «جديد»
+      : ['new', 'preparing', 'at_cashier', 'out', 'at_cashier', 'out'][(todayCount - todayIndex) % 6];   // the newest order is «جديد»
     const step = (n) => new Date(created.getTime() + n * 5 * 60000).toISOString();
     const reached = ['new', 'preparing', 'at_cashier', 'out'].indexOf(stage);
     return {

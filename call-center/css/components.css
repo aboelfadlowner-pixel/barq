@@ -722,3 +722,33 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .block-add label { font-weight: 700; }
 .block-add .input { flex: 1 1 200px; max-width: 280px; }
 .block-add .field-error { flex-basis: 100%; }
+
+/* Drivers (18_driver_tracking.sql) */
+.driver-page .page-inner { max-width: 720px; }
+.dr-section { margin-bottom: 18px; }
+.dr-card { padding: 14px; margin-bottom: 10px; display: grid; gap: 10px; }
+.dr-card.is-done { opacity: .7; }
+.dr-card.is-cancelled { border-color: var(--danger); }
+.dr-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dr-no { font-size: 1.35rem; }
+.dr-addr { display: flex; gap: 8px; align-items: flex-start; font-size: 1.05rem; line-height: 1.6; }
+.dr-done { color: var(--green-700); font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.dr-untake { justify-self: center; color: var(--muted); }
+.dr-pick { grid-template-columns: auto 1fr; align-items: start; cursor: pointer; }
+.dr-pick input { width: 26px; height: 26px; margin-top: 4px; }
+.dr-pick.is-picked { border-color: var(--green-700); box-shadow: 0 0 0 2px var(--green-100); }
+.dr-bar { position: sticky; bottom: 10px; z-index: 5; }
+.dr-empty { padding: 8px 2px; }
+.dr-phone { display: grid; gap: 10px; max-width: 420px; }
+.dr-preview, .dl-photo-big { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; background: #f3f3f3; }
+.po-wait { display: flex; gap: 6px; align-items: center; color: var(--muted); font-weight: 600; }
+.returned-list { display: grid; gap: 8px; }
+.dl-photo { border: 0; padding: 0; background: none; cursor: zoom-in; display: block; margin: 8px 0; }
+.dl-photo img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; }
+.dl-admin { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.period-chips { margin-bottom: 14px; }
+.period-chips .chip.is-on { background: var(--green-700); color: #fff; }
+.delivery-table tr.is-late td { background: var(--danger-50); }
+.delivery-table tr.is-late td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.staff-phone { margin-top: 6px; max-width: 200px; }
+.input-sm { height: 34px; font-size: .95rem; }

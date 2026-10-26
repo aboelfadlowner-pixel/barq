@@ -254,6 +254,104 @@ export async function sendOut(orderId, driver) {
   return ok(res);
 }
 
+/* ---------- Drivers (18_driver_tracking.sql) ---------- */
+const PHOTO_BUCKET = 'cc-delivery-photos';
+const toDriverAddress = (r) => ({ areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' });
+
+/* The driver's screen: the order number and the address only. */
+export async function getDriverOrders() {
+  const c = await sb();
+  const d = ok(await c.rpc('cc_driver_orders'));
+  return {
+    phone: d.phone || '',
+    ready: (d.ready || []).map((r) => ({ id: r.id, number: r.order_no, atCashierAt: r.at_cashier_at, address: toDriverAddress(r) })),
+    mine: (d.mine || []).map((r) => ({
+      id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, tripSize: r.trip_size,
+      cancelled: !!r.cancelled, deliveredAt: r.delivered_at || null, address: toDriverAddress(r),
+    })),
+  };
+}
+export async function setPhone(userId, phone) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_phone', { p_user_id: userId || null, p_phone: String(phone || '') }));
+}
+export async function driverTake(orderIds) {
+  const c = await sb();
+  return ok(await c.rpc('cc_driver_take', { p_order_ids: orderIds }));
+}
+export async function driverUntake(orderId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_driver_untake', { p_order_id: orderId }));
+}
+/* «سلّمت»: the photo goes to the driver's own folder first, then the server records the time. */
+export async function driverDelivered(orderId, photo, pos) {
+  const c = await sb();
+  const { data: { session } } = await c.auth.getSession();
+  const path = `${session.user.id}/${orderId}-${Date.now()}.jpg`;
+  const up = await c.storage.from(PHOTO_BUCKET).upload(path, photo, { contentType: 'image/jpeg', upsert: false });
+  if (up.error) throw new Error('الصورة ما اترفعتش — اتأكد من النت وجرّب تاني');
+  return ok(await c.rpc('cc_driver_delivered', {
+    p_order_id: orderId, p_photo: path, p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
+  }));
+}
+/* Branch: the drivers out now, and «الطيار رجع». */
+export async function listDriversOut() {
+  const c = await sb();
+  const res = await c.rpc('cc_drivers_out');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({ userId: r.user_id, label: r.label, orders: r.orders, delivered: r.delivered, firstOutAt: r.first_out_at }));
+}
+export async function driverReturned(userId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_driver_returned', { p_driver: userId }));
+}
+export async function listDrivers() {
+  const c = await sb();
+  const res = await c.rpc('cc_list_drivers');
+  if (res.error?.code === NOT_INSTALLED) return [];
+  return ok(res).map((r) => ({ userId: r.user_id, label: r.label }));
+}
+/* Admin: record a step for a driver who forgot ('out' | 'delivered' | 'returned'). */
+export async function adminDelivery(orderId, what, driverId = null) {
+  const c = await sb();
+  return ok(await c.rpc('cc_admin_delivery', { p_order_id: orderId, p_what: what, p_driver: driverId }));
+}
+const toDelivery = (r) => ({
+  outByAdmin: !!r.out_by_admin, tripSeq: r.trip_seq ?? null, tripSize: r.trip_size ?? null,
+  deliveredAt: r.delivered_at || null, deliveredAdmin: !!r.delivered_admin,
+  returnedAt: r.returned_at || null, returnedAdmin: !!r.returned_admin,
+  photoPath: r.photo_path || null, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null,
+});
+export async function getOrderDelivery(orderId) {
+  const c = await sb();
+  const res = await c.rpc('cc_order_delivery_of', { p_order_id: orderId });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  const r = ok(res);
+  return r ? toDelivery(r) : null;
+}
+export async function deliveryReport(from, to) {
+  const c = await sb();
+  const res = await c.rpc('cc_delivery_report', { p_from: from, p_to: to });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({
+    id: r.id, number: r.order_no, createdAt: r.created_at, areaName: r.area_name, atCashierAt: r.at_cashier_at, outAt: r.out_at,
+    driverId: r.driver_user_id, driver: r.driver || '', tripId: r.trip_id, ...toDelivery(r),
+  }));
+}
+/* A delivery photo for the admin (a link that works for one hour). */
+export async function photoUrl(path) {
+  const c = await sb();
+  const { data, error } = await c.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
+  if (error) throw new Error('الصورة مش موجودة (الصور بتتمسح بعد 30 يوم)');
+  return data.signedUrl;
+}
+export async function listPhones() {
+  const c = await sb();
+  const res = await c.rpc('cc_list_phones');
+  if (res.error) return new Map();
+  return new Map(res.data.map((r) => [r.user_id, r.phone]));
+}
+
 export async function ackEdit(orderId) {
   const c = await sb();
   return ok(await c.rpc('cc_ack_edit', { p_order_id: orderId }));

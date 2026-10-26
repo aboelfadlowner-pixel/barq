@@ -1,13 +1,14 @@
 /* App bootstrap + hash router.
-   Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas, #/prep.
-   Three roles (permissions.js): the prep account always lands on #/prep and sees nothing else.
+   Routes: #/board (home), #/pos, #/orders, #/orders/:id, #/areas, #/prep, #/driver, #/delivery.
+   Four roles (permissions.js): the prep account always lands on #/prep and the driver on #/driver,
+   and they see nothing else. #/delivery (times, photos, places): admin only.
    Demo: always signed in. Supabase: the password is asked once per device (login screen),
    then the session is remembered. */
 import { loadCatalog } from './catalog.js';
 import { startCatalogSync } from './catalog-sync.js';
 import { getState, setState, setUser, setAgent } from './store.js';
 import * as ds from './data/data-source.js';
-import { can, isPrepOnly } from './permissions.js';
+import { can, isPrepOnly, isDriverOnly } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
 import { restoreAgent } from './components/agent-select.js';
 import { mountLogin, mountNameStep } from './screens/login-screen.js';
@@ -18,6 +19,8 @@ import { mountOrderDetails } from './screens/order-details-screen.js';
 import { mountAreas } from './screens/areas-screen.js';
 import { mountCustomers } from './screens/customers-screen.js';
 import { mountPrep } from './screens/prep-screen.js';
+import { mountDriver } from './screens/driver-screen.js';
+import { mountDelivery } from './screens/delivery-screen.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -30,6 +33,8 @@ function parseRoute() {
   if (section === 'customers') return { route: 'customers', param: param ? decodeURIComponent(param) : null };
   if (section === 'pos') return { route: 'pos', param: null };
   if (section === 'prep') return { route: 'prep', param: null };
+  if (section === 'driver') return { route: 'driver', param: null };
+  if (section === 'delivery') return { route: 'delivery', param: null };
   return { route: 'board', param: null };
 }
 
@@ -37,6 +42,9 @@ function render() {
   let { route, param } = parseRoute();
   const { user } = getState();
   if (isPrepOnly(user)) route = 'prep';
+  else if (isDriverOnly(user)) route = 'driver';
+  else if (route === 'driver') route = 'board';
+  else if (route === 'delivery' && !can(user, 'deliveryReport')) route = 'board';
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
@@ -51,6 +59,8 @@ function render() {
   else if (route === 'customers') unmount = mountCustomers(view, param);
   else if (route === 'pos') unmount = mountPos(view);
   else if (route === 'prep') unmount = mountPrep(view);
+  else if (route === 'driver') unmount = mountDriver(view);
+  else if (route === 'delivery') unmount = mountDelivery(view);
   else unmount = mountBoard(view);
 }
 
@@ -61,7 +71,7 @@ function showError(title, err) {
 async function startSignedIn(user) {
   if (user.needsName) { mountNameStep(view, startSignedIn, user); return; }   // an account from before: its name once
   setUser(user);
-  if (isPrepOnly(user)) {               // the preparation account loads no products, customers or settings
+  if (isPrepOnly(user) || isDriverOnly(user)) {   // the branch and the driver load no products, customers or settings
     window.addEventListener('hashchange', render);
     render();
     return;

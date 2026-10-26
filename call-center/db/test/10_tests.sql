@@ -813,11 +813,10 @@ do $$ declare oid uuid := current_setting('cc.oid')::uuid; r jsonb; o jsonb; beg
   if r->>'stage' <> 'new' or r->>'preparing_at' is not null then raise exception 'FAIL T31 back %', r; end if;
   perform public.cc_set_stage(oid, 'preparing');
   perform public.cc_set_stage(oid, 'at_cashier');
-  r := public.cc_set_stage(oid, 'out');
-  if r->>'out_at' is null or r->>'at_cashier_at' is null or r->>'preparing_at' is null then raise exception 'FAIL T31 times %', r; end if;
-  r := public.cc_set_stage(oid, 'at_cashier');
-  if r->>'out_at' is not null or r->>'at_cashier_at' is null then raise exception 'FAIL T31 back from out %', r; end if;
-  perform public.cc_set_stage(oid, 'out');
+  -- 18_driver_tracking.sql: «خرج» is the driver's tap now, not the branch's
+  begin perform public.cc_set_stage(oid, 'out'); raise exception 'FAIL T31 branch sent out';
+  exception when invalid_parameter_value then null; end;
+  if (select at_cashier_at is null or preparing_at is null from public.cc_orders where id = oid) then raise exception 'FAIL T31 times'; end if;
   if current_setting('cc.cancelled') <> '' then
     begin perform public.cc_set_stage(current_setting('cc.cancelled')::uuid, 'preparing'); raise exception 'FAIL T31 cancelled order moved';
     exception when invalid_parameter_value then null; end;
@@ -833,8 +832,8 @@ select set_config('request.jwt.claims', json_build_object('sub', (select id from
 set local role authenticated;
 do $$ declare oid uuid := current_setting('cc.oid')::uuid; begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  if (select stage from public.cc_orders where id = oid) <> 'out' or (select out_at from public.cc_orders where id = oid) is null then raise exception 'FAIL T31b call center does not see the stage'; end if;
-  begin perform public.cc_set_stage(oid, 'at_cashier'); raise exception 'FAIL T31b call center moved a stage';
+  if (select stage from public.cc_orders where id = oid) <> 'at_cashier' or (select at_cashier_at from public.cc_orders where id = oid) is null then raise exception 'FAIL T31b call center does not see the stage'; end if;
+  begin perform public.cc_set_stage(oid, 'preparing'); raise exception 'FAIL T31b call center moved a stage';
   exception when insufficient_privilege then null; end;
   begin perform * from public.cc_prep_orders(); raise exception 'FAIL T31b call center opened the prep list';
   exception when insufficient_privilege then null; end;
@@ -842,7 +841,7 @@ do $$ declare oid uuid := current_setting('cc.oid')::uuid; begin
 end $$;
 reset role;
 do $$ begin
-  if (select count(*) from public.cc_order_stage_events where order_id = current_setting('cc.oid')::uuid) <> 7 then raise exception 'FAIL T31c log count'; end if;
+  if (select count(*) from public.cc_order_stage_events where order_id = current_setting('cc.oid')::uuid) <> 4 then raise exception 'FAIL T31c log count'; end if;
   raise notice 'PASS T31c every tap is logged with who and when';
 end $$;
 rollback;
@@ -919,35 +918,22 @@ do $$ declare oid uuid := current_setting('cc.edited')::uuid; begin
 end $$;
 rollback;
 
--- T33 — «خرج مع الطيار» needs the driver «الاسم (الرقم)» in one field; only from «على الكاشير»; call center sees it
+-- T33 — the branch no longer types the driver: «خرج مع الطيار» is the driver's own tap (18_driver_tracking.sql)
 begin;
 insert into auth.users (id, email) values (gen_random_uuid(), 'prep4@cc.test');
 insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'prep4@cc.test';
 select set_config('cc.oid', (select id::text from public.cc_orders where status = 'new' order by created_at limit 1), true);
-update public.cc_orders set stage = 'preparing' where id = current_setting('cc.oid')::uuid;
+update public.cc_orders set stage = 'at_cashier', at_cashier_at = now() where id = current_setting('cc.oid')::uuid;
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep4@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
-do $$ declare oid uuid := current_setting('cc.oid')::uuid; r jsonb; x jsonb; begin
+do $$ declare oid uuid := current_setting('cc.oid')::uuid; begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  begin perform public.cc_send_out(oid, 'محمد (01012345678)'); raise exception 'FAIL T33 out from «بيتجهز»';
+  begin perform public.cc_send_out(oid, 'محمد (01012345678)'); raise exception 'FAIL T33 branch typed the driver';
   exception when invalid_parameter_value then null; end;
-  perform public.cc_set_stage(oid, 'at_cashier');
-  begin perform public.cc_send_out(oid, '  '); raise exception 'FAIL T33 empty driver';
+  begin perform public.cc_set_stage(oid, 'out'); raise exception 'FAIL T33 branch sent out';
   exception when invalid_parameter_value then null; end;
-  r := public.cc_send_out(oid, '  محمد   (01012345678) ');
-  if r->>'stage' <> 'out' or r->>'driver' <> 'محمد (01012345678)' or r->>'out_at' is null then raise exception 'FAIL T33 %', r; end if;
-  begin perform public.cc_send_out(oid, 'تاني (0100)'); raise exception 'FAIL T33 sent out twice';
-  exception when invalid_parameter_value then null; end;
-  select y into x from public.cc_prep_orders() y where y->>'id' = oid::text;
-  if x->>'driver' <> 'محمد (01012345678)' then raise exception 'FAIL T33 prep list driver'; end if;
-end $$;
-reset role;
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
-set local role authenticated;
-do $$ begin
-  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
-  if (select driver from public.cc_orders where id = current_setting('cc.oid')::uuid) <> 'محمد (01012345678)' then raise exception 'FAIL T33 call center does not see the driver'; end if;
-  raise notice 'PASS T33 driver «الاسم (الرقم)» required for «خرج مع الطيار», only from the cashier, once; shown to prep and call center';
+  if (select stage from public.cc_orders where id = oid) <> 'at_cashier' then raise exception 'FAIL T33 stage changed'; end if;
+  raise notice 'PASS T33 the branch cannot send an order out or type the driver any more (the driver taps «خرجت»)';
 end $$;
 rollback;
 
@@ -1277,5 +1263,139 @@ do $$ begin
   if not public.cc_is_admin() then raise exception 'FAIL T39 staff@cc.test is not admin'; end if;
   if public.cc_set_blocked(array['01039393900'], false) <> 1 then raise exception 'FAIL T39 admin could not unblock'; end if;
   raise notice 'PASS T39 only the admin unblocks; the call center blocks but cannot unblock';
+end $$;
+rollback;
+
+-- T40 — drivers (18_driver_tracking.sql): phone once, sees number+address only, takes several orders as one trip,
+--        «سلّمت» needs his photo path, branch «الطيار رجع» for the trip, admin report / fixes, who can do what
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv40@cc.test'), (gen_random_uuid(), 'drv40b@cc.test'), (gen_random_uuid(), 'prep40@cc.test'), (gen_random_uuid(), 'cc40@cc.test');
+insert into public.cc_agents (name) values ('طيار 40'), ('طيار 40ب') on conflict do nothing;
+insert into public.cc_staff (user_id, display_name, role, agent_id)
+select u.id, 'x', case when u.email like 'drv%' then 'driver' when u.email like 'prep%' then 'prep' else 'call_center' end,
+       (select id from public.cc_agents where name = case u.email when 'drv40@cc.test' then 'طيار 40' when 'drv40b@cc.test' then 'طيار 40ب' end)
+  from auth.users u where u.email in ('drv40@cc.test', 'drv40b@cc.test', 'prep40@cc.test', 'cc40@cc.test');
+-- three orders ready at the cashier (placed by the call center inside this test)
+insert into public.cc_agents (name) values ('موظف 40') on conflict do nothing;
+select set_config('cc.agent', (select id::text from public.cc_agents where name = 'موظف 40'), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 40');
+  o public.cc_orders; i int; begin
+  for i in 1..3 loop
+    o := public.cc_place_order(current_setting('cc.agent')::uuid, gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 40-' || i, 'phone', '0104040410' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.o' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+update public.cc_orders set stage = 'at_cashier', preparing_at = now(), at_cashier_at = now()
+ where id::text in (current_setting('cc.o1'), current_setting('cc.o2'), current_setting('cc.o3'));
+select set_config('cc.drv', (select id::text from auth.users where email = 'drv40@cc.test'), true);
+select set_config('cc.cc40', (select id::text from auth.users where email = 'cc40@cc.test'), true);
+
+-- the driver
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare d jsonb; r jsonb; o1 uuid := current_setting('cc.o1')::uuid; o2 uuid := current_setting('cc.o2')::uuid; at timestamptz; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  -- sees no customers or orders directly
+  if exists (select 1 from public.cc_orders) or exists (select 1 from public.cc_customers) then raise exception 'FAIL T40 driver reads tables'; end if;
+  d := public.cc_driver_orders();
+  if d->>'phone' is not null or jsonb_array_length(d->'ready') < 3 then raise exception 'FAIL T40 ready %', d; end if;
+  r := d->'ready'->0;
+  if r ? 'customer_name' or r ? 'customer_phone' or r ? 'total' or not r ? 'street' or not r ? 'order_no' then raise exception 'FAIL T40 driver sees too much %', r; end if;
+  begin perform public.cc_driver_take(array[o1]); raise exception 'FAIL T40 out without phone';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_set_phone(null, '123'); raise exception 'FAIL T40 bad phone';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_phone(current_setting('cc.drv')::uuid, '010 4040 4040');
+  if public.cc_driver_take(array[o2, o1]) <> 2 then raise exception 'FAIL T40 take'; end if;
+  d := public.cc_driver_orders();
+  if jsonb_array_length(d->'mine') <> 2 or (d->'mine'->0->>'trip_size')::int <> 2 then raise exception 'FAIL T40 mine %', d->'mine'; end if;
+  begin perform public.cc_driver_take(array[o1]); raise exception 'FAIL T40 took twice';
+  exception when invalid_parameter_value then null; end;
+  -- «سلّمت»: a photo outside his folder is refused; his own works; the time is the server's; double tap safe
+  begin perform public.cc_driver_delivered(o2, 'someone-else/x.jpg', 31.2, 29.9, 20); raise exception 'FAIL T40 foreign photo';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_driver_delivered(o2, null, null, null, null); raise exception 'FAIL T40 no photo';
+  exception when invalid_parameter_value then null; end;
+  at := public.cc_driver_delivered(o2, current_setting('cc.drv') || '/o2.jpg', 31.2, 29.9, 15);
+  if at is null or public.cc_driver_delivered(o2, current_setting('cc.drv') || '/o2-again.jpg', null, null, null) <> at then raise exception 'FAIL T40 delivered'; end if;
+  -- a wrong take goes back (not after delivery)
+  begin perform public.cc_driver_untake(o2); raise exception 'FAIL T40 untake after delivery';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_driver_untake(o1);
+  begin perform public.cc_driver_returned(current_setting('cc.drv')::uuid); raise exception 'FAIL T40 driver marked himself back';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_delivery_report(current_date - 1, current_date); raise exception 'FAIL T40 driver opened the report';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$ begin
+  if (select stage || '|' || coalesce(driver, '') from public.cc_orders where id = current_setting('cc.o1')::uuid) <> 'at_cashier|' then raise exception 'FAIL T40 untake state'; end if;
+  if (select driver from public.cc_orders where id = current_setting('cc.o2')::uuid) <> 'طيار 40 (01040404040)' then raise exception 'FAIL T40 label %', (select driver from public.cc_orders where id = current_setting('cc.o2')::uuid); end if;
+end $$;
+
+-- another driver cannot take an order already out, nor deliver someone else's
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'drv40b@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  perform public.cc_set_phone((select current_setting('request.jwt.claims')::json->>'sub')::uuid, '01040404041');
+  begin perform public.cc_driver_take(array[current_setting('cc.o2')::uuid]); raise exception 'FAIL T40 took another driver''s order';
+  exception when invalid_parameter_value then if sqlerrm not like '%طيار 40%' then raise; end if; end;
+  begin perform public.cc_driver_delivered(current_setting('cc.o2')::uuid, 'x/y.jpg', null, null, null); raise exception 'FAIL T40 delivered another''s';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+
+-- the branch: drivers out, «الطيار رجع» for the whole trip, cannot send out
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r record; begin
+  select * into r from public.cc_drivers_out() where user_id = current_setting('cc.drv')::uuid;
+  if r.orders <> 1 or r.delivered <> 1 then raise exception 'FAIL T40 drivers out %', r; end if;
+  if public.cc_driver_returned(current_setting('cc.drv')::uuid) <> 1 then raise exception 'FAIL T40 returned'; end if;
+  begin perform public.cc_driver_returned(current_setting('cc.drv')::uuid); raise exception 'FAIL T40 returned twice';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_set_stage(current_setting('cc.o1')::uuid, 'out'); raise exception 'FAIL T40 branch sent out';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_delivery_report(current_date - 1, current_date); raise exception 'FAIL T40 branch opened the report';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- the call center: sees the times, not the photo or the place; cannot record
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare d jsonb; begin
+  d := public.cc_order_delivery_of(current_setting('cc.o2')::uuid);
+  if d->>'delivered_at' is null or d->>'returned_at' is null or d ? 'photo_path' or d ? 'lat' then raise exception 'FAIL T40 call center view %', d; end if;
+  begin perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'out', current_setting('cc.drv')::uuid); raise exception 'FAIL T40 call center recorded';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_order_delivery; raise exception 'FAIL T40 proof table readable';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- the admin: report with photo/place/trip; records a step for a driver (marked)
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; d jsonb; begin
+  select x into r from public.cc_delivery_report(current_date - 1, current_date + 1) x where x->>'id' = current_setting('cc.o2');
+  if r->>'photo_path' is null or (r->>'lat')::float <> 31.2 or r->>'returned_at' is null or (r->>'trip_size')::int <> 2 or r->>'delivered_admin' <> 'false' then raise exception 'FAIL T40 report %', r; end if;
+  perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'out', current_setting('cc.drv')::uuid);
+  perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'delivered');
+  d := public.cc_order_delivery_of(current_setting('cc.o1')::uuid);
+  if d->>'out_by_admin' <> 'true' or d->>'delivered_admin' <> 'true' or d->>'delivered_at' is null then raise exception 'FAIL T40 admin record %', d; end if;
+  begin perform public.cc_delivery_report(current_date, current_date - 1); raise exception 'FAIL T40 bad period';
+  exception when invalid_parameter_value then null; end;
+  if not exists (select 1 from public.cc_list_drivers() where user_id = current_setting('cc.drv')::uuid) then raise exception 'FAIL T40 drivers list'; end if;
+  if (select phone from public.cc_list_phones() where user_id = current_setting('cc.drv')::uuid) <> '01040404040' then raise exception 'FAIL T40 phones'; end if;
+  perform public.cc_set_staff(current_setting('cc.cc40')::uuid, 'driver', true);
+  raise notice 'PASS T40 drivers: phone once, number+address only, several orders = one trip, taken once, photo in his folder, server time, wrong take back, branch «الطيار رجع» for the trip, admin report with photo/place and records for a driver, call center sees times only';
 end $$;
 rollback;

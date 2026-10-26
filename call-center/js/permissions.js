@@ -2,18 +2,22 @@
    admin       — everything, plus areas/fees, employee names, the registration code and accounts.
    call_center — creates, follows and cancels orders. No settings.
    prep        — the person preparing orders at the branch: the preparation screen only.
+   driver      — «طيار»: his own screen only (order number + address, «خرجت», «سلّمت» with a photo).
+   «التوصيل» (delivery times, photos, places): admin only.
    «سجل الطلبات» (orders of past days) and «العملاء» (customers page): admin and call center.
    The database enforces the same rules; this only decides what is shown. */
 const ALLOWED = {
-  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen'],
+  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen', 'deliveryReport'],
   call_center: ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary'],
   prep:        ['prepScreen'],
+  driver:      ['driverScreen'],
 };
 
 export const ROLES = [
   { id: 'admin',       label: 'مسؤول' },
   { id: 'call_center', label: 'كول سنتر' },
   { id: 'prep',        label: 'تجهيز' },
+  { id: 'driver',      label: 'طيار' },
 ];
 
 export function can(user, action) {
@@ -24,3 +28,5 @@ export function can(user, action) {
 
 /* The branch preparation account sees only its screen. */
 export const isPrepOnly = (user) => user?.role === 'prep';
+/* The driver sees only his screen. */
+export const isDriverOnly = (user) => user?.role === 'driver';

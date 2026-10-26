@@ -40,6 +40,20 @@ export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);
 export const ackEdit          = (id) => impl.ackEdit(id);
 export const sendOut          = (id, driver) => impl.sendOut(id, driver);
+/* Drivers (18_driver_tracking.sql) */
+export const getDriverOrders  = () => impl.getDriverOrders();
+export const setPhone         = (userId, phone) => impl.setPhone(userId, phone);
+export const driverTake       = (ids) => impl.driverTake(ids);
+export const driverUntake     = (id) => impl.driverUntake(id);
+export const driverDelivered  = (id, photo, pos) => impl.driverDelivered(id, photo, pos);
+export const listDriversOut   = () => impl.listDriversOut();
+export const driverReturned   = (userId) => impl.driverReturned(userId);
+export const listDrivers      = () => impl.listDrivers();
+export const adminDelivery    = (id, what, driverId) => impl.adminDelivery(id, what, driverId);
+export const getOrderDelivery = (id) => impl.getOrderDelivery(id);
+export const deliveryReport   = (from, to) => impl.deliveryReport(from, to);
+export const photoUrl         = (path) => impl.photoUrl(path);
+export const listPhones       = () => impl.listPhones();
 export const editOrder        = (a) => impl.editOrder(a);
 export const setStaff         = (a) => impl.setStaff(a);
 export const getAreas         = () => impl.getAreas();          // includes inactive areas

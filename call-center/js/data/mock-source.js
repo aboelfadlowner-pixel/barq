@@ -82,7 +82,9 @@ export function saveAgent({ id = null, name, active = true }) {
 
 /* ---------- Account (the demo is always signed in) ---------- */
 const demoRole = new URLSearchParams(location.search).get('role');
-const demoAccount = { ...mock.account, role: ['admin', 'call_center', 'prep'].includes(demoRole) ? demoRole : 'admin' };
+const demoAccount = { ...mock.account, role: ['admin', 'call_center', 'prep', 'driver'].includes(demoRole) ? demoRole : 'admin' };
+// «?role=driver»: the demo driver أحمد.
+if (demoAccount.role === 'driver') Object.assign(demoAccount, { id: 'drv-1', name: 'أحمد', email: 'ahmed.driver@demo' });
 // «?own» in the link: an account with its own name (عمر) — no «اختر اسمك».
 if (new URLSearchParams(location.search).has('own')) Object.assign(demoAccount, { agentId: 'ag-1', name: 'عمر' });
 export const getAccount = () => resolve(demoAccount);
@@ -246,6 +248,8 @@ export const listPrepOrders = () => resolve(orders
 export function setStage(orderId, stage) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (stage === 'out') return Promise.reject(new Error('الطيار هو اللي بيدوس «خرجت» من موبايله'));
+  if (o.stage === 'out' && deliveries.get(orderId)?.deliveredAt) return Promise.reject(new Error('الطلب اتسلّم للعميل — مينفعش يرجع'));
   if (o.status === 'cancelled') return Promise.reject(new Error('تم إلغاء هذا الطلب، يرجى إيقاف تجهيزه'));
   const from = STAGE_IDS.indexOf(o.stage || 'new');
   const to = STAGE_IDS.indexOf(stage);
@@ -256,18 +260,148 @@ export function setStage(orderId, stage) {
   o.stage = stage;
   if (to > from) o[['', 'preparingAt', 'atCashierAt', 'outAt'][to]] = now;
   else o[['', 'preparingAt', 'atCashierAt', 'outAt'][from]] = null;
+  if (to < 3) Object.assign(o, { driver: '', driverUserId: null, tripId: null, tripSeq: null, tripSize: null, outByAdmin: false });
   return resolve({ id: o.id, stage: o.stage });
 }
 
-export async function sendOut(orderId, driver) {
-  const d = String(driver || '').replace(/\s+/g, ' ').trim();
-  if (d.length < 2 || d.length > 80) throw new Error('أدخل اسم الطيار ورقمه — مثال: محمد (01012345678)');
-  const o = orders.find((x) => x.id === orderId);
-  if (o?.stage === 'out') throw new Error('الطلب خرج بالفعل');
-  const r = await setStage(orderId, 'out');
-  o.driver = d;
-  return { ...r, driver: d };
+export async function sendOut() {
+  throw new Error('الطيار هو اللي بيدوس «خرجت» من موبايله');
 }
+
+/* ---------- Drivers (same rules as 18_driver_tracking.sql) ---------- */
+const deliveries = new Map();   // order id → { deliveredAt, photo, lat, lng, accuracy, deliveredAdmin, returnedAt, returnedAdmin }
+const driverLabel = (id) => { const d = staff.find((x) => x.id === id); return d ? `${d.name}${d.phone ? ` (${d.phone})` : ''}` : ''; };
+// DEMO photo (a drawn bag with the ticket) so the admin pages show something.
+const DEMO_PHOTO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"><rect width="480" height="360" fill="#e9efe9"/><rect x="150" y="70" width="180" height="230" rx="14" fill="#c9a36a"/><rect x="190" y="120" width="100" height="120" fill="#fff"/><text x="240" y="170" font-size="18" text-anchor="middle" fill="#333">DEMO</text><text x="240" y="200" font-size="14" text-anchor="middle" fill="#666">صورة تجريبية</text></svg>')}`;
+(function seedDemoDeliveries() {
+  const ids = ['drv-1', 'drv-2'];
+  const outs = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && o.outAt)
+    .sort((a, b) => a.outAt.localeCompare(b.outAt));
+  outs.forEach((o, i) => {
+    const drv = ids[i % 2];
+    Object.assign(o, { driverUserId: drv, driver: driverLabel(drv), tripId: `trip-${o.id}`, tripSeq: 1, tripSize: 1, outByAdmin: false });
+    const out = new Date(o.outAt).getTime();
+    const deliveredAt = out + (12 + (i * 7) % 30) * 60000;
+    if (deliveredAt < Date.now()) {
+      const returnedAt = deliveredAt + (8 + (i * 5) % 25) * 60000;
+      deliveries.set(o.id, { deliveredAt: new Date(deliveredAt).toISOString(), photo: DEMO_PHOTO,
+        lat: 31.12 + i / 1000, lng: 29.79 + i / 1000, accuracy: 15, deliveredAdmin: false,
+        returnedAt: returnedAt < Date.now() && i < outs.length - 1 ? new Date(returnedAt).toISOString() : null, returnedAdmin: false });
+    }
+  });
+}());
+const driverAddress = (o) => ({ ...o.address });
+const me = () => staff.find((x) => x.id === demoAccount.id);
+export function getDriverOrders() {
+  const today = new Date();
+  return resolve({
+    phone: me()?.phone || '',
+    ready: orders.filter((o) => o.stage === 'at_cashier' && o.status !== 'cancelled')
+      .sort((a, b) => String(a.atCashierAt).localeCompare(String(b.atCashierAt)))
+      .map((o) => ({ id: o.id, number: o.number, atCashierAt: o.atCashierAt, address: driverAddress(o) })),
+    mine: orders.filter((o) => o.driverUserId === demoAccount.id && o.stage === 'out' && isSameDay(o.outAt, today)
+      && !deliveries.get(o.id)?.returnedAt)
+      .sort((a, b) => b.outAt.localeCompare(a.outAt) || a.tripSeq - b.tripSeq)
+      .map((o) => ({ id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq, tripSize: o.tripSize,
+        cancelled: o.status === 'cancelled', deliveredAt: deliveries.get(o.id)?.deliveredAt ?? null, address: driverAddress(o) })),
+  });
+}
+export function setPhone(userId, phone) {
+  const v = String(phone || '').replace(/\D/g, '');
+  if (!/^0[0-9]{8,10}$/.test(v)) return Promise.reject(new Error('رقم الموبايل غير صحيح — مثال: 01012345678'));
+  const s = staff.find((x) => x.id === (userId || demoAccount.id));
+  if (!s) return Promise.reject(new Error('الأكونت غير موجود'));
+  s.phone = v;
+  return resolve(v);
+}
+export function driverTake(ids) {
+  if (!me()?.phone) return Promise.reject(new Error('اكتب رقم موبايلك الأول'));
+  const list = ids.map((id) => orders.find((o) => o.id === id));
+  for (const o of list) {
+    if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+    if (o.status === 'cancelled') return Promise.reject(new Error(`الطلب ${o.number} اتلغى`));
+    if (o.stage === 'out') return Promise.reject(new Error(`الطلب ${o.number} خرج بالفعل مع ${o.driver || 'طيار تاني'}`));
+    if (o.stage !== 'at_cashier') return Promise.reject(new Error(`الطلب ${o.number} لسه مش على الكاشير`));
+  }
+  const trip = `trip-${Date.now()}`; const now = new Date().toISOString();
+  list.forEach((o, i) => Object.assign(o, { stage: 'out', outAt: now, driverUserId: demoAccount.id, driver: driverLabel(demoAccount.id),
+    tripId: trip, tripSeq: i + 1, tripSize: list.length, outByAdmin: false }));
+  return resolve(list.length);
+}
+export function driverUntake(id) {
+  const o = orders.find((x) => x.id === id);
+  if (!o || o.driverUserId !== demoAccount.id || o.stage !== 'out') return Promise.reject(new Error('الطلب ده مش معاك'));
+  if (deliveries.get(id)?.deliveredAt) return Promise.reject(new Error('الطلب اتسلّم — مينفعش يرجع'));
+  Object.assign(o, { stage: 'at_cashier', outAt: null, driver: '', driverUserId: null, tripId: null, tripSeq: null, tripSize: null });
+  return resolve(true);
+}
+export function driverDelivered(id, photo, pos) {
+  const o = orders.find((x) => x.id === id);
+  if (!o || o.driverUserId !== demoAccount.id || o.stage !== 'out') return Promise.reject(new Error('الطلب ده مش معاك'));
+  if (!photo) return Promise.reject(new Error('صوّر الطلب الأول'));
+  const d = deliveries.get(id) ?? {};
+  if (d.deliveredAt) return resolve(d.deliveredAt);
+  deliveries.set(id, { ...d, deliveredAt: new Date().toISOString(), photo: URL.createObjectURL(photo),
+    lat: pos?.lat ?? null, lng: pos?.lng ?? null, accuracy: pos?.accuracy ?? null, deliveredAdmin: false });
+  return resolve(deliveries.get(id).deliveredAt);
+}
+export function listDriversOut() {
+  const by = new Map();
+  orders.filter((o) => o.stage === 'out' && o.driverUserId && !deliveries.get(o.id)?.returnedAt && o.outAt
+    && Date.now() - new Date(o.outAt).getTime() < 86400000)
+    .forEach((o) => {
+      const r = by.get(o.driverUserId) ?? { userId: o.driverUserId, label: o.driver, orders: 0, delivered: 0, firstOutAt: o.outAt };
+      r.orders += 1; if (deliveries.get(o.id)?.deliveredAt) r.delivered += 1;
+      if (o.outAt < r.firstOutAt) r.firstOutAt = o.outAt;
+      by.set(o.driverUserId, r);
+    });
+  return resolve([...by.values()].sort((a, b) => a.firstOutAt.localeCompare(b.firstOutAt)));
+}
+export function driverReturned(userId) {
+  const now = new Date().toISOString(); let n = 0;
+  orders.filter((o) => o.stage === 'out' && o.driverUserId === userId && !deliveries.get(o.id)?.returnedAt)
+    .forEach((o) => { deliveries.set(o.id, { ...(deliveries.get(o.id) ?? {}), returnedAt: now, returnedAdmin: false }); n += 1; });
+  return n ? resolve(n) : Promise.reject(new Error('الطيار ده مش معاه طلبات دلوقتي'));
+}
+export const listDrivers = () => resolve(staff.filter((s) => s.role === 'driver' && s.active).map((s) => ({ userId: s.id, label: driverLabel(s.id) })));
+export function adminDelivery(id, what, driverId) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  const now = new Date().toISOString();
+  if (what === 'out') {
+    if (o.stage !== 'at_cashier') return Promise.reject(new Error('الطلب لازم يكون على الكاشير'));
+    if (!driverId) return Promise.reject(new Error('اختار الطيار'));
+    Object.assign(o, { stage: 'out', outAt: now, driverUserId: driverId, driver: driverLabel(driverId), tripId: `trip-${Date.now()}`, tripSeq: 1, tripSize: 1, outByAdmin: true });
+  } else {
+    if (o.stage !== 'out') return Promise.reject(new Error('الطلب لسه ما خرجش'));
+    const d = deliveries.get(id) ?? {};
+    if (what === 'delivered' && !d.deliveredAt) deliveries.set(id, { ...d, deliveredAt: now, deliveredAdmin: true });
+    if (what === 'returned' && !d.returnedAt) deliveries.set(id, { ...d, returnedAt: now, returnedAdmin: true });
+  }
+  return resolve(true);
+}
+const deliveryOf = (o) => {
+  const d = deliveries.get(o.id) ?? {};
+  return { outByAdmin: !!o.outByAdmin, tripSeq: o.tripSeq ?? null, tripSize: o.tripSize ?? null,
+    deliveredAt: d.deliveredAt ?? null, deliveredAdmin: !!d.deliveredAdmin, returnedAt: d.returnedAt ?? null, returnedAdmin: !!d.returnedAdmin,
+    photoPath: d.photo ?? null, lat: d.lat ?? null, lng: d.lng ?? null, accuracy: d.accuracy ?? null };
+};
+export function getOrderDelivery(id) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return resolve(null);
+  const d = deliveryOf(o);
+  if (demoAccount.role !== 'admin') Object.assign(d, { photoPath: null, lat: null, lng: null, accuracy: null });
+  return resolve(d);
+}
+export function deliveryReport(from, to) {
+  const start = new Date(`${from}T00:00:00`); const end = new Date(`${to}T00:00:00`); end.setDate(end.getDate() + 1);
+  return resolve(orders.filter((o) => o.outAt && o.status !== 'cancelled' && new Date(o.outAt) >= start && new Date(o.outAt) < end)
+    .sort((a, b) => b.outAt.localeCompare(a.outAt))
+    .map((o) => ({ id: o.id, number: o.number, createdAt: o.createdAt, areaName: o.address.areaName, atCashierAt: o.atCashierAt,
+      outAt: o.outAt, driverId: o.driverUserId ?? null, driver: o.driver || '', tripId: o.tripId ?? null, ...deliveryOf(o) })));
+}
+export const photoUrl = (path) => resolve(path);
+export const listPhones = () => resolve(new Map(staff.filter((s) => s.phone).map((s) => [s.id, s.phone])));
 
 export function ackEdit(orderId) {
   const o = orders.find((x) => x.id === orderId);
