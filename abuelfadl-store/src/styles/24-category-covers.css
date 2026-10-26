@@ -109,6 +109,3 @@
 
 /* fresh bakery cover (FreshCover): five pastries as one group (they sit close together in the photo) */
 .cvfr-group{left:6.00%;top:30.00%;width:88.00%;z-index:1;--dl:0.1s}
-
-/* drinks cover (DrinksCover): two cans and two ice-cream cups as one group */
-.cvdr-group{left:10.00%;top:12.00%;width:80.00%;z-index:1;--dl:0.1s}

@@ -234,24 +234,6 @@ function FreshCover() {
   );
 }
 
-/**
- * "drinks" cover (juices, ice cream and coffee): two Abu El Fadl cans — mango and blue lemonade — on the sides with
- * two ice-cream cups between them, cut from the owner's photo and arranged as one piece (public/covers/drinks/group.webp)
- * so both can logos show. It rises in with a contact shadow like the fresh cover; position is `.cvdr-group`.
- */
-function DrinksCover() {
-  return (
-    <div className="cvd" role="img" aria-label="عصائر وآيس كريم: علبتا عصير مانجو وليمون أزرق وكوبا آيس كريم">
-      <div className="cvd-s" aria-hidden="true">
-        <span className="cvd-p cvdr-group">
-          <i className="sh" />
-          <img src="/covers/drinks/group.webp" alt="" decoding="async" />
-        </span>
-      </div>
-    </div>
-  );
-}
-
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
@@ -261,7 +243,6 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   deli: DeliCover,
   syrian: SyrianCover,
   fresh: FreshCover,
-  drinks: DrinksCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */
