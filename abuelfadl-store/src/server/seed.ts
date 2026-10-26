@@ -96,7 +96,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 27;
+const SCHEMA = 28;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -241,6 +241,11 @@ export function upgradeStore(data: StoreData): StoreData {
   if ((data.schema ?? 1) < 27) {
     const makhtoum = data.products.find((product) => product.id === MAKHTOUM);
     if (makhtoum) makhtoum.hidden = false;
+  }
+  if ((data.schema ?? 1) < 28) {
+    // Loose makhtoum is sold by weight, per kg (owner); the 425 g jar stays per piece.
+    const makhtoum = data.products.find((product) => product.id === MAKHTOUM);
+    if (makhtoum && !makhtoum.weighed) Object.assign(makhtoum, { weighed: true, weightStep: 0.25 });
   }
   data.schema = SCHEMA;
   return data;
