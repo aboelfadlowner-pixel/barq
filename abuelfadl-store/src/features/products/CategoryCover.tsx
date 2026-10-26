@@ -235,13 +235,12 @@ function FreshCover() {
 }
 
 /**
- * "drinks" cover (juices, ice cream and coffee): the owner's photo of three Abu El Fadl cans — mango, strawberry
- * milkshake and blue lemonade — with four ice-cream cups in front, cut out as one piece (public/covers/drinks/group.webp)
- * without the floor reflection. It rises in with a contact shadow like the fresh cover; position is `.cvdr-group`.
+ * "drinks" cover (juices, ice cream and coffee): two Abu El Fadl cans — mango and blue lemonade — with two ice-cream
+ * cups in front, cut from the owner's photo and arranged as one piece (public/covers/drinks/group.webp). It rises in with a contact shadow like the fresh cover; position is `.cvdr-group`.
  */
 function DrinksCover() {
   return (
-    <div className="cvd" role="img" aria-label="عصائر وآيس كريم: علب عصير مانجو وميلك شيك فراولة وليمون أزرق وأكواب آيس كريم">
+    <div className="cvd" role="img" aria-label="عصائر وآيس كريم: علبتا عصير مانجو وليمون أزرق وكوبا آيس كريم">
       <div className="cvd-s" aria-hidden="true">
         <span className="cvd-p cvdr-group">
           <i className="sh" />
