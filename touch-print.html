@@ -406,6 +406,18 @@ function todayStr(){
   return String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0');
 }
 
+// سطر التاريخ المطبوع على الليبل: تاريخ الإنتاج (يوم+شهر بدون فواصل) + وقت الطباعة (ساعة:دقيقة) + تاريخ الانتهاء
+// (+3 أيام). التلاتة بياخدوا من نفس لحظة الطباعة بالظبط (نفس new Date() مرة واحدة) عشان يكونوا متسقين مع بعض.
+function buildPrintDateLine(){
+  var d = new Date();
+  var prodDate = String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0');
+  var timeStr = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  var exp = new Date(d.getTime());
+  exp.setDate(exp.getDate() + 3);
+  var expDate = String(exp.getDate()).padStart(2,'0') + String(exp.getMonth()+1).padStart(2,'0');
+  return prodDate + '   ' + timeStr + '   ' + expDate;
+}
+
 function cleanBarcodeValue(v){
   var arabicDigits = '٠١٢٣٤٥٦٧٨٩';
   var persianDigits = '۰۱۲۳۴۵۶۷۸۹';
@@ -916,7 +928,7 @@ function openPrintWindow(dims, labelsHTML, toastMsg){
 
 function printLabels(p, qty){
   var dims = { w: 55, h: 40 };
-  var date = todayStr();
+  var date = buildPrintDateLine();
   var labelsHTML = '';
   for (var i = 0; i < qty; i++) {
     labelsHTML += buildLabelHTML(p, date, '');
@@ -947,7 +959,7 @@ function buildWeightEncodedBarcode(productBarcode, qty){
 
 function printBagLabel(p, qty, autoScanPlu){
   var dims = { w: 55, h: 40 };
-  var date = todayStr();
+  var date = buildPrintDateLine();
   var badgeHtml = '<div class="qtybadge">' + qty + '<span class="x">×</span></div>';
   var labelProduct = p;
   var toastMsg = '🖨️ بيطبع ليبل كيس (×' + qty + '): ' + p.name;
