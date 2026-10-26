@@ -7,9 +7,18 @@ import { ORDER_STATUSES, type OrderLine, type OrderStatus, type StoredOrder } fr
 import { mutate, read } from "./db";
 import { ApiError, assertValid, notFound } from "./errors";
 
-/** Egyptian mobile number: strips spaces and dashes and turns Arabic-Indic digits into 0-9 (same rule as the checkout form). */
-const cleanPhone = (value: string) =>
-  value.replace(/[\s-]/g, "").replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+/**
+ * Egyptian mobile number: strips spaces and dashes, turns Arabic-Indic digits into 0-9 (same rule as the checkout form)
+ * and drops a +20 / 0020 country code, so "+20 101 234 5678" and "01012345678" are the same number.
+ */
+export const cleanPhone = (value: string) =>
+  value
+    .replace(/[\s-]/g, "")
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
+    .replace(/^(\+|00)20(?=1)/, "0");
+
+/** True for an 11-digit Egyptian mobile number (after `cleanPhone`). */
+export const isMobile = (phone: string) => /^01[0125][0-9]{8}$/.test(phone);
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -60,7 +69,7 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     const address = String(request.customer?.address ?? "").trim();
     const note = String(request.customer?.note ?? "").trim().slice(0, 500);
     if (name.length < 3 || name.length > 80) fields.name = "اكتب اسمك من فضلك";
-    if (!/^01[0125][0-9]{8}$/.test(phone)) fields.phone = "اكتب رقم موبايل مصريًا صحيحًا من 11 رقمًا";
+    if (!isMobile(phone)) fields.phone = "اكتب رقم موبايل مصريًا صحيحًا من 11 رقمًا";
     if (address.length < 8 || address.length > 300) fields.address = "اكتب العنوان بالتفصيل (الشارع والعمارة والدور)";
     if (request.paymentMethod !== undefined && request.paymentMethod !== "cash") fields.paymentMethod = "الدفع نقدًا عند الاستلام فقط حاليًا";
     // Delivery area: required while the settings have active areas; its fee comes from the settings, never the browser.
@@ -68,6 +77,10 @@ export function createOrder(request: OrderRequest): Promise<StoredOrder> {
     const area = areas.find((a) => a.id === request.areaId);
     if (areas.length && !area) fields.areaId = "اختر منطقة التوصيل";
     assertValid(fields);
+    // Blocked by the manager: refused without saying so, with the store number in case it is a misunderstanding.
+    if (data.blockedPhones?.some((entry) => entry.phone === phone)) {
+      throw new ApiError(403, `تعذّر إتمام الطلب من هذا الرقم. برجاء التواصل معنا على ${settings.phone}`);
+    }
 
     const items = Array.isArray(request.items) ? request.items : [];
     if (!items.length || items.length > 200) throw new ApiError(400, "السلة فارغة");

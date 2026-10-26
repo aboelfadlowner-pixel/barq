@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { StoredOrder } from "@/types/order";
 import { api, egp, formatDateTime, formatQty } from "./api";
+import { BlockControl, BlockedBadge, useBlocked } from "./blocking";
 import { Ic, useToast } from "./ui";
 
 export function OrderDetails({ id }: { id: string }) {
@@ -12,6 +13,7 @@ export function OrderDetails({ id }: { id: string }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const blocked = useBlocked();
 
   useEffect(() => {
     api<StoredOrder>(`/api/admin/orders/${id}`).then(
@@ -39,6 +41,7 @@ export function OrderDetails({ id }: { id: string }) {
   if (!order) return <div className="empty">جارٍ التحميل…</div>;
 
   const whatsapp = `https://wa.me/2${order.customer.phone}`;
+  const blockEntry = blocked.byPhone.get(order.customer.phone);
 
   return (
     <>
@@ -125,7 +128,18 @@ export function OrderDetails({ id }: { id: string }) {
                 <a className="btn btn-sm" href={whatsapp} target="_blank" rel="noreferrer">
                   واتساب
                 </a>
+                <BlockedBadge entry={blockEntry} />
+                <BlockControl phone={order.customer.phone} entry={blockEntry} isAdmin={blocked.isAdmin} onChange={blocked.reload} />
               </dd>
+              {blockEntry ? (
+                <>
+                  <dt>الحظر</dt>
+                  <dd>
+                    لا يستطيع الطلب من الموقع منذ {formatDateTime(blockEntry.blockedAt)}
+                    {blockEntry.reason ? ` · السبب: ${blockEntry.reason}` : ""}
+                  </dd>
+                </>
+              ) : null}
               {order.deliveryArea ? (
                 <>
                   <dt>المنطقة</dt>

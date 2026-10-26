@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeArabic } from "@/lib/arabic";
 import type { Customer } from "@/server/reports";
+import type { StoredOrder } from "@/types/order";
 import { api, egp, formatDateTime } from "./api";
+import { BlockControl, BlockedBadge, BlockedList, useBlocked } from "./blocking";
 import { downloadCsv } from "./download";
 import { Ic } from "./ui";
 
@@ -26,10 +28,22 @@ export function CustomersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<Sort>("last");
+  const [tab, setTab] = useState<"all" | "blocked">("all");
+  const blocked = useBlocked();
+  // Names for the blocked tab, from every order (a blocked number often has cancelled orders only, not counted above).
+  const [orderNames, setOrderNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     api<Customer[]>("/api/admin/customers").then(setCustomers, (err: Error) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    if (tab !== "blocked") return;
+    api<StoredOrder[]>("/api/admin/orders").then(
+      (orders) => setOrderNames(new Map([...orders].reverse().map((order) => [order.customer.phone, order.customer.name]))),
+      () => undefined,
+    );
+  }, [tab]);
 
   const visible = useMemo(() => {
     const needle = normalizeArabic(search);
@@ -85,7 +99,24 @@ export function CustomersPage() {
           <b className="num">{egp(all.length ? Math.round(all.reduce((s, c) => s + c.total, 0) / all.length) : 0)}</b>
         </div>
       </div>
-      <div className="toolbar">
+      <div className="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "all"} className={tab === "all" ? "on" : undefined} onClick={() => setTab("all")}>
+          كل العملاء
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "blocked"} className={tab === "blocked" ? "on" : undefined} onClick={() => setTab("blocked")}>
+          المحظورين{blocked.list?.length ? ` (${blocked.list.length})` : ""}
+        </button>
+      </div>
+      {tab === "blocked" ? (
+        <div className="card">
+          {blocked.list === null ? (
+            <div className="empty">جارٍ التحميل…</div>
+          ) : (
+            <BlockedList list={blocked.list} names={orderNames} isAdmin={blocked.isAdmin} onChange={blocked.reload} />
+          )}
+        </div>
+      ) : null}
+      <div className="toolbar" hidden={tab !== "all"}>
         <input className="input" type="search" placeholder="ابحث بالاسم أو الموبايل أو العنوان" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="select" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="الترتيب">
           {SORTS.map((s) => (
@@ -96,7 +127,7 @@ export function CustomersPage() {
         </select>
       </div>
       {error ? <div className="alert">{error}</div> : null}
-      <div className="card">
+      <div className="card" hidden={tab !== "all"}>
         {customers === null ? (
           <div className="empty">جارٍ التحميل…</div>
         ) : visible.length ? (
@@ -116,7 +147,7 @@ export function CustomersPage() {
                 {visible.map((c) => (
                   <tr key={c.phone} className="link" onClick={() => router.push(`/admin/orders?q=${c.phone}`)}>
                     <td>
-                      <b style={{ fontWeight: 500 }}>{c.name}</b>
+                      <b style={{ fontWeight: 500 }}>{c.name}</b> <BlockedBadge entry={blocked.byPhone.get(c.phone)} />
                       <div className="muted" style={{ fontSize: 12 }}>
                         {c.address}
                       </div>
@@ -131,9 +162,12 @@ export function CustomersPage() {
                       <div style={{ fontSize: 12 }}>{daysSince(c.lastOrder) === 0 ? "اليوم" : `منذ ${daysSince(c.lastOrder)} يوم`}</div>
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <a className="btn btn-sm" href={`https://wa.me/2${c.phone}`} target="_blank" rel="noreferrer">
-                        واتساب
-                      </a>
+                      <div className="row">
+                        <a className="btn btn-sm" href={`https://wa.me/2${c.phone}`} target="_blank" rel="noreferrer">
+                          واتساب
+                        </a>
+                        <BlockControl phone={c.phone} entry={blocked.byPhone.get(c.phone)} isAdmin={blocked.isAdmin} onChange={blocked.reload} />
+                      </div>
                     </td>
                   </tr>
                 ))}

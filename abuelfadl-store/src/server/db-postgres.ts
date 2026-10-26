@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import type { Category } from "../types/category";
-import type { OrderLine, OrderStatus, PaymentMethod, StoredOrder } from "../types/order";
+import type { BlockedPhone, OrderLine, OrderStatus, PaymentMethod, StoredOrder } from "../types/order";
 import type { Product } from "../types/product";
 import type { StoreSettings } from "../types/settings";
 import type { LoginAttempts, StoreData } from "./db";
@@ -166,7 +166,9 @@ async function refresh(sql: Sql): Promise<StoreData> {
     select (select catalog_version from store.meta)::text as version,
            (select max(updated_at) from store.master_prices)::text as prices_at,
            (select max(updated_at) from store.orders)::text as orders_at,
-           (select count(*) from store.orders)::int as orders_count`;
+           (select count(*) from store.orders)::int as orders_count,
+           (select coalesce(json_agg(json_build_object('phone', phone, 'reason', reason, 'blockedAt', blocked_at) order by blocked_at), '[]')
+              from store.blocked_phones) as blocked`;
 
   const cached = state.catalog;
   if (!cached || cached.version !== head.version || cached.pricesAt !== head.prices_at) {
@@ -228,6 +230,7 @@ async function refresh(sql: Sql): Promise<StoreData> {
     products: catalog.products,
     orders: state.sortedOrders,
     orderSeq: state.sortedOrders.at(-1)?.id ?? 0,
+    blockedPhones: (head.blocked as BlockedPhone[]).map((entry) => ({ ...entry, blockedAt: iso(entry.blockedAt) })),
     syncLog: [],
     unlinkedSkus: [],
     settings: catalog.settings,
@@ -278,6 +281,16 @@ async function writeChanges(tx: postgres.TransactionSql, base: StoreData, draft:
 
   if (!same(base.settings ?? {}, draft.settings ?? {})) {
     await tx`update store.settings set data = ${tx.json(JSON.parse(JSON.stringify(draft.settings ?? {})))} where id = 1`;
+  }
+
+  const baseBlocked = new Set((base.blockedPhones ?? []).map((entry) => entry.phone));
+  const draftBlocked = draft.blockedPhones ?? [];
+  const unblocked = [...baseBlocked].filter((phone) => !draftBlocked.some((entry) => entry.phone === phone));
+  if (unblocked.length) await tx`delete from store.blocked_phones where phone in ${tx(unblocked)}`;
+  for (const entry of draftBlocked) {
+    if (!baseBlocked.has(entry.phone)) {
+      await tx`insert into store.blocked_phones ${tx({ phone: entry.phone, reason: entry.reason, blocked_at: entry.blockedAt })}`;
+    }
   }
 
   const baseOrders = new Map(base.orders.map((order) => [order.id, order]));

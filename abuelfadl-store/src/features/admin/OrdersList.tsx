@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { StoredOrder } from "@/types/order";
 import { api, egp, formatDateTime } from "./api";
+import { BlockedBadge, useBlocked } from "./blocking";
 
 /** Orders list (newest first) with search. Refreshes every 30 s so new orders appear without reloading. */
 export function OrdersList() {
@@ -13,6 +14,7 @@ export function OrdersList() {
   const [search, setSearch] = useState(params.get("q") ?? "");
   const [orders, setOrders] = useState<StoredOrder[] | null>(null);
   const [error, setError] = useState("");
+  const blocked = useBlocked();
 
   useEffect(() => {
     let alive = true;
@@ -68,7 +70,9 @@ export function OrdersList() {
                   <tr key={order.id} className="link" onClick={() => router.push(`/admin/orders/${order.id}`)}>
                     <td className="num">{order.number}</td>
                     <td>{order.customer.name}</td>
-                    <td className="num">{order.customer.phone}</td>
+                    <td className="num">
+                      {order.customer.phone} <BlockedBadge entry={blocked.byPhone.get(order.customer.phone)} />
+                    </td>
                     <td className="muted">{formatDateTime(order.createdAt)}</td>
                     <td className="num">{order.lines.length}</td>
                     <td className="num">{egp(order.total)}</td>

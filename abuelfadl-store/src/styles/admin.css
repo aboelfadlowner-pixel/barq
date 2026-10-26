@@ -57,6 +57,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn-primary:hover{background:var(--brand-hi)}
 .btn-danger{color:var(--danger);border-color:#F2C7C7}
 .btn-danger:hover{background:var(--danger-soft)}
+/* reason box shown by «حظر» before the block is confirmed (blocking.tsx) */
+.block-ask{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+.block-ask .input{width:220px;max-width:100%}
 .btn-sm{padding:4px 10px;font-size:13px}
 .btn-ghost{border-color:transparent;background:transparent}
 .input,.select,.textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px}

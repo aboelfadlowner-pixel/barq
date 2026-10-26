@@ -1,6 +1,6 @@
 import type { Category } from "../types/category";
 import type { Product } from "../types/product";
-import type { StoredOrder } from "../types/order";
+import type { BlockedPhone, StoredOrder } from "../types/order";
 import type { StoreSettings } from "../types/settings";
 import type { SyncRun, UnlinkedSku } from "../types/sync";
 import * as json from "./db-json";
@@ -22,6 +22,8 @@ export interface StoreData {
   syncLog: SyncRun[];
   /** Active sheet SKUs that no store product uses, from the latest import. Always empty with the database. */
   unlinkedSkus: UnlinkedSku[];
+  /** Numbers that may not order on the website. Missing in older files: none. */
+  blockedPhones?: BlockedPhone[];
   /** Dashboard settings (minimum order, notice strip, WhatsApp, orders paused). Missing in older files: defaults apply. */
   settings?: StoreSettings;
   /** Data version of the JSON file (see `upgradeStore` in seed.ts). */

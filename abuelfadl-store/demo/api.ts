@@ -14,6 +14,7 @@ import * as adminProductsReorder from "../src/app/api/admin/products/reorder/rou
 import * as adminSettings from "../src/app/api/admin/settings/route";
 import * as adminReports from "../src/app/api/admin/reports/route";
 import * as adminCustomers from "../src/app/api/admin/customers/route";
+import * as adminBlocked from "../src/app/api/admin/blocked/route";
 import * as adminUploads from "../src/app/api/admin/uploads/route";
 import * as adminCategories from "../src/app/api/admin/categories/route";
 import * as adminCategory from "../src/app/api/admin/categories/[id]/route";
@@ -40,6 +41,7 @@ const ROUTES: [RegExp, RouteModule][] = [
   [/^\/api\/admin\/settings$/, adminSettings],
   [/^\/api\/admin\/reports$/, adminReports],
   [/^\/api\/admin\/customers$/, adminCustomers],
+  [/^\/api\/admin\/blocked$/, adminBlocked],
   [/^\/api\/admin\/uploads$/, adminUploads],
   [/^\/api\/admin\/categories$/, adminCategories],
   [/^\/api\/admin\/categories\/(?<id>[^/]+)$/, adminCategory],

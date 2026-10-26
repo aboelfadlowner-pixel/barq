@@ -58,6 +58,16 @@ export interface OrderLine {
   lineTotal: number;
 }
 
+/** A mobile number the manager blocked from ordering on the website (fake orders, repeated refusals). */
+export interface BlockedPhone {
+  /** Egyptian mobile number, digits only, e.g. "01012345678". */
+  phone: string;
+  /** Why it was blocked, written by the manager. Empty string when none. */
+  reason: string;
+  /** ISO timestamp. */
+  blockedAt: string;
+}
+
 /** An order as stored by the backend and shown in the admin dashboard. */
 export interface StoredOrder {
   /** Internal id (sequence number). */
