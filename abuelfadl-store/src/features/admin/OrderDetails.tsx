@@ -55,9 +55,6 @@ export function OrderDetails({ id }: { id: string }) {
             <p>{formatDateTime(order.createdAt)}</p>
           </div>
         </div>
-        <button className="btn btn-sm" type="button" onClick={() => window.print()}>
-          طباعة
-        </button>
       </div>
 
       <div className="order-grid">
