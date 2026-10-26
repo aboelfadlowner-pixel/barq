@@ -28,12 +28,24 @@ const CATEGORY_ICONS: Record<string, string> = {
   fresh: "/covers/fresh/icon.webp",
   produce: "/covers/produce/icon.webp",
 };
-/** Lines under the names of the categories that have a cover (editable from the dashboard). */
+/** English lines under the category names (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
   dairy: "Fresh Dairy, Every Day",
   sandwich: "Freshly Made, Generously Filled",
   juice: "100% Fresh, Nothing Added",
   imported: "Imported Cheese, Hand-Picked",
+  cheese: "Real Cheese, Rich Flavor",
+  kiri: "Creamy Spreads, New Ideas",
+  bakery: "Fresh Bread, Every Day",
+  fresh: "Warm From Our Oven",
+  produce: "Picked Fresh, Full of Color",
+  meat: "Quality Cuts You Can Trust",
+  fish: "Classic Taste, Carefully Prepared",
+  deli: "Tangy, Bold, Homemade Style",
+  drinks: "Cool Treats, Every Mood",
+  eggs: "Fresh Eggs, Every Day",
+  syrian: "Authentic Taste of Syria",
+  nature: "Pure & Natural Goodness",
 };
 
 /** «تونه» (= «تونة بالمايونيز») and «مختوم فلسطيني» (= «برطمان مختوم فلسطيني 425جم»). */
@@ -82,7 +94,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 25;
+const SCHEMA = 26;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -217,6 +229,12 @@ export function upgradeStore(data: StoreData): StoreData {
     const produce = data.categories.find((category) => category.id === "produce");
     if (produce && !produce.imageUrl) produce.imageUrl = CATEGORY_IMAGES.produce;
     if (produce && !produce.iconUrl) produce.iconUrl = CATEGORY_ICONS.produce;
+  }
+  if ((data.schema ?? 1) < 26) {
+    // English lines under the names of the other categories (owner's picks), unless one was already written.
+    for (const category of data.categories) {
+      if (!category.tagline && CATEGORY_TAGLINES[category.id]) category.tagline = CATEGORY_TAGLINES[category.id];
+    }
   }
   data.schema = SCHEMA;
   return data;
