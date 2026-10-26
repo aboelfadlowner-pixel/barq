@@ -235,8 +235,9 @@ function FreshCover() {
 }
 
 /**
- * "drinks" cover (juices, ice cream and coffee): two Abu El Fadl cans — mango and blue lemonade — with two ice-cream
- * cups in front, cut from the owner's photo and arranged as one piece (public/covers/drinks/group.webp). It rises in with a contact shadow like the fresh cover; position is `.cvdr-group`.
+ * "drinks" cover (juices, ice cream and coffee): two Abu El Fadl cans — mango and blue lemonade — on the sides with
+ * two ice-cream cups between them, cut from the owner's photo and arranged as one piece (public/covers/drinks/group.webp)
+ * so both can logos show. It rises in with a contact shadow like the fresh cover; position is `.cvdr-group`.
  */
 function DrinksCover() {
   return (
