@@ -234,6 +234,24 @@ function FreshCover() {
   );
 }
 
+/**
+ * "produce" cover (fruit and vegetables): the owner's photo of grapes, bell peppers, bananas, apples, pomegranates and
+ * plums, cut out as one piece (public/covers/produce/group.webp) since they overlap. It rises in with a contact shadow
+ * like the fresh cover; position is the `.cvpr-group` rule.
+ */
+function ProduceCover() {
+  return (
+    <div className="cvd" role="img" aria-label="فاكهة وخضروات: عنب وفلفل ألوان وموز وتفاح ورمان وبرقوق">
+      <div className="cvd-s" aria-hidden="true">
+        <span className="cvd-p cvpr-group">
+          <i className="sh" />
+          <img src="/covers/produce/group.webp" alt="" decoding="async" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const COVERS: Record<string, () => React.JSX.Element> = {
   sandwich: SandwichCover,
   juice: JuiceCover,
@@ -243,6 +261,7 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   deli: DeliCover,
   syrian: SyrianCover,
   fresh: FreshCover,
+  produce: ProduceCover,
 };
 
 /** The animated cover of a category, or null when the category has none. */

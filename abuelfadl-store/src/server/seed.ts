@@ -17,6 +17,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
   deli: "/covers/deli/tile.webp",
   syrian: "/covers/syrian/tile.webp",
   fresh: "/covers/fresh/tile.webp",
+  produce: "/covers/produce/tile.webp",
 };
 const CATEGORY_ICONS: Record<string, string> = {
   dairy: "/covers/dairy/icon.webp",
@@ -25,6 +26,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   deli: "/covers/deli/icon.webp",
   syrian: "/covers/syrian/icon.webp",
   fresh: "/covers/fresh/icon.webp",
+  produce: "/covers/produce/icon.webp",
 };
 /** Lines under the names of the categories that have a cover (editable from the dashboard). */
 const CATEGORY_TAGLINES: Record<string, string> = {
@@ -80,7 +82,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 24;
+const SCHEMA = 25;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -209,6 +211,12 @@ export function upgradeStore(data: StoreData): StoreData {
     const drinks = data.categories.find((category) => category.id === "drinks");
     if (drinks?.imageUrl === "/covers/drinks/tile.webp") delete drinks.imageUrl;
     if (drinks?.iconUrl === "/covers/drinks/icon.webp") delete drinks.iconUrl;
+  }
+  if ((data.schema ?? 1) < 25) {
+    // Cover of «فاكهة وخضروات»: its home-page card and icon, unless the category already has its own.
+    const produce = data.categories.find((category) => category.id === "produce");
+    if (produce && !produce.imageUrl) produce.imageUrl = CATEGORY_IMAGES.produce;
+    if (produce && !produce.iconUrl) produce.iconUrl = CATEGORY_ICONS.produce;
   }
   data.schema = SCHEMA;
   return data;

@@ -109,3 +109,6 @@
 
 /* fresh bakery cover (FreshCover): five pastries as one group (they sit close together in the photo) */
 .cvfr-group{left:6.00%;top:30.00%;width:88.00%;z-index:1;--dl:0.1s}
+
+/* fruit and vegetables cover (ProduceCover): the whole arrangement as one group (the pieces overlap in the photo) */
+.cvpr-group{left:6.00%;top:26.00%;width:88.00%;z-index:1;--dl:0.1s}
