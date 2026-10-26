@@ -48,8 +48,10 @@ const CATEGORY_TAGLINES: Record<string, string> = {
   nature: "Pure & Natural Goodness",
 };
 
-/** «تونه» (= «تونة بالمايونيز») and «مختوم فلسطيني» (= «برطمان مختوم فلسطيني 425جم»). */
-const DUPLICATES = [51425, 51694];
+/** «تونه» (= «تونة بالمايونيز»). */
+const DUPLICATES = [51425];
+/** «مختوم فلسطيني», hidden in schema 16 as a copy of the 425 g jar: it is a product of its own (owner, sk-9170). */
+const MAKHTOUM = 51694;
 
 /** Dates the store stopped selling for now (shown as unavailable). */
 const DATES_PAUSED = [51698, 51701, 51727, 51709];
@@ -94,7 +96,7 @@ export function seedStore(): StoreData {
 }
 
 /** Version of the stored data; `upgradeStore` brings older versions up to it. */
-const SCHEMA = 26;
+const SCHEMA = 27;
 
 /**
  * Brings a store saved by an older version up to date (missing fields are added, nothing is removed).
@@ -235,6 +237,10 @@ export function upgradeStore(data: StoreData): StoreData {
     for (const category of data.categories) {
       if (!category.tagline && CATEGORY_TAGLINES[category.id]) category.tagline = CATEGORY_TAGLINES[category.id];
     }
+  }
+  if ((data.schema ?? 1) < 27) {
+    const makhtoum = data.products.find((product) => product.id === MAKHTOUM);
+    if (makhtoum) makhtoum.hidden = false;
   }
   data.schema = SCHEMA;
   return data;
