@@ -288,7 +288,8 @@ const DEMO_PHOTO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="ht
       const returnedAt = deliveredAt + (8 + (i * 5) % 25) * 60000;
       deliveries.set(o.id, { deliveredAt: new Date(deliveredAt).toISOString(), photo: DEMO_PHOTO,
         lat: 31.12 + i / 1000, lng: 29.79 + i / 1000, accuracy: 15, deliveredAdmin: false,
-        returnedAt: returnedAt < Date.now() && i < outs.length - 1 ? new Date(returnedAt).toISOString() : null, returnedAdmin: false });
+        returnedAt: returnedAt < Date.now() && i < outs.length - 1 ? new Date(returnedAt).toISOString() : null, returnedAdmin: false,
+        returnedLat: 31.1100 + (i % 4 === 3 ? 0.012 : 0.0005), returnedLng: 29.7800, returnedDistance: i % 4 === 3 ? 1340 : 56, returnedFar: i % 4 === 3 });
     }
   });
   // DEMO: the orders at the cashier are picked for أحمد, so his screen has something to take out.
@@ -349,23 +350,73 @@ export function driverDelivered(id, photo, pos) {
     lat: pos?.lat ?? null, lng: pos?.lng ?? null, accuracy: pos?.accuracy ?? null, deliveredAdmin: false });
   return resolve(deliveries.get(id).deliveredAt);
 }
-export function listDriversOut() {
-  const by = new Map();
-  orders.filter((o) => o.stage === 'out' && o.driverUserId && !deliveries.get(o.id)?.returnedAt && o.outAt
-    && Date.now() - new Date(o.outAt).getTime() < 86400000)
-    .forEach((o) => {
-      const r = by.get(o.driverUserId) ?? { userId: o.driverUserId, label: o.driver, orders: 0, delivered: 0, firstOutAt: o.outAt };
-      r.orders += 1; if (deliveries.get(o.id)?.deliveredAt) r.delivered += 1;
-      if (o.outAt < r.firstOutAt) r.firstOutAt = o.outAt;
-      by.set(o.driverUserId, r);
-    });
-  return resolve([...by.values()].sort((a, b) => a.firstOutAt.localeCompare(b.firstOutAt)));
+/* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
+const branch = { lat: 31.1100, lng: 29.7800, radius: 300, updatedAt: '2026-10-12T09:00:00Z' };
+const distanceM = (a, b) => {
+  const r = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)));
+};
+export function driverReturned(pos) {
+  const list = orders.filter((o) => o.stage === 'out' && o.driverUserId === demoAccount.id && !deliveries.get(o.id)?.returnedAt);
+  if (!list.length) return Promise.reject(new Error('مفيش طلبات معاك دلوقتي'));
+  const dist = pos && branch.lat != null ? distanceM(branch, pos) : null;
+  const far = dist != null && dist - Math.min(pos.accuracy || 0, 200) > branch.radius;
+  const now = new Date().toISOString();
+  list.forEach((o) => deliveries.set(o.id, { ...(deliveries.get(o.id) ?? {}), returnedAt: now, returnedAdmin: false,
+    returnedLat: pos?.lat ?? null, returnedLng: pos?.lng ?? null, returnedDistance: dist, returnedFar: far }));
+  return resolve({ orders: list.length, distanceM: dist, far });
 }
-export function driverReturned(userId) {
-  const now = new Date().toISOString(); let n = 0;
-  orders.filter((o) => o.stage === 'out' && o.driverUserId === userId && !deliveries.get(o.id)?.returnedAt)
-    .forEach((o) => { deliveries.set(o.id, { ...(deliveries.get(o.id) ?? {}), returnedAt: now, returnedAdmin: false }); n += 1; });
-  return n ? resolve(n) : Promise.reject(new Error('الطيار ده مش معاه طلبات دلوقتي'));
+
+/* The driver's personal link (demo: any link opens أحمد). */
+export const linkLogin = () => resolve(Object.assign(demoAccount, { role: 'driver', id: 'drv-1', name: 'أحمد', email: '' }));
+/* Admin: the drivers, each with his own link. */
+const linkFor = new Map(staff.filter((s) => s.role === 'driver').map((s) => [s.id, true]));
+const demoToken = () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim();
+const cleanPhone = (p) => normalizePhone(p).replace(/\D/g, '');
+const checkDriver = (name, phone, id = null) => {
+  if (name.length < 2 || name.length > 40) return 'اكتب اسم الطيار';
+  if (!/^0[0-9]{8,10}$/.test(phone)) return 'رقم الموبايل غير صحيح — مثال: 01012345678';
+  if (staff.some((x) => x.role === 'driver' && x.id !== id && x.name.toLowerCase() === name.toLowerCase())) return 'فيه طيار بنفس الاسم';
+  return null;
+};
+export function adminDrivers() {
+  return resolve(staff.filter((s) => s.role === 'driver')
+    .sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name, 'ar'))
+    .map((s) => ({ userId: s.id, name: s.name, phone: s.phone || '', active: s.active, hasLink: !!linkFor.get(s.id),
+      lastOutAt: orders.filter((o) => o.driverUserId === s.id && o.outAt).map((o) => o.outAt).sort().pop() ?? null })));
+}
+export function addDriver(name, phone) {
+  const n = cleanName(name); const p = cleanPhone(phone);
+  const bad = checkDriver(n, p);
+  if (bad) return Promise.reject(new Error(bad));
+  const id = `drv-${Date.now()}`;
+  staff.push({ id, email: '', name: n, role: 'driver', active: true, createdAt: new Date().toISOString(), phone: p });
+  linkFor.set(id, true);
+  return resolve({ userId: id, token: demoToken() });
+}
+export function newDriverLink(userId) {
+  if (!staff.some((x) => x.id === userId && x.role === 'driver')) return Promise.reject(new Error('الطيار غير موجود'));
+  linkFor.set(userId, true);
+  return resolve(demoToken());
+}
+export function updateDriver({ userId, name, phone, active }) {
+  const d = staff.find((x) => x.id === userId && x.role === 'driver');
+  if (!d) return Promise.reject(new Error('الطيار غير موجود'));
+  const n = cleanName(name); const p = cleanPhone(phone);
+  const bad = checkDriver(n, p, userId);
+  if (bad) return Promise.reject(new Error(bad));
+  Object.assign(d, { name: n, phone: p, active: !!active });
+  if (!active) linkFor.set(userId, false);
+  orders.filter((o) => o.driverUserId === userId && (o.stage === 'at_cashier' || o.stage === 'out')).forEach((o) => { o.driver = driverLabel(userId); });
+  return resolve(true);
+}
+export const branchPlace = () => resolve(branch.lat == null ? null : { ...branch });
+export function setBranchPlace(lat, lng) {
+  if (!(lat >= 21 && lat <= 32 && lng >= 24 && lng <= 37)) return Promise.reject(new Error('المكان مش في مصر — انسخ الإحداثيات من خرائط جوجل (مثال: 31.1234, 29.8123)'));
+  Object.assign(branch, { lat, lng, updatedAt: new Date().toISOString() });
+  return resolve(true);
 }
 export const listDrivers = () => resolve(staff.filter((s) => s.role === 'driver' && s.active).map((s) => ({ userId: s.id, label: driverLabel(s.id) })));
 export function adminDelivery(id, what, driverId) {
@@ -388,13 +439,14 @@ const deliveryOf = (o) => {
   const d = deliveries.get(o.id) ?? {};
   return { outByAdmin: !!o.outByAdmin, tripSeq: o.tripSeq ?? null, tripSize: o.tripSize ?? null, assignedAt: o.assignedAt ?? null,
     deliveredAt: d.deliveredAt ?? null, deliveredAdmin: !!d.deliveredAdmin, returnedAt: d.returnedAt ?? null, returnedAdmin: !!d.returnedAdmin,
-    photoPath: d.photo ?? null, lat: d.lat ?? null, lng: d.lng ?? null, accuracy: d.accuracy ?? null };
+    photoPath: d.photo ?? null, lat: d.lat ?? null, lng: d.lng ?? null, accuracy: d.accuracy ?? null,
+    returnedLat: d.returnedLat ?? null, returnedLng: d.returnedLng ?? null, returnedDistance: d.returnedDistance ?? null, returnedFar: !!d.returnedFar };
 };
 export function getOrderDelivery(id) {
   const o = orders.find((x) => x.id === id);
   if (!o) return resolve(null);
   const d = deliveryOf(o);
-  if (demoAccount.role !== 'admin') Object.assign(d, { photoPath: null, lat: null, lng: null, accuracy: null });
+  if (demoAccount.role !== 'admin') Object.assign(d, { photoPath: null, lat: null, lng: null, accuracy: null, returnedLat: null, returnedLng: null, returnedDistance: null, returnedFar: false });
   return resolve(d);
 }
 export function deliveryReport(from, to) {

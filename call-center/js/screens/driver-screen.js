@@ -4,7 +4,9 @@
    «طلباتي»: the orders picked for him → ONE «خرجت» for all of them (one trip).
    «معايا»: each order → «سلّمت»: the camera opens INSIDE the page (no gallery), he takes a
    photo of the bag with the ticket showing, and the server records the time (and his place).
-   The branch taps «الطيار رجع» when he is back. */
+   CONFIRMED: back at the branch HE taps «رجعت الفرع» — his place is recorded, and the admin
+   sees «بعيد عن الفرع» when it is far from the branch. He opens this screen with his own link
+   (no password); the admin adds him with his mobile. */
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
@@ -18,7 +20,7 @@ const addressHtml = (a) => `
     ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}
     ${a.label ? `<div class="muted">${esc(a.label)}</div>` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>`;
 
-/* His place when he taps «سلّمت» (not a map, not tracking). null when the phone does not give it. */
+/* His place when he taps «سلّمت» / «رجعت الفرع» (not a map, not tracking). null when the phone does not give it. */
 const position = () => new Promise((done) => {
   if (!navigator.geolocation) { done(null); return; }
   navigator.geolocation.getCurrentPosition(
@@ -109,17 +111,6 @@ export function mountDriver(view) {
   let stopped = false;
 
   function render() {
-    if (!data.phone) {
-      body.innerHTML = `
-        <form class="card card-pad dr-phone" data-phone-form novalidate>
-          <h2>رقم موبايلك</h2>
-          <p class="muted">بيتكتب مرة واحدة، ويظهر للفرع على الطلبات اللي خرجت معاك.</p>
-          <input class="input input-lg ltr" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="01xxxxxxxxx">
-          <div class="field-error" data-err="phone"></div>
-          <button type="submit" class="btn btn-primary btn-lg btn-block">${icon('check')}حفظ</button>
-        </form>`;
-      return;
-    }
     const { ready, mine } = data;
     const open = mine.filter((o) => !o.deliveredAt && !o.cancelled);
     body.innerHTML = `
@@ -149,6 +140,8 @@ export function mountDriver(view) {
               <button type="button" class="btn btn-primary btn-lg btn-block" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}سلّمت — صوّر الطلب</button>`}
           </article>`).join('')
           : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
+        ${mine.length ? `
+        <button type="button" class="btn ${open.length ? 'btn-secondary' : 'btn-primary'} btn-lg btn-block dr-back" data-back ${busy ? 'disabled' : ''}>${icon('arrowRight')}رجعت الفرع</button>` : ''}
       </section>`;
   }
 
@@ -177,11 +170,6 @@ export function mountDriver(view) {
   };
 
   const offs = [
-    on(view, 'submit', '[data-phone-form]', async (e, form) => {
-      e.preventDefault();
-      try { await ds.setPhone(null, form.phone.value); await load(); }
-      catch (err) { form.querySelector('[data-err="phone"]').textContent = err.message; }
-    }),
     on(view, 'click', '[data-take]', () => {
       const n = data.ready.length;
       run(() => ds.driverTake(), n === 1 ? 'خرجت بطلب واحد' : `خرجت بـ ${n} طلبات`);
@@ -196,6 +184,14 @@ export function mountDriver(view) {
       if (!photo) return;
       const pos = await Promise.race([placing, new Promise((r) => setTimeout(() => r(null), 4000))]);
       run(() => ds.driverDelivered(id, photo, pos), pos ? 'تم تسجيل التسليم ✓' : 'تم تسجيل التسليم ✓ (من غير مكان)');
+    }),
+    on(view, 'click', '[data-back]', async () => {
+      const left = data.mine.filter((o) => !o.deliveredAt && !o.cancelled).length;
+      if (left && !window.confirm(left === 1 ? 'فيه طلب لسه ما اتسلّمش — رجعت بيه الفرع؟' : `فيه ${left} طلبات لسه ما اتسلّمتش — رجعت بيهم الفرع؟`)) return;
+      busy = true; render();
+      const pos = await Promise.race([position(), new Promise((r) => setTimeout(() => r(null), 8000))]);
+      busy = false;
+      run(() => ds.driverReturned(pos), pos ? 'تم تسجيل رجوعك ✓' : 'تم تسجيل رجوعك ✓ (من غير مكان — شغّل اللوكيشن)');
     }),
     on(view, 'click', '[data-refresh]', () => load()),
   ];

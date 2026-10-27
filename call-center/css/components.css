@@ -756,3 +756,23 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .dr-video { width: 100%; max-height: 60vh; display: block; object-fit: cover; }
 .dr-go { margin-top: 4px; }
 .result-card.is-current { border-color: var(--green-700); }
+
+/* Drivers v3: «رجعت الفرع», admin «الطيارين» + branch place */
+.dr-back { margin-top: 14px; }
+.dl-link { margin: 8px 0; font-size: 13px; }
+.dl-meta { font-size: 12px; margin-top: 4px; }
+.dl-actions { white-space: nowrap; }
+.dl-actions .btn + .btn { margin-inline-start: 6px; }
+.drivers-table .input { min-width: 0; }
+.section-title.sm { font-size: 16px; margin-top: 18px; }
+.branch-place { flex-wrap: wrap; align-items: center; gap: 10px; }
+.branch-paste { display: flex; gap: 8px; flex: 1 1 280px; }
+.branch-paste .input { flex: 1; min-width: 0; }
+.text-danger { color: var(--danger, #c0392b); }
+.tag-far { background: #fdecea; color: #b42318; }
+@media (max-width: 640px) {
+  .drivers-table thead { display: none; }
+  .drivers-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
+  .drivers-table td { padding: 0; border: 0; }
+  .drivers-table td:first-child { grid-column: 1 / -1; }
+}

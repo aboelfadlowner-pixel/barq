@@ -51,12 +51,14 @@ function enrich(rows) {
       late: deliverMin != null ? deliverMin > limitOf(r) : waiting > limitOf(r),
       noPlace: !!r.deliveredAt && !r.deliveredAdmin && r.lat == null,
       byAdmin: r.outByAdmin || r.deliveredAdmin || r.returnedAdmin,
+      far: !!r.returnedFar,                        // «رجعت الفرع» far from the branch
     };
   });
 }
 
-/* Return minutes counted once per trip. */
+/* Return minutes counted once per trip; «بعيد عن الفرع» too. */
 const tripBacks = (rows) => [...new Map(rows.filter((r) => r.backMin != null).map((r) => [r.tripId, r.backMin])).values()];
+const farTrips = (rows) => new Set(rows.filter((r) => r.far).map((r) => r.tripId)).size;
 
 export function mountDelivery(view) {
   view.innerHTML = `
@@ -99,12 +101,13 @@ export function mountDelivery(view) {
         ${stat('متوسط الرجوع بعد آخر تسليم', minText(avg(tripBacks(list))))}
         ${stat('متأخرة', `<span class="num">${list.filter((r) => r.late).length}</span>`, list.some((r) => r.late) ? 'tone-text-red' : '')}
         ${stat('من غير مكان', `<span class="num">${list.filter((r) => r.noPlace).length}</span>`)}
+        ${stat('رجوع بعيد عن الفرع', `<span class="num">${farTrips(list)}</span>`, farTrips(list) ? 'tone-text-red' : '')}
       </div>
 
       <h2 class="section-title">${icon('user')}الطيارين</h2>
       <div class="card table-wrap"><table class="table">
         <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th class="col-opt">الانتظار قبل الخروج</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
-          <th>متأخر</th><th class="col-opt">من غير مكان</th><th class="col-opt">سجّلها الأدمن</th></tr></thead>
+          <th>متأخر</th><th class="col-opt">من غير مكان</th><th class="col-opt">رجوع بعيد</th><th class="col-opt">سجّلها الأدمن</th></tr></thead>
         <tbody>${[...byDriver.values()].sort((a, b) => b.rows.length - a.rows.length).map((g) => `
           <tr><td><strong>${esc(g.name)}</strong></td><td class="num">${g.rows.length}</td>
             <td class="col-opt num">${new Set(g.rows.map((r) => r.tripId)).size}</td>
@@ -112,6 +115,7 @@ export function mountDelivery(view) {
             <td>${minText(avg(g.rows.map((r) => r.deliverMin)))}</td><td>${minText(avg(tripBacks(g.rows)))}</td>
             <td class="num ${g.rows.some((r) => r.late) ? 'tone-text-red' : ''}">${g.rows.filter((r) => r.late).length}</td>
             <td class="col-opt num">${g.rows.filter((r) => r.noPlace).length}</td>
+            <td class="col-opt num ${farTrips(g.rows) ? 'tone-text-red' : ''}">${farTrips(g.rows)}</td>
             <td class="col-opt num">${g.rows.filter((r) => r.byAdmin).length}</td></tr>`).join('')}</tbody>
       </table></div>
 
@@ -136,7 +140,7 @@ export function mountDelivery(view) {
             <td class="col-opt">${esc(r.areaName)}</td>
             <td class="num">${state.period === 'today' ? formatTime(r.outAt) : `${dayLabel(r.outAt)} ${formatTime(r.outAt)}`}${r.outByAdmin ? ' <span class="tag tag-amber">أدمن</span>' : ''}</td>
             <td>${r.deliveredAt ? `<strong>${minText(r.deliverMin)}</strong>${r.deliveredAdmin ? ' <span class="tag tag-amber">أدمن</span>' : ''}${r.noPlace ? ' <span class="tag tag-warn">من غير مكان</span>' : ''}` : '<span class="muted">لسه</span>'}</td>
-            <td class="col-opt">${r.returnedAt ? minText(r.backMin) : '<span class="muted">—</span>'}${r.returnedAdmin ? ' <span class="tag tag-amber">أدمن</span>' : ''}</td>
+            <td class="col-opt">${r.returnedAt ? minText(r.backMin) : '<span class="muted">—</span>'}${r.returnedAdmin ? ' <span class="tag tag-amber">أدمن</span>' : ''}${r.far ? ' <span class="tag tag-far">بعيد عن الفرع</span>' : ''}</td>
             <td class="col-opt num">${r.tripSize > 1 ? `${r.tripSeq} من ${r.tripSize}` : '—'}</td>
             <td>${r.photoPath ? `<button type="button" class="btn btn-soft btn-sm" data-photo="${esc(r.photoPath)}" data-no="${esc(r.number)}" data-lat="${r.lat ?? ''}" data-lng="${r.lng ?? ''}">عرض</button>` : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}</tbody>

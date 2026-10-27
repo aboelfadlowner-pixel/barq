@@ -156,10 +156,13 @@ export function mountOrderDetails(view, orderId) {
           ${row('خرج', order.outAt, `${esc(order.driver || '')}${d.tripSize > 1 ? ` · طلب ${d.tripSeq} من ${d.tripSize} في المشوار` : ''}`, d.outByAdmin)}
           ${row('اتسلّم للعميل', d.deliveredAt, d.deliveredAt ? `بعد ${mins(order.outAt, d.deliveredAt)} من الخروج` : 'لسه', d.deliveredAdmin)}
           ${row('رجع الفرع', d.returnedAt, d.returnedAt && d.deliveredAt ? `بعد ${mins(d.deliveredAt, d.returnedAt)} من التسليم` : '', d.returnedAdmin)}
+          ${isAdmin && d.returnedFar ? `<li><span class="tag tag-far">${icon('alert')}بعيد عن الفرع${d.returnedDistance != null ? ` — حوالي ${d.returnedDistance >= 1000 ? `${(d.returnedDistance / 1000).toFixed(1)} كم` : `${d.returnedDistance} متر`}` : ''}</span></li>` : ''}
         </ul>` : '<p class="muted">الطلب على الكاشير — مستني الطيار</p>'}
         ${photo}
         ${isAdmin && d.lat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank" rel="noopener">${icon('pin')}مكان الطيار وقت التسليم على الخريطة</a>` : ''}
         ${isAdmin && d.deliveredAt && d.lat == null && !d.deliveredAdmin ? `<p class="muted">${icon('alert')}اتسلّم من غير مكان</p>` : ''}
+        ${isAdmin && d.returnedLat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.returnedLat},${d.returnedLng}" target="_blank" rel="noopener">${icon('pin')}مكانه لما داس «رجعت الفرع»</a>` : ''}
+        ${isAdmin && d.returnedAt && d.returnedLat == null && !d.returnedAdmin ? `<p class="muted">${icon('alert')}رجوع من غير مكان</p>` : ''}
         ${isAdmin ? `<div class="dl-admin">
           ${order.stage === 'at_cashier' ? `<button type="button" class="btn btn-soft btn-sm" data-admin-out>تسجيل «خرج» لطيار</button>` : ''}
           ${order.outAt && !d.deliveredAt ? `<button type="button" class="btn btn-soft btn-sm" data-admin="delivered">تسجيل «اتسلّم» (الطيار نسي)</button>` : ''}

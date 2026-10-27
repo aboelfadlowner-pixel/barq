@@ -1,8 +1,8 @@
 /* Preparation screen (branch, prep account): the orders sent by the call center in three
    columns — جديد / بيتجهز / على الكاشير — with ONE big button per order that moves it on:
    استلمت وبدأت التجهيز → وصل الكاشير → «اختيار الطيار» (can be changed until he leaves).
-   «خرج» is the driver's own tap on his phone (18_driver_tracking.sql); the branch taps
-   «الطيار رجع» when he is back. A wrong tap can be undone one step.
+   «خرجت» and «رجعت الفرع» are the driver's own taps on his phone (18_driver_tracking.sql).
+   A wrong tap can be undone one step.
    The call center sees every change on its board. This screen does not print (the call
    center prints the ticket and hands it over). It checks for changes every few seconds and
    rings when a new order arrives. */
@@ -131,7 +131,6 @@ export function mountPrep(view) {
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
         <div class="board-actions">
-          <button type="button" class="btn btn-primary" data-returned hidden>${icon('check')}الطيار رجع</button>
           <button type="button" class="btn btn-secondary" data-sound></button>
           <button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button>
         </div>
@@ -169,16 +168,7 @@ export function mountPrep(view) {
       + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
   };
 
-  // «الطيار رجع»: shown while a driver is out.
-  const returnedBtn = view.querySelector('[data-returned]');
-  const loadDriversOut = () => ds.listDriversOut().then((list) => {
-    returnedBtn.hidden = !list?.length;
-    if (list?.length) returnedBtn.innerHTML = `${icon('check')}الطيار رجع <span class="b-count num">${list.length}</span>`;
-    return list;
-  }).catch(() => null);
-
   const load = async () => {
-    loadDriversOut();
     try {
       // CONFIRMED: only this working day's orders (it ends at 2 AM) — the screen starts empty after 2 AM,
       // older orders are not shown even if nobody moved them on.
@@ -259,7 +249,7 @@ export function mountPrep(view) {
       const id = btn.closest('[data-oid]').dataset.oid;
       const o = orders.find((x) => x.id === id);
       const drivers = await ds.listDrivers().catch(() => []);
-      if (!drivers.length) { showToast('مفيش طيارين — الأدمن يعمل أكونت بصلاحية «طيار» الأول'); return; }
+      if (!drivers.length) { showToast('مفيش طيارين — الأدمن يضيفهم من صفحة الإعدادات («الطيارين»)'); return; }
       const m = openModal({
         title: `${icon('user')} اختيار الطيار — طلب <span class="ltr-inline">#${esc(o?.number ?? '')}</span>`,
         size: 'sm',
@@ -278,34 +268,6 @@ export function mountPrep(view) {
           const label = await ds.assignDriver(id, b.dataset.setDriver || null);
           m.close();
           showToast(label ? `الطلب مع ${label}` : 'اتشال الطيار من الطلب');
-          load();
-        } catch (err) { b.disabled = false; showToast(err.message); }
-      });
-    }),
-    on(view, 'click', '[data-returned]', async () => {
-      const list = (await loadDriversOut()) || [];
-      if (!list.length) { showToast('مفيش طيارين بره دلوقتي'); return; }
-      const m = openModal({
-        title: `${icon('check')} الطيار رجع`,
-        size: 'sm',
-        body: `<p class="muted">اختار الطيار اللي رجع الفرع — هيتسجل وقت رجوعه للطلبات اللي كانت معاه.</p>
-          <div class="returned-list">${list.map((d) => `
-            <button type="button" class="result-card" data-back-driver="${esc(d.userId)}">
-              <div class="grow"><div class="cust-name">${esc(d.label)}</div>
-                <div class="meta"><span>${d.orders} ${d.orders === 1 ? 'طلب' : 'طلبات'} · اتسلّم ${d.delivered}</span>
-                  <span>خرج ${esc(formatRelative(d.firstOutAt))}</span></div></div>
-              <span class="btn btn-primary btn-sm">رجع</span>
-            </button>`).join('')}</div>`,
-        footer: '<button type="button" class="btn btn-secondary" data-close>إغلاق</button>',
-      });
-      m.body.addEventListener('click', async (e) => {
-        const b = e.target.closest('[data-back-driver]');
-        if (!b) return;
-        b.disabled = true;
-        try {
-          const n = await ds.driverReturned(b.dataset.backDriver);
-          m.close();
-          showToast(`تم تسجيل رجوع الطيار (${n} ${n === 1 ? 'طلب' : 'طلبات'})`);
           load();
         } catch (err) { b.disabled = false; showToast(err.message); }
       });

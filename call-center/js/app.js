@@ -3,7 +3,7 @@
    Four roles (permissions.js): the prep account always lands on #/prep and the driver on #/driver,
    and they see nothing else. #/delivery (times, photos, places): admin only.
    Demo: always signed in. Supabase: the password is asked once per device (login screen),
-   then the session is remembered. */
+   then the session is remembered. A driver signs in with his personal link (#d=…). */
 import { loadCatalog } from './catalog.js';
 import { startCatalogSync } from './catalog-sync.js';
 import { getState, setState, setUser, setAgent } from './store.js';
@@ -94,12 +94,23 @@ async function startSignedIn(user) {
   startCatalogSync(refreshing);
 }
 
+/* A driver opens his personal link (#d=<secret>, sent by the admin on WhatsApp): signed in
+   with no e-mail and no password, then the secret leaves the address bar. */
+async function linkLogin() {
+  const token = location.hash.match(/^#d=([0-9a-f]{20,})$/i)?.[1];
+  if (!token) return undefined;
+  history.replaceState(null, '', `${location.pathname}${location.search}#/driver`);
+  return ds.linkLogin(token);
+}
+
 async function start() {
   if (!ds.IS_MOCK) document.body.classList.add('live');
   mountTopbar(document.getElementById('topbar'));
   let user;
   try {
-    user = await ds.getAccount();
+    const byLink = await linkLogin().catch((err) => { showError('اللينك مش شغال', err); return null; });
+    if (byLink === null) return;
+    user = byLink ?? await ds.getAccount();
   } catch (err) {
     showError('تعذر الاتصال', err);
     return;

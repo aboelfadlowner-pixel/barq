@@ -220,7 +220,7 @@ export async function getAccount() {
   const named = 'agent_id' in row;
   return {
     id: session.user.id, name: row.display_name, role: row.role || 'admin', email: session.user.email || '',
-    agentId: row.agent_id || null, needsName: named && !row.agent_id,
+    agentId: row.agent_id || null, needsName: named && !row.agent_id && row.role !== 'driver',   // a driver's name is set by the admin
   };
 }
 
@@ -296,16 +296,60 @@ export async function driverDelivered(orderId, photo, pos) {
     p_order_id: orderId, p_photo: path, p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
   }));
 }
-/* Branch: the drivers out now, and «الطيار رجع». */
-export async function listDriversOut() {
+/* The driver: «رجعت الفرع» with his place → { orders, distanceM, far } («بعيد عن الفرع»). */
+export async function driverReturned(pos) {
   const c = await sb();
-  const res = await c.rpc('cc_drivers_out');
-  if (res.error?.code === NOT_INSTALLED) return null;
-  return ok(res).map((r) => ({ userId: r.user_id, label: r.label, orders: r.orders, delivered: r.delivered, firstOutAt: r.first_out_at }));
+  const r = ok(await c.rpc('cc_driver_returned', { p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null }));
+  return { orders: r.orders, distanceM: r.distance_m ?? null, far: !!r.far };
 }
-export async function driverReturned(userId) {
+
+/* The driver opens his personal link (#d=…): no e-mail, no password. */
+const fnError = async (error) => {
+  try { const b = await error.context.json(); if (b?.error) return b.error; } catch { /* not JSON */ }
+  return 'تعذر الاتصال — اتأكد من النت وجرّب تاني';
+};
+export async function linkLogin(token) {
   const c = await sb();
-  return ok(await c.rpc('cc_driver_returned', { p_driver: userId }));
+  const { data, error } = await c.functions.invoke('cc-drivers', { body: { action: 'login', token } });
+  if (error) throw new Error(await fnError(error));
+  await c.auth.signOut({ scope: 'local' }).catch(() => {});   // another account on this phone
+  const v = await c.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
+  if (v.error) throw new Error('تعذر الدخول — افتح اللينك تاني');
+  return getAccount();
+}
+
+/* Admin: the drivers (name, mobile, link). */
+export async function adminDrivers() {
+  const c = await sb();
+  const res = await c.rpc('cc_admin_drivers');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({ userId: r.user_id, name: r.name, phone: r.phone || '', active: !!r.active, hasLink: !!r.has_link, lastOutAt: r.last_out_at }));
+}
+/* → { userId, token } — the token is shown once, in his link. */
+export async function addDriver(name, phone) {
+  const c = await sb();
+  const { data, error } = await c.functions.invoke('cc-drivers', { body: { action: 'create', name, phone } });
+  if (error) throw new Error(dbWording(await fnError(error)));
+  return { userId: data.user_id, token: data.token };
+}
+export async function newDriverLink(userId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_new_driver_link', { p_user_id: userId }));
+}
+export async function updateDriver({ userId, name, phone, active }) {
+  const c = await sb();
+  return ok(await c.rpc('cc_admin_update_driver', { p_user_id: userId, p_name: name, p_phone: phone, p_active: active }));
+}
+export async function branchPlace() {
+  const c = await sb();
+  const res = await c.rpc('cc_branch_place');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  const r = ok(res);
+  return r ? { lat: r.lat, lng: r.lng, radius: r.radius_m, updatedAt: r.updated_at } : null;
+}
+export async function setBranchPlace(lat, lng) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_branch_place', { p_lat: lat, p_lng: lng }));
 }
 export async function listDrivers() {
   const c = await sb();
@@ -322,6 +366,7 @@ const toDelivery = (r) => ({
   outByAdmin: !!r.out_by_admin, tripSeq: r.trip_seq ?? null, tripSize: r.trip_size ?? null, assignedAt: r.assigned_at || null,
   deliveredAt: r.delivered_at || null, deliveredAdmin: !!r.delivered_admin,
   returnedAt: r.returned_at || null, returnedAdmin: !!r.returned_admin,
+  returnedLat: r.returned_lat ?? null, returnedLng: r.returned_lng ?? null, returnedDistance: r.returned_distance_m ?? null, returnedFar: !!r.returned_far,
   photoPath: r.photo_path || null, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null,
 });
 export async function getOrderDelivery(orderId) {
