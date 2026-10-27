@@ -2,7 +2,7 @@
    columns — جديد / بيتجهز / على الكاشير — with ONE big button per order that moves it on:
    استلمت وبدأت التجهيز → وصل الكاشير → «اختيار الطيار» (can be changed until he leaves).
    «خرجت» and «رجعت الفرع» are the driver's own taps on his phone (18_driver_tracking.sql);
-   the «خرج مع الطيار» column shows «اتسلّم» / «رجع الفرع» on each order, with a ring when he is back.
+   a «الطيارين» bar on top shows each driver: out (how many orders) or «رجع الفرع» — with a ring when he is back.
    A wrong tap can be undone one step.
    The call center sees every change on its board. This screen does not print (the call
    center prints the ticket and hands it over). It checks for changes every few seconds and
@@ -74,14 +74,27 @@ function changeLine(c) {
 const editUnseen = (o) => o.editedAt && o.status !== 'cancelled' && (!o.editSeenAt || o.editSeenAt < o.editedAt);
 
 const driverName = (label) => String(label || '').replace(/\s*\(.*\)$/, '');
-/* An order that left: still with the driver → delivered → back at the branch. */
-function outStatus(o, d) {
-  if (d?.returnedAt) return `<div class="po-back-in">${icon('check')}<span><strong>رجع الفرع</strong> <span class="num">${formatTime(d.returnedAt)}</span></span></div>`;
-  if (d?.deliveredAt) return `<div class="po-delivered">${icon('check')}<span>اتسلّم للعميل <span class="num">${formatTime(d.deliveredAt)}</span> — لسه مرجعش</span></div>`;
-  return `<div class="po-onway muted">${icon('clock')}<span>مع الطيار — لسه ما اتسلّمش</span></div>`;
+/* «الطيارين»: each driver's last trip today — still out, or back at the branch. */
+function driversBar(orders, dels) {
+  const trips = new Map();   // driver → his latest trip's orders
+  orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && o.driver && o.outAt).forEach((o) => {
+    const k = driverName(o.driver);
+    const t = trips.get(k);
+    if (!t || o.outAt > t.outAt) trips.set(k, { outAt: o.outAt, list: [o] });
+    else if (o.outAt === t.outAt) t.list.push(o);
+  });
+  if (!trips.size) return '';
+  const chips = [...trips].map(([name, t]) => {
+    const back = t.list.map((o) => dels.get(o.id)?.returnedAt).filter(Boolean).sort().pop();
+    const done = t.list.every((o) => dels.get(o.id)?.returnedAt);
+    return done
+      ? `<div class="pd-chip is-back">${icon('check')}<span><strong>${esc(name)}</strong> رجع الفرع <span class="num">${formatTime(back)}</span></span></div>`
+      : `<div class="pd-chip is-out">${icon('clock')}<span><strong>${esc(name)}</strong> بره — <span class="num">${t.list.length}</span> ${t.list.length === 1 ? 'طلب' : 'طلبات'} · خرج <span class="num">${formatTime(t.outAt)}</span></span></div>`;
+  }).sort((x, y) => (x.includes('is-out') ? 0 : 1) - (y.includes('is-out') ? 0 : 1));
+  return `<div class="prep-drivers"><span class="pd-title">${icon('user')}الطيارين</span>${chips.join('')}</div>`;
 }
 
-function prepCard(o, busy, checks = {}, del = null) {
+function prepCard(o, busy, checks = {}) {
   const cancelled = o.status === 'cancelled';
   const next = cancelled || nextOf(o.stage)?.id === 'out' ? null : nextOf(o.stage);   // «خرج»: the driver taps it
   const prev = cancelled ? null : prevOf(o.stage);
@@ -114,20 +127,19 @@ function prepCard(o, busy, checks = {}, del = null) {
         ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
            <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`
         : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
-      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>
-        ${outStatus(o, del)}` : ''}
+      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
       ${prev ? `<button type="button" class="link-btn po-back" data-back="${prev.id}" ${busy ? 'disabled' : ''}>رجوع لـ «${esc(prev.label)}»</button>` : ''}
     </article>`;
 }
 
-function column(stage, list, busyId, dels = new Map()) {
+function column(stage, list, busyId) {
   const st = stageOf(stage);
   return `
     <section class="p-col">
       <header class="b-col-head p-col-head tone-head-${st.id}"><h2>${st.label}</h2><span class="b-count num">${list.length}</span></header>
-      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks(), dels.get(o.id))).join('') : '<div class="b-empty">لا توجد طلبات</div>'}</div>
+      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks())).join('') : '<div class="b-empty">لا توجد طلبات</div>'}</div>
     </section>`;
 }
 
@@ -145,10 +157,12 @@ export function mountPrep(view) {
           <button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button>
         </div>
       </div>
+      <div data-drivers></div>
       <div class="prep-cols" data-cols><p class="muted">جارٍ التحميل…</p></div>
     </div></div>`;
 
   const cols = view.querySelector('[data-cols]');
+  const driversEl = view.querySelector('[data-drivers]');
   const soundBtn = view.querySelector('[data-sound]');
   let orders = [];
   let dels = new Map();      // order id → { deliveredAt, returnedAt } (orders that left)
@@ -177,7 +191,8 @@ export function mountPrep(view) {
     const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled')
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
     cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
-      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId, dels);
+      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
+    driversEl.innerHTML = driversBar(orders, dels);
   };
 
   const load = async () => {

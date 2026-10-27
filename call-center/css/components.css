@@ -781,3 +781,9 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .po-back-in { background: #e7f6ec; color: #17663a; }
 .po-delivered { background: #fff6e0; color: #7a5300; }
 .po-onway { padding-inline: 0; }
+/* Prep: «الطيارين» bar (out / back at the branch) */
+.prep-drivers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.pd-title { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; margin-inline-end: 4px; }
+.pd-chip { display: inline-flex; gap: 6px; align-items: center; padding: 8px 12px; border-radius: 999px; font-size: 15px; }
+.pd-chip.is-back { background: #e7f6ec; color: #17663a; }
+.pd-chip.is-out { background: #fff6e0; color: #7a5300; }
