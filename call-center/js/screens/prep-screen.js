@@ -1,7 +1,8 @@
 /* Preparation screen (branch, prep account): the orders sent by the call center in three
    columns — جديد / بيتجهز / على الكاشير — with ONE big button per order that moves it on:
-   استلمت وبدأت التجهيز → وصل الكاشير. «خرج» is the driver's own tap on his phone
-   (18_driver_tracking.sql); the branch taps «الطيار رجع» when he is back. A wrong tap can be undone one step.
+   استلمت وبدأت التجهيز → وصل الكاشير → «اختيار الطيار» (can be changed until he leaves).
+   «خرج» is the driver's own tap on his phone (18_driver_tracking.sql); the branch taps
+   «الطيار رجع» when he is back. A wrong tap can be undone one step.
    The call center sees every change on its board. This screen does not print (the call
    center prints the ticket and hands it over). It checks for changes every few seconds and
    rings when a new order arrives. */
@@ -100,7 +101,10 @@ function prepCard(o, busy, checks = {}) {
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} ${formatRelative(since)}</div>` : ''}
-      ${o.stage === 'at_cashier' && !cancelled ? `<div class="po-wait">${icon('clock')}<span>مستني الطيار يدوس «خرجت»</span></div>` : ''}
+      ${o.stage === 'at_cashier' && !cancelled ? (o.driver
+        ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
+           <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`
+        : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
       ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
@@ -251,6 +255,33 @@ export function mountPrep(view) {
       move(btn.closest('[data-oid]').dataset.oid, btn.dataset.back);
     }),
     on(view, 'click', '[data-refresh]', () => load()),
+    on(view, 'click', '[data-pick-driver]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      const o = orders.find((x) => x.id === id);
+      const drivers = await ds.listDrivers().catch(() => []);
+      if (!drivers.length) { showToast('مفيش طيارين — الأدمن يعمل أكونت بصلاحية «طيار» الأول'); return; }
+      const m = openModal({
+        title: `${icon('user')} اختيار الطيار — طلب <span class="ltr-inline">#${esc(o?.number ?? '')}</span>`,
+        size: 'sm',
+        body: `<p class="muted">الطلب هيظهر على موبايل الطيار، وهو يدوس «خرجت» لما ياخده.</p>
+          <div class="returned-list">${drivers.map((d) => `
+            <button type="button" class="result-card ${o?.driver === d.label ? 'is-current' : ''}" data-set-driver="${esc(d.userId)}">
+              <div class="grow cust-name">${esc(d.label)}</div>${o?.driver === d.label ? '<span class="tag tag-green">الحالي</span>' : ''}</button>`).join('')}</div>
+          ${o?.driver ? '<button type="button" class="link-btn" data-set-driver="">شيل الطيار من الطلب</button>' : ''}`,
+        footer: '<button type="button" class="btn btn-secondary" data-close>إلغاء</button>',
+      });
+      m.body.addEventListener('click', async (ev) => {
+        const b = ev.target.closest('[data-set-driver]');
+        if (!b) return;
+        b.disabled = true;
+        try {
+          const label = await ds.assignDriver(id, b.dataset.setDriver || null);
+          m.close();
+          showToast(label ? `الطلب مع ${label}` : 'اتشال الطيار من الطلب');
+          load();
+        } catch (err) { b.disabled = false; showToast(err.message); }
+      });
+    }),
     on(view, 'click', '[data-returned]', async () => {
       const list = (await loadDriversOut()) || [];
       if (!list.length) { showToast('مفيش طيارين بره دلوقتي'); return; }

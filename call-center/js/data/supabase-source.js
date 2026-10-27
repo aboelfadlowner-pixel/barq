@@ -264,7 +264,7 @@ export async function getDriverOrders() {
   const d = ok(await c.rpc('cc_driver_orders'));
   return {
     phone: d.phone || '',
-    ready: (d.ready || []).map((r) => ({ id: r.id, number: r.order_no, atCashierAt: r.at_cashier_at, address: toDriverAddress(r) })),
+    ready: (d.ready || []).map((r) => ({ id: r.id, number: r.order_no, assignedAt: r.assigned_at, address: toDriverAddress(r) })),
     mine: (d.mine || []).map((r) => ({
       id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, tripSize: r.trip_size,
       cancelled: !!r.cancelled, deliveredAt: r.delivered_at || null, address: toDriverAddress(r),
@@ -275,13 +275,15 @@ export async function setPhone(userId, phone) {
   const c = await sb();
   return ok(await c.rpc('cc_set_phone', { p_user_id: userId || null, p_phone: String(phone || '') }));
 }
-export async function driverTake(orderIds) {
+/* «خرجت»: every order the branch picked for him leaves now (one trip). */
+export async function driverTake() {
   const c = await sb();
-  return ok(await c.rpc('cc_driver_take', { p_order_ids: orderIds }));
+  return ok(await c.rpc('cc_driver_take'));
 }
-export async function driverUntake(orderId) {
+/* Branch: «اختيار الطيار» for an order at the cashier (null = take him off). */
+export async function assignDriver(orderId, driverId) {
   const c = await sb();
-  return ok(await c.rpc('cc_driver_untake', { p_order_id: orderId }));
+  return ok(await c.rpc('cc_assign_driver', { p_order_id: orderId, p_driver: driverId || null }));
 }
 /* «سلّمت»: the photo goes to the driver's own folder first, then the server records the time. */
 export async function driverDelivered(orderId, photo, pos) {
@@ -317,7 +319,7 @@ export async function adminDelivery(orderId, what, driverId = null) {
   return ok(await c.rpc('cc_admin_delivery', { p_order_id: orderId, p_what: what, p_driver: driverId }));
 }
 const toDelivery = (r) => ({
-  outByAdmin: !!r.out_by_admin, tripSeq: r.trip_seq ?? null, tripSize: r.trip_size ?? null,
+  outByAdmin: !!r.out_by_admin, tripSeq: r.trip_seq ?? null, tripSize: r.trip_size ?? null, assignedAt: r.assigned_at || null,
   deliveredAt: r.delivered_at || null, deliveredAdmin: !!r.delivered_admin,
   returnedAt: r.returned_at || null, returnedAdmin: !!r.returned_admin,
   photoPath: r.photo_path || null, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null,

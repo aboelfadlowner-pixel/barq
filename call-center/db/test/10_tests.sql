@@ -1266,8 +1266,9 @@ do $$ begin
 end $$;
 rollback;
 
--- T40 — drivers (18_driver_tracking.sql): phone once, sees number+address only, takes several orders as one trip,
---        «سلّمت» needs his photo path, branch «الطيار رجع» for the trip, admin report / fixes, who can do what
+-- T40 — drivers (18_driver_tracking.sql): the branch picks the driver at the cashier (can change him), the driver sees
+--        only his picked orders (number + address), «خرجت» once for all = one trip, «سلّمت» needs his photo path,
+--        branch «الطيار رجع» for the trip, admin report / fixes, who can do what
 begin;
 do $$ begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
@@ -1295,40 +1296,58 @@ reset role;
 update public.cc_orders set stage = 'at_cashier', preparing_at = now(), at_cashier_at = now()
  where id::text in (current_setting('cc.o1'), current_setting('cc.o2'), current_setting('cc.o3'));
 select set_config('cc.drv', (select id::text from auth.users where email = 'drv40@cc.test'), true);
+select set_config('cc.drvb', (select id::text from auth.users where email = 'drv40b@cc.test'), true);
 select set_config('cc.cc40', (select id::text from auth.users where email = 'cc40@cc.test'), true);
+update public.cc_staff set phone = '01040404041' where user_id = current_setting('cc.drvb')::uuid;
+
+-- the branch picks the drivers: o2 then o1 for drv, o3 for drvb first then changed to drv b … and back
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  begin perform public.cc_assign_driver(current_setting('cc.o1')::uuid, current_setting('cc.cc40')::uuid); raise exception 'FAIL T40 picked a non-driver';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_assign_driver(current_setting('cc.o2')::uuid, current_setting('cc.drv')::uuid);
+  perform pg_sleep(0.01);
+  perform public.cc_assign_driver(current_setting('cc.o1')::uuid, current_setting('cc.drv')::uuid);
+  perform public.cc_assign_driver(current_setting('cc.o3')::uuid, current_setting('cc.drv')::uuid);
+  perform public.cc_assign_driver(current_setting('cc.o3')::uuid, current_setting('cc.drvb')::uuid);   -- changed his mind
+  if public.cc_assign_driver(current_setting('cc.o3')::uuid, null) is not null then raise exception 'FAIL T40 unpick'; end if;
+  perform public.cc_assign_driver(current_setting('cc.o3')::uuid, current_setting('cc.drvb')::uuid);
+  begin perform public.cc_set_stage(current_setting('cc.o1')::uuid, 'out'); raise exception 'FAIL T40 branch sent out';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
 
 -- the driver
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ declare d jsonb; r jsonb; o1 uuid := current_setting('cc.o1')::uuid; o2 uuid := current_setting('cc.o2')::uuid; at timestamptz; begin
   if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
-  -- sees no customers or orders directly
   if exists (select 1 from public.cc_orders) or exists (select 1 from public.cc_customers) then raise exception 'FAIL T40 driver reads tables'; end if;
   d := public.cc_driver_orders();
-  if d->>'phone' is not null or jsonb_array_length(d->'ready') < 3 then raise exception 'FAIL T40 ready %', d; end if;
+  if d->>'phone' is not null or jsonb_array_length(d->'ready') <> 2 then raise exception 'FAIL T40 only my picked orders %', d->'ready'; end if;
+  if d->'ready'->0->>'id' <> o2::text then raise exception 'FAIL T40 picked order first'; end if;
   r := d->'ready'->0;
   if r ? 'customer_name' or r ? 'customer_phone' or r ? 'total' or not r ? 'street' or not r ? 'order_no' then raise exception 'FAIL T40 driver sees too much %', r; end if;
-  begin perform public.cc_driver_take(array[o1]); raise exception 'FAIL T40 out without phone';
+  begin perform public.cc_driver_take(); raise exception 'FAIL T40 out without phone';
   exception when invalid_parameter_value then null; end;
   begin perform public.cc_set_phone(null, '123'); raise exception 'FAIL T40 bad phone';
   exception when invalid_parameter_value then null; end;
   perform public.cc_set_phone(current_setting('cc.drv')::uuid, '010 4040 4040');
-  if public.cc_driver_take(array[o2, o1]) <> 2 then raise exception 'FAIL T40 take'; end if;
+  if public.cc_driver_take() <> 2 then raise exception 'FAIL T40 take'; end if;
   d := public.cc_driver_orders();
-  if jsonb_array_length(d->'mine') <> 2 or (d->'mine'->0->>'trip_size')::int <> 2 then raise exception 'FAIL T40 mine %', d->'mine'; end if;
-  begin perform public.cc_driver_take(array[o1]); raise exception 'FAIL T40 took twice';
+  if jsonb_array_length(d->'ready') <> 0 or jsonb_array_length(d->'mine') <> 2 or (d->'mine'->0->>'trip_size')::int <> 2 then raise exception 'FAIL T40 mine %', d; end if;
+  begin perform public.cc_driver_take(); raise exception 'FAIL T40 took twice';
   exception when invalid_parameter_value then null; end;
-  -- «سلّمت»: a photo outside his folder is refused; his own works; the time is the server's; double tap safe
+  begin perform public.cc_assign_driver(o1, null); raise exception 'FAIL T40 driver picks drivers';
+  exception when insufficient_privilege then null; end;
   begin perform public.cc_driver_delivered(o2, 'someone-else/x.jpg', 31.2, 29.9, 20); raise exception 'FAIL T40 foreign photo';
   exception when invalid_parameter_value then null; end;
   begin perform public.cc_driver_delivered(o2, null, null, null, null); raise exception 'FAIL T40 no photo';
   exception when invalid_parameter_value then null; end;
   at := public.cc_driver_delivered(o2, current_setting('cc.drv') || '/o2.jpg', 31.2, 29.9, 15);
   if at is null or public.cc_driver_delivered(o2, current_setting('cc.drv') || '/o2-again.jpg', null, null, null) <> at then raise exception 'FAIL T40 delivered'; end if;
-  -- a wrong take goes back (not after delivery)
-  begin perform public.cc_driver_untake(o2); raise exception 'FAIL T40 untake after delivery';
-  exception when invalid_parameter_value then null; end;
-  perform public.cc_driver_untake(o1);
   begin perform public.cc_driver_returned(current_setting('cc.drv')::uuid); raise exception 'FAIL T40 driver marked himself back';
   exception when insufficient_privilege then null; end;
   begin perform public.cc_delivery_report(current_date - 1, current_date); raise exception 'FAIL T40 driver opened the report';
@@ -1336,66 +1355,70 @@ do $$ declare d jsonb; r jsonb; o1 uuid := current_setting('cc.o1')::uuid; o2 uu
 end $$;
 reset role;
 do $$ begin
-  if (select stage || '|' || coalesce(driver, '') from public.cc_orders where id = current_setting('cc.o1')::uuid) <> 'at_cashier|' then raise exception 'FAIL T40 untake state'; end if;
   if (select driver from public.cc_orders where id = current_setting('cc.o2')::uuid) <> 'طيار 40 (01040404040)' then raise exception 'FAIL T40 label %', (select driver from public.cc_orders where id = current_setting('cc.o2')::uuid); end if;
+  if (select trip_seq from public.cc_orders where id = current_setting('cc.o2')::uuid) <> 1 or (select assigned_at is null from public.cc_orders where id = current_setting('cc.o1')::uuid) then raise exception 'FAIL T40 trip order'; end if;
 end $$;
 
--- another driver cannot take an order already out, nor deliver someone else's
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'drv40b@cc.test'), 'role', 'authenticated')::text, true);
+-- the other driver sees only his own and cannot deliver someone else's
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drvb'), 'role', 'authenticated')::text, true);
 set local role authenticated;
-do $$ begin
-  perform public.cc_set_phone((select current_setting('request.jwt.claims')::json->>'sub')::uuid, '01040404041');
-  begin perform public.cc_driver_take(array[current_setting('cc.o2')::uuid]); raise exception 'FAIL T40 took another driver''s order';
-  exception when invalid_parameter_value then if sqlerrm not like '%طيار 40%' then raise; end if; end;
-  begin perform public.cc_driver_delivered(current_setting('cc.o2')::uuid, 'x/y.jpg', null, null, null); raise exception 'FAIL T40 delivered another''s';
+do $$ declare d jsonb; begin
+  d := public.cc_driver_orders();
+  if jsonb_array_length(d->'ready') <> 1 or d->'ready'->0->>'id' <> current_setting('cc.o3') then raise exception 'FAIL T40 driver b list %', d; end if;
+  begin perform public.cc_driver_delivered(current_setting('cc.o2')::uuid, current_setting('cc.drvb') || '/y.jpg', null, null, null); raise exception 'FAIL T40 delivered another''s';
   exception when invalid_parameter_value then null; end;
 end $$;
 reset role;
 
--- the branch: drivers out, «الطيار رجع» for the whole trip, cannot send out
+-- the branch: cannot re-pick an order already out; «الطيار رجع» for the trip; back to «قيد التجهيز» drops the pick
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep40@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ declare r record; begin
+  begin perform public.cc_assign_driver(current_setting('cc.o1')::uuid, current_setting('cc.drvb')::uuid); raise exception 'FAIL T40 re-picked an order out';
+  exception when invalid_parameter_value then null; end;
   select * into r from public.cc_drivers_out() where user_id = current_setting('cc.drv')::uuid;
-  if r.orders <> 1 or r.delivered <> 1 then raise exception 'FAIL T40 drivers out %', r; end if;
-  if public.cc_driver_returned(current_setting('cc.drv')::uuid) <> 1 then raise exception 'FAIL T40 returned'; end if;
+  if r.orders <> 2 or r.delivered <> 1 then raise exception 'FAIL T40 drivers out %', r; end if;
+  if public.cc_driver_returned(current_setting('cc.drv')::uuid) <> 2 then raise exception 'FAIL T40 returned'; end if;
   begin perform public.cc_driver_returned(current_setting('cc.drv')::uuid); raise exception 'FAIL T40 returned twice';
   exception when invalid_parameter_value then null; end;
-  begin perform public.cc_set_stage(current_setting('cc.o1')::uuid, 'out'); raise exception 'FAIL T40 branch sent out';
-  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_stage(current_setting('cc.o3')::uuid, 'preparing');
   begin perform public.cc_delivery_report(current_date - 1, current_date); raise exception 'FAIL T40 branch opened the report';
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+do $$ begin
+  if (select driver_user_id is not null or assigned_at is not null from public.cc_orders where id = current_setting('cc.o3')::uuid) then raise exception 'FAIL T40 pick kept after going back'; end if;
+end $$;
 
 -- the call center: sees the times, not the photo or the place; cannot record
-select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc40@cc.test'), 'role', 'authenticated')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.cc40'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ declare d jsonb; begin
   d := public.cc_order_delivery_of(current_setting('cc.o2')::uuid);
-  if d->>'delivered_at' is null or d->>'returned_at' is null or d ? 'photo_path' or d ? 'lat' then raise exception 'FAIL T40 call center view %', d; end if;
-  begin perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'out', current_setting('cc.drv')::uuid); raise exception 'FAIL T40 call center recorded';
+  if d->>'delivered_at' is null or d->>'returned_at' is null or d->>'assigned_at' is null or d ? 'photo_path' or d ? 'lat' then raise exception 'FAIL T40 call center view %', d; end if;
+  begin perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'delivered'); raise exception 'FAIL T40 call center recorded';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_assign_driver(current_setting('cc.o3')::uuid, null); raise exception 'FAIL T40 call center picked';
   exception when insufficient_privilege then null; end;
   begin perform 1 from public.cc_order_delivery; raise exception 'FAIL T40 proof table readable';
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 
--- the admin: report with photo/place/trip; records a step for a driver (marked)
+-- the admin: report with photo/place/trip/pick time; records a step for a driver (marked)
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ declare r jsonb; d jsonb; begin
   select x into r from public.cc_delivery_report(current_date - 1, current_date + 1) x where x->>'id' = current_setting('cc.o2');
-  if r->>'photo_path' is null or (r->>'lat')::float <> 31.2 or r->>'returned_at' is null or (r->>'trip_size')::int <> 2 or r->>'delivered_admin' <> 'false' then raise exception 'FAIL T40 report %', r; end if;
-  perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'out', current_setting('cc.drv')::uuid);
+  if r->>'photo_path' is null or (r->>'lat')::float <> 31.2 or r->>'returned_at' is null or (r->>'trip_size')::int <> 2 or r->>'assigned_at' is null or r->>'delivered_admin' <> 'false' then raise exception 'FAIL T40 report %', r; end if;
   perform public.cc_admin_delivery(current_setting('cc.o1')::uuid, 'delivered');
   d := public.cc_order_delivery_of(current_setting('cc.o1')::uuid);
-  if d->>'out_by_admin' <> 'true' or d->>'delivered_admin' <> 'true' or d->>'delivered_at' is null then raise exception 'FAIL T40 admin record %', d; end if;
+  if d->>'delivered_admin' <> 'true' or d->>'delivered_at' is null then raise exception 'FAIL T40 admin record %', d; end if;
   begin perform public.cc_delivery_report(current_date, current_date - 1); raise exception 'FAIL T40 bad period';
   exception when invalid_parameter_value then null; end;
   if not exists (select 1 from public.cc_list_drivers() where user_id = current_setting('cc.drv')::uuid) then raise exception 'FAIL T40 drivers list'; end if;
   if (select phone from public.cc_list_phones() where user_id = current_setting('cc.drv')::uuid) <> '01040404040' then raise exception 'FAIL T40 phones'; end if;
   perform public.cc_set_staff(current_setting('cc.cc40')::uuid, 'driver', true);
-  raise notice 'PASS T40 drivers: phone once, number+address only, several orders = one trip, taken once, photo in his folder, server time, wrong take back, branch «الطيار رجع» for the trip, admin report with photo/place and records for a driver, call center sees times only';
+  raise notice 'PASS T40 drivers: branch picks/changes the driver at the cashier, driver sees only his picked orders (number+address), «خرجت» once = one trip in pick order, photo in his folder, server time, branch «الطيار رجع» for the trip, back to preparing drops the pick, admin report and records, call center sees times only';
 end $$;
 rollback;

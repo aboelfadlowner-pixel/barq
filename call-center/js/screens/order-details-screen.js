@@ -152,6 +152,7 @@ export function mountOrderDetails(view, orderId) {
       box.innerHTML = `
         <h4 class="block-title" style="margin:0 0 10px">${icon('package')}التوصيل</h4>
         ${order.outAt ? `<ul class="timeline">
+          ${d.assignedAt ? row('اتحدد الطيار', d.assignedAt, d.assignedAt && order.outAt ? `خرج بعدها بـ ${mins(d.assignedAt, order.outAt)}` : '') : ''}
           ${row('خرج', order.outAt, `${esc(order.driver || '')}${d.tripSize > 1 ? ` · طلب ${d.tripSeq} من ${d.tripSize} في المشوار` : ''}`, d.outByAdmin)}
           ${row('اتسلّم للعميل', d.deliveredAt, d.deliveredAt ? `بعد ${mins(order.outAt, d.deliveredAt)} من الخروج` : 'لسه', d.deliveredAdmin)}
           ${row('رجع الفرع', d.returnedAt, d.returnedAt && d.deliveredAt ? `بعد ${mins(d.deliveredAt, d.returnedAt)} من التسليم` : '', d.returnedAdmin)}

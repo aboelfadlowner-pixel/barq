@@ -4,9 +4,10 @@
 --  CONFIRMED:
 --   • A fourth role «طيار» (driver). Each driver has an account with his name and
 --     mobile number (written once).
---   • The driver sees ONLY the order number and the address. He ticks the orders
---     at the cashier he is taking and taps «خرجت» (several orders = one trip);
---     the branch no longer types the driver.
+--   • At «على الكاشير» the BRANCH picks the driver from the list (it can change
+--     him until he leaves). The driver sees ONLY the orders picked for him — the
+--     order number and the address — and taps «خرجت» once for all of them
+--     (several orders = one trip). The branch no longer types the driver.
 --   • At the customer: «سلّمت» with a photo (bag + ticket) and his place.
 --     The time is the server's.
 --   • The branch taps «الطيار رجع» when he is back (one tap for the whole trip).
@@ -32,6 +33,7 @@ alter table public.cc_orders add column if not exists trip_id        uuid;
 alter table public.cc_orders add column if not exists trip_seq       integer;
 alter table public.cc_orders add column if not exists trip_size      integer;
 alter table public.cc_orders add column if not exists out_by_admin   boolean not null default false;
+alter table public.cc_orders add column if not exists assigned_at    timestamptz;      -- the branch picked the driver
 create index if not exists cc_orders_driver_idx on public.cc_orders (driver_user_id, out_at desc);
 
 -- Delivery proof: for the admin only (no direct access; functions below).
@@ -185,8 +187,10 @@ begin
          preparing_at  = case when v_to > v_from and p_stage = 'preparing'  then now() when v_to < 2 then null else preparing_at end,
          at_cashier_at = case when v_to > v_from and p_stage = 'at_cashier' then now() when v_to < 3 then null else at_cashier_at end,
          out_at        = case when v_to < 4 then null else out_at end,
-         driver         = case when v_to < 4 then null else driver end,
-         driver_user_id = case when v_to < 4 then null else driver_user_id end,
+         -- back to «قيد التجهيز»: the driver picked for it is dropped; back from «خرج»: he stays picked
+         driver         = case when v_to < 3 then null else driver end,
+         driver_user_id = case when v_to < 3 then null else driver_user_id end,
+         assigned_at    = case when v_to < 3 then null else assigned_at end,
          trip_id = case when v_to < 4 then null else trip_id end,
          trip_seq = case when v_to < 4 then null else trip_seq end,
          trip_size = case when v_to < 4 then null else trip_size end,
@@ -244,12 +248,14 @@ declare
 begin
   return jsonb_build_object(
     'phone', v_me.phone,
+    -- picked for me by the branch, not out yet
     'ready', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', o.id, 'order_no', o.order_no, 'at_cashier_at', o.at_cashier_at,
+        'id', o.id, 'order_no', o.order_no, 'assigned_at', o.assigned_at,
         'area_name', o.area_name, 'address_label', o.address_label, 'street', o.street,
-        'housing_type', o.housing_type, 'address_notes', o.address_notes) order by o.at_cashier_at)
+        'housing_type', o.housing_type, 'address_notes', o.address_notes) order by o.assigned_at, o.order_no)
       from public.cc_orders o
-     where o.stage = 'at_cashier' and o.status <> 'cancelled' and o.created_at > now() - interval '1 day'), '[]'::jsonb),
+     where o.stage = 'at_cashier' and o.driver_user_id = auth.uid() and o.status <> 'cancelled'
+       and o.created_at > now() - interval '1 day'), '[]'::jsonb),
     'mine', coalesce((select jsonb_agg(jsonb_build_object(
         'id', o.id, 'order_no', o.order_no, 'out_at', o.out_at, 'trip_id', o.trip_id, 'trip_seq', o.trip_seq,
         'trip_size', o.trip_size, 'cancelled', o.status = 'cancelled', 'delivered_at', d.delivered_at,
@@ -261,8 +267,9 @@ begin
 end;
 $$;
 
--- «خرجت»: the ticked orders leave together as one trip (in the order ticked).
-create or replace function public.cc_driver_take(p_order_ids uuid[])
+-- «خرجت»: every order the branch picked for me leaves now, as one trip
+-- (in the order they were picked). Returns how many.
+create or replace function public.cc_driver_take()
 returns integer
 language plpgsql security definer
 set search_path = ''
@@ -271,67 +278,30 @@ declare
   v_me    public.cc_staff := public.cc_require_driver();
   v_label text;
   v_trip  uuid := gen_random_uuid();
-  v_n     int := coalesce(array_length(p_order_ids, 1), 0);
-  v_o     public.cc_orders;
+  v_n     int;
+  v_o     record;
   v_i     int := 0;
-  v_id    uuid;
 begin
-  if v_n = 0 or v_n > 20 then
-    raise exception 'اختار الطلبات اللي خارج بيها' using errcode = '22023', hint = 'orders';
-  end if;
   if v_me.phone is null then
     raise exception 'اكتب رقم موبايلك الأول' using errcode = '22023', hint = 'phone';
   end if;
+  select count(*) into v_n from public.cc_orders
+   where driver_user_id = v_me.user_id and stage = 'at_cashier' and status <> 'cancelled' and created_at > now() - interval '1 day';
+  if v_n = 0 then
+    raise exception 'مفيش طلبات متحددة ليك دلوقتي' using errcode = '22023', hint = 'stale';
+  end if;
   v_label := public.cc_driver_label(v_me.user_id);
-  foreach v_id in array p_order_ids loop
-    select * into v_o from public.cc_orders where id = v_id for update;
-    if not found then
-      raise exception 'الطلب غير موجود' using errcode = 'P0002';
-    end if;
-    if v_o.status = 'cancelled' then
-      raise exception 'الطلب % اتلغى', v_o.order_no using errcode = '22023', hint = 'cancelled';
-    end if;
-    if v_o.stage = 'out' then
-      raise exception 'الطلب % خرج بالفعل مع %', v_o.order_no, coalesce(v_o.driver, 'طيار تاني') using errcode = '22023', hint = 'taken';
-    end if;
-    if v_o.stage <> 'at_cashier' then
-      raise exception 'الطلب % لسه مش على الكاشير', v_o.order_no using errcode = '22023', hint = 'stale';
-    end if;
+  for v_o in select id from public.cc_orders
+              where driver_user_id = v_me.user_id and stage = 'at_cashier' and status <> 'cancelled' and created_at > now() - interval '1 day'
+              order by assigned_at, order_no for update loop
     v_i := v_i + 1;
     update public.cc_orders
-       set stage = 'out', out_at = now(), driver = v_label, driver_user_id = v_me.user_id,
+       set stage = 'out', out_at = now(), driver = v_label,
            trip_id = v_trip, trip_seq = v_i, trip_size = v_n, out_by_admin = false, stage_by_name = v_label
-     where id = v_id;
-    insert into public.cc_order_stage_events (order_id, stage, by_user, by_name) values (v_id, 'out', auth.uid(), v_label);
+     where id = v_o.id;
+    insert into public.cc_order_stage_events (order_id, stage, by_user, by_name) values (v_o.id, 'out', auth.uid(), v_label);
   end loop;
   return v_i;
-end;
-$$;
-
--- «مأخدتهوش»: a wrong take goes back to the cashier (not after «سلّمت»).
-create or replace function public.cc_driver_untake(p_order_id uuid)
-returns boolean
-language plpgsql security definer
-set search_path = ''
-as $$
-declare
-  v_me public.cc_staff := public.cc_require_driver();
-  v_o  public.cc_orders;
-begin
-  select * into v_o from public.cc_orders where id = p_order_id for update;
-  if not found or v_o.driver_user_id is distinct from v_me.user_id or v_o.stage <> 'out' then
-    raise exception 'الطلب ده مش معاك' using errcode = '22023', hint = 'stale';
-  end if;
-  if exists (select 1 from public.cc_order_delivery d where d.order_id = p_order_id and d.delivered_at is not null) then
-    raise exception 'الطلب اتسلّم — مينفعش يرجع' using errcode = '22023', hint = 'delivered';
-  end if;
-  update public.cc_orders
-     set stage = 'at_cashier', out_at = null, driver = null, driver_user_id = null,
-         trip_id = null, trip_seq = null, trip_size = null, stage_by_name = public.cc_driver_label(v_me.user_id)
-   where id = p_order_id;
-  insert into public.cc_order_stage_events (order_id, stage, by_user, by_name)
-  values (p_order_id, 'at_cashier', auth.uid(), public.cc_driver_label(v_me.user_id));
-  return true;
 end;
 $$;
 
@@ -373,6 +343,48 @@ begin
          photo_path = excluded.photo_path, lat = excluded.lat, lng = excluded.lng, accuracy_m = excluded.accuracy_m
   returning delivered_at into v_at;
   return v_at;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Branch: «اختيار الطيار» for an order at the cashier (or change him / take
+-- him off with an empty driver) — until he taps «خرجت».
+-- ---------------------------------------------------------------------
+create or replace function public.cc_assign_driver(p_order_id uuid, p_driver uuid)
+returns text
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_o     public.cc_orders;
+  v_label text;
+begin
+  if coalesce(public.cc_my_role(), '') not in ('prep', 'admin') then
+    raise exception 'اختيار الطيار للفرع بس' using errcode = '42501';
+  end if;
+  select * into v_o from public.cc_orders where id = p_order_id for update;
+  if not found then
+    raise exception 'الطلب غير موجود' using errcode = 'P0002';
+  end if;
+  if v_o.status = 'cancelled' then
+    raise exception 'الطلب ده اتلغى' using errcode = '22023', hint = 'cancelled';
+  end if;
+  if v_o.stage = 'out' then
+    raise exception 'الطيار خرج بالطلب خلاص' using errcode = '22023', hint = 'stale';
+  end if;
+  if v_o.stage <> 'at_cashier' then
+    raise exception 'الطلب لازم يكون على الكاشير' using errcode = '22023', hint = 'stale';
+  end if;
+  if p_driver is not null then
+    if not exists (select 1 from public.cc_staff where user_id = p_driver and role = 'driver' and active) then
+      raise exception 'اختار طيار من القائمة' using errcode = '22023', hint = 'driver';
+    end if;
+    v_label := public.cc_driver_label(p_driver);
+  end if;
+  update public.cc_orders
+     set driver_user_id = p_driver, driver = v_label, assigned_at = case when p_driver is null then null else clock_timestamp() end
+   where id = p_order_id;
+  return v_label;
 end;
 $$;
 
@@ -461,6 +473,7 @@ begin
     end if;
     update public.cc_orders
        set stage = 'out', out_at = now(), driver = public.cc_driver_label(p_driver), driver_user_id = p_driver,
+           assigned_at = coalesce(assigned_at, now()),
            trip_id = gen_random_uuid(), trip_seq = 1, trip_size = 1, out_by_admin = true, stage_by_name = v_name
      where id = p_order_id;
     insert into public.cc_order_stage_events (order_id, stage, by_user, by_name) values (p_order_id, 'out', auth.uid(), v_name);
@@ -523,7 +536,7 @@ begin
   return query
     select jsonb_build_object(
       'id', o.id, 'order_no', o.order_no, 'created_at', o.created_at, 'area_name', o.area_name,
-      'at_cashier_at', o.at_cashier_at, 'out_at', o.out_at, 'out_by_admin', o.out_by_admin,
+      'at_cashier_at', o.at_cashier_at, 'assigned_at', o.assigned_at, 'out_at', o.out_at, 'out_by_admin', o.out_by_admin,
       'driver_user_id', o.driver_user_id, 'driver', o.driver,
       'trip_id', o.trip_id, 'trip_seq', o.trip_seq, 'trip_size', o.trip_size,
       'delivered_at', d.delivered_at, 'delivered_admin', coalesce(d.delivered_admin, false),
@@ -549,7 +562,7 @@ begin
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
   select jsonb_build_object(
-      'out_by_admin', o.out_by_admin, 'trip_seq', o.trip_seq, 'trip_size', o.trip_size,
+      'out_by_admin', o.out_by_admin, 'trip_seq', o.trip_seq, 'trip_size', o.trip_size, 'assigned_at', o.assigned_at,
       'delivered_at', d.delivered_at, 'delivered_admin', coalesce(d.delivered_admin, false),
       'returned_at', d.returned_at, 'returned_admin', coalesce(d.returned_admin, false))
     || case when v_admin then jsonb_build_object('photo_path', d.photo_path, 'lat', d.lat, 'lng', d.lng, 'accuracy_m', d.accuracy_m)
@@ -564,8 +577,8 @@ $$;
 revoke all on function public.cc_set_phone(uuid, text)                  from public, anon;
 revoke all on function public.cc_list_phones()                          from public, anon;
 revoke all on function public.cc_driver_orders()                        from public, anon;
-revoke all on function public.cc_driver_take(uuid[])                    from public, anon;
-revoke all on function public.cc_driver_untake(uuid)                    from public, anon;
+revoke all on function public.cc_driver_take()                          from public, anon;
+revoke all on function public.cc_assign_driver(uuid, uuid)              from public, anon;
 revoke all on function public.cc_driver_delivered(uuid, text, double precision, double precision, double precision) from public, anon;
 revoke all on function public.cc_drivers_out()                          from public, anon;
 revoke all on function public.cc_driver_returned(uuid)                  from public, anon;
@@ -576,8 +589,8 @@ revoke all on function public.cc_order_delivery_of(uuid)                from pub
 grant execute on function public.cc_set_phone(uuid, text)               to authenticated;
 grant execute on function public.cc_list_phones()                       to authenticated;
 grant execute on function public.cc_driver_orders()                     to authenticated;
-grant execute on function public.cc_driver_take(uuid[])                 to authenticated;
-grant execute on function public.cc_driver_untake(uuid)                 to authenticated;
+grant execute on function public.cc_driver_take()                       to authenticated;
+grant execute on function public.cc_assign_driver(uuid, uuid)           to authenticated;
 grant execute on function public.cc_driver_delivered(uuid, text, double precision, double precision, double precision) to authenticated;
 grant execute on function public.cc_drivers_out()                       to authenticated;
 grant execute on function public.cc_driver_returned(uuid)               to authenticated;

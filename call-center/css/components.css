@@ -752,3 +752,7 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .delivery-table tr.is-late td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
 .staff-phone { margin-top: 6px; max-width: 200px; }
 .input-sm { height: 34px; font-size: .95rem; }
+.dr-cam { position: relative; border-radius: 10px; overflow: hidden; background: #111; }
+.dr-video { width: 100%; max-height: 60vh; display: block; object-fit: cover; }
+.dr-go { margin-top: 4px; }
+.result-card.is-current { border-color: var(--green-700); }

@@ -1,5 +1,6 @@
 /* «التوصيل» (admin only) — 18_driver_tracking.sql.
-   For a day or a period: how long the delivery took (out → delivered), how long the driver
+   For a day or a period: how long the driver waited after the branch picked him (picked → out),
+   how long the delivery took (out → delivered), how long the driver
    took to come back after his last delivery of the trip, per driver and per area, and every
    order with its photo and the driver's place. Late = more than 45 minutes for the first order
    of a trip, +10 minutes for each order after it (to be adjusted from real numbers). */
@@ -45,6 +46,7 @@ function enrich(rows) {
     const waiting = !r.deliveredAt ? minutes(r.outAt, now) : null;
     return {
       ...r, deliverMin,
+      waitMin: minutes(r.assignedAt, r.outAt),     // picked by the branch → he left
       backMin: r.returnedAt && lastDelivered ? minutes(lastDelivered, r.returnedAt) : null,
       late: deliverMin != null ? deliverMin > limitOf(r) : waiting > limitOf(r),
       noPlace: !!r.deliveredAt && !r.deliveredAdmin && r.lat == null,
@@ -92,6 +94,7 @@ export function mountDelivery(view) {
       <div class="summary-row">
         ${stat('طلبات خرجت', `<span class="num">${list.length}</span>`)}
         ${stat('اتسلّمت', `<span class="num">${delivered.length}</span>`)}
+        ${stat('متوسط الانتظار قبل الخروج', minText(avg(list.map((r) => r.waitMin))))}
         ${stat('متوسط وقت التوصيل', minText(avg(delivered.map((r) => r.deliverMin))))}
         ${stat('متوسط الرجوع بعد آخر تسليم', minText(avg(tripBacks(list))))}
         ${stat('متأخرة', `<span class="num">${list.filter((r) => r.late).length}</span>`, list.some((r) => r.late) ? 'tone-text-red' : '')}
@@ -100,11 +103,12 @@ export function mountDelivery(view) {
 
       <h2 class="section-title">${icon('user')}الطيارين</h2>
       <div class="card table-wrap"><table class="table">
-        <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
+        <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th class="col-opt">الانتظار قبل الخروج</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
           <th>متأخر</th><th class="col-opt">من غير مكان</th><th class="col-opt">سجّلها الأدمن</th></tr></thead>
         <tbody>${[...byDriver.values()].sort((a, b) => b.rows.length - a.rows.length).map((g) => `
           <tr><td><strong>${esc(g.name)}</strong></td><td class="num">${g.rows.length}</td>
             <td class="col-opt num">${new Set(g.rows.map((r) => r.tripId)).size}</td>
+            <td class="col-opt">${minText(avg(g.rows.map((r) => r.waitMin)))}</td>
             <td>${minText(avg(g.rows.map((r) => r.deliverMin)))}</td><td>${minText(avg(tripBacks(g.rows)))}</td>
             <td class="num ${g.rows.some((r) => r.late) ? 'tone-text-red' : ''}">${g.rows.filter((r) => r.late).length}</td>
             <td class="col-opt num">${g.rows.filter((r) => r.noPlace).length}</td>

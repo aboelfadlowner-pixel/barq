@@ -43,8 +43,8 @@ export const sendOut          = (id, driver) => impl.sendOut(id, driver);
 /* Drivers (18_driver_tracking.sql) */
 export const getDriverOrders  = () => impl.getDriverOrders();
 export const setPhone         = (userId, phone) => impl.setPhone(userId, phone);
-export const driverTake       = (ids) => impl.driverTake(ids);
-export const driverUntake     = (id) => impl.driverUntake(id);
+export const driverTake       = () => impl.driverTake();
+export const assignDriver     = (id, driverId) => impl.assignDriver(id, driverId);
 export const driverDelivered  = (id, photo, pos) => impl.driverDelivered(id, photo, pos);
 export const listDriversOut   = () => impl.listDriversOut();
 export const driverReturned   = (userId) => impl.driverReturned(userId);

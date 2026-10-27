@@ -1,14 +1,15 @@
 /* Driver screen («طيار», on his mobile) — 18_driver_tracking.sql.
-   CONFIRMED: he sees ONLY the order number and the address.
-   «جاهزة للخروج»: the orders at the cashier — he ticks the ones he takes and taps «خرجت»
-   (several orders = one trip). «معايا»: his orders — «سلّمت» opens the camera, he takes a photo
-   of the bag with the ticket showing, and the server records the time (and his place).
+   CONFIRMED: the branch picks the driver for each order at the cashier; the driver sees ONLY
+   the orders picked for him — the order number and the address.
+   «طلباتي»: the orders picked for him → ONE «خرجت» for all of them (one trip).
+   «معايا»: each order → «سلّمت»: the camera opens INSIDE the page (no gallery), he takes a
+   photo of the bag with the ticket showing, and the server records the time (and his place).
    The branch taps «الطيار رجع» when he is back. */
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
-import { confirmDialog, openModal, showToast } from '../components/modal.js';
+import { openModal, showToast } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
 
@@ -17,19 +18,6 @@ const addressHtml = (a) => `
     ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}
     ${a.label ? `<div class="muted">${esc(a.label)}</div>` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>`;
 
-/* The photo, made small on the phone before it is sent (about 150 KB). */
-async function shrink(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
-    const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.7));
-  } finally { URL.revokeObjectURL(url); }
-}
-
 /* His place when he taps «سلّمت» (not a map, not tracking). null when the phone does not give it. */
 const position = () => new Promise((done) => {
   if (!navigator.geolocation) { done(null); return; }
@@ -37,6 +25,69 @@ const position = () => new Promise((done) => {
     (p) => done({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
     () => done(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
 });
+
+/* CONFIRMED: the photo comes from the camera only — the live camera opens inside the page,
+   so there is no way to pick a picture from the gallery. Resolves with a small JPEG (about
+   150 KB, 1280 px at most), or null if he closes it. */
+function takePhoto(orderNumber) {
+  return new Promise((done) => {
+    let stream = null;
+    let result = null;
+    const m = openModal({
+      title: `${icon('check')} تسليم طلب <span class="ltr-inline">#${esc(orderNumber)}</span>`,
+      size: 'sm',
+      body: `
+        <div class="dr-cam">
+          <video class="dr-video" autoplay playsinline muted data-video></video>
+          <img class="dr-preview" alt="صورة التسليم" data-shot hidden>
+        </div>
+        <p class="muted" data-hint>صوّر الكيس وورقة الطلب باينين.</p>
+        <div class="field-error" data-err="cam" role="alert"></div>`,
+      footer: `
+        <button type="button" class="btn btn-primary btn-lg" data-snap disabled>${icon('check')}صوّر</button>
+        <button type="button" class="btn btn-primary btn-lg" data-use hidden>${icon('check')}تمام — سلّمت</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-again hidden>صوّر تاني</button>`,
+    });
+    const video = m.body.querySelector('[data-video]');
+    const shot = m.body.querySelector('[data-shot]');
+    const err = m.body.querySelector('[data-err="cam"]');
+    const [snap, use, again] = ['[data-snap]', '[data-use]', '[data-again]'].map((s) => m.foot.querySelector(s));
+    let blob = null;
+    let shotUrl = null;
+    const stop = () => { stream?.getTracks().forEach((t) => t.stop()); stream = null; };
+    const live = () => {
+      shot.hidden = true; video.hidden = false;
+      snap.hidden = false; use.hidden = true; again.hidden = true;
+    };
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      err.textContent = 'الموبايل ده مش بيفتح الكاميرا من الصفحة — افتح اللينك من Chrome';
+    } else {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
+        .then((s) => { stream = s; video.srcObject = s; snap.disabled = false; })
+        .catch(() => { err.textContent = 'اسمح للصفحة تستخدم الكاميرا (من علامة القفل جنب اللينك) وجرّب تاني'; });
+    }
+
+    snap.addEventListener('click', () => {
+      const w = video.videoWidth; const h = video.videoHeight;
+      if (!w || !h) return;
+      const scale = Math.min(1, 1280 / Math.max(w, h));
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+      c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+      c.toBlob((b) => {
+        blob = b;
+        if (shotUrl) URL.revokeObjectURL(shotUrl);
+        shotUrl = URL.createObjectURL(b);
+        shot.src = shotUrl; shot.hidden = false; video.hidden = true;
+        snap.hidden = true; use.hidden = false; again.hidden = false;
+      }, 'image/jpeg', 0.7);
+    });
+    again.addEventListener('click', live);
+    use.addEventListener('click', () => { result = blob; m.close(); });
+    m.onClose(() => { stop(); if (shotUrl) URL.revokeObjectURL(shotUrl); done(result); });
+  });
+}
 
 export function mountDriver(view) {
   view.innerHTML = `
@@ -50,16 +101,12 @@ export function mountDriver(view) {
         <div class="board-actions"><button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button></div>
       </div>
       <div data-body><p class="muted">جارٍ التحميل…</p></div>
-      <input type="file" accept="image/*" capture="environment" data-camera hidden>
     </div></div>`;
   const body = view.querySelector('[data-body]');
-  const camera = view.querySelector('[data-camera]');
   let data = null;
-  const picked = new Set();
   let busy = false;
   let timer = null;
   let stopped = false;
-  let delivering = null;     // order id waiting for its photo
 
   function render() {
     if (!data.phone) {
@@ -73,10 +120,21 @@ export function mountDriver(view) {
         </form>`;
       return;
     }
-    for (const id of [...picked]) if (!data.ready.some((o) => o.id === id)) picked.delete(id);
-    const mine = data.mine;
-    const open = mine.filter((o) => !o.deliveredAt);
+    const { ready, mine } = data;
+    const open = mine.filter((o) => !o.deliveredAt && !o.cancelled);
     body.innerHTML = `
+      ${ready.length ? `
+      <section class="dr-section">
+        <h2 class="section-title">${icon('clipboard')}طلباتي — جاهزة تخرج <span class="b-count num">${ready.length}</span></h2>
+        <p class="muted">الفرع حدّد الطلبات دي ليك. خدها كلها واضغط «خرجت».</p>
+        ${ready.map((o) => `
+          <article class="card dr-card">
+            <header class="dr-head"><strong class="dr-no num">#${esc(o.number)}</strong>
+              <span class="muted">اتحددت ليك ${esc(formatRelative(o.assignedAt))}</span></header>
+            ${addressHtml(o.address)}
+          </article>`).join('')}
+        <button type="button" class="btn btn-primary btn-lg btn-block dr-go" data-take ${busy ? 'disabled' : ''}>${icon('chevronLeft')}خرجت (${ready.length} ${ready.length === 1 ? 'طلب' : 'طلبات'})</button>
+      </section>` : ''}
       <section class="dr-section">
         <h2 class="section-title">${icon('package')}معايا <span class="b-count num">${open.length}</span></h2>
         ${mine.length ? mine.map((o) => `
@@ -88,24 +146,10 @@ export function mountDriver(view) {
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
             ${o.deliveredAt ? `<div class="dr-done">${icon('check')}اتسلّم ${esc(formatTime(o.deliveredAt))}</div>`
               : o.cancelled ? '' : `
-              <button type="button" class="btn btn-primary btn-lg btn-block" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}سلّمت — صوّر الطلب</button>
-              <button type="button" class="link-btn dr-untake" data-untake ${busy ? 'disabled' : ''}>مأخدتهوش — رجّعه للكاشير</button>`}
-          </article>`).join('') : '<p class="muted dr-empty">مفيش طلبات معاك دلوقتي</p>'}
-      </section>
-      <section class="dr-section">
-        <h2 class="section-title">${icon('clipboard')}جاهزة للخروج <span class="b-count num">${data.ready.length}</span></h2>
-        <p class="muted">علّم على الطلبات اللي هتاخدها، وبعدين اضغط «خرجت».</p>
-        ${data.ready.length ? data.ready.map((o) => `
-          <label class="card dr-card dr-pick ${picked.has(o.id) ? 'is-picked' : ''}">
-            <input type="checkbox" data-pick="${esc(o.id)}" ${picked.has(o.id) ? 'checked' : ''}>
-            <div class="grow"><header class="dr-head"><strong class="dr-no num">#${esc(o.number)}</strong>
-              <span class="muted">على الكاشير ${esc(formatRelative(o.atCashierAt))}</span></header>
-              ${addressHtml(o.address)}</div>
-          </label>`).join('') : '<p class="muted dr-empty">مفيش طلبات على الكاشير</p>'}
-      </section>
-      <div class="dr-bar" ${picked.size ? '' : 'hidden'}>
-        <button type="button" class="btn btn-primary btn-lg btn-block" data-take ${busy ? 'disabled' : ''}>${icon('chevronLeft')}خرجت (${picked.size} ${picked.size === 1 ? 'طلب' : 'طلبات'})</button>
-      </div>`;
+              <button type="button" class="btn btn-primary btn-lg btn-block" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}سلّمت — صوّر الطلب</button>`}
+          </article>`).join('')
+          : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
+      </section>`;
   }
 
   async function load() {
@@ -123,7 +167,7 @@ export function mountDriver(view) {
   }
   const schedule = () => {
     clearTimeout(timer);
-    timer = setTimeout(async () => { if (!document.hidden && !busy && !delivering) await load(); if (!stopped) schedule(); }, REFRESH_MS);
+    timer = setTimeout(async () => { if (!document.hidden && !busy) await load(); if (!stopped) schedule(); }, REFRESH_MS);
   };
   const run = async (fn, done) => {
     busy = true; render();
@@ -132,67 +176,29 @@ export function mountDriver(view) {
     await load();
   };
 
-  /* «سلّمت»: photo → (his place) → look at it → «تأكيد». */
-  async function confirmPhoto(orderId, file) {
-    const o = data.mine.find((x) => x.id === orderId);
-    let photo;
-    try { photo = await shrink(file); } catch { showToast('الصورة ما اتقرتش — صوّر تاني'); return; }
-    const preview = URL.createObjectURL(photo);
-    const m = openModal({
-      title: `${icon('check')} تسليم طلب <span class="ltr-inline">#${esc(o?.number ?? '')}</span>`,
-      size: 'sm',
-      body: `<img class="dr-preview" src="${preview}" alt="صورة التسليم">
-        <p class="muted">اتأكد إن الكيس وورقة الطلب باينين في الصورة.</p>
-        <div class="muted" data-place>${icon('pin')}جارٍ تحديد مكانك…</div>`,
-      footer: `
-        <button type="button" class="btn btn-primary btn-lg" data-ok>${icon('check')}تأكيد التسليم</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-retake>صوّر تاني</button>`,
-    });
-    let pos = null;
-    const placed = position().then((p) => {
-      pos = p;
-      const el = m.body.querySelector('[data-place]');
-      if (el) el.innerHTML = p ? `${icon('check')}اتحدد مكانك` : `${icon('alert')}المكان مش متاح — هيتسجل التسليم من غير مكان`;
-    });
-    m.onClose(() => URL.revokeObjectURL(preview));
-    m.foot.querySelector('[data-retake]').addEventListener('click', () => { m.close(); delivering = orderId; camera.value = ''; camera.click(); });
-    m.foot.querySelector('[data-ok]').addEventListener('click', async (e) => {
-      e.currentTarget.disabled = true;
-      await Promise.race([placed, new Promise((r) => setTimeout(r, 4000))]);
-      m.close();
-      run(() => ds.driverDelivered(orderId, photo, pos), 'تم تسجيل التسليم ✓');
-    });
-  }
-
   const offs = [
     on(view, 'submit', '[data-phone-form]', async (e, form) => {
       e.preventDefault();
       try { await ds.setPhone(null, form.phone.value); await load(); }
       catch (err) { form.querySelector('[data-err="phone"]').textContent = err.message; }
     }),
-    on(view, 'change', '[data-pick]', (e, box) => {
-      if (box.checked) picked.add(box.dataset.pick); else picked.delete(box.dataset.pick);
-      render();
-    }),
     on(view, 'click', '[data-take]', () => {
-      // keep the order he ticked them in (= the order he will deliver them)
-      const ids = [...picked];
-      run(async () => { await ds.driverTake(ids); picked.clear(); }, ids.length === 1 ? 'خرجت بطلب واحد' : `خرجت بـ ${ids.length} طلبات`);
+      const n = data.ready.length;
+      run(() => ds.driverTake(), n === 1 ? 'خرجت بطلب واحد' : `خرجت بـ ${n} طلبات`);
     }),
-    on(view, 'click', '[data-deliver]', (e, btn) => { delivering = btn.closest('[data-oid]').dataset.oid; camera.value = ''; camera.click(); }),
-    on(view, 'click', '[data-untake]', async (e, btn) => {
+    on(view, 'click', '[data-deliver]', async (e, btn) => {
       const id = btn.closest('[data-oid]').dataset.oid;
-      if (!(await confirmDialog({ title: 'مأخدتهوش', message: 'الطلب هيرجع «على الكاشير» لطيار تاني.', confirmLabel: 'رجّعه' }))) return;
-      run(() => ds.driverUntake(id), 'رجع على الكاشير');
+      const o = data.mine.find((x) => x.id === id);
+      busy = true;
+      const placing = position();              // his place, while he takes the photo
+      const photo = await takePhoto(o?.number ?? '');
+      busy = false;
+      if (!photo) return;
+      const pos = await Promise.race([placing, new Promise((r) => setTimeout(() => r(null), 4000))]);
+      run(() => ds.driverDelivered(id, photo, pos), pos ? 'تم تسجيل التسليم ✓' : 'تم تسجيل التسليم ✓ (من غير مكان)');
     }),
     on(view, 'click', '[data-refresh]', () => load()),
   ];
-  camera.addEventListener('change', () => {
-    const file = camera.files?.[0];
-    const id = delivering;
-    delivering = null;
-    if (file && id) confirmPhoto(id, file);
-  });
   const onVisible = () => { if (!document.hidden && !busy) load(); };
   document.addEventListener('visibilitychange', onVisible);
 
