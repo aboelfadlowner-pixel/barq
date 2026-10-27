@@ -10,7 +10,11 @@
 --     (several orders = one trip). The branch no longer types the driver.
 --   • At the customer: «سلّمت» with a photo (bag + ticket) and his place.
 --     The time is the server's.
---   • The branch taps «الطيار رجع» when he is back (one tap for the whole trip).
+--   • The DRIVER taps «رجعت الفرع» when he is back (one tap for the whole trip);
+--     his place is kept, and the return is marked «بعيد عن الفرع» when he is
+--     more than the set distance from the branch (place set once by the admin).
+--   • The ADMIN adds the drivers (name + mobile) from the admin page; each driver
+--     gets a personal link (no password, no e-mail). A new link stops the old one.
 --   • The admin sees the times, the photo and the place, and a delivery report;
 --     the admin can record a step for a driver who forgot (marked as such).
 --   • Photos are kept 30 days (storage: 18b_driver_photos_storage.sql).
@@ -27,6 +31,19 @@
 alter table public.cc_staff drop constraint if exists cc_staff_role_check;
 alter table public.cc_staff add constraint cc_staff_role_check check (role in ('admin', 'call_center', 'prep', 'driver'));
 alter table public.cc_staff add column if not exists phone text;
+alter table public.cc_staff add column if not exists login_token_hash text;           -- the driver's personal link (sha256)
+create unique index if not exists cc_staff_login_token_idx on public.cc_staff (login_token_hash) where login_token_hash is not null;
+
+-- The branch's place (set once by the admin) for «بعيد عن الفرع».
+create table if not exists public.cc_branch (
+  id         integer primary key default 1 check (id = 1),
+  lat        double precision not null,
+  lng        double precision not null,
+  radius_m   integer not null default 300 check (radius_m between 50 and 5000),
+  updated_at timestamptz not null default now()
+);
+alter table public.cc_branch enable row level security;
+revoke all on public.cc_branch from anon, authenticated, public;
 
 alter table public.cc_orders add column if not exists driver_user_id uuid references auth.users(id);
 alter table public.cc_orders add column if not exists trip_id        uuid;
@@ -51,6 +68,11 @@ create table if not exists public.cc_order_delivery (
   returned_by_name text,
   returned_admin  boolean not null default false
 );
+alter table public.cc_order_delivery add column if not exists returned_lat        double precision;
+alter table public.cc_order_delivery add column if not exists returned_lng        double precision;
+alter table public.cc_order_delivery add column if not exists returned_accuracy_m double precision;
+alter table public.cc_order_delivery add column if not exists returned_distance_m integer;
+alter table public.cc_order_delivery add column if not exists returned_far        boolean;
 alter table public.cc_order_delivery enable row level security;
 revoke all on public.cc_order_delivery from anon, authenticated, public;
 
@@ -60,7 +82,9 @@ returns text
 language sql stable security definer
 set search_path = ''
 as $$
-  select coalesce(a.name, u.email::text) || coalesce(' (' || s.phone || ')', '')
+  -- drivers keep their name on cc_staff (they are not call-center employee names)
+  select coalesce(case when s.role = 'driver' then nullif(btrim(s.display_name), '') end, a.name, u.email::text)
+         || coalesce(' (' || s.phone || ')', '')
     from public.cc_staff s
     left join public.cc_agents a on a.id = s.agent_id
     left join auth.users u on u.id = s.user_id
@@ -389,55 +413,227 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Branch: the drivers out now, and «الطيار رجع» (the whole trip).
+-- Distance in metres between two places (good enough for a few km).
 -- ---------------------------------------------------------------------
-create or replace function public.cc_drivers_out()
-returns table (user_id uuid, label text, orders integer, delivered integer, first_out_at timestamptz)
-language plpgsql stable security definer
+create or replace function public.cc_distance_m(lat1 double precision, lng1 double precision,
+                                                lat2 double precision, lng2 double precision)
+returns integer
+language sql immutable security definer
 set search_path = ''
 as $$
-begin
-  if coalesce(public.cc_my_role(), '') not in ('prep', 'admin') then
-    raise exception 'للفرع بس' using errcode = '42501';
-  end if;
-  return query
-    select o.driver_user_id, min(o.driver), count(*)::int, count(d.delivered_at)::int, min(o.out_at)
-      from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
-     where o.stage = 'out' and o.driver_user_id is not null and d.returned_at is null
-       and o.out_at > now() - interval '1 day'
-     group by o.driver_user_id
-     order by min(o.out_at);
-end;
+  select round(2 * 6371000 * asin(sqrt(
+           power(sin(radians(lat2 - lat1) / 2), 2)
+         + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2))))::integer
 $$;
 
-create or replace function public.cc_driver_returned(p_driver uuid)
-returns integer
+-- ---------------------------------------------------------------------
+-- Driver: «رجعت الفرع» — every order of his still out (today) is back now,
+-- with his place; «بعيد عن الفرع» when farther than the branch radius.
+-- Returns { orders, distance_m, far }.
+-- ---------------------------------------------------------------------
+create or replace function public.cc_driver_returned(p_lat double precision, p_lng double precision, p_accuracy double precision)
+returns jsonb
 language plpgsql security definer
 set search_path = ''
 as $$
 declare
-  v_name text;
+  v_me   public.cc_staff := public.cc_require_driver();
+  v_b    public.cc_branch;
+  v_dist integer;
+  v_far  boolean;
   v_n    int;
 begin
-  if coalesce(public.cc_my_role(), '') not in ('prep', 'admin') then
-    raise exception 'للفرع بس' using errcode = '42501';
+  if p_lat is not null and (p_lat not between -90 and 90 or p_lng not between -180 and 180) then
+    p_lat := null; p_lng := null; p_accuracy := null;
   end if;
-  select u.email::text into v_name from auth.users u where u.id = auth.uid();
-  insert into public.cc_order_delivery (order_id, returned_at, returned_by, returned_by_name)
-  select o.id, now(), auth.uid(), v_name
+  select * into v_b from public.cc_branch where id = 1;
+  if found and p_lat is not null then
+    v_dist := public.cc_distance_m(v_b.lat, v_b.lng, p_lat, p_lng);
+    v_far := v_dist - least(coalesce(p_accuracy, 0), 200) > v_b.radius_m;   -- a poor GPS reading does not count against him (up to 200 m)
+  end if;
+  insert into public.cc_order_delivery (order_id, returned_at, returned_by, returned_by_name,
+                                        returned_lat, returned_lng, returned_accuracy_m, returned_distance_m, returned_far)
+  select o.id, now(), auth.uid(), public.cc_driver_label(v_me.user_id), p_lat, p_lng, p_accuracy, v_dist, v_far
     from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
-   where o.driver_user_id = p_driver and o.stage = 'out' and d.returned_at is null
+   where o.driver_user_id = v_me.user_id and o.stage = 'out' and d.returned_at is null
      and o.out_at > now() - interval '1 day'
   on conflict (order_id) do update
-     set returned_at = excluded.returned_at, returned_by = excluded.returned_by,
-         returned_by_name = excluded.returned_by_name
+     set returned_at = excluded.returned_at, returned_by = excluded.returned_by, returned_by_name = excluded.returned_by_name,
+         returned_lat = excluded.returned_lat, returned_lng = excluded.returned_lng, returned_accuracy_m = excluded.returned_accuracy_m,
+         returned_distance_m = excluded.returned_distance_m, returned_far = excluded.returned_far, returned_admin = false
    where public.cc_order_delivery.returned_at is null;
   get diagnostics v_n = row_count;
   if v_n = 0 then
-    raise exception 'الطيار ده مش معاه طلبات دلوقتي' using errcode = '22023', hint = 'stale';
+    raise exception 'مفيش طلبات معاك دلوقتي' using errcode = '22023', hint = 'stale';
   end if;
-  return v_n;
+  return jsonb_build_object('orders', v_n, 'distance_m', v_dist, 'far', coalesce(v_far, false));
 end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Admin: the branch's place (set once; «بعيد عن الفرع» compares with it).
+-- ---------------------------------------------------------------------
+create or replace function public.cc_branch_place()
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_b public.cc_branch;
+begin
+  if not public.cc_is_admin() then
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  select * into v_b from public.cc_branch where id = 1;
+  return case when found then jsonb_build_object('lat', v_b.lat, 'lng', v_b.lng, 'radius_m', v_b.radius_m, 'updated_at', v_b.updated_at) end;
+end;
+$$;
+
+create or replace function public.cc_set_branch_place(p_lat double precision, p_lng double precision)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if not public.cc_is_admin() then
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  if p_lat is null or p_lng is null or p_lat not between 21 and 32 or p_lng not between 24 and 37 then
+    raise exception 'المكان مش في مصر — انسخ الإحداثيات من خرائط جوجل (مثال: 31.1234, 29.8123)' using errcode = '22023', hint = 'place';
+  end if;
+  insert into public.cc_branch (id, lat, lng) values (1, p_lat, p_lng)
+  on conflict (id) do update set lat = excluded.lat, lng = excluded.lng, updated_at = now();
+  return true;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Admin: the drivers (added from the admin page, not through sign-up).
+-- The login account itself is made by the cc-drivers function (server side);
+-- these functions keep the name, mobile, link and on/off.
+-- ---------------------------------------------------------------------
+create or replace function public.cc_admin_drivers()
+returns table (user_id uuid, name text, phone text, active boolean, has_link boolean, created_at timestamptz,
+               last_out_at timestamptz)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  if not public.cc_is_admin() then
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  return query
+    select s.user_id, s.display_name, s.phone, s.active, s.login_token_hash is not null, s.created_at,
+           (select max(o.out_at) from public.cc_orders o where o.driver_user_id = s.user_id)
+      from public.cc_staff s
+     where s.role = 'driver'
+     order by s.active desc, s.display_name;
+end;
+$$;
+
+-- A new personal link: the old one stops working and his open sessions end.
+-- Returns the link's secret ONCE (only its hash is kept).
+create or replace function public.cc_new_driver_link(p_user_id uuid)
+returns text
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_token text := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
+begin
+  if not public.cc_is_admin() and coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role', 'service_role') <> 'service_role' then
+    -- (no JWT at all = the server itself / SQL editor)
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  update public.cc_staff set login_token_hash = encode(pg_catalog.sha256(convert_to(v_token, 'UTF8')), 'hex')
+   where user_id = p_user_id and role = 'driver';
+  if not found then
+    raise exception 'الطيار غير موجود' using errcode = 'P0002';
+  end if;
+  if to_regclass('auth.refresh_tokens') is not null then        -- end the sessions opened with the old link
+    execute 'update auth.refresh_tokens set revoked = true where user_id = $1 and not revoked' using p_user_id::text;
+  end if;
+  return v_token;
+end;
+$$;
+
+-- Name / mobile / on-off. Stopping a driver also ends his link.
+create or replace function public.cc_admin_update_driver(p_user_id uuid, p_name text, p_phone text, p_active boolean)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_name  text := btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g'));
+  v_phone text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_staff public.cc_staff;
+begin
+  if not public.cc_is_admin() then
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  select * into v_staff from public.cc_staff where user_id = p_user_id and role = 'driver';
+  if not found then
+    raise exception 'الطيار غير موجود' using errcode = 'P0002';
+  end if;
+  if char_length(v_name) not between 2 and 40 then
+    raise exception 'اكتب اسم الطيار' using errcode = '22023', hint = 'name';
+  end if;
+  if v_phone !~ '^0[0-9]{8,10}$' then
+    raise exception 'رقم الموبايل غير صحيح — مثال: 01012345678' using errcode = '22023', hint = 'phone';
+  end if;
+  if exists (select 1 from public.cc_staff x where x.role = 'driver' and lower(btrim(x.display_name)) = lower(v_name) and x.user_id <> p_user_id) then
+    raise exception 'فيه طيار بنفس الاسم' using errcode = '23505', hint = 'name';
+  end if;
+  update public.cc_staff
+     set display_name = v_name, phone = v_phone, active = coalesce(p_active, active),
+         login_token_hash = case when coalesce(p_active, active) then login_token_hash end
+   where user_id = p_user_id;
+  if not coalesce(p_active, true) and to_regclass('auth.refresh_tokens') is not null then
+    execute 'update auth.refresh_tokens set revoked = true where user_id = $1 and not revoked' using p_user_id::text;
+  end if;
+  -- orders still out carry the new label
+  update public.cc_orders set driver = public.cc_driver_label(p_user_id)
+   where driver_user_id = p_user_id and stage in ('at_cashier', 'out')
+     and not exists (select 1 from public.cc_order_delivery d where d.order_id = cc_orders.id and d.returned_at is not null);
+  return true;
+end;
+$$;
+
+-- Server side only (cc-drivers function, after it made the login account):
+-- the driver's name, mobile and first link. Returns the link's secret.
+create or replace function public.cc_driver_setup(p_user_id uuid, p_name text, p_phone text)
+returns text
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_name  text := btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g'));
+  v_phone text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+begin
+  if char_length(v_name) not between 2 and 40 then
+    raise exception 'اكتب اسم الطيار' using errcode = '22023', hint = 'name';
+  end if;
+  if v_phone !~ '^0[0-9]{8,10}$' then
+    raise exception 'رقم الموبايل غير صحيح — مثال: 01012345678' using errcode = '22023', hint = 'phone';
+  end if;
+  if exists (select 1 from public.cc_staff x where x.role = 'driver' and lower(btrim(x.display_name)) = lower(v_name)) then
+    raise exception 'فيه طيار بنفس الاسم' using errcode = '23505', hint = 'name';
+  end if;
+  insert into public.cc_staff (user_id, display_name, role, phone, active)
+  values (p_user_id, v_name, 'driver', v_phone, true);
+  return public.cc_new_driver_link(p_user_id);
+end;
+$$;
+
+-- Server side only (cc-drivers function): which login a personal link opens.
+create or replace function public.cc_driver_by_link(p_token text)
+returns uuid
+language sql stable security definer
+set search_path = ''
+as $$
+  select s.user_id from public.cc_staff s
+   where s.role = 'driver' and s.active and s.login_token_hash is not null
+     and s.login_token_hash = encode(pg_catalog.sha256(convert_to(coalesce(p_token, ''), 'UTF8')), 'hex')
 $$;
 
 -- ---------------------------------------------------------------------
@@ -541,7 +737,9 @@ begin
       'trip_id', o.trip_id, 'trip_seq', o.trip_seq, 'trip_size', o.trip_size,
       'delivered_at', d.delivered_at, 'delivered_admin', coalesce(d.delivered_admin, false),
       'photo_path', d.photo_path, 'lat', d.lat, 'lng', d.lng, 'accuracy_m', d.accuracy_m,
-      'returned_at', d.returned_at, 'returned_admin', coalesce(d.returned_admin, false), 'returned_by_name', d.returned_by_name)
+      'returned_at', d.returned_at, 'returned_admin', coalesce(d.returned_admin, false), 'returned_by_name', d.returned_by_name,
+      'returned_lat', d.returned_lat, 'returned_lng', d.returned_lng, 'returned_distance_m', d.returned_distance_m,
+      'returned_far', d.returned_far)
       from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
      where o.out_at >= v_from and o.out_at < v_to and o.status <> 'cancelled'
      order by o.out_at desc, o.trip_seq;
@@ -565,7 +763,9 @@ begin
       'out_by_admin', o.out_by_admin, 'trip_seq', o.trip_seq, 'trip_size', o.trip_size, 'assigned_at', o.assigned_at,
       'delivered_at', d.delivered_at, 'delivered_admin', coalesce(d.delivered_admin, false),
       'returned_at', d.returned_at, 'returned_admin', coalesce(d.returned_admin, false))
-    || case when v_admin then jsonb_build_object('photo_path', d.photo_path, 'lat', d.lat, 'lng', d.lng, 'accuracy_m', d.accuracy_m)
+    || case when v_admin then jsonb_build_object('photo_path', d.photo_path, 'lat', d.lat, 'lng', d.lng, 'accuracy_m', d.accuracy_m,
+                                                 'returned_lat', d.returned_lat, 'returned_lng', d.returned_lng,
+                                                 'returned_distance_m', d.returned_distance_m, 'returned_far', d.returned_far)
             else '{}'::jsonb end
     into v_r
     from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
@@ -580,8 +780,15 @@ revoke all on function public.cc_driver_orders()                        from pub
 revoke all on function public.cc_driver_take()                          from public, anon;
 revoke all on function public.cc_assign_driver(uuid, uuid)              from public, anon;
 revoke all on function public.cc_driver_delivered(uuid, text, double precision, double precision, double precision) from public, anon;
-revoke all on function public.cc_drivers_out()                          from public, anon;
-revoke all on function public.cc_driver_returned(uuid)                  from public, anon;
+revoke all on function public.cc_driver_returned(double precision, double precision, double precision) from public, anon;
+revoke all on function public.cc_branch_place()                         from public, anon;
+revoke all on function public.cc_set_branch_place(double precision, double precision) from public, anon;
+revoke all on function public.cc_admin_drivers()                        from public, anon;
+revoke all on function public.cc_new_driver_link(uuid)                  from public, anon;
+revoke all on function public.cc_admin_update_driver(uuid, text, text, boolean) from public, anon;
+revoke all on function public.cc_driver_setup(uuid, text, text)         from public, anon, authenticated;
+revoke all on function public.cc_driver_by_link(text)                   from public, anon, authenticated;
+revoke all on function public.cc_distance_m(double precision, double precision, double precision, double precision) from public, anon;
 revoke all on function public.cc_admin_delivery(uuid, text, uuid)       from public, anon;
 revoke all on function public.cc_list_drivers()                         from public, anon;
 revoke all on function public.cc_delivery_report(date, date)            from public, anon;
@@ -592,8 +799,19 @@ grant execute on function public.cc_driver_orders()                     to authe
 grant execute on function public.cc_driver_take()                       to authenticated;
 grant execute on function public.cc_assign_driver(uuid, uuid)           to authenticated;
 grant execute on function public.cc_driver_delivered(uuid, text, double precision, double precision, double precision) to authenticated;
-grant execute on function public.cc_drivers_out()                       to authenticated;
-grant execute on function public.cc_driver_returned(uuid)               to authenticated;
+grant execute on function public.cc_driver_returned(double precision, double precision, double precision) to authenticated;
+grant execute on function public.cc_branch_place()                      to authenticated;
+grant execute on function public.cc_set_branch_place(double precision, double precision) to authenticated;
+grant execute on function public.cc_admin_drivers()                     to authenticated;
+grant execute on function public.cc_new_driver_link(uuid)               to authenticated;
+grant execute on function public.cc_admin_update_driver(uuid, text, text, boolean) to authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'grant execute on function public.cc_driver_setup(uuid, text, text) to service_role';
+    execute 'grant execute on function public.cc_driver_by_link(text) to service_role';
+    execute 'grant execute on function public.cc_new_driver_link(uuid) to service_role';
+  end if;
+end $$;
 grant execute on function public.cc_admin_delivery(uuid, text, uuid)    to authenticated;
 grant execute on function public.cc_list_drivers()                      to authenticated;
 grant execute on function public.cc_delivery_report(date, date)         to authenticated;

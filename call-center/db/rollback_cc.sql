@@ -21,8 +21,15 @@ drop function if exists public.cc_driver_orders();
 drop function if exists public.cc_driver_take();
 drop function if exists public.cc_assign_driver(uuid, uuid);
 drop function if exists public.cc_driver_delivered(uuid, text, double precision, double precision, double precision);
-drop function if exists public.cc_drivers_out();
-drop function if exists public.cc_driver_returned(uuid);
+drop function if exists public.cc_driver_returned(double precision, double precision, double precision);
+drop function if exists public.cc_branch_place();
+drop function if exists public.cc_set_branch_place(double precision, double precision);
+drop function if exists public.cc_admin_drivers();
+drop function if exists public.cc_new_driver_link(uuid);
+drop function if exists public.cc_admin_update_driver(uuid, text, text, boolean);
+drop function if exists public.cc_driver_setup(uuid, text, text);
+drop function if exists public.cc_driver_by_link(text);
+drop function if exists public.cc_distance_m(double precision, double precision, double precision, double precision);
 drop function if exists public.cc_admin_delivery(uuid, text, uuid);
 drop function if exists public.cc_list_drivers();
 drop function if exists public.cc_delivery_report(date, date);
@@ -61,6 +68,7 @@ drop table    if exists public.cc_order_stage_events, public.cc_order_edits;
 drop table    if exists public.cc_product_modifiers, public.cc_modifier_options, public.cc_modifier_groups;
 drop table    if exists public.cc_blocked_phones;
 drop table    if exists public.cc_order_delivery;
+drop table    if exists public.cc_branch;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;
 drop function if exists public.cc_is_staff();  -- after the tables whose policies use it
