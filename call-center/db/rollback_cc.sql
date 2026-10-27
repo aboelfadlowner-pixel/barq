@@ -32,6 +32,7 @@ drop function if exists public.cc_driver_by_link(text);
 drop function if exists public.cc_distance_m(double precision, double precision, double precision, double precision);
 drop function if exists public.cc_admin_delivery(uuid, text, uuid);
 drop function if exists public.cc_list_drivers();
+drop function if exists public.cc_prep_deliveries();
 drop function if exists public.cc_delivery_report(date, date);
 drop function if exists public.cc_order_delivery_of(uuid);
 drop function if exists public.cc_require_driver();

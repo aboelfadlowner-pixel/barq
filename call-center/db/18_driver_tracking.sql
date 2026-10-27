@@ -695,6 +695,25 @@ begin
 end;
 $$;
 
+-- Branch: what happened to the orders that left today — «اتسلّم» and «رجع الفرع» (times only,
+-- no photo, no place), so the prep screen shows when the driver is back.
+create or replace function public.cc_prep_deliveries()
+returns table (order_id uuid, delivered_at timestamptz, returned_at timestamptz)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(public.cc_my_role(), '') not in ('prep', 'admin') then
+    raise exception 'للفرع بس' using errcode = '42501';
+  end if;
+  return query
+    select d.order_id, d.delivered_at, d.returned_at
+      from public.cc_order_delivery d
+      join public.cc_orders o on o.id = d.order_id
+     where o.out_at > now() - interval '24 hours';
+end;
+$$;
+
 -- Active drivers (admin picks one when recording «خرج» for a driver).
 create or replace function public.cc_list_drivers()
 returns table (user_id uuid, label text)
@@ -791,6 +810,7 @@ revoke all on function public.cc_driver_by_link(text)                   from pub
 revoke all on function public.cc_distance_m(double precision, double precision, double precision, double precision) from public, anon;
 revoke all on function public.cc_admin_delivery(uuid, text, uuid)       from public, anon;
 revoke all on function public.cc_list_drivers()                         from public, anon;
+revoke all on function public.cc_prep_deliveries()                      from public, anon;
 revoke all on function public.cc_delivery_report(date, date)            from public, anon;
 revoke all on function public.cc_order_delivery_of(uuid)                from public, anon;
 grant execute on function public.cc_set_phone(uuid, text)               to authenticated;
@@ -814,5 +834,6 @@ do $$ begin
 end $$;
 grant execute on function public.cc_admin_delivery(uuid, text, uuid)    to authenticated;
 grant execute on function public.cc_list_drivers()                      to authenticated;
+grant execute on function public.cc_prep_deliveries()                   to authenticated;
 grant execute on function public.cc_delivery_report(date, date)         to authenticated;
 grant execute on function public.cc_order_delivery_of(uuid)             to authenticated;

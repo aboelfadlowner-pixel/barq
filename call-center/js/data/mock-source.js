@@ -288,7 +288,7 @@ const DEMO_PHOTO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="ht
       const returnedAt = deliveredAt + (8 + (i * 5) % 25) * 60000;
       deliveries.set(o.id, { deliveredAt: new Date(deliveredAt).toISOString(), photo: DEMO_PHOTO,
         lat: 31.12 + i / 1000, lng: 29.79 + i / 1000, accuracy: 15, deliveredAdmin: false,
-        returnedAt: returnedAt < Date.now() && i < outs.length - 1 ? new Date(returnedAt).toISOString() : null, returnedAdmin: false,
+        returnedAt: returnedAt < Date.now() && i !== outs.length - 2 ? new Date(returnedAt).toISOString() : null, returnedAdmin: false,
         returnedLat: 31.1100 + (i % 4 === 3 ? 0.012 : 0.0005), returnedLng: 29.7800, returnedDistance: i % 4 === 3 ? 1340 : 56, returnedFar: i % 4 === 3 });
     }
   });
@@ -418,6 +418,7 @@ export function setBranchPlace(lat, lng) {
   Object.assign(branch, { lat, lng, updatedAt: new Date().toISOString() });
   return resolve(true);
 }
+export const prepDeliveries = () => resolve(new Map([...deliveries].map(([id, d]) => [id, { deliveredAt: d.deliveredAt ?? null, returnedAt: d.returnedAt ?? null }])));
 export const listDrivers = () => resolve(staff.filter((s) => s.role === 'driver' && s.active).map((s) => ({ userId: s.id, label: driverLabel(s.id) })));
 export function adminDelivery(id, what, driverId) {
   const o = orders.find((x) => x.id === id);

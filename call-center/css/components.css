@@ -776,3 +776,8 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
   .drivers-table td { padding: 0; border: 0; }
   .drivers-table td:first-child { grid-column: 1 / -1; }
 }
+/* Prep: what happened to an order that left */
+.po-back-in, .po-delivered, .po-onway { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 14px; border-radius: 8px; padding: 6px 8px; }
+.po-back-in { background: #e7f6ec; color: #17663a; }
+.po-delivered { background: #fff6e0; color: #7a5300; }
+.po-onway { padding-inline: 0; }

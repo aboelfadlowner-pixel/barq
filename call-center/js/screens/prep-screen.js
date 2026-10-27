@@ -1,7 +1,8 @@
 /* Preparation screen (branch, prep account): the orders sent by the call center in three
    columns — جديد / بيتجهز / على الكاشير — with ONE big button per order that moves it on:
    استلمت وبدأت التجهيز → وصل الكاشير → «اختيار الطيار» (can be changed until he leaves).
-   «خرجت» and «رجعت الفرع» are the driver's own taps on his phone (18_driver_tracking.sql).
+   «خرجت» and «رجعت الفرع» are the driver's own taps on his phone (18_driver_tracking.sql);
+   the «خرج مع الطيار» column shows «اتسلّم» / «رجع الفرع» on each order, with a ring when he is back.
    A wrong tap can be undone one step.
    The call center sees every change on its board. This screen does not print (the call
    center prints the ticket and hands it over). It checks for changes every few seconds and
@@ -72,7 +73,15 @@ function changeLine(c) {
 }
 const editUnseen = (o) => o.editedAt && o.status !== 'cancelled' && (!o.editSeenAt || o.editSeenAt < o.editedAt);
 
-function prepCard(o, busy, checks = {}) {
+const driverName = (label) => String(label || '').replace(/\s*\(.*\)$/, '');
+/* An order that left: still with the driver → delivered → back at the branch. */
+function outStatus(o, d) {
+  if (d?.returnedAt) return `<div class="po-back-in">${icon('check')}<span><strong>رجع الفرع</strong> <span class="num">${formatTime(d.returnedAt)}</span></span></div>`;
+  if (d?.deliveredAt) return `<div class="po-delivered">${icon('check')}<span>اتسلّم للعميل <span class="num">${formatTime(d.deliveredAt)}</span> — لسه مرجعش</span></div>`;
+  return `<div class="po-onway muted">${icon('clock')}<span>مع الطيار — لسه ما اتسلّمش</span></div>`;
+}
+
+function prepCard(o, busy, checks = {}, del = null) {
   const cancelled = o.status === 'cancelled';
   const next = cancelled || nextOf(o.stage)?.id === 'out' ? null : nextOf(o.stage);   // «خرج»: the driver taps it
   const prev = cancelled ? null : prevOf(o.stage);
@@ -105,19 +114,20 @@ function prepCard(o, busy, checks = {}) {
         ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
            <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`
         : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
-      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
+      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>
+        ${outStatus(o, del)}` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
       ${prev ? `<button type="button" class="link-btn po-back" data-back="${prev.id}" ${busy ? 'disabled' : ''}>رجوع لـ «${esc(prev.label)}»</button>` : ''}
     </article>`;
 }
 
-function column(stage, list, busyId) {
+function column(stage, list, busyId, dels = new Map()) {
   const st = stageOf(stage);
   return `
     <section class="p-col">
       <header class="b-col-head p-col-head tone-head-${st.id}"><h2>${st.label}</h2><span class="b-count num">${list.length}</span></header>
-      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks())).join('') : '<div class="b-empty">لا توجد طلبات</div>'}</div>
+      <div class="p-col-body">${list.length ? list.map((o) => prepCard(o, o.id === busyId, readChecks(), dels.get(o.id))).join('') : '<div class="b-empty">لا توجد طلبات</div>'}</div>
     </section>`;
 }
 
@@ -141,6 +151,8 @@ export function mountPrep(view) {
   const cols = view.querySelector('[data-cols]');
   const soundBtn = view.querySelector('[data-sound]');
   let orders = [];
+  let dels = new Map();      // order id → { deliveredAt, returnedAt } (orders that left)
+  let backSeen = null;       // orders already shown as back (null until the first load: no ring on open)
   let known = null;          // order ids seen so far (null until the first load: no ring on open)
   const editsSeen = new Map(); // order id → last edit time already announced
   let busyId = null;
@@ -165,14 +177,15 @@ export function mountPrep(view) {
     const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled')
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
     cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
-      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
+      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId, dels);
   };
 
   const load = async () => {
     try {
       // CONFIRMED: only this working day's orders (it ends at 2 AM) — the screen starts empty after 2 AM,
       // older orders are not shown even if nobody moved them on.
-      const list = (await ds.listPrepOrders()).filter((o) => inWorkDay(o.createdAt));
+      const [all, d] = await Promise.all([ds.listPrepOrders(), ds.prepDeliveries().catch(() => dels)]);
+      const list = all.filter((o) => inWorkDay(o.createdAt));
       if (stopped) return;
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
       const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);
@@ -183,13 +196,19 @@ export function mountPrep(view) {
         writeChecks(Object.fromEntries(Object.entries(checks).filter(([id]) => known.has(id))));
       }
       list.forEach((o) => editsSeen.set(o.id, o.editedAt || null));
+      // «رجع الفرع»: the drivers who came back since the last check (one name per trip)
+      const backNow = list.filter((o) => o.stage === 'out' && d.get(o.id)?.returnedAt);
+      const cameBack = backSeen ? [...new Set(backNow.filter((o) => !backSeen.has(o.id)).map((o) => driverName(o.driver)).filter(Boolean))] : [];
+      backSeen = new Set(backNow.map((o) => o.id));
+      dels = d;
       orders = list;
       render();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
-      if (fresh.length || edited.length) {
+      if (fresh.length || edited.length || cameBack.length) {
         if (soundOn()) ring();
         showToast([fresh.length ? (fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`) : '',
-          edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : ''].filter(Boolean).join(' · '));
+          edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : '',
+          cameBack.length ? `${cameBack.join(' و')} رجع الفرع` : ''].filter(Boolean).join(' · '));
       }
     } catch (err) {
       if (stopped) return;

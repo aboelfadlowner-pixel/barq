@@ -1408,6 +1408,21 @@ do $$ declare r jsonb; begin
   if jsonb_array_length(public.cc_driver_orders()->'mine') <> 0 then raise exception 'FAIL T40 returned orders still mine'; end if;
 end $$;
 reset role;
+-- the branch sees he is back (times only)
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if (select count(*) from public.cc_prep_deliveries() where returned_at is not null
+       and order_id in (current_setting('cc.o1')::uuid, current_setting('cc.o2')::uuid)) <> 2 then raise exception 'FAIL T40 branch does not see the return'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_prep_deliveries(); raise exception 'FAIL T40 driver read branch deliveries';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
 -- the second driver returns AT the branch (accuracy does not count against him) → not far
 update public.cc_orders set stage = 'out', out_at = now(), driver_user_id = current_setting('cc.drvb')::uuid
  where id = current_setting('cc.o1')::uuid and false;   -- (no order: nothing to return)
@@ -1463,6 +1478,6 @@ do $$ declare r jsonb; d jsonb; begin
   if (public.cc_branch_place()->>'lat')::float <> 31.1 then raise exception 'FAIL T40 branch place'; end if;
   select x into r from public.cc_delivery_report(current_date - 1, current_date + 1) x where x->>'id' = current_setting('cc.o2');
   if r->>'returned_far' <> 'true' or r->>'returned_lat' is null then raise exception 'FAIL T40 report return place %', r; end if;
-  raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place, «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
+  raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place (the branch sees it), «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
 end $$;
 rollback;

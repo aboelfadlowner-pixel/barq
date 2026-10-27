@@ -351,6 +351,13 @@ export async function setBranchPlace(lat, lng) {
   const c = await sb();
   return ok(await c.rpc('cc_set_branch_place', { p_lat: lat, p_lng: lng }));
 }
+/* Branch: «اتسلّم» / «رجع الفرع» times of today's orders that left (order id → times). */
+export async function prepDeliveries() {
+  const c = await sb();
+  const res = await c.rpc('cc_prep_deliveries');
+  if (res.error) return new Map();
+  return new Map(res.data.map((r) => [r.order_id, { deliveredAt: r.delivered_at || null, returnedAt: r.returned_at || null }]));
+}
 export async function listDrivers() {
   const c = await sb();
   const res = await c.rpc('cc_list_drivers');
