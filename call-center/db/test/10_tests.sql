@@ -1397,6 +1397,32 @@ do $$ begin
   if (select driver_user_id is not null or assigned_at is not null from public.cc_orders where id = current_setting('cc.o3')::uuid) then raise exception 'FAIL T40 pick kept after going back'; end if;
 end $$;
 
+-- «الطيارين دلوقتي»: his screen sends his place while he is out; the admin sees it; nobody else
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if public.cc_driver_ping(31.2050, 29.9010, 12) is not true then raise exception 'FAIL T40 ping while out'; end if;
+  perform public.cc_driver_ping(1, 1, 5);              -- again within 15 s: kept the first
+  if public.cc_driver_ping(null, null, null) then raise exception 'FAIL T40 empty ping'; end if;
+  begin perform public.cc_drivers_now(); raise exception 'FAIL T40 driver saw drivers now';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drvb'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if public.cc_driver_ping(31.2, 29.9, 10) then raise exception 'FAIL T40 place kept with nothing out'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r record; begin
+  select * into r from public.cc_drivers_now() where user_id = current_setting('cc.drv')::uuid;
+  if r.orders <> 2 or r.lat <> 31.2050 or r.seen_at is null or r.name <> 'طيار 40' then raise exception 'FAIL T40 drivers now %', r; end if;
+  if exists (select 1 from public.cc_drivers_now() where user_id = current_setting('cc.drvb')::uuid) then raise exception 'FAIL T40 driver not out listed'; end if;
+end $$;
+reset role;
+
 -- the driver taps «رجعت الفرع» 1.1 km away from the branch → «بعيد عن الفرع»; again → nothing left
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -1406,6 +1432,7 @@ do $$ declare r jsonb; begin
   begin perform public.cc_driver_returned(31.2, 29.9, 10); raise exception 'FAIL T40 returned twice';
   exception when invalid_parameter_value then null; end;
   if jsonb_array_length(public.cc_driver_orders()->'mine') <> 0 then raise exception 'FAIL T40 returned orders still mine'; end if;
+  if public.cc_driver_ping(31.2, 29.9, 10) then raise exception 'FAIL T40 place kept after «رجعت الفرع»'; end if;
 end $$;
 reset role;
 -- the branch sees he is back (times only)
@@ -1478,6 +1505,6 @@ do $$ declare r jsonb; d jsonb; begin
   if (public.cc_branch_place()->>'lat')::float <> 31.1 then raise exception 'FAIL T40 branch place'; end if;
   select x into r from public.cc_delivery_report(current_date - 1, current_date + 1) x where x->>'id' = current_setting('cc.o2');
   if r->>'returned_far' <> 'true' or r->>'returned_lat' is null then raise exception 'FAIL T40 report return place %', r; end if;
-  raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place (the branch sees it), «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
+  raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place (the branch sees it), his place while out for the admin only, «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
 end $$;
 rollback;

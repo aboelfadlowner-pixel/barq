@@ -6,7 +6,10 @@
    photo of the bag with the ticket showing, and the server records the time (and his place).
    CONFIRMED: back at the branch HE taps «رجعت الفرع» — his place is recorded, and the admin
    sees «بعيد عن الفرع» when it is far from the branch. He opens this screen with his own link
-   (no password); the admin adds him with his mobile. */
+   (no password); the admin adds him with his mobile.
+   CONFIRMED: while he has orders out (between «خرجت» and «رجعت الفرع») this screen sends his
+   place about once a minute for «الطيارين دلوقتي» (admin only). A web page stops sending when the
+   phone is locked — the admin then sees how old the last place is. */
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
@@ -14,6 +17,7 @@ import { icon } from '../components/icons.js';
 import { openModal, showToast } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
+const PING_MS = 60000;   // his place, about once a minute while he is out
 
 const addressHtml = (a) => `
   <div class="dr-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
@@ -109,6 +113,27 @@ export function mountDriver(view) {
   let busy = false;
   let timer = null;
   let stopped = false;
+  let watchId = null;
+  let lastPos = null;
+  let lastSent = 0;
+
+  // His place while he is out: watch the GPS, send at most once a minute; stop when he is back.
+  const sendPlace = () => {
+    if (!lastPos || Date.now() - lastSent < PING_MS) return;
+    lastSent = Date.now();
+    ds.driverPing(lastPos).catch(() => {});
+  };
+  const syncTracking = () => {
+    const out = !stopped && !!data?.mine.length;
+    if (out && watchId == null && navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (p) => { lastPos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }; sendPlace(); },
+        () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 30000 });
+    } else if (!out && watchId != null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null; lastPos = null;
+    }
+  };
 
   function render() {
     const { ready, mine } = data;
@@ -141,6 +166,7 @@ export function mountDriver(view) {
           </article>`).join('')
           : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
         ${mine.length ? `
+        <p class="muted dr-track">${icon('pin')}مكانك بيوصل للإدارة أثناء المشوار بس — خلّي الصفحة مفتوحة.</p>
         <button type="button" class="btn ${open.length ? 'btn-secondary' : 'btn-primary'} btn-lg btn-block dr-back" data-back ${busy ? 'disabled' : ''}>${icon('arrowRight')}رجعت الفرع</button>` : ''}
       </section>`;
   }
@@ -151,6 +177,7 @@ export function mountDriver(view) {
       if (stopped) return;
       data = d;
       render();
+      syncTracking();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
     } catch (err) {
       if (stopped) return;
@@ -195,13 +222,18 @@ export function mountDriver(view) {
     }),
     on(view, 'click', '[data-refresh]', () => load()),
   ];
-  const onVisible = () => { if (!document.hidden && !busy) load(); };
+  const onVisible = () => {
+    if (document.hidden) return;
+    lastSent = 0; sendPlace();               // back on the screen: send his place now
+    if (!busy) load();
+  };
   document.addEventListener('visibilitychange', onVisible);
 
   load().then(schedule);
   return () => {
     stopped = true;
     clearTimeout(timer);
+    syncTracking();
     document.removeEventListener('visibilitychange', onVisible);
     offs.forEach((f) => f());
   };

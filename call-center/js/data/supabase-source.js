@@ -351,6 +351,20 @@ export async function setBranchPlace(lat, lng) {
   const c = await sb();
   return ok(await c.rpc('cc_set_branch_place', { p_lat: lat, p_lng: lng }));
 }
+/* The driver's place while he is out (about once a minute); ignored by the server when he is not. */
+export async function driverPing(pos) {
+  const c = await sb();
+  const res = await c.rpc('cc_driver_ping', { p_lat: pos.lat, p_lng: pos.lng, p_accuracy: pos.accuracy ?? null });
+  return !res.error && res.data === true;
+}
+/* Admin: «الطيارين دلوقتي» — the drivers out now with their last place. */
+export async function driversNow() {
+  const c = await sb();
+  const res = await c.rpc('cc_drivers_now');
+  if (res.error?.code === NOT_INSTALLED) return null;
+  return ok(res).map((r) => ({ userId: r.user_id, name: r.name, phone: r.phone || '', orders: r.orders, delivered: r.delivered,
+    outAt: r.out_at, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null, seenAt: r.seen_at || null }));
+}
 /* Branch: «اتسلّم» / «رجع الفرع» times of today's orders that left (order id → times). */
 export async function prepDeliveries() {
   const c = await sb();

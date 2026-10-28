@@ -69,6 +69,9 @@ drop table    if exists public.cc_order_stage_events, public.cc_order_edits;
 drop table    if exists public.cc_product_modifiers, public.cc_modifier_options, public.cc_modifier_groups;
 drop table    if exists public.cc_blocked_phones;
 drop table    if exists public.cc_order_delivery;
+drop function if exists public.cc_driver_ping(double precision, double precision, double precision);
+drop function if exists public.cc_drivers_now();
+drop table    if exists public.cc_driver_location;
 drop table    if exists public.cc_branch;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,
                         public.cc_addresses, public.cc_customers, public.cc_delivery_areas;

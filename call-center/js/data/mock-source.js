@@ -418,6 +418,29 @@ export function setBranchPlace(lat, lng) {
   Object.assign(branch, { lat, lng, updatedAt: new Date().toISOString() });
   return resolve(true);
 }
+/* «الطيارين دلوقتي» (demo): the drivers out now; their last place is made up near the branch. */
+const places = new Map();
+export function driverPing(pos) {
+  const out = orders.some((o) => o.stage === 'out' && o.driverUserId === demoAccount.id && !deliveries.get(o.id)?.returnedAt);
+  if (out) places.set(demoAccount.id, { ...pos, at: new Date().toISOString() });
+  return resolve(out);
+}
+export function driversNow() {
+  const by = new Map();
+  orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && o.driverUserId && !deliveries.get(o.id)?.returnedAt
+    && Date.now() - new Date(o.outAt).getTime() < 86400000).forEach((o) => {
+    const r = by.get(o.driverUserId) ?? { userId: o.driverUserId, orders: 0, delivered: 0, outAt: o.outAt };
+    r.orders += 1; if (deliveries.get(o.id)?.deliveredAt) r.delivered += 1;
+    if (o.outAt < r.outAt) r.outAt = o.outAt;
+    by.set(o.driverUserId, r);
+  });
+  return resolve([...by.values()].map((r, i) => {
+    const s = staff.find((x) => x.id === r.userId) ?? {};
+    const p = places.get(r.userId) ?? { lat: branch.lat + 0.008 + i * 0.004, lng: branch.lng + 0.006 - i * 0.009, accuracy: 20,
+      at: new Date(Date.now() - (i ? 16 : 2) * 60000).toISOString() };   // DEMO: one fresh, one stale
+    return { ...r, name: s.name || '', phone: s.phone || '', lat: p.lat, lng: p.lng, accuracy: p.accuracy, seenAt: p.at };
+  }));
+}
 export const prepDeliveries = () => resolve(new Map([...deliveries].map(([id, d]) => [id, { deliveredAt: d.deliveredAt ?? null, returnedAt: d.returnedAt ?? null }])));
 export const listDrivers = () => resolve(staff.filter((s) => s.role === 'driver' && s.active).map((s) => ({ userId: s.id, label: driverLabel(s.id) })));
 export function adminDelivery(id, what, driverId) {

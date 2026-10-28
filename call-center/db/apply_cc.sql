@@ -3824,4 +3824,78 @@ grant execute on function public.cc_prep_deliveries()                   to authe
 grant execute on function public.cc_delivery_report(date, date)         to authenticated;
 grant execute on function public.cc_order_delivery_of(uuid)             to authenticated;
 
+-- ---------------------------------------------------------------------
+-- «الطيارين دلوقتي» (admin): each driver's LAST place, sent by his screen about once a minute
+-- ONLY while he has orders out (between «خرجت» and «رجعت الفرع»). A web page stops sending when
+-- he locks the phone — the admin then sees «آخر مكان من 15 دقيقة». One row per driver, no trail.
+-- ---------------------------------------------------------------------
+create table if not exists public.cc_driver_location (
+  user_id    uuid primary key references auth.users(id),
+  lat        double precision not null,
+  lng        double precision not null,
+  accuracy_m double precision,
+  at         timestamptz not null default now()
+);
+alter table public.cc_driver_location enable row level security;
+revoke all on public.cc_driver_location from anon, authenticated, public;
+
+-- The driver's screen: his place now. Kept only while he is out; otherwise ignored (false).
+create or replace function public.cc_driver_ping(p_lat double precision, p_lng double precision, p_accuracy double precision)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_me public.cc_staff := public.cc_require_driver();
+begin
+  if p_lat is null or p_lng is null or p_lat not between -90 and 90 or p_lng not between -180 and 180 then
+    return false;
+  end if;
+  if not exists (select 1 from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
+                  where o.driver_user_id = v_me.user_id and o.stage = 'out' and d.returned_at is null
+                    and o.out_at > now() - interval '1 day') then
+    return false;                                   -- not on a trip: his place is not kept
+  end if;
+  insert into public.cc_driver_location (user_id, lat, lng, accuracy_m, at)
+  values (v_me.user_id, p_lat, p_lng, p_accuracy, now())
+  on conflict (user_id) do update
+     set lat = excluded.lat, lng = excluded.lng, accuracy_m = excluded.accuracy_m, at = excluded.at
+   where public.cc_driver_location.at < now() - interval '15 seconds';   -- at most every 15 s
+  return true;
+end;
+$$;
+
+-- Admin: the drivers out now — orders with him, delivered, when he left, and his last place.
+create or replace function public.cc_drivers_now()
+returns table (user_id uuid, name text, phone text, orders integer, delivered integer, out_at timestamptz,
+               lat double precision, lng double precision, accuracy_m double precision, seen_at timestamptz)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  if not public.cc_is_admin() then
+    raise exception 'للأدمن بس' using errcode = '42501';
+  end if;
+  return query
+    select s.user_id, s.display_name, s.phone, count(*)::integer, count(d.delivered_at)::integer, min(o.out_at),
+           -- a place from an earlier trip does not count
+           case when l.at >= min(o.out_at) then l.lat end, case when l.at >= min(o.out_at) then l.lng end,
+           case when l.at >= min(o.out_at) then l.accuracy_m end,
+           case when l.at >= min(o.out_at) then l.at end
+      from public.cc_orders o
+      join public.cc_staff s on s.user_id = o.driver_user_id
+      left join public.cc_order_delivery d on d.order_id = o.id
+      left join public.cc_driver_location l on l.user_id = o.driver_user_id
+     where o.stage = 'out' and o.status <> 'cancelled' and d.returned_at is null
+       and o.out_at > now() - interval '1 day'
+     group by s.user_id, s.display_name, s.phone, l.lat, l.lng, l.accuracy_m, l.at
+     order by min(o.out_at);
+end;
+$$;
+
+revoke all on function public.cc_driver_ping(double precision, double precision, double precision) from public, anon;
+revoke all on function public.cc_drivers_now()                           from public, anon;
+grant execute on function public.cc_driver_ping(double precision, double precision, double precision) to authenticated;
+grant execute on function public.cc_drivers_now()                        to authenticated;
+
 commit;

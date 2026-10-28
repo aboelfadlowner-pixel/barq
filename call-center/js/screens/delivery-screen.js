@@ -9,6 +9,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatTime, dayLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { openModal, showToast } from '../components/modal.js';
+import { mountDriversNow } from '../components/drivers-now.js';
 
 const LATE_FIRST = 45;     // minutes, first order of a trip
 const LATE_STEP = 10;      // + minutes for each next order in the same trip
@@ -69,11 +70,13 @@ export function mountDelivery(view) {
           <div class="page-sub"><span>وقت التوصيل والرجوع لكل طيار ولكل منطقة — للإدارة بس</span></div>
         </div>
       </div>
+      <div data-drivers-now></div>
       <div class="chips period-chips" role="tablist">${PERIODS.map((p) => `
         <button type="button" class="chip ${p.id === state.period ? 'is-on' : ''}" data-period="${p.id}" role="tab" aria-selected="${p.id === state.period}">${p.label}</button>`).join('')}</div>
       <div data-body><p class="muted">جارٍ التحميل…</p></div>
     </div></div>`;
   const body = view.querySelector('[data-body]');
+  const unmountNow = mountDriversNow(view.querySelector('[data-drivers-now]'));
   let seq = 0;
 
   async function load() {
@@ -171,6 +174,6 @@ export function mountDelivery(view) {
     on(view, 'keydown', 'tr[data-order]', (e, tr) => { if (e.key === 'Enter') location.hash = `#/orders/${encodeURIComponent(tr.dataset.order)}`; }),
   ];
   load();
-  return () => offs.forEach((f) => f());
+  return () => { offs.forEach((f) => f()); unmountNow(); };
 }
 

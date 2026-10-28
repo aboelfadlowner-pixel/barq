@@ -49,6 +49,8 @@ export const driverDelivered  = (id, photo, pos) => impl.driverDelivered(id, pho
 export const driverReturned   = (pos) => impl.driverReturned(pos);
 export const linkLogin        = (token) => impl.linkLogin(token);
 export const prepDeliveries   = () => impl.prepDeliveries();
+export const driverPing       = (pos) => impl.driverPing(pos);
+export const driversNow       = () => impl.driversNow();
 export const adminDrivers     = () => impl.adminDrivers();
 export const addDriver        = (name, phone) => impl.addDriver(name, phone);
 export const newDriverLink    = (userId) => impl.newDriverLink(userId);
