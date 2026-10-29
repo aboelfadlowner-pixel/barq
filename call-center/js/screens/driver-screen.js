@@ -17,7 +17,7 @@ import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
-const PING_MS = 60000;   // his place, about once a minute while he is out
+const PING_MS = 30000;   // his place, about every 30 seconds while he is out
 
 const addressHtml = (a) => `
   <div class="dr-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
