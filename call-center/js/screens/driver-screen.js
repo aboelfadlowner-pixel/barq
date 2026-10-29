@@ -14,7 +14,7 @@ import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
-import { openModal, showToast } from '../components/modal.js';
+import { showToast } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
 const PING_MS = 60000;   // his place, about once a minute while he is out
@@ -32,46 +32,61 @@ const position = () => new Promise((done) => {
     () => done(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
 });
 
-/* CONFIRMED: the photo comes from the camera only — the live camera opens inside the page,
-   so there is no way to pick a picture from the gallery. Resolves with a small JPEG (about
-   150 KB, 1280 px at most), or null if he closes it. */
+/* CONFIRMED: the photo comes from the camera only — the live camera opens FULL SCREEN inside the
+   page (the same on iPhone and Android), so he sees exactly what he is taking and cannot pick a
+   picture from the gallery. Resolves with a small JPEG (1280 px at most), or null if he closes it. */
 function takePhoto(orderNumber) {
   return new Promise((done) => {
     let stream = null;
-    let result = null;
-    const m = openModal({
-      title: `${icon('check')} تسليم طلب <span class="ltr-inline">#${esc(orderNumber)}</span>`,
-      size: 'sm',
-      body: `
-        <div class="dr-cam">
-          <video class="dr-video" autoplay playsinline muted data-video></video>
-          <img class="dr-preview" alt="صورة التسليم" data-shot hidden>
-        </div>
-        <p class="muted" data-hint>صوّر الكيس وورقة الطلب باينين.</p>
-        <div class="field-error" data-err="cam" role="alert"></div>`,
-      footer: `
-        <button type="button" class="btn btn-primary btn-lg" data-snap disabled>${icon('check')}صوّر</button>
-        <button type="button" class="btn btn-primary btn-lg" data-use hidden>${icon('check')}تمام — سلّمت</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-again hidden>صوّر تاني</button>`,
-    });
-    const video = m.body.querySelector('[data-video]');
-    const shot = m.body.querySelector('[data-shot]');
-    const err = m.body.querySelector('[data-err="cam"]');
-    const [snap, use, again] = ['[data-snap]', '[data-use]', '[data-again]'].map((s) => m.foot.querySelector(s));
     let blob = null;
     let shotUrl = null;
-    const stop = () => { stream?.getTracks().forEach((t) => t.stop()); stream = null; };
+    const el = document.createElement('div');
+    el.className = 'cam-full';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'تصوير التسليم');
+    el.innerHTML = `
+      <div class="cam-top">
+        <button type="button" class="cam-close" data-cancel aria-label="إغلاق">${icon('x')}</button>
+        <strong>تسليم طلب <span class="ltr-inline">#${esc(orderNumber)}</span></strong>
+      </div>
+      <div class="cam-view">
+        <video class="cam-video" autoplay playsinline muted data-video></video>
+        <img class="cam-shot" alt="صورة التسليم" data-shot hidden>
+        <p class="cam-msg" data-err role="alert" hidden></p>
+      </div>
+      <p class="cam-hint" data-hint>صوّر الكيس وورقة الطلب باينين</p>
+      <div class="cam-bar">
+        <button type="button" class="cam-snap" data-snap disabled aria-label="صوّر"><span></span></button>
+        <button type="button" class="btn btn-secondary btn-lg" data-again hidden>صوّر تاني</button>
+        <button type="button" class="btn btn-primary btn-lg" data-use hidden>${icon('check')}تمام — سلّمت</button>
+      </div>`;
+    document.body.append(el);
+    document.body.classList.add('cam-open');
+    const $ = (q) => el.querySelector(q);
+    const video = $('[data-video]'); const shot = $('[data-shot]'); const err = $('[data-err]'); const hint = $('[data-hint]');
+    const snap = $('[data-snap]'); const use = $('[data-use]'); const again = $('[data-again]');
+    const showErr = (t) => { err.textContent = t; err.hidden = false; };
+    const close = (result) => {
+      stream?.getTracks().forEach((t) => t.stop());
+      if (shotUrl) URL.revokeObjectURL(shotUrl);
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('cam-open');
+      el.remove();
+      done(result);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    document.addEventListener('keydown', onKey);
     const live = () => {
-      shot.hidden = true; video.hidden = false;
+      shot.hidden = true; video.hidden = false; hint.hidden = false;
       snap.hidden = false; use.hidden = true; again.hidden = true;
     };
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      err.textContent = 'الموبايل ده مش بيفتح الكاميرا من الصفحة — افتح اللينك من Chrome';
+      showErr('الموبايل ده مش بيفتح الكاميرا من الصفحة — افتح اللينك من Chrome أو Safari');
     } else {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
-        .then((s) => { stream = s; video.srcObject = s; snap.disabled = false; })
-        .catch(() => { err.textContent = 'اسمح للصفحة تستخدم الكاميرا (من علامة القفل جنب اللينك) وجرّب تاني'; });
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false })
+        .then((s) => { stream = s; video.srcObject = s; video.play?.().catch(() => {}); snap.disabled = false; })
+        .catch(() => showErr('اسمح للصفحة تستخدم الكاميرا (من إعدادات المتصفح) وجرّب تاني'));
     }
 
     snap.addEventListener('click', () => {
@@ -82,16 +97,17 @@ function takePhoto(orderNumber) {
       c.width = Math.round(w * scale); c.height = Math.round(h * scale);
       c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
       c.toBlob((b) => {
+        if (!b) return;
         blob = b;
         if (shotUrl) URL.revokeObjectURL(shotUrl);
         shotUrl = URL.createObjectURL(b);
-        shot.src = shotUrl; shot.hidden = false; video.hidden = true;
+        shot.src = shotUrl; shot.hidden = false; video.hidden = true; hint.hidden = true;
         snap.hidden = true; use.hidden = false; again.hidden = false;
       }, 'image/jpeg', 0.7);
     });
     again.addEventListener('click', live);
-    use.addEventListener('click', () => { result = blob; m.close(); });
-    m.onClose(() => { stop(); if (shotUrl) URL.revokeObjectURL(shotUrl); done(result); });
+    use.addEventListener('click', () => close(blob));
+    $('[data-cancel]').addEventListener('click', () => close(null));
   });
 }
 

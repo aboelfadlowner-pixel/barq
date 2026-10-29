@@ -812,3 +812,19 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .dd-fill { display: block; height: 100%; background: var(--green-600, #2f7a4f); border-radius: 999px; }
 .dd-val { white-space: nowrap; color: var(--text-muted, #555); }
 @media (max-width: 640px) { .dd-grid { grid-template-columns: 1fr; } }
+/* Driver camera: full screen, the same on iPhone and Android */
+body.cam-open { overflow: hidden; }
+.cam-full { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column;
+  height: 100dvh; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+.cam-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 17px; }
+.cam-close { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.cam-view { position: relative; flex: 1 1 auto; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.cam-video, .cam-shot { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.cam-msg { position: absolute; inset: auto 16px 16px; margin: 0; padding: 12px; border-radius: 10px; background: #b42318; color: #fff; text-align: center; }
+.cam-hint { margin: 8px 16px 0; text-align: center; color: rgba(255,255,255,.8); font-size: 14px; }
+.cam-bar { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 16px; min-height: 104px; }
+.cam-bar .btn { flex: 1; max-width: 220px; }
+.cam-snap { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 5px; cursor: pointer; }
+.cam-snap span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; }
+.cam-snap:disabled { opacity: .4; }
+.cam-snap[hidden] { display: none; }
