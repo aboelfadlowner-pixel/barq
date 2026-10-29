@@ -799,3 +799,13 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .dn-empty { padding: 6px 0; }
 .dr-track { font-size: 13px; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; }
 @media (max-width: 640px) { .dn-map { height: 260px; } }
+/* «لوحة الطيارين» (admin) */
+.dd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 12px 0 4px; }
+.dd-h { margin: 0 0 10px; font-size: 15px; }
+.dd-bars { display: grid; gap: 8px; }
+.dd-bar { display: grid; grid-template-columns: minmax(70px, 30%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.dd-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-track { height: 12px; background: var(--surface-2, #eef2ee); border-radius: 999px; overflow: hidden; }
+.dd-fill { display: block; height: 100%; background: var(--green-600, #2f7a4f); border-radius: 999px; }
+.dd-val { white-space: nowrap; color: var(--text-muted, #555); }
+@media (max-width: 640px) { .dd-grid { grid-template-columns: 1fr; } }

@@ -10,6 +10,7 @@ import { formatTime, dayLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { openModal, showToast } from '../components/modal.js';
 import { mountDriversNow } from '../components/drivers-now.js';
+import { money } from '../components/chips.js';
 
 const LATE_FIRST = 45;     // minutes, first order of a trip
 const LATE_STEP = 10;      // + minutes for each next order in the same trip
@@ -57,6 +58,38 @@ function enrich(rows) {
   });
 }
 
+/* CONFIRMED «لوحة الطيارين»: kilometres are ESTIMATED — for each trip, from the branch to each
+   delivery place (in the order they were delivered) and back, × 1.3 for the streets.
+   Orders delivered without a place are left out of the distance. */
+const ROAD = 1.3;
+const metres = (a, b) => {
+  const r = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+};
+function tripKm(rows, branch) {
+  if (branch?.lat == null) return null;
+  const trips = new Map();
+  rows.filter((r) => r.lat != null && r.deliveredAt).forEach((r) => { const t = trips.get(r.tripId) ?? []; t.push(r); trips.set(r.tripId, t); });
+  let m = 0;
+  trips.forEach((t) => {
+    const pts = t.sort((a, b) => a.deliveredAt.localeCompare(b.deliveredAt));
+    let at = branch;
+    pts.forEach((p) => { m += metres(at, p); at = p; });
+    m += metres(at, branch);
+  });
+  return (m * ROAD) / 1000;
+}
+const kmText = (k) => (k == null ? '—' : `${k < 10 ? k.toFixed(1) : Math.round(k)} كم`);
+const sum = (rows, k) => rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+const bars = (items, fmt) => {
+  const max = Math.max(1, ...items.map((x) => x.value));
+  return `<div class="dd-bars">${items.map((x) => `
+    <div class="dd-bar"><span class="dd-name">${esc(x.name)}</span>
+      <span class="dd-track"><span class="dd-fill" style="width:${Math.round((x.value / max) * 100)}%"></span></span>
+      <span class="dd-val num">${fmt(x.value)}</span></div>`).join('')}</div>`;
+};
+
 /* Return minutes counted once per trip; «بعيد عن الفرع» too. */
 const tripBacks = (rows) => [...new Map(rows.filter((r) => r.backMin != null).map((r) => [r.tripId, r.backMin])).values()];
 const farTrips = (rows) => new Set(rows.filter((r) => r.far).map((r) => r.tripId)).size;
@@ -83,7 +116,8 @@ export function mountDelivery(view) {
     const mine = ++seq;
     const [from, to] = range(state.period);
     let rows;
-    try { rows = await ds.deliveryReport(from, to); } catch (err) { body.innerHTML = `<div class="card card-pad">${esc(err.message)}</div>`; return; }
+    let branch = null;
+    try { [rows, branch] = await Promise.all([ds.deliveryReport(from, to), ds.branchPlace().catch(() => null)]); } catch (err) { body.innerHTML = `<div class="card card-pad">${esc(err.message)}</div>`; return; }
     if (mine !== seq) return;
     if (rows == null) { body.innerHTML = '<div class="card card-pad">صفحة التوصيل غير مفعّلة على قاعدة البيانات بعد</div>'; return; }
     const list = enrich(rows);
@@ -93,10 +127,17 @@ export function mountDelivery(view) {
     const byDriver = new Map();
     list.forEach((r) => { const k = r.driverId || r.driver; const g = byDriver.get(k) ?? { name: r.driver || '—', rows: [] }; g.rows.push(r); byDriver.set(k, g); });
     const byArea = new Map();
-    delivered.forEach((r) => { const g = byArea.get(r.areaName) ?? []; g.push(r); byArea.set(r.areaName, g); });
+    list.forEach((r) => { const g = byArea.get(r.areaName) ?? []; g.push(r); byArea.set(r.areaName, g); });
+    const drivers = [...byDriver.values()].sort((a, b) => b.rows.length - a.rows.length)
+      .map((g) => ({ ...g, km: tripKm(g.rows, branch), total: sum(g.rows, 'total'), fees: sum(g.rows, 'deliveryFee') }));
+    const allKm = tripKm(list, branch);
 
     body.innerHTML = list.length ? `
+      <h2 class="section-title">${icon('clipboard')}لوحة الطيارين</h2>
       <div class="summary-row">
+        ${stat('فلوس الطلبات', money(sum(list, 'total')))}
+        ${stat('رسوم التوصيل', money(sum(list, 'deliveryFee')))}
+        ${stat('كيلومترات (تقريبي)', kmText(allKm))}
         ${stat('طلبات خرجت', `<span class="num">${list.length}</span>`)}
         ${stat('اتسلّمت', `<span class="num">${delivered.length}</span>`)}
         ${stat('متوسط الانتظار قبل الخروج', minText(avg(list.map((r) => r.waitMin))))}
@@ -106,14 +147,23 @@ export function mountDelivery(view) {
         ${stat('من غير مكان', `<span class="num">${list.filter((r) => r.noPlace).length}</span>`)}
         ${stat('رجوع بعيد عن الفرع', `<span class="num">${farTrips(list)}</span>`, farTrips(list) ? 'tone-text-red' : '')}
       </div>
+      ${branch?.lat == null ? `<p class="muted">${icon('info')}الكيلومترات بتظهر بعد تسجيل مكان الفرع (من «المناطق والموظفين»).</p>` : ''}
+      <div class="dd-grid">
+        <div class="card card-pad"><h3 class="dd-h">الطلبات لكل طيار</h3>${bars(drivers.map((g) => ({ name: g.name.replace(/\s*\(.*\)$/, ''), value: g.rows.length })), (v) => v)}</div>
+        <div class="card card-pad"><h3 class="dd-h">فلوس الطلبات لكل طيار</h3>${bars(drivers.map((g) => ({ name: g.name.replace(/\s*\(.*\)$/, ''), value: g.total })), (v) => `${Math.round(v).toLocaleString('en')} ج.م`)}</div>
+        <div class="card card-pad"><h3 class="dd-h">متوسط وقت التوصيل</h3>${bars(drivers.map((g) => ({ name: g.name.replace(/\s*\(.*\)$/, ''), value: avg(g.rows.map((r) => r.deliverMin)) ?? 0 })), (v) => `${v} د`)}</div>
+        <div class="card card-pad"><h3 class="dd-h">أكتر المناطق توصيل</h3>${bars([...byArea].sort((a, b) => b[1].length - a[1].length).slice(0, 8).map(([name, rs]) => ({ name, value: rs.length })), (v) => `${v} طلب`)}</div>
+      </div>
 
       <h2 class="section-title">${icon('user')}الطيارين</h2>
       <div class="card table-wrap"><table class="table">
-        <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th class="col-opt">الانتظار قبل الخروج</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
+        <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th>فلوس الطلبات</th><th class="col-opt">رسوم التوصيل</th><th>كم (تقريبي)</th>
+          <th class="col-opt">الانتظار قبل الخروج</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
           <th>متأخر</th><th class="col-opt">من غير مكان</th><th class="col-opt">رجوع بعيد</th><th class="col-opt">سجّلها الأدمن</th></tr></thead>
-        <tbody>${[...byDriver.values()].sort((a, b) => b.rows.length - a.rows.length).map((g) => `
+        <tbody>${drivers.map((g) => `
           <tr><td><strong>${esc(g.name)}</strong></td><td class="num">${g.rows.length}</td>
             <td class="col-opt num">${new Set(g.rows.map((r) => r.tripId)).size}</td>
+            <td>${money(g.total)}</td><td class="col-opt">${money(g.fees)}</td><td class="num">${kmText(g.km)}</td>
             <td class="col-opt">${minText(avg(g.rows.map((r) => r.waitMin)))}</td>
             <td>${minText(avg(g.rows.map((r) => r.deliverMin)))}</td><td>${minText(avg(tripBacks(g.rows)))}</td>
             <td class="num ${g.rows.some((r) => r.late) ? 'tone-text-red' : ''}">${g.rows.filter((r) => r.late).length}</td>
@@ -124,11 +174,12 @@ export function mountDelivery(view) {
 
       <h2 class="section-title">${icon('pin')}المناطق</h2>
       <div class="card table-wrap"><table class="table">
-        <thead><tr><th>المنطقة</th><th>الطلبات</th><th>متوسط التوصيل</th><th>أطول توصيل</th></tr></thead>
+        <thead><tr><th>المنطقة</th><th>الطلبات</th><th>فلوس الطلبات</th><th class="col-opt">رسوم التوصيل</th><th>متوسط التوصيل</th><th class="col-opt">أطول توصيل</th></tr></thead>
         <tbody>${[...byArea].sort((a, b) => b[1].length - a[1].length).map(([name, rs]) => `
           <tr><td><strong>${esc(name)}</strong></td><td class="num">${rs.length}</td>
-            <td>${minText(avg(rs.map((r) => r.deliverMin)))}</td><td>${minText(Math.max(...rs.map((r) => r.deliverMin ?? 0)))}</td></tr>`).join('')
-          || '<tr><td colspan="4" class="table-empty">لا يوجد تسليم بعد</td></tr>'}</tbody>
+            <td>${money(sum(rs, 'total'))}</td><td class="col-opt">${money(sum(rs, 'deliveryFee'))}</td>
+            <td>${minText(avg(rs.map((r) => r.deliverMin)))}</td><td class="col-opt">${minText(Math.max(...rs.map((r) => r.deliverMin ?? 0)))}</td></tr>`).join('')
+          || '<tr><td colspan="6" class="table-empty">لا توجد طلبات</td></tr>'}</tbody>
       </table></div>
 
       <h2 class="section-title">${icon('list')}الطلبات</h2>

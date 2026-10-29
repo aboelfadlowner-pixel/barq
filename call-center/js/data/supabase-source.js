@@ -404,6 +404,7 @@ export async function deliveryReport(from, to) {
   return ok(res).map((r) => ({
     id: r.id, number: r.order_no, createdAt: r.created_at, areaName: r.area_name, atCashierAt: r.at_cashier_at, outAt: r.out_at,
     driverId: r.driver_user_id, driver: r.driver || '', tripId: r.trip_id, ...toDelivery(r),
+    total: Number(r.total) || 0, deliveryFee: Number(r.delivery_fee) || 0,   // 19_driver_dashboard.sql
   }));
 }
 /* A delivery photo for the admin (a link that works for one hour). */

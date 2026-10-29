@@ -1505,6 +1505,7 @@ do $$ declare r jsonb; d jsonb; begin
   if (public.cc_branch_place()->>'lat')::float <> 31.1 then raise exception 'FAIL T40 branch place'; end if;
   select x into r from public.cc_delivery_report(current_date - 1, current_date + 1) x where x->>'id' = current_setting('cc.o2');
   if r->>'returned_far' <> 'true' or r->>'returned_lat' is null then raise exception 'FAIL T40 report return place %', r; end if;
+  if (r->>'total')::numeric <= 0 or r->>'delivery_fee' is null then raise exception 'FAIL T40 report money %', r; end if;
   raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place (the branch sees it), his place while out for the admin only, «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
 end $$;
 rollback;
