@@ -83,7 +83,27 @@ export const dbWording = (msg) => {
 };
 
 /* Database errors carry an Arabic message; HINT names the form field (street, phone, …). */
+/* The sign-in on this device ended (e.g. another account signed in on the same browser):
+   the database sees no account → «permission denied for function». Say it plainly and
+   go back to the sign-in screen once, instead of leaving a page that cannot load. */
+let reloading = false;
+const sessionEnded = (error) => error?.code === '42501' && /^permission denied for function/.test(error?.message || '');
 function fail(error, fallback = 'حدثت مشكلة في الاتصال بقاعدة البيانات') {
+  if (sessionEnded(error)) {
+    if (!reloading) {
+      reloading = true;
+      // a second time within a minute: forget the stale sign-in on this device first (no reload loop)
+      let again = false;
+      try { again = Date.now() - Number(sessionStorage.getItem('cc-session-ended') || 0) < 60000; sessionStorage.setItem('cc-session-ended', String(Date.now())); } catch { /* private mode */ }
+      setTimeout(async () => {
+        if (again) await client?.auth.signOut({ scope: 'local' }).catch(() => {});
+        location.reload();
+      }, 2500);
+    }
+    const err = new Error('انتهى تسجيل الدخول على الجهاز ده — هيفتح شاشة الدخول. افتحي كل حساب في متصفح لوحده.');
+    err.code = error.code;
+    return err;
+  }
   const err = new Error(error?.message ? dbWording(error.message) : fallback);
   err.field = error?.hint || null;
   err.code = error?.code || null;
