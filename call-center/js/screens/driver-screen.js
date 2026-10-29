@@ -182,7 +182,6 @@ export function mountDriver(view) {
           </article>`).join('')
           : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
         ${mine.length ? `
-        <p class="muted dr-track">${icon('pin')}مكانك بيوصل للإدارة أثناء المشوار بس — خلّي الصفحة مفتوحة.</p>
         <button type="button" class="btn ${open.length ? 'btn-secondary' : 'btn-primary'} btn-lg btn-block dr-back" data-back ${busy ? 'disabled' : ''}>${icon('arrowRight')}رجعت الفرع</button>` : ''}
       </section>`;
   }
