@@ -752,8 +752,11 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .delivery-table tr.is-late td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
 .staff-phone { margin-top: 6px; max-width: 200px; }
 .input-sm { height: 34px; font-size: .95rem; }
-.dr-cam { position: relative; border-radius: 10px; overflow: hidden; background: #111; }
-.dr-video { width: 100%; max-height: 60vh; display: block; object-fit: cover; }
+/* The camera box has its own height, so iPhone Safari does not squeeze it to a thin strip. */
+.modal-body:has(.dr-cam) { flex: 0 0 auto; }
+.dr-cam { position: relative; border-radius: 10px; overflow: hidden; background: #111; height: min(55vh, 520px); }
+.dr-video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.dr-cam .dr-preview { height: 100%; max-height: none; border-radius: 0; }
 .dr-go { margin-top: 4px; }
 .result-card.is-current { border-color: var(--green-700); }
 
