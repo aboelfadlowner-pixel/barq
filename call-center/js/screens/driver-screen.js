@@ -17,7 +17,7 @@ import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
-const PING_MS = 60000;   // his place, about once a minute while he is out
+const PING_MS = 30000;   // his place, about every 30 seconds while he is out
 
 const addressHtml = (a) => `
   <div class="dr-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
@@ -182,7 +182,6 @@ export function mountDriver(view) {
           </article>`).join('')
           : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
         ${mine.length ? `
-        <p class="muted dr-track">${icon('pin')}مكانك بيوصل للإدارة أثناء المشوار بس — خلّي الصفحة مفتوحة.</p>
         <button type="button" class="btn ${open.length ? 'btn-secondary' : 'btn-primary'} btn-lg btn-block dr-back" data-back ${busy ? 'disabled' : ''}>${icon('arrowRight')}رجعت الفرع</button>` : ''}
       </section>`;
   }

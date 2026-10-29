@@ -794,14 +794,16 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .dn { margin-bottom: 16px; }
 .dn-title { margin-top: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dn-sub { font-size: 13px; font-weight: 400; }
-.dn-map { height: 360px; border-radius: 12px; overflow: hidden; margin-bottom: 12px; direction: ltr; z-index: 0; }
+.dn-map { height: 460px; border-radius: 12px; overflow: hidden; margin-bottom: 12px; direction: ltr; z-index: 0; }
 .dn-list { list-style: none; margin: 0; padding: 0; }
 .dn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border, #e5e7eb); }
 .dn-row:first-child { border-top: 0; }
 .dn-row .tag { display: inline-flex; gap: 4px; align-items: center; }
 .dn-empty { padding: 6px 0; }
 .dr-track { font-size: 13px; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; }
-@media (max-width: 640px) { .dn-map { height: 260px; } }
+@media (max-width: 640px) { .dn-map { height: 340px; } }
+.dn-all { margin-inline-start: auto; }
+.dn-map .leaflet-tooltip { font-family: inherit; font-size: 13px; }
 /* «لوحة الطيارين» (admin) */
 .dd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 12px 0 4px; }
 .dd-h { margin: 0 0 10px; font-size: 15px; }
