@@ -7,6 +7,7 @@
  * ===================================================================== */
 import * as mock from './mock-data.js';
 import { normalizePhone, isSameDay } from '../utils/format.js';
+import { computeTotals } from '../utils/pricing.js';
 
 const clone = (v) => structuredClone(v);
 const resolve = (v) => Promise.resolve(clone(v));
@@ -478,7 +479,8 @@ export function deliveryReport(from, to) {
   return resolve(orders.filter((o) => o.outAt && o.status !== 'cancelled' && new Date(o.outAt) >= start && new Date(o.outAt) < end)
     .sort((a, b) => b.outAt.localeCompare(a.outAt))
     .map((o) => ({ id: o.id, number: o.number, createdAt: o.createdAt, areaName: o.address.areaName, atCashierAt: o.atCashierAt,
-      outAt: o.outAt, driverId: o.driverUserId ?? null, driver: o.driver || '', tripId: o.tripId ?? null, ...deliveryOf(o) })));
+      outAt: o.outAt, driverId: o.driverUserId ?? null, driver: o.driver || '', tripId: o.tripId ?? null, ...deliveryOf(o),
+      total: o.total ?? computeTotals(o.items, o.deliveryFee ?? 0).total, deliveryFee: o.deliveryFee ?? 0 })));
 }
 export const photoUrl = (path) => resolve(path);
 export const listPhones = () => resolve(new Map(staff.filter((s) => s.phone).map((s) => [s.id, s.phone])));
