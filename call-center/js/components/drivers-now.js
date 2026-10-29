@@ -40,7 +40,9 @@ export function mountDriversNow(el) {
     <section class="dn card card-pad" data-dn hidden>
       <h2 class="section-title dn-title">${icon('pin')}الطيارين دلوقتي <span class="b-count num" data-dn-count>0</span>
         <span class="muted dn-sub">بيتحدث كل 20 ثانية</span>
-        <button type="button" class="btn btn-soft btn-sm dn-all" data-dn-all hidden>${icon('pin')}كل الطيارين</button></h2>
+        <button type="button" class="btn btn-soft btn-sm dn-all" data-dn-all hidden>${icon('pin')}كل الطيارين</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-dn-full hidden>${icon('grid')}تكبير الخريطة</button></h2>
+      <p class="muted dn-help" data-dn-help hidden>اسحبي الخريطة بالماوس أو بصباعك عشان تتحركي عليها، وكبّري وصغّري بالعجلة أو بـ + و −.</p>
       <div class="dn-map" data-dn-map hidden></div>
       <ul class="dn-list" data-dn-list></ul>
     </section>`;
@@ -76,6 +78,8 @@ export function mountDriversNow(el) {
     try { L = await loadLeaflet(); } catch { mapEl.hidden = true; return; }
     if (stopped) return;
     mapEl.hidden = false;
+    el.querySelector('[data-dn-help]').hidden = false;
+    el.querySelector('[data-dn-full]').hidden = false;
     if (!map) {
       map = L.map(mapEl, { zoomControl: true, attributionControl: true });
       // the admin moved or zoomed the map: stop following (until «كل الطيارين»)
@@ -183,6 +187,13 @@ export function mountDriversNow(el) {
         fitting = true; map.setView([r.lat, r.lng], 18, { animate: false }); fitting = false;
       }
     }
+    const full = e.target.closest('[data-dn-full]');
+    if (full && map) {                      // full screen map (and back)
+      const on = box.classList.toggle('is-full');
+      document.body.classList.toggle('cam-open', on);
+      full.innerHTML = on ? `${icon('x')}تصغير الخريطة` : `${icon('grid')}تكبير الخريطة`;
+      setTimeout(() => map.invalidateSize(), 50);
+    }
     if (e.target.closest('[data-dn-all]') && map) {
       follow = true;
       el.querySelector('[data-dn-all]').hidden = true;
@@ -191,5 +202,5 @@ export function mountDriversNow(el) {
     }
   });
   load().then(schedule);
-  return () => { stopped = true; clearTimeout(timer); map?.remove(); };
+  return () => { stopped = true; clearTimeout(timer); document.body.classList.remove('cam-open'); map?.remove(); };
 }
