@@ -1398,6 +1398,8 @@ do $$ begin
 end $$;
 
 -- «الطيارين دلوقتي»: his screen sends his place while he is out; the admin sees it; nobody else
+reset role;
+insert into public.cc_driver_track (user_id, lat, lng, at) values (current_setting('cc.drv')::uuid, 1, 1, now() - interval '8 days');
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ begin
@@ -1405,6 +1407,8 @@ do $$ begin
   perform public.cc_driver_ping(1, 1, 5);              -- again within 15 s: kept the first
   if public.cc_driver_ping(null, null, null) then raise exception 'FAIL T40 empty ping'; end if;
   begin perform public.cc_drivers_now(); raise exception 'FAIL T40 driver saw drivers now';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_drivers_trails(); raise exception 'FAIL T40 driver saw trails';
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
@@ -1419,9 +1423,15 @@ set local role authenticated;
 do $$ declare r record; begin
   select * into r from public.cc_drivers_now() where user_id = current_setting('cc.drv')::uuid;
   if r.orders <> 2 or r.lat <> 31.2050 or r.seen_at is null or r.name <> 'طيار 40' then raise exception 'FAIL T40 drivers now %', r; end if;
+  -- «خط سير المشوار»: one point kept (the second ping within 15 s is not), the 8-day-old one removed
+  select * into r from public.cc_drivers_trails() where user_id = current_setting('cc.drv')::uuid;
+  if jsonb_array_length(r.points) <> 1 or (r.points->0->>0)::float <> 31.2050 then raise exception 'FAIL T40 trail %', r; end if;
   if exists (select 1 from public.cc_drivers_now() where user_id = current_setting('cc.drvb')::uuid) then raise exception 'FAIL T40 driver not out listed'; end if;
 end $$;
 reset role;
+do $$ begin
+  if exists (select 1 from public.cc_driver_track where at < now() - interval '7 days') then raise exception 'FAIL T40 old trail kept'; end if;
+end $$;
 
 -- the driver taps «رجعت الفرع» 1.1 km away from the branch → «بعيد عن الفرع»; again → nothing left
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv'), 'role', 'authenticated')::text, true);

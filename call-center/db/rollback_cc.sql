@@ -71,6 +71,8 @@ drop table    if exists public.cc_blocked_phones;
 drop table    if exists public.cc_order_delivery;
 drop function if exists public.cc_driver_ping(double precision, double precision, double precision);
 drop function if exists public.cc_drivers_now();
+drop function if exists public.cc_drivers_trails();
+drop table    if exists public.cc_driver_track;
 drop table    if exists public.cc_driver_location;
 drop table    if exists public.cc_branch;
 drop table    if exists public.cc_order_events, public.cc_order_items, public.cc_orders, public.cc_agents,

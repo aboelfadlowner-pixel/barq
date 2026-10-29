@@ -385,6 +385,13 @@ export async function driversNow() {
   return ok(res).map((r) => ({ userId: r.user_id, name: r.name, phone: r.phone || '', orders: r.orders, delivered: r.delivered,
     outAt: r.out_at, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null, seenAt: r.seen_at || null }));
 }
+/* Admin: «خط سير المشوار» — each driver out now: [[lat, lng, at], …] since he left (20_driver_trail.sql). */
+export async function driverTrails() {
+  const c = await sb();
+  const res = await c.rpc('cc_drivers_trails');
+  if (res.error) return new Map();            // not installed yet: no lines, the map still works
+  return new Map(res.data.map((r) => [r.user_id, (r.points || []).map((p) => ({ lat: p[0], lng: p[1], at: p[2] }))]));
+}
 /* Branch: «اتسلّم» / «رجع الفرع» times of today's orders that left (order id → times). */
 export async function prepDeliveries() {
   const c = await sb();
