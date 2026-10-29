@@ -69,7 +69,8 @@
 
 /* Top bar shrinks step by step so it never overflows. */
 @media (max-width: 1400px) { .brand-sub, .source-picker .label { display: none; } }
-@media (max-width: 1300px) { .topnav a span { display: none; } .topnav a { padding: 0 11px; } }
+@media (max-width: 1540px) { .topnav a span { display: none; } .topnav a { padding: 0 11px; } }
+.topnav a { white-space: nowrap; }
 
 /* Small desktop / tablet landscape: narrower cart */
 @media (max-width: 1279px) {
@@ -135,8 +136,8 @@
   .agent-chip { gap: 4px; padding: 0 3px 0 8px; font-size: 13px; max-width: 34vw; }
   .topbar [data-change-password] { width: 32px; padding: 0; }
   .topbar { gap: 4px; }
-  .topnav { gap: 0; }
-  .topnav a { padding-inline: 8px; }
+  .topnav { gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .topnav a { padding-inline: 5px; }
   .agent-chip > .svg-icon { display: none; }
   .agent-chip [data-agent-name] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .agent-chip .btn { padding: 0 8px; }

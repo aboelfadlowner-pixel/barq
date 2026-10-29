@@ -5,7 +5,7 @@ import { clearCatalogCache } from '../catalog.js';
 import { syncCatalog } from '../catalog-sync.js';
 import { formatTime } from '../utils/format.js';
 import { confirmDialog, openModal, showToast } from './modal.js';
-import { can, isPrepOnly, ROLES } from '../permissions.js';
+import { can, isPrepOnly, isDriverOnly, ROLES } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
 
@@ -62,11 +62,11 @@ export function mountTopbar(el) {
     const logout = ds.IS_MOCK ? '' : `
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-change-password title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">${icon('key')}</button>
       <button type="button" class="btn btn-ghost btn-sm" data-logout title="تسجيل الخروج">${icon('arrowRight')}<span class="logout-text">خروج</span></button>`;
-    if (isPrepOnly(user)) {               // branch preparation account: its screen only
+    if (isPrepOnly(user) || isDriverOnly(user)) {   // branch preparation / driver account: its screen only
+      const own = isDriverOnly(user) ? `<a href="#/driver" class="active">${icon('package')}<span>الطيار</span></a>`
+        : `<a href="#/prep" class="active">${icon('clipboard')}<span>شاشة التجهيز</span></a>`;
       el.innerHTML = `${brand}
-        <nav class="topnav" aria-label="التنقل الرئيسي">
-          <a href="#/prep" class="active">${icon('clipboard')}<span>شاشة التجهيز</span></a>
-        </nav>
+        <nav class="topnav" aria-label="التنقل الرئيسي">${own}</nav>
         <div class="spacer"></div>
         <div class="top-meta">
           <span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
@@ -83,6 +83,7 @@ export function mountTopbar(el) {
         <a href="#/pos" title="الطلب الحالي" class="${isPos ? 'active' : ''}">${icon('cart')}<span>الطلب الحالي</span></a>
         ${can(user, 'ordersLog') ? `<a href="#/orders" title="سجل الطلبات" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>سجل الطلبات</span></a>` : ''}
         ${can(user, 'customers') ? `<a href="#/customers" title="العملاء" class="${route === 'customers' ? 'active' : ''}">${icon('user')}<span>العملاء</span></a>` : ''}
+        ${can(user, 'deliveryReport') ? `<a href="#/delivery" title="التوصيل" class="${route === 'delivery' ? 'active' : ''}">${icon('package')}<span>التوصيل</span></a>` : ''}
         ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والموظفين" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والموظفين</span></a>` : ''}
       </nav>
       <div class="spacer"></div>

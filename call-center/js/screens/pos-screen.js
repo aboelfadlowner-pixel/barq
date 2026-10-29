@@ -126,5 +126,13 @@ export function mountPos(view) {
   cleanups.push(() => document.removeEventListener('keydown', onKey));
 
   if (!document.querySelector('dialog[open]')) input.focus();
+  // CONFIRMED: «الطلب الحالي» opened with no customer yet → the customer step opens first
+  // (the same window as «طلب جديد لمركز الاتصال»), so no order starts without the customer.
+  let stopped = false;
+  const askCustomer = setTimeout(() => {
+    const s = getState();
+    if (!stopped && !s.editing && !s.customer && !document.querySelector('dialog[open]')) openNewOrderDialog();
+  }, 0);
+  cleanups.push(() => { stopped = true; clearTimeout(askCustomer); });
   return () => cleanups.forEach((fn) => fn());
 }

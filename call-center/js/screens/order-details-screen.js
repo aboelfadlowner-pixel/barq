@@ -116,6 +116,7 @@ export function mountOrderDetails(view, orderId) {
                 <h4 class="block-title" style="margin:0 0 6px">${icon('note')}ملاحظات الطلب</h4>
                 <p>${esc(order.note)}</p>
               </div>` : ''}
+            <div class="card card-pad" data-delivery hidden></div>
             <div class="card card-pad">
               <h4 class="block-title" style="margin:0 0 10px">${icon('clock')}سجل الحالة</h4>
               <ul class="timeline">
@@ -131,7 +132,75 @@ export function mountOrderDetails(view, orderId) {
         </div>
       </div></div>`;
 
+    const isAdmin = getState().user?.role === 'admin';
+    const box = view.querySelector('[data-delivery]');
+    const paintDelivery = () => ds.getOrderDelivery(order.id).then(async (d) => {
+      if (!alive || !d || order.status === 'cancelled') return;
+      if (!order.outAt && !(isAdmin && order.stage === 'at_cashier')) return;
+      const mins = (a, b) => (a && b ? `${Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000))} دقيقة` : '—');
+      const row = (label, at, extra = '', flag = false) => `
+        <li><div><strong>${label}</strong>${flag ? ' <span class="tag tag-amber">اتسجلت من الأدمن</span>' : ''}${extra ? `<div class="muted">${extra}</div>` : ''}</div>
+          <span class="muted num">${at ? `${dayLabel(at)} · ${formatTime(at)}` : '—'}</span></li>`;
+      let photo = '';
+      if (isAdmin && d.photoPath) {
+        const url = await ds.photoUrl(d.photoPath).catch(() => null);
+        photo = url ? `<button type="button" class="dl-photo" data-photo="${esc(url)}"><img src="${esc(url)}" alt="صورة التسليم"></button>`
+          : '<p class="muted">الصورة اتمسحت (بتتشال بعد 30 يوم)</p>';
+      }
+      if (!alive) return;
+      box.hidden = false;
+      box.innerHTML = `
+        <h4 class="block-title" style="margin:0 0 10px">${icon('package')}التوصيل</h4>
+        ${order.outAt ? `<ul class="timeline">
+          ${d.assignedAt ? row('اتحدد الطيار', d.assignedAt, d.assignedAt && order.outAt ? `خرج بعدها بـ ${mins(d.assignedAt, order.outAt)}` : '') : ''}
+          ${row('خرج', order.outAt, `${esc(order.driver || '')}${d.tripSize > 1 ? ` · طلب ${d.tripSeq} من ${d.tripSize} في المشوار` : ''}`, d.outByAdmin)}
+          ${row('اتسلّم للعميل', d.deliveredAt, d.deliveredAt ? `بعد ${mins(order.outAt, d.deliveredAt)} من الخروج` : 'لسه', d.deliveredAdmin)}
+          ${row('رجع الفرع', d.returnedAt, d.returnedAt && d.deliveredAt ? `بعد ${mins(d.deliveredAt, d.returnedAt)} من التسليم` : '', d.returnedAdmin)}
+          ${isAdmin && d.returnedFar ? `<li><span class="tag tag-far">${icon('alert')}بعيد عن الفرع${d.returnedDistance != null ? ` — حوالي ${d.returnedDistance >= 1000 ? `${(d.returnedDistance / 1000).toFixed(1)} كم` : `${d.returnedDistance} متر`}` : ''}</span></li>` : ''}
+        </ul>` : '<p class="muted">الطلب على الكاشير — مستني الطيار</p>'}
+        ${photo}
+        ${isAdmin && d.lat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank" rel="noopener">${icon('pin')}مكان الطيار وقت التسليم على الخريطة</a>` : ''}
+        ${isAdmin && d.deliveredAt && d.lat == null && !d.deliveredAdmin ? `<p class="muted">${icon('alert')}اتسلّم من غير مكان</p>` : ''}
+        ${isAdmin && d.returnedLat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.returnedLat},${d.returnedLng}" target="_blank" rel="noopener">${icon('pin')}مكانه لما داس «رجعت الفرع»</a>` : ''}
+        ${isAdmin && d.returnedAt && d.returnedLat == null && !d.returnedAdmin ? `<p class="muted">${icon('alert')}رجوع من غير مكان</p>` : ''}
+        ${isAdmin ? `<div class="dl-admin">
+          ${order.stage === 'at_cashier' ? `<button type="button" class="btn btn-soft btn-sm" data-admin-out>تسجيل «خرج» لطيار</button>` : ''}
+          ${order.outAt && !d.deliveredAt ? `<button type="button" class="btn btn-soft btn-sm" data-admin="delivered">تسجيل «اتسلّم» (الطيار نسي)</button>` : ''}
+          ${order.outAt && !d.returnedAt ? `<button type="button" class="btn btn-soft btn-sm" data-admin="returned">تسجيل «رجع الفرع»</button>` : ''}
+        </div>` : ''}`;
+    }).catch(() => {});
+    paintDelivery();
+
     offs = [
+      on(view, 'click', '[data-photo]', (e, b) => openModal({
+        title: `${icon('package')} صورة التسليم — <span class="ltr-inline">${esc(order.number)}</span>`,
+        size: 'md', body: `<img class="dl-photo-big" src="${esc(b.dataset.photo)}" alt="صورة التسليم">`,
+        footer: '<button type="button" class="btn btn-secondary" data-close>إغلاق</button>',
+      })),
+      on(view, 'click', '[data-admin]', async (e, b) => {
+        const what = b.dataset.admin;
+        if (!(await confirmDialog({ title: what === 'delivered' ? 'تسجيل التسليم' : 'تسجيل الرجوع',
+          message: 'هيتسجل بالوقت الحالي، ومكتوب جنبه «اتسجلت من الأدمن».', confirmLabel: 'تسجيل' }))) return;
+        try { await ds.adminDelivery(order.id, what); showToast('اتسجل'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+        catch (err) { showToast(err.message); }
+      }),
+      on(view, 'click', '[data-admin-out]', async () => {
+        const drivers = await ds.listDrivers();
+        if (!drivers.length) { showToast('مفيش طيارين — اعمل أكونت بصلاحية «طيار» الأول'); return; }
+        const m = openModal({
+          title: `${icon('package')} تسجيل «خرج» لطيار`,
+          size: 'sm',
+          body: `<p class="muted">لو الطيار نسي يدوس «خرجت». هيتسجل بالوقت الحالي، ومكتوب جنبه «اتسجلت من الأدمن».</p>
+            <div class="returned-list">${drivers.map((d) => `<button type="button" class="result-card" data-pick-driver="${esc(d.userId)}"><div class="grow cust-name">${esc(d.label)}</div></button>`).join('')}</div>`,
+          footer: '<button type="button" class="btn btn-secondary" data-close>إلغاء</button>',
+        });
+        m.body.addEventListener('click', async (ev) => {
+          const pick = ev.target.closest('[data-pick-driver]');
+          if (!pick) return;
+          try { await ds.adminDelivery(order.id, 'out', pick.dataset.pickDriver); m.close(); showToast('اتسجل'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+          catch (err) { showToast(err.message); }
+        });
+      }),
       on(view, 'click', '[data-print]', () => openPrintPreview(order)),
       on(view, 'click', '[data-wa]', () => openWhatsAppDialog(order)),
       on(view, 'click', '[data-cancel]', () => openCancelDialog(order)),

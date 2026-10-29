@@ -722,3 +722,80 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .block-add label { font-weight: 700; }
 .block-add .input { flex: 1 1 200px; max-width: 280px; }
 .block-add .field-error { flex-basis: 100%; }
+
+/* Drivers (18_driver_tracking.sql) */
+.driver-page .page-inner { max-width: 720px; }
+.dr-section { margin-bottom: 18px; }
+.dr-card { padding: 14px; margin-bottom: 10px; display: grid; gap: 10px; }
+.dr-card.is-done { opacity: .7; }
+.dr-card.is-cancelled { border-color: var(--danger); }
+.dr-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dr-no { font-size: 1.35rem; }
+.dr-addr { display: flex; gap: 8px; align-items: flex-start; font-size: 1.05rem; line-height: 1.6; }
+.dr-done { color: var(--green-700); font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.dr-untake { justify-self: center; color: var(--muted); }
+.dr-pick { grid-template-columns: auto 1fr; align-items: start; cursor: pointer; }
+.dr-pick input { width: 26px; height: 26px; margin-top: 4px; }
+.dr-pick.is-picked { border-color: var(--green-700); box-shadow: 0 0 0 2px var(--green-100); }
+.dr-bar { position: sticky; bottom: 10px; z-index: 5; }
+.dr-empty { padding: 8px 2px; }
+.dr-phone { display: grid; gap: 10px; max-width: 420px; }
+.dr-preview, .dl-photo-big { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; background: #f3f3f3; }
+.po-wait { display: flex; gap: 6px; align-items: center; color: var(--muted); font-weight: 600; }
+.returned-list { display: grid; gap: 8px; }
+.dl-photo { border: 0; padding: 0; background: none; cursor: zoom-in; display: block; margin: 8px 0; }
+.dl-photo img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; }
+.dl-admin { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.period-chips { margin-bottom: 14px; }
+.period-chips .chip.is-on { background: var(--green-700); color: #fff; }
+.delivery-table tr.is-late td { background: var(--danger-50); }
+.delivery-table tr.is-late td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.staff-phone { margin-top: 6px; max-width: 200px; }
+.input-sm { height: 34px; font-size: .95rem; }
+.dr-cam { position: relative; border-radius: 10px; overflow: hidden; background: #111; }
+.dr-video { width: 100%; max-height: 60vh; display: block; object-fit: cover; }
+.dr-go { margin-top: 4px; }
+.result-card.is-current { border-color: var(--green-700); }
+
+/* Drivers v3: «رجعت الفرع», admin «الطيارين» + branch place */
+.dr-back { margin-top: 14px; }
+.dl-link { margin: 8px 0; font-size: 13px; }
+.dl-meta { font-size: 12px; margin-top: 4px; }
+.dl-actions { white-space: nowrap; }
+.dl-actions .btn + .btn { margin-inline-start: 6px; }
+.drivers-table .input { min-width: 0; }
+.section-title.sm { font-size: 16px; margin-top: 18px; }
+.branch-place { flex-wrap: wrap; align-items: center; gap: 10px; }
+.branch-paste { display: flex; gap: 8px; flex: 1 1 280px; }
+.branch-paste .input { flex: 1; min-width: 0; }
+.text-danger { color: var(--danger, #c0392b); }
+.tag-far { background: #fdecea; color: #b42318; }
+@media (max-width: 640px) {
+  .drivers-table thead { display: none; }
+  .drivers-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
+  .drivers-table td { padding: 0; border: 0; }
+  .drivers-table td:first-child { grid-column: 1 / -1; }
+}
+/* Prep: what happened to an order that left */
+.po-back-in, .po-delivered, .po-onway { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 14px; border-radius: 8px; padding: 6px 8px; }
+.po-back-in { background: #e7f6ec; color: #17663a; }
+.po-delivered { background: #fff6e0; color: #7a5300; }
+.po-onway { padding-inline: 0; }
+/* Prep: «الطيارين» bar (out / back at the branch) */
+.prep-drivers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.pd-title { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; margin-inline-end: 4px; }
+.pd-chip { display: inline-flex; gap: 6px; align-items: center; padding: 8px 12px; border-radius: 999px; font-size: 15px; }
+.pd-chip.is-back { background: #e7f6ec; color: #17663a; }
+.pd-chip.is-out { background: #fff6e0; color: #7a5300; }
+/* «الطيارين دلوقتي» (admin) */
+.dn { margin-bottom: 16px; }
+.dn-title { margin-top: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dn-sub { font-size: 13px; font-weight: 400; }
+.dn-map { height: 360px; border-radius: 12px; overflow: hidden; margin-bottom: 12px; direction: ltr; z-index: 0; }
+.dn-list { list-style: none; margin: 0; padding: 0; }
+.dn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border, #e5e7eb); }
+.dn-row:first-child { border-top: 0; }
+.dn-row .tag { display: inline-flex; gap: 4px; align-items: center; }
+.dn-empty { padding: 6px 0; }
+.dr-track { font-size: 13px; margin: 12px 0 0; display: flex; gap: 6px; align-items: center; }
+@media (max-width: 640px) { .dn-map { height: 260px; } }

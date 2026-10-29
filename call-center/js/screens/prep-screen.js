@@ -1,6 +1,9 @@
 /* Preparation screen (branch, prep account): the orders sent by the call center in three
    columns — جديد / بيتجهز / على الكاشير — with ONE big button per order that moves it on:
-   استلمت وبدأت التجهيز → وصل الكاشير → خرج مع الطيار. A wrong tap can be undone one step.
+   استلمت وبدأت التجهيز → وصل الكاشير → «اختيار الطيار» (can be changed until he leaves).
+   «خرجت» and «رجعت الفرع» are the driver's own taps on his phone (18_driver_tracking.sql);
+   a «الطيارين» bar on top shows each driver: out (how many orders) or «رجع الفرع» — with a ring when he is back.
+   A wrong tap can be undone one step.
    The call center sees every change on its board. This screen does not print (the call
    center prints the ticket and hands it over). It checks for changes every few seconds and
    rings when a new order arrives. */
@@ -13,46 +16,6 @@ import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { modifiersText } from '../utils/pricing.js';
 
 const SOUND_KEY = 'cc-prep-sound';
-const DRIVERS_KEY = 'cc-recent-drivers';   // the last drivers typed on this device (quick pick)
-const recentDrivers = () => { try { return JSON.parse(localStorage.getItem(DRIVERS_KEY) || '[]'); } catch { return []; } };
-const rememberDriver = (d) => {
-  try { localStorage.setItem(DRIVERS_KEY, JSON.stringify([d, ...recentDrivers().filter((x) => x !== d)].slice(0, 6))); } catch { /* ignore */ }
-};
-
-/* «خرج مع الطيار»: the driver in ONE field — «الاسم (الرقم)». Resolves with the text, or null. */
-function askDriver(order) {
-  return new Promise((done) => {
-    const recent = recentDrivers();
-    const m = openModal({
-      title: `${icon('check')} خرج مع الطيار — طلب <span class="ltr-inline">#${esc(order.number)}</span>`,
-      size: 'sm',
-      body: `
-        <div class="field">
-          <label for="driver">اسم الطيار ورقمه</label>
-          <input id="driver" class="input" maxlength="80" autocomplete="off" placeholder="مثال: محمد (01012345678)" value="${esc(order.driver || '')}">
-        </div>
-        ${recent.length ? `<div class="chips driver-chips">${recent.map((d) => `<button type="button" class="chip" data-driver="${esc(d)}">${esc(d)}</button>`).join('')}</div>` : ''}
-        <div class="field-error" data-err="driver" role="alert"></div>`,
-      footer: `
-        <button type="button" class="btn btn-primary btn-lg" data-save>${icon('check')}خرج</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-close>إلغاء</button>`,
-    });
-    let result = null;
-    const input = m.body.querySelector('#driver');
-    const save = () => {
-      const v = input.value.replace(/\s+/g, ' ').trim();
-      if (v.length < 2) { m.body.querySelector('[data-err="driver"]').textContent = 'أدخل اسم الطيار ورقمه — مثال: محمد (01012345678)'; input.focus(); return; }
-      result = v;
-      m.close();
-    };
-    m.body.addEventListener('click', (e) => { const c = e.target.closest('[data-driver]'); if (c) { input.value = c.dataset.driver; save(); } });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
-    input.addEventListener('input', () => { m.body.querySelector('[data-err="driver"]').textContent = ''; });
-    m.foot.querySelector('[data-save]').addEventListener('click', save);
-    m.onClose(() => done(result));
-    input.focus();
-  });
-}
 const stageOf = (id) => STAGES.find((s) => s.id === id) ?? STAGES[0];
 const nextOf = (id) => STAGES[STAGES.findIndex((s) => s.id === id) + 1] ?? null;
 const prevOf = (id) => STAGES[STAGES.findIndex((s) => s.id === id) - 1] ?? null;
@@ -110,9 +73,30 @@ function changeLine(c) {
 }
 const editUnseen = (o) => o.editedAt && o.status !== 'cancelled' && (!o.editSeenAt || o.editSeenAt < o.editedAt);
 
+const driverName = (label) => String(label || '').replace(/\s*\(.*\)$/, '');
+/* «الطيارين»: each driver's last trip today — still out, or back at the branch. */
+function driversBar(orders, dels) {
+  const trips = new Map();   // driver → his latest trip's orders
+  orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled' && o.driver && o.outAt).forEach((o) => {
+    const k = driverName(o.driver);
+    const t = trips.get(k);
+    if (!t || o.outAt > t.outAt) trips.set(k, { outAt: o.outAt, list: [o] });
+    else if (o.outAt === t.outAt) t.list.push(o);
+  });
+  if (!trips.size) return '';
+  const chips = [...trips].map(([name, t]) => {
+    const back = t.list.map((o) => dels.get(o.id)?.returnedAt).filter(Boolean).sort().pop();
+    const done = t.list.every((o) => dels.get(o.id)?.returnedAt);
+    return done
+      ? `<div class="pd-chip is-back">${icon('check')}<span><strong>${esc(name)}</strong> رجع الفرع <span class="num">${formatTime(back)}</span></span></div>`
+      : `<div class="pd-chip is-out">${icon('clock')}<span><strong>${esc(name)}</strong> بره — <span class="num">${t.list.length}</span> ${t.list.length === 1 ? 'طلب' : 'طلبات'} · خرج <span class="num">${formatTime(t.outAt)}</span></span></div>`;
+  }).sort((x, y) => (x.includes('is-out') ? 0 : 1) - (y.includes('is-out') ? 0 : 1));
+  return `<div class="prep-drivers"><span class="pd-title">${icon('user')}الطيارين</span>${chips.join('')}</div>`;
+}
+
 function prepCard(o, busy, checks = {}) {
   const cancelled = o.status === 'cancelled';
-  const next = cancelled ? null : nextOf(o.stage);
+  const next = cancelled || nextOf(o.stage)?.id === 'out' ? null : nextOf(o.stage);   // «خرج»: the driver taps it
   const prev = cancelled ? null : prevOf(o.stage);
   const since = { preparing: o.preparingAt, at_cashier: o.atCashierAt }[o.stage];
   const out = o.stage === 'out';
@@ -139,6 +123,10 @@ function prepCard(o, busy, checks = {}) {
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} ${formatRelative(since)}</div>` : ''}
+      ${o.stage === 'at_cashier' && !cancelled ? (o.driver
+        ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
+           <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`
+        : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
       ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
@@ -169,12 +157,16 @@ export function mountPrep(view) {
           <button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button>
         </div>
       </div>
+      <div data-drivers></div>
       <div class="prep-cols" data-cols><p class="muted">جارٍ التحميل…</p></div>
     </div></div>`;
 
   const cols = view.querySelector('[data-cols]');
+  const driversEl = view.querySelector('[data-drivers]');
   const soundBtn = view.querySelector('[data-sound]');
   let orders = [];
+  let dels = new Map();      // order id → { deliveredAt, returnedAt } (orders that left)
+  let backSeen = null;       // orders already shown as back (null until the first load: no ring on open)
   let known = null;          // order ids seen so far (null until the first load: no ring on open)
   const editsSeen = new Map(); // order id → last edit time already announced
   let busyId = null;
@@ -200,13 +192,15 @@ export function mountPrep(view) {
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
     cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
       + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
+    driversEl.innerHTML = driversBar(orders, dels);
   };
 
   const load = async () => {
     try {
       // CONFIRMED: only this working day's orders (it ends at 2 AM) — the screen starts empty after 2 AM,
       // older orders are not shown even if nobody moved them on.
-      const list = (await ds.listPrepOrders()).filter((o) => inWorkDay(o.createdAt));
+      const [all, d] = await Promise.all([ds.listPrepOrders(), ds.prepDeliveries().catch(() => dels)]);
+      const list = all.filter((o) => inWorkDay(o.createdAt));
       if (stopped) return;
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
       const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);
@@ -217,13 +211,19 @@ export function mountPrep(view) {
         writeChecks(Object.fromEntries(Object.entries(checks).filter(([id]) => known.has(id))));
       }
       list.forEach((o) => editsSeen.set(o.id, o.editedAt || null));
+      // «رجع الفرع»: the drivers who came back since the last check (one name per trip)
+      const backNow = list.filter((o) => o.stage === 'out' && d.get(o.id)?.returnedAt);
+      const cameBack = backSeen ? [...new Set(backNow.filter((o) => !backSeen.has(o.id)).map((o) => driverName(o.driver)).filter(Boolean))] : [];
+      backSeen = new Set(backNow.map((o) => o.id));
+      dels = d;
       orders = list;
       render();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
-      if (fresh.length || edited.length) {
+      if (fresh.length || edited.length || cameBack.length) {
         if (soundOn()) ring();
         showToast([fresh.length ? (fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`) : '',
-          edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : ''].filter(Boolean).join(' · '));
+          edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : '',
+          cameBack.length ? `${cameBack.join(' و')} رجع الفرع` : ''].filter(Boolean).join(' · '));
       }
     } catch (err) {
       if (stopped) return;
@@ -237,15 +237,9 @@ export function mountPrep(view) {
   };
 
   const move = async (orderId, stage) => {
-    let driver = null;
-    if (stage === 'out') {                   // ask for the driver first; cancelling changes nothing
-      driver = await askDriver(orders.find((x) => x.id === orderId) ?? { number: '' });
-      if (!driver) return;
-    }
     busyId = orderId; render();
     try {
-      if (driver) { await ds.sendOut(orderId, driver); rememberDriver(driver); }
-      else await ds.setStage(orderId, stage);
+      await ds.setStage(orderId, stage);
       const o = orders.find((x) => x.id === orderId);
       if (o) { o.stage = stage; }
     } catch (err) {
@@ -285,6 +279,33 @@ export function mountPrep(view) {
       move(btn.closest('[data-oid]').dataset.oid, btn.dataset.back);
     }),
     on(view, 'click', '[data-refresh]', () => load()),
+    on(view, 'click', '[data-pick-driver]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      const o = orders.find((x) => x.id === id);
+      const drivers = await ds.listDrivers().catch(() => []);
+      if (!drivers.length) { showToast('مفيش طيارين — الأدمن يضيفهم من صفحة الإعدادات («الطيارين»)'); return; }
+      const m = openModal({
+        title: `${icon('user')} اختيار الطيار — طلب <span class="ltr-inline">#${esc(o?.number ?? '')}</span>`,
+        size: 'sm',
+        body: `<p class="muted">الطلب هيظهر على موبايل الطيار، وهو يدوس «خرجت» لما ياخده.</p>
+          <div class="returned-list">${drivers.map((d) => `
+            <button type="button" class="result-card ${o?.driver === d.label ? 'is-current' : ''}" data-set-driver="${esc(d.userId)}">
+              <div class="grow cust-name">${esc(d.label)}</div>${o?.driver === d.label ? '<span class="tag tag-green">الحالي</span>' : ''}</button>`).join('')}</div>
+          ${o?.driver ? '<button type="button" class="link-btn" data-set-driver="">شيل الطيار من الطلب</button>' : ''}`,
+        footer: '<button type="button" class="btn btn-secondary" data-close>إلغاء</button>',
+      });
+      m.body.addEventListener('click', async (ev) => {
+        const b = ev.target.closest('[data-set-driver]');
+        if (!b) return;
+        b.disabled = true;
+        try {
+          const label = await ds.assignDriver(id, b.dataset.setDriver || null);
+          m.close();
+          showToast(label ? `الطلب مع ${label}` : 'اتشال الطيار من الطلب');
+          load();
+        } catch (err) { b.disabled = false; showToast(err.message); }
+      });
+    }),
     on(view, 'click', '[data-ack]', async (e, btn) => {
       const id = btn.closest('[data-oid]').dataset.oid;
       busyId = id; render();

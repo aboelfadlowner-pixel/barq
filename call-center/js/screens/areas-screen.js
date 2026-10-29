@@ -1,5 +1,6 @@
 /* Settings (admin only): delivery areas and fees, the registration code, accounts and
-   their roles, the employee names list (add, rename, stop/resume) and product add-ons. */
+   their roles, the drivers (personal links) and the branch place, the employee names list
+   (add, rename, stop/resume) and product add-ons. */
 import * as ds from '../data/data-source.js';
 import { catalog, reloadAreas, reloadAgents } from '../catalog.js';
 import { getState } from '../store.js';
@@ -10,6 +11,7 @@ import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 import { ROLES } from '../permissions.js';
 import { mountModifiersSettings } from '../components/modifiers-settings.js';
+import { mountDriversSettings } from '../components/drivers-settings.js';
 
 const parseFee = (v) => {
   const n = parseFloat(toWesternDigits(v).replace(/[^\d.]/g, ''));
@@ -72,6 +74,8 @@ export function mountAreas(view) {
       </div>
       </div>
 
+      <div data-drivers-mount></div>
+
       <h2 class="section-title">${icon('headset')}أسماء الموظفين</h2>
       <p class="muted section-sub">هذه القائمة يختار منها الموظف اسمه عند فتح البرنامج. الاسم الموقوف لا يظهر في القائمة، وتبقى الطلبات السابقة باسمه.</p>
       <form class="card card-pad add-area" data-add-agent novalidate>
@@ -92,6 +96,7 @@ export function mountAreas(view) {
       <div data-mods-section></div>
     </div></div>`;
   const unmountMods = mountModifiersSettings(view.querySelector('[data-mods-section]'));
+  const unmountDrivers = mountDriversSettings(view.querySelector('[data-drivers-mount]'));
 
   const rows = view.querySelector('[data-rows]');
   const render = () => {
@@ -120,15 +125,16 @@ export function mountAreas(view) {
 
   const staffRows = view.querySelector('[data-staff-rows]');
   const me = getState().user?.id;
-  const renderStaff = () => ds.listStaff().then((list) => {
-    view.querySelector('[data-staff-section]').hidden = !list;   // hidden until roles are installed
-    if (!list) return;
+  const renderStaff = () => ds.listStaff().then((all) => {
+    view.querySelector('[data-staff-section]').hidden = !all;   // hidden until roles are installed
+    if (!all) return;
+    const list = all.filter((s) => s.role !== 'driver');        // the drivers: «الطيارين» below
     staffRows.innerHTML = list.map((s) => `
       <tr data-staff-id="${esc(s.id)}" class="${s.active ? '' : 'row-off'}">
         <td><strong>${esc(s.name || 'بدون اسم بعد')}</strong>${s.id === me ? ' <span class="muted">(أنت)</span>' : ''}
           <div class="muted ltr-cell staff-email">${esc(s.email)}</div></td>
         <td><select class="input" name="staffRole" ${s.id === me ? 'disabled' : ''} aria-label="الصلاحية">
-          ${ROLES.map((r) => `<option value="${r.id}" ${r.id === s.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select></td>
+          ${ROLES.filter((r) => r.id !== 'driver').map((r) => `<option value="${r.id}" ${r.id === s.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select></td>
         <td><label class="switch"><input type="checkbox" name="staffActive" ${s.active ? 'checked' : ''} ${s.id === me ? 'disabled' : ''}>
           <span>${s.active ? 'نشط' : 'موقوف'}</span></label></td>
         <td>${s.id === me ? '' : `<button type="button" class="btn btn-soft btn-sm" data-save-staff>${icon('check')}حفظ</button>`}</td>
@@ -235,5 +241,5 @@ export function mountAreas(view) {
     }),
   ];
   view.querySelector('#newAreaName').focus();
-  return () => { offs.forEach((f) => f()); unmountMods(); };
+  return () => { offs.forEach((f) => f()); unmountMods(); unmountDrivers(); };
 }
