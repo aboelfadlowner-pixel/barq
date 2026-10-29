@@ -442,6 +442,23 @@ export function driversNow() {
     return { ...r, name: s.name || '', phone: s.phone || '', lat: p.lat, lng: p.lng, accuracy: p.accuracy, seenAt: p.at };
   }));
 }
+/* DEMO trail: from the branch towards the driver's place, a few bends, one point every 30 s. */
+export function driverTrails() {
+  return driversNow().then((rows) => new Map(rows.map((r) => {
+    const n = 12; const pts = [];
+    for (let i = 0; i <= n; i += 1) {
+      const f = i / n;
+      pts.push({ lat: branch.lat + (r.lat - branch.lat) * f + Math.sin(f * 6) * 0.0012,
+        lng: branch.lng + (r.lng - branch.lng) * f, at: new Date(Date.now() - (n - i) * 30000).toISOString() });
+    }
+    pts[n] = { lat: r.lat, lng: r.lng, at: r.seenAt };
+    // DEMO: his delivered orders of this trip, on the line
+    const stops = orders.filter((o) => o.driverUserId === r.userId && o.stage === 'out' && deliveries.get(o.id)?.deliveredAt
+      && !deliveries.get(o.id)?.returnedAt).map((o, k) => ({ number: o.number, lat: pts[Math.min(n - 2, 5 + k * 3)].lat,
+      lng: pts[Math.min(n - 2, 5 + k * 3)].lng, at: deliveries.get(o.id).deliveredAt }));
+    return [r.userId, { points: pts, stops }];
+  })));
+}
 export const prepDeliveries = () => resolve(new Map([...deliveries].map(([id, d]) => [id, { deliveredAt: d.deliveredAt ?? null, returnedAt: d.returnedAt ?? null }])));
 export const listDrivers = () => resolve(staff.filter((s) => s.role === 'driver' && s.active).map((s) => ({ userId: s.id, label: driverLabel(s.id) })));
 export function adminDelivery(id, what, driverId) {
