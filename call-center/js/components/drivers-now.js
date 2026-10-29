@@ -4,7 +4,8 @@
    The map follows the drivers (close zoom) until the admin moves it; «على الخريطة» zooms to one
    driver, «كل الطيارين» shows them all again. The light circle = how exact the phone's place is.
    CONFIRMED «خط سير المشوار»: each driver's line since he left (20_driver_trail.sql, kept 7 days);
-   his dot glides to each new place.
+   his dot glides to each new place. CONFIRMED «علامات التسليم»: a ✓ with the order number where
+   each order of the trip was delivered.
    The map is OpenStreetMap (free, no key); without it the list still works, with map links. */
 import * as ds from '../data/data-source.js';
 import { esc } from '../utils/dom.js';
@@ -53,7 +54,7 @@ export function mountDriversNow(el) {
   let stopped = false;
 
   // one set of layers per driver, kept between updates so the dot can glide to its new place
-  const drawn = new Map();   // userId → { dot, ring, line }
+  const drawn = new Map();   // userId → { dot, ring, line, stops }
   let branchDot = null;
   const COLORS = ['#d97706', '#2563eb', '#7c3aed', '#db2777', '#0891b2', '#65a30d'];
   const glide = (dot, ring, to) => {
@@ -95,7 +96,8 @@ export function mountDriversNow(el) {
       const color = COLORS[i % COLORS.length];
       const label = `<strong>${esc(r.name)}</strong> · ${agoText(agoMin(r.seenAt))}`;
       // «خط سير المشوار»: the line since he left the branch (+ his place now at the end)
-      const line = (trails.get(r.userId) || []).map((p) => [p.lat, p.lng]);
+      const trail = trails.get(r.userId) || { points: [], stops: [] };
+      const line = trail.points.map((p) => [p.lat, p.lng]);
       const last = line[line.length - 1];
       if (!last || last[0] !== r.lat || last[1] !== r.lng) line.push([r.lat, r.lng]);
       let d = drawn.get(r.userId);
@@ -114,11 +116,18 @@ export function mountDriversNow(el) {
         glide(d.dot, d.ring, [r.lat, r.lng]);
       }
       d.dot.setStyle({ fillColor: old ? '#f04438' : color });
+      // ✓ where he delivered each order of this trip
+      d.stops?.remove();
+      d.stops = L.layerGroup(trail.stops.filter((x) => x.lat != null).map((x) => L.marker([x.lat, x.lng], {
+        icon: L.divIcon({ className: 'dn-stop', html: `<span style="border-color:${color}">✓ ${esc(String(x.number).replace(/^CC-/, ''))}</span>`, iconSize: null }),
+        zIndexOffset: -100,
+      }).bindTooltip(`طلب <span class="ltr-inline">#${esc(x.number)}</span> · اتسلّم ${formatTime(x.at)}`, { direction: 'top' }))).addTo(map);
+      trail.stops.forEach((x) => { if (x.lat != null) pts.push([x.lat, x.lng]); });
       pts.push(...line);                 // the whole line in view, not just his dot
     });
     drawn.forEach((d, id) => {          // back at the branch: off the map
       if (seen.has(id)) return;
-      d.line.remove(); d.ring.remove(); d.dot.remove(); drawn.delete(id);
+      d.line.remove(); d.ring.remove(); d.dot.remove(); d.stops?.remove(); drawn.delete(id);
     });
     map.invalidateSize();
     if (follow && pts.length) fitAll(pts);

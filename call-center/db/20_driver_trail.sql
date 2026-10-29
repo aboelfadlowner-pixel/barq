@@ -4,6 +4,8 @@
 --  CONFIRMED: while a driver is out, every place his screen sends (about every 30 s) is kept,
 --  so the admin sees the line he moved along since he left the branch. Kept 7 days only:
 --  older points are removed automatically (on the next place sent). Admin only.
+--  CONFIRMED «علامات التسليم»: on the line, a ✓ with the order number where each order of the
+--  trip was delivered (the place recorded with «سلّمت»).
 --  CALL-CENTER ONLY: one new table (no direct access), cc_driver_ping also keeps the point,
 --  one new admin function. Nothing else changes. Safe to re-run.
 -- =====================================================================
@@ -54,9 +56,9 @@ begin
 end;
 $$;
 
--- Admin: the line of each driver out now, since he left (oldest first).
+-- Admin: the line of each driver out now, since he left (oldest first), and where he delivered.
 create or replace function public.cc_drivers_trails()
-returns table (user_id uuid, points jsonb)
+returns table (user_id uuid, points jsonb, stops jsonb)
 language plpgsql stable security definer
 set search_path = ''
 as $$
@@ -71,9 +73,15 @@ begin
        where o.stage = 'out' and o.status <> 'cancelled' and d.returned_at is null
          and o.driver_user_id is not null and o.out_at > now() - interval '1 day'
        group by o.driver_user_id)
-    select n.uid, coalesce((select jsonb_agg(jsonb_build_array(t.lat, t.lng, t.at) order by t.at)
-                              from public.cc_driver_track t
-                             where t.user_id = n.uid and t.at >= n.since), '[]'::jsonb)
+    select n.uid,
+           coalesce((select jsonb_agg(jsonb_build_array(t.lat, t.lng, t.at) order by t.at)
+                       from public.cc_driver_track t
+                      where t.user_id = n.uid and t.at >= n.since), '[]'::jsonb),
+           coalesce((select jsonb_agg(jsonb_build_object('order_no', o.order_no, 'lat', d.lat, 'lng', d.lng,
+                                                         'at', d.delivered_at) order by d.delivered_at)
+                       from public.cc_orders o join public.cc_order_delivery d on d.order_id = o.id
+                      where o.driver_user_id = n.uid and o.stage = 'out' and d.returned_at is null
+                        and d.delivered_at is not null and d.lat is not null and o.out_at >= n.since), '[]'::jsonb)
       from out_now n;
 end;
 $$;

@@ -1426,6 +1426,7 @@ do $$ declare r record; begin
   -- «خط سير المشوار»: one point kept (the second ping within 15 s is not), the 8-day-old one removed
   select * into r from public.cc_drivers_trails() where user_id = current_setting('cc.drv')::uuid;
   if jsonb_array_length(r.points) <> 1 or (r.points->0->>0)::float <> 31.2050 then raise exception 'FAIL T40 trail %', r; end if;
+  if jsonb_array_length(r.stops) <> 1 or r.stops->0->>'order_no' is null or r.stops->0->>'lat' is null then raise exception 'FAIL T40 trail stops %', r.stops; end if;
   if exists (select 1 from public.cc_drivers_now() where user_id = current_setting('cc.drvb')::uuid) then raise exception 'FAIL T40 driver not out listed'; end if;
 end $$;
 reset role;

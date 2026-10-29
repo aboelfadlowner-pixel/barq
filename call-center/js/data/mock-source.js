@@ -452,7 +452,11 @@ export function driverTrails() {
         lng: branch.lng + (r.lng - branch.lng) * f, at: new Date(Date.now() - (n - i) * 30000).toISOString() });
     }
     pts[n] = { lat: r.lat, lng: r.lng, at: r.seenAt };
-    return [r.userId, pts];
+    // DEMO: his delivered orders of this trip, on the line
+    const stops = orders.filter((o) => o.driverUserId === r.userId && o.stage === 'out' && deliveries.get(o.id)?.deliveredAt
+      && !deliveries.get(o.id)?.returnedAt).map((o, k) => ({ number: o.number, lat: pts[Math.min(n - 2, 5 + k * 3)].lat,
+      lng: pts[Math.min(n - 2, 5 + k * 3)].lng, at: deliveries.get(o.id).deliveredAt }));
+    return [r.userId, { points: pts, stops }];
   })));
 }
 export const prepDeliveries = () => resolve(new Map([...deliveries].map(([id, d]) => [id, { deliveredAt: d.deliveredAt ?? null, returnedAt: d.returnedAt ?? null }])));
