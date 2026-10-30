@@ -1,8 +1,9 @@
 /* editorial */
 .ed{display:grid;gap:22px;align-items:center;margin-bottom:clamp(28px,4vw,52px)}
 @media(min-width:800px){.ed{grid-template-columns:1fr 1fr;gap:56px}.ed.flip .ed-img{order:2}}
-.ed-img{border-radius:28px;aspect-ratio:4/3;display:grid;place-items:center;background:linear-gradient(150deg,#F1F6F2,#CFE0D3);color:rgba(23,74,43,.5)}
+.ed-img{border-radius:28px;aspect-ratio:4/3;overflow:hidden;display:grid;place-items:center;background:linear-gradient(150deg,#F1F6F2,#CFE0D3);color:rgba(23,74,43,.5)}
 .ed-img .slot{margin:0;color:inherit}
+.ed-img img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .ed h2{font-size:clamp(1.6rem,3.4vw,2.3rem);font-weight:700;margin-bottom:10px}
 .ed p{color:var(--muted);max-width:48ch}
 .ed ul{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px}

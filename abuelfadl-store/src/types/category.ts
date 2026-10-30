@@ -16,6 +16,11 @@ export interface Category {
    * Falls back to `imageUrl`, then to the illustration `art`.
    */
   iconUrl?: string;
+  /**
+   * Cover picture at the top of the category page (dashboard «صورة الكافر»): the products on a white background,
+   * 2640 × 2280 from the designer. When set it replaces the built-in animated cover of the category.
+   */
+  coverUrl?: string;
   /** Short line under the category name on its page, e.g. "Fresh Dairy, Every Day" (dashboard «جملة القسم»). */
   tagline?: string;
   /** Notice shown at the top of the category page, e.g. «للعرض فقط» (dashboard «تنبيه القسم»). */

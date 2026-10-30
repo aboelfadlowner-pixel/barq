@@ -108,6 +108,7 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [imageUrl, setImageUrl] = useState(category.imageUrl ?? "");
   const [iconUrl, setIconUrl] = useState(category.iconUrl ?? "");
+  const [coverUrl, setCoverUrl] = useState(category.coverUrl ?? "");
   const [tagline, setTagline] = useState(category.tagline ?? "");
   const [notice, setNotice] = useState(category.notice ?? "");
   const [displayOnly, setDisplayOnly] = useState(Boolean(category.displayOnly));
@@ -117,7 +118,8 @@ function CategoryRow({
     displayOnly !== Boolean(category.displayOnly) ||
     name !== category.name ||
     imageUrl.trim() !== (category.imageUrl ?? "") ||
-    iconUrl.trim() !== (category.iconUrl ?? "");
+    iconUrl.trim() !== (category.iconUrl ?? "") ||
+    coverUrl.trim() !== (category.coverUrl ?? "");
 
   return (
     <div className="cat-item">
@@ -172,9 +174,13 @@ function CategoryRow({
             <small className="muted">الأيقونة الصغيرة (مربعة)</small>
             <ImagePicker value={iconUrl} onChange={setIconUrl} max={400} compact />
           </div>
+          <div>
+            <small className="muted">صورة الكافر أعلى صفحة القسم (2640 × 2280، خلفية بيضاء)</small>
+            <ImagePicker value={coverUrl} onChange={setCoverUrl} max={1400} shape="cover" compact />
+          </div>
         </div>
       </div>
-      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), tagline: tagline.trim(), notice: notice.trim(), displayOnly })}>
+      <button className="btn btn-sm btn-primary" type="button" disabled={!dirty || name.trim().length < 2} onClick={() => onSave({ name, imageUrl: imageUrl.trim(), iconUrl: iconUrl.trim(), coverUrl: coverUrl.trim(), tagline: tagline.trim(), notice: notice.trim(), displayOnly })}>
         حفظ
       </button>
       <button

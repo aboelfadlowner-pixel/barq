@@ -27,6 +27,12 @@ export interface OrderHours {
 }
 
 /** Store-wide settings edited from the dashboard ("الإعدادات"). */
+/** Dashboard «صور الصفحة الرئيسية»: image URLs, empty string when none. */
+export interface HomeImages {
+  quality: string;
+  fresh: string;
+}
+
 export interface StoreSettings {
   /** Minimum order total in EGP. 0 means no minimum. */
   minOrder: number;
@@ -54,6 +60,8 @@ export interface StoreSettings {
   offersKicker: string;
   /** Delivery areas and fees. With no active area the checkout asks for none and adds no fee. */
   deliveryAreas: DeliveryArea[];
+  /** Photos of the two home-page blocks «جودة نختارها بأنفسنا» and «طازج يومًا بيوم» (4:3). Empty: the placeholder shows. */
+  homeImages: HomeImages;
   /** When enabled, orders are accepted only within these hours (outside them the store works as when paused). */
   orderHours: OrderHours;
 }

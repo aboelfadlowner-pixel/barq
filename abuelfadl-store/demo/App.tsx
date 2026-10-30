@@ -49,6 +49,7 @@ import { ReportsPage } from "@/features/admin/ReportsPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { ToastProvider } from "@/features/admin/ui";
 import type { Category } from "@/types/category";
+import type { HomeImages } from "@/types/settings";
 import { getRoleSync } from "./server/auth";
 import { resetData, snapshot } from "./server/db";
 
@@ -106,7 +107,7 @@ function StoreApp({ pathname }: { pathname: string }) {
                         <Header />
                         <main id="top">
                           {pathname === "/" ? (
-                            <HomePage categories={categories} />
+                            <HomePage categories={categories} homeImages={settings.homeImages} />
                           ) : pathname === "/contact" ? (
                           <ContactPage />
                         ) : category ? (
@@ -133,13 +134,13 @@ function StoreApp({ pathname }: { pathname: string }) {
 }
 
 /** src/app/(store)/page.tsx */
-function HomePage({ categories }: { categories: Category[] }) {
+function HomePage({ categories, homeImages }: { categories: Category[]; homeImages: HomeImages }) {
   return (
     <div id="viewHome">
       <Hero />
       <OffersStrip />
       <CategoryGrid categories={categories} />
-      <EditorialSection />
+      <EditorialSection images={homeImages} />
       <TrustSection />
     </div>
   );
@@ -150,7 +151,7 @@ function CategoryPage({ slug, categories, offersTitle }: { slug: string; categor
   const category =
     slug === ALL_SLUG ? ALL_CATEGORY : slug === OFFERS_SLUG ? { id: OFFERS_SLUG, name: offersTitle, art: "", tint: "" } : categories.find((c) => c.id === slug);
   if (!category) return <StoreNotFound />;
-  const cover = getCategoryCover(slug);
+  const cover = getCategoryCover(slug, category);
   const tagline = category.tagline;
   return (
     <div id="viewCat" key={slug}>

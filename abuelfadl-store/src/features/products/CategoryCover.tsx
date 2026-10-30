@@ -264,8 +264,26 @@ const COVERS: Record<string, () => React.JSX.Element> = {
   produce: ProduceCover,
 };
 
-/** The animated cover of a category, or null when the category has none. */
-export function getCategoryCover(slug: string): React.JSX.Element | null {
+/**
+ * Cover uploaded from the dashboard («صورة الكافر»): the designer's picture (products on white) rising in like the
+ * built-in covers; the white blends into the banner background. Position is the `.cvu` rules.
+ */
+function UploadedCover({ url, label }: { url: string; label: string }) {
+  return (
+    <div className="cvd" role="img" aria-label={label}>
+      <div className="cvd-s cvu" aria-hidden="true">
+        <span className="cvd-p cvu-p">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" decoding="async" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The cover of a category: the one uploaded from the dashboard, else its animated cover, or null when it has none. */
+export function getCategoryCover(slug: string, uploaded?: { coverUrl?: string; name: string }): React.JSX.Element | null {
+  if (uploaded?.coverUrl) return <UploadedCover url={uploaded.coverUrl} label={uploaded.name} />;
   const Cover = COVERS[slug];
   return Cover ? <Cover /> : null;
 }

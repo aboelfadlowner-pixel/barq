@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
     { id: "outside", name: "خارج الهانوفيل والدخيلة", fee: 50, active: true },
   ],
   orderHours: { enabled: true, open: "14:00", close: "01:30" },
+  homeImages: { quality: "", fresh: "" },
   branches: [{ name: "البيطاش (الفرع الرئيسي)", address: "شارع السماليهي 1، البيطاش", mapUrl: "https://maps.app.goo.gl/uZ3ZrZA4WM4Ggjye7" }],
 };
 

@@ -1,5 +1,5 @@
 import { withDefaults } from "../lib/settings";
-import type { Branch, DeliveryArea, OrderHours, StoreSettings } from "../types/settings";
+import type { Branch, DeliveryArea, HomeImages, OrderHours, StoreSettings } from "../types/settings";
 import { mutate, read } from "./db";
 import { assertValid } from "./errors";
 
@@ -60,6 +60,18 @@ function cleanBranches(value: unknown, fields: Record<string, string>): Branch[]
   return branches;
 }
 
+/** «صور الصفحة الرئيسية»: an uploaded image or an https link per block; empty = no photo. */
+function cleanHomeImages(value: unknown, fields: Record<string, string>): HomeImages {
+  const input = (value ?? {}) as Partial<Record<keyof HomeImages, unknown>>;
+  const url = (key: keyof HomeImages) => {
+    const text = typeof input[key] === "string" ? (input[key] as string).trim() : "";
+    // data: images are what the demo build's uploads return (the real store saves /uploads/... files).
+    if (text && !/^(\/|https:\/\/|data:image\/(webp|jpeg|png);base64,)\S+$/.test(text)) fields[`homeImages.${key}`] = "يجب أن يبدأ رابط الصورة بـ / أو https://";
+    return text;
+  };
+  return { quality: url("quality"), fresh: url("fresh") };
+}
+
 /** Updates the given settings; missing fields keep their value. */
 export function updateSettings(input: Partial<Record<keyof StoreSettings, unknown>>): Promise<StoreSettings> {
   return mutate((data) => {
@@ -106,6 +118,7 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
     const orderHours = input.orderHours === undefined ? current.orderHours : cleanHours(input.orderHours, fields);
 
     const branches = input.branches === undefined ? current.branches : cleanBranches(input.branches, fields);
+    const homeImages = input.homeImages === undefined ? current.homeImages : cleanHomeImages(input.homeImages, fields);
 
     assertValid(fields);
     const settings: StoreSettings = {
@@ -125,6 +138,7 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
       offersKicker,
       deliveryAreas,
       orderHours,
+      homeImages,
     };
     data.settings = settings;
     return settings;

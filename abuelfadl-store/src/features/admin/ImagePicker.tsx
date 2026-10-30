@@ -53,8 +53,8 @@ export function ImagePicker({
   onChange: (url: string) => void;
   /** Long side in px after resizing. */
   max?: number;
-  /** Preview frame: "square" (products, icons) or "tall" (4:5 category cards). */
-  shape?: "square" | "tall";
+  /** Preview frame: "square" (products, icons), "tall" (4:5 category cards), "wide" (4:3 home photos) or "cover" (category page cover). */
+  shape?: "square" | "tall" | "wide" | "cover";
   compact?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);

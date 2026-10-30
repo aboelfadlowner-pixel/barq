@@ -31,7 +31,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
       : await catalogService.getCategory(slug);
   if (!category) notFound();
 
-  const cover = getCategoryCover(slug);
+  const cover = getCategoryCover(slug, category);
   const tagline = category.tagline;
 
   return (

@@ -267,6 +267,7 @@ function checkCategoryFields(category: Category) {
   if (category.tagline && category.tagline.length > 80) fields.tagline = "الحد الأقصى 80 حرفًا";
   if (category.notice && category.notice.length > 200) fields.notice = "الحد الأقصى 200 حرف";
   if (category.iconUrl && !IMAGE_URL.test(category.iconUrl)) fields.iconUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
+  if (category.coverUrl && !IMAGE_URL.test(category.coverUrl)) fields.coverUrl = "يجب أن يبدأ رابط الصورة بـ / أو https://";
   assertValid(fields);
 }
 
@@ -282,6 +283,7 @@ export function createCategory(input: CategoryInput): Promise<Category> {
       tint: input.tint ?? "#EEF6EC",
       ...(cleanText(input.imageUrl) ? { imageUrl: cleanText(input.imageUrl) } : {}),
       ...(cleanText(input.iconUrl) ? { iconUrl: cleanText(input.iconUrl) } : {}),
+      ...(cleanText(input.coverUrl) ? { coverUrl: cleanText(input.coverUrl) } : {}),
       ...(cleanText(input.tagline) ? { tagline: cleanText(input.tagline) } : {}),
       ...(cleanText(input.notice) ? { notice: cleanText(input.notice) } : {}),
       ...(input.displayOnly === true ? { displayOnly: true } : {}),
@@ -311,6 +313,8 @@ export function updateCategory(id: CategoryId, input: CategoryInput): Promise<Ca
     if (imageUrl) category.imageUrl = imageUrl;
     const iconUrl = input.iconUrl !== undefined ? cleanText(input.iconUrl) : current.iconUrl;
     if (iconUrl) category.iconUrl = iconUrl;
+    const coverUrl = input.coverUrl !== undefined ? cleanText(input.coverUrl) : current.coverUrl;
+    if (coverUrl) category.coverUrl = coverUrl;
     const tagline = input.tagline !== undefined ? cleanText(input.tagline) : current.tagline;
     if (tagline) category.tagline = tagline;
     const notice = input.notice !== undefined ? cleanText(input.notice) : current.notice;

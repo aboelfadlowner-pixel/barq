@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { noticeText } from "@/lib/settings";
 import { outsideHoursMessage } from "@/lib/hours";
-import type { Branch, DeliveryArea, OrderHours, StoreSettings } from "@/types/settings";
+import type { Branch, DeliveryArea, HomeImages, OrderHours, StoreSettings } from "@/types/settings";
 import { api, AdminApiError } from "./api";
+import { ImagePicker } from "./ImagePicker";
 import { Field, useToast } from "./ui";
 
 interface FormState {
@@ -24,9 +25,10 @@ interface FormState {
   /** Fees as typed (strings), turned into numbers when saving. */
   deliveryAreas: (Omit<DeliveryArea, "fee"> & { fee: string })[];
   orderHours: OrderHours;
+  homeImages: HomeImages;
 }
 
-type TextField = Exclude<keyof FormState, "branches" | "deliveryAreas" | "orderHours">;
+type TextField = Exclude<keyof FormState, "branches" | "deliveryAreas" | "orderHours" | "homeImages">;
 
 const toForm = (s: StoreSettings): FormState => ({
   minOrder: String(s.minOrder),
@@ -43,6 +45,7 @@ const toForm = (s: StoreSettings): FormState => ({
   offersKicker: s.offersKicker,
   deliveryAreas: s.deliveryAreas.map((area) => ({ ...area, fee: String(area.fee) })),
   orderHours: s.orderHours,
+  homeImages: s.homeImages,
   branches: s.branches,
 });
 
@@ -93,6 +96,7 @@ export function SettingsPage() {
     setForm((f) => (f ? { ...f, deliveryAreas: f.deliveryAreas.map((a, i) => (i === index ? { ...a, ...patch } : a)) } : f));
   const addArea = () => setForm((f) => (f ? { ...f, deliveryAreas: [...f.deliveryAreas, { id: "", name: "", fee: "", active: true }] } : f));
   const removeArea = (index: number) => setForm((f) => (f ? { ...f, deliveryAreas: f.deliveryAreas.filter((_, i) => i !== index) } : f));
+  const setHomeImage = (key: keyof HomeImages, url: string) => setForm((f) => (f ? { ...f, homeImages: { ...f.homeImages, [key]: url } } : f));
   const setHours = (patch: Partial<OrderHours>) => setForm((f) => (f ? { ...f, orderHours: { ...f.orderHours, ...patch } } : f));
   const preview = noticeText({ ...settings, notice: form.notice, closedMessage: form.closedMessage, minOrder: Number(form.minOrder) || 0 });
   const changed = JSON.stringify(form) !== JSON.stringify(toForm(settings));
@@ -205,6 +209,19 @@ export function SettingsPage() {
           <Field label="النص الصغير أعلى الاسم" error={errors.offersKicker} hint="مثلًا: عروض لفترة محدودة. فارغ = لن يظهر">
             <input className="input" value={form.offersKicker} onChange={(e) => set("offersKicker", e.target.value)} />
           </Field>
+
+          <h2 style={{ marginTop: 10 }}>صور الصفحة الرئيسية</h2>
+          <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>
+            الصورتان بجانب «جودة نختارها بأنفسنا» و«طازج يومًا بيوم». المقاس 1600 × 1200 (أفقية 4:3)، وبدون صورة يظهر مكانها فارغًا
+          </p>
+          <div className="grid2">
+            <Field label="جودة نختارها بأنفسنا" error={errors["homeImages.quality"]}>
+              <ImagePicker value={form.homeImages.quality} onChange={(url) => setHomeImage("quality", url)} max={1600} shape="wide" />
+            </Field>
+            <Field label="طازج يومًا بيوم" error={errors["homeImages.fresh"]}>
+              <ImagePicker value={form.homeImages.fresh} onChange={(url) => setHomeImage("fresh", url)} max={1600} shape="wide" />
+            </Field>
+          </div>
 
           <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>

@@ -112,3 +112,8 @@
 
 /* fruit and vegetables cover (ProduceCover): the whole arrangement as one group (the pieces overlap in the photo) */
 .cvpr-group{left:6.00%;top:26.00%;width:88.00%;z-index:1;--dl:0.1s}
+
+/* cover uploaded from the dashboard (UploadedCover): one picture, products on white (2640 x 2280 from the designer) */
+.cvu{aspect-ratio:2640/2280}
+.cvu-p{left:0;top:0;width:100%;height:100%;--dl:0.1s}
+.cvu-p img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:none}
