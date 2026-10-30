@@ -49,7 +49,7 @@ import { ReportsPage } from "@/features/admin/ReportsPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { ToastProvider } from "@/features/admin/ui";
 import type { Category } from "@/types/category";
-import type { HomeImages } from "@/types/settings";
+import type { HomeBlock, HomeImages } from "@/types/settings";
 import { getRoleSync } from "./server/auth";
 import { resetData, snapshot } from "./server/db";
 
@@ -107,7 +107,7 @@ function StoreApp({ pathname }: { pathname: string }) {
                         <Header />
                         <main id="top">
                           {pathname === "/" ? (
-                            <HomePage categories={categories} homeImages={settings.homeImages} />
+                            <HomePage categories={categories} homeImages={settings.homeImages} homeBlocks={settings.homeBlocks} />
                           ) : pathname === "/contact" ? (
                           <ContactPage />
                         ) : category ? (
@@ -134,13 +134,13 @@ function StoreApp({ pathname }: { pathname: string }) {
 }
 
 /** src/app/(store)/page.tsx */
-function HomePage({ categories, homeImages }: { categories: Category[]; homeImages: HomeImages }) {
+function HomePage({ categories, homeImages, homeBlocks }: { categories: Category[]; homeImages: HomeImages; homeBlocks: HomeBlock[] }) {
   return (
     <div id="viewHome">
       <Hero />
       <OffersStrip />
       <CategoryGrid categories={categories} />
-      <EditorialSection images={homeImages} />
+      <EditorialSection images={homeImages} blocks={homeBlocks} />
       <TrustSection />
     </div>
   );

@@ -13,7 +13,7 @@ export default async function HomePage() {
       <Hero />
       <OffersStrip />
       <CategoryGrid categories={categories} />
-      <EditorialSection images={settings.homeImages} />
+      <EditorialSection images={settings.homeImages} blocks={settings.homeBlocks} />
       <TrustSection />
     </div>
   );

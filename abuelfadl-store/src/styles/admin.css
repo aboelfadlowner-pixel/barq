@@ -254,3 +254,5 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .img-pick .hint{color:var(--muted);font-size:12px}
 .cat-tagline-label{display:block;margin-top:8px}
 .cat-tagline{margin-top:2px;font-size:13px;padding:6px 10px}
+.home-part{background:var(--bg);box-shadow:none}
+.home-part h3{margin:0;font-size:15px}

@@ -27,6 +27,14 @@ export interface OrderHours {
 }
 
 /** Store-wide settings edited from the dashboard ("الإعدادات"). */
+/** One of the two home-page text blocks next to the photos (dashboard «الصفحة الرئيسية»). */
+export interface HomeBlock {
+  title: string;
+  text: string;
+  /** The two lines with a check mark; an empty one is not shown. */
+  points: [string, string];
+}
+
 /** Dashboard «صور الصفحة الرئيسية»: image URLs, empty string when none. */
 export interface HomeImages {
   quality: string;
@@ -62,6 +70,8 @@ export interface StoreSettings {
   deliveryAreas: DeliveryArea[];
   /** Photos of the two home-page blocks «جودة نختارها بأنفسنا» and «طازج يومًا بيوم» (4:3). Empty: the placeholder shows. */
   homeImages: HomeImages;
+  /** Texts of the same two blocks, in page order: «جودة نختارها بأنفسنا» (photo `quality`), «طازج يومًا بيوم» (photo `fresh`). */
+  homeBlocks: [HomeBlock, HomeBlock];
   /** When enabled, orders are accepted only within these hours (outside them the store works as when paused). */
   orderHours: OrderHours;
 }

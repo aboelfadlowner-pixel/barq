@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { noticeText } from "@/lib/settings";
 import { outsideHoursMessage } from "@/lib/hours";
-import type { Branch, DeliveryArea, HomeImages, OrderHours, StoreSettings } from "@/types/settings";
+import type { Branch, DeliveryArea, HomeBlock, HomeImages, OrderHours, StoreSettings } from "@/types/settings";
 import { api, AdminApiError } from "./api";
 import { ImagePicker } from "./ImagePicker";
 import { Field, useToast } from "./ui";
@@ -26,9 +26,16 @@ interface FormState {
   deliveryAreas: (Omit<DeliveryArea, "fee"> & { fee: string })[];
   orderHours: OrderHours;
   homeImages: HomeImages;
+  homeBlocks: [HomeBlock, HomeBlock];
 }
 
-type TextField = Exclude<keyof FormState, "branches" | "deliveryAreas" | "orderHours" | "homeImages">;
+type TextField = Exclude<keyof FormState, "branches" | "deliveryAreas" | "orderHours" | "homeImages" | "homeBlocks">;
+
+/** The two home-page blocks in page order, with the photo each one uses. */
+const HOME_PARTS: { image: keyof HomeImages; label: string }[] = [
+  { image: "quality", label: "الجزء الأول (الصورة يمين الكلام)" },
+  { image: "fresh", label: "الجزء الثاني (الصورة يسار الكلام)" },
+];
 
 const toForm = (s: StoreSettings): FormState => ({
   minOrder: String(s.minOrder),
@@ -46,6 +53,7 @@ const toForm = (s: StoreSettings): FormState => ({
   deliveryAreas: s.deliveryAreas.map((area) => ({ ...area, fee: String(area.fee) })),
   orderHours: s.orderHours,
   homeImages: s.homeImages,
+  homeBlocks: s.homeBlocks,
   branches: s.branches,
 });
 
@@ -97,6 +105,8 @@ export function SettingsPage() {
   const addArea = () => setForm((f) => (f ? { ...f, deliveryAreas: [...f.deliveryAreas, { id: "", name: "", fee: "", active: true }] } : f));
   const removeArea = (index: number) => setForm((f) => (f ? { ...f, deliveryAreas: f.deliveryAreas.filter((_, i) => i !== index) } : f));
   const setHomeImage = (key: keyof HomeImages, url: string) => setForm((f) => (f ? { ...f, homeImages: { ...f.homeImages, [key]: url } } : f));
+  const setHomeBlock = (index: number, patch: Partial<HomeBlock>) =>
+    setForm((f) => (f ? { ...f, homeBlocks: f.homeBlocks.map((b, i) => (i === index ? { ...b, ...patch } : b)) as [HomeBlock, HomeBlock] } : f));
   const setHours = (patch: Partial<OrderHours>) => setForm((f) => (f ? { ...f, orderHours: { ...f.orderHours, ...patch } } : f));
   const preview = noticeText({ ...settings, notice: form.notice, closedMessage: form.closedMessage, minOrder: Number(form.minOrder) || 0 });
   const changed = JSON.stringify(form) !== JSON.stringify(toForm(settings));
@@ -210,18 +220,42 @@ export function SettingsPage() {
             <input className="input" value={form.offersKicker} onChange={(e) => set("offersKicker", e.target.value)} />
           </Field>
 
-          <h2 style={{ marginTop: 10 }}>صور الصفحة الرئيسية</h2>
+          <h2 style={{ marginTop: 10 }}>الصفحة الرئيسية</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>
-            الصورتان بجانب «جودة نختارها بأنفسنا» و«طازج يومًا بيوم». المقاس 1600 × 1200 (أفقية 4:3)، وبدون صورة يظهر مكانها فارغًا
+            الجزءان بالصور تحت الأقسام. الصورة 1600 × 1200 (أفقية 4:3)، وبدونها يظهر مكانها فارغًا. لو مسحت العنوان يرجع الكلام الأصلي
           </p>
-          <div className="grid2">
-            <Field label="جودة نختارها بأنفسنا" error={errors["homeImages.quality"]}>
-              <ImagePicker value={form.homeImages.quality} onChange={(url) => setHomeImage("quality", url)} max={1600} shape="wide" />
-            </Field>
-            <Field label="طازج يومًا بيوم" error={errors["homeImages.fresh"]}>
-              <ImagePicker value={form.homeImages.fresh} onChange={(url) => setHomeImage("fresh", url)} max={1600} shape="wide" />
-            </Field>
-          </div>
+          {HOME_PARTS.map((part, i) => {
+            const block = form.homeBlocks[i];
+            const err = (key: string) => errors[`homeBlocks.${i}.${key}`];
+            return (
+              <div key={part.image} className="card card-pad stack home-part">
+                <h3>{part.label}</h3>
+                <div className="grid2">
+                  <Field label="الصورة" error={errors[`homeImages.${part.image}`]}>
+                    <ImagePicker value={form.homeImages[part.image]} onChange={(url) => setHomeImage(part.image, url)} max={1600} shape="wide" />
+                  </Field>
+                  <div className="stack">
+                    <Field label="العنوان" error={err("title")}>
+                      <input className="input" maxLength={50} value={block.title} onChange={(e) => setHomeBlock(i, { title: e.target.value })} />
+                    </Field>
+                    <Field label="الوصف" error={err("text")}>
+                      <textarea className="textarea" rows={3} maxLength={250} value={block.text} onChange={(e) => setHomeBlock(i, { text: e.target.value })} />
+                    </Field>
+                    {[0, 1].map((n) => (
+                      <Field key={n} label={`النقطة ${n + 1} (بعلامة ✓)`} error={err(`points.${n}`)} hint={n === 1 ? "فارغة = لن تظهر" : undefined}>
+                        <input
+                          className="input"
+                          maxLength={50}
+                          value={block.points[n]}
+                          onChange={(e) => setHomeBlock(i, { points: (n === 0 ? [e.target.value, block.points[1]] : [block.points[0], e.target.value]) as [string, string] })}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           <h2 style={{ marginTop: 10 }}>بيانات التواصل</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>

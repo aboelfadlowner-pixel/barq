@@ -1,5 +1,5 @@
-import { withDefaults } from "../lib/settings";
-import type { Branch, DeliveryArea, HomeImages, OrderHours, StoreSettings } from "../types/settings";
+import { DEFAULT_SETTINGS, withDefaults } from "../lib/settings";
+import type { Branch, DeliveryArea, HomeBlock, HomeImages, OrderHours, StoreSettings } from "../types/settings";
 import { mutate, read } from "./db";
 import { assertValid } from "./errors";
 
@@ -72,6 +72,27 @@ function cleanHomeImages(value: unknown, fields: Record<string, string>): HomeIm
   return { quality: url("quality"), fresh: url("fresh") };
 }
 
+/** Texts of the two home-page blocks. A block whose title is emptied goes back to its original text. */
+function cleanHomeBlocks(value: unknown, fields: Record<string, string>): [HomeBlock, HomeBlock] {
+  const input = Array.isArray(value) ? value : [];
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const block = (i: 0 | 1): HomeBlock => {
+    const raw = (input[i] ?? {}) as { title?: unknown; text?: unknown; points?: unknown };
+    const title = text(raw.title);
+    if (!title) return DEFAULT_SETTINGS.homeBlocks[i];
+    const body = text(raw.text);
+    const points = Array.isArray(raw.points) ? raw.points : [];
+    const block: HomeBlock = { title, text: body, points: [text(points[0]), text(points[1])] };
+    if (title.length > 50) fields[`homeBlocks.${i}.title`] = "الحد الأقصى 50 حرفًا";
+    if (body.length > 250) fields[`homeBlocks.${i}.text`] = "الحد الأقصى 250 حرفًا";
+    block.points.forEach((point, n) => {
+      if (point.length > 50) fields[`homeBlocks.${i}.points.${n}`] = "الحد الأقصى 50 حرفًا";
+    });
+    return block;
+  };
+  return [block(0), block(1)];
+}
+
 /** Updates the given settings; missing fields keep their value. */
 export function updateSettings(input: Partial<Record<keyof StoreSettings, unknown>>): Promise<StoreSettings> {
   return mutate((data) => {
@@ -119,6 +140,7 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
 
     const branches = input.branches === undefined ? current.branches : cleanBranches(input.branches, fields);
     const homeImages = input.homeImages === undefined ? current.homeImages : cleanHomeImages(input.homeImages, fields);
+    const homeBlocks = input.homeBlocks === undefined ? current.homeBlocks : cleanHomeBlocks(input.homeBlocks, fields);
 
     assertValid(fields);
     const settings: StoreSettings = {
@@ -139,6 +161,7 @@ export function updateSettings(input: Partial<Record<keyof StoreSettings, unknow
       deliveryAreas,
       orderHours,
       homeImages,
+      homeBlocks,
     };
     data.settings = settings;
     return settings;
