@@ -846,3 +846,7 @@ body.cam-open { overflow: hidden; }
 .dn-pop { display: grid; gap: 4px; font-size: 14px; }
 .dn-pop-addr { margin-top: 2px; }
 .dn-pop-photo img { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 4px; }
+/* ✓ popup: written address vs the real delivery spot */
+.dn-cmp { display: grid; gap: 6px; margin-top: 4px; }
+.dn-cmp-row { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #f4f6f4; }
+.dn-cmp-k { font-size: 12px; color: var(--muted, #667); }
