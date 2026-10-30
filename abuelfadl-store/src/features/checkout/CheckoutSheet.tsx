@@ -7,6 +7,7 @@ import { useCart } from "@/features/cart/CartProvider";
 import { useSettings } from "@/features/settings/SettingsProvider";
 import { CUSTOMER_STORAGE_KEY } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
+import { isOrderNotDelivered } from "@/lib/orderErrors";
 import { orderService } from "@/services/client";
 import type { Order } from "@/types/order";
 
@@ -21,6 +22,24 @@ interface Errors {
   phone?: string;
   address?: string;
   area?: string;
+}
+
+/** WhatsApp link with the whole order written out, for when the store cannot be reached. */
+function whatsappOrderLink(number: string, order: { name: string; phone: string; area?: string; address: string; note: string; lines: { name: string; quantity: number; weighed: boolean; price: number }[]; delivery: number; total: number }) {
+  const text = [
+    "طلب جديد من الموقع (لم يصل للمتجر بسبب عطل):",
+    `الاسم: ${order.name}`,
+    `الموبايل: ${order.phone}`,
+    ...(order.area ? [`المنطقة: ${order.area}`] : []),
+    `العنوان: ${order.address}`,
+    ...(order.note ? [`ملاحظات: ${order.note}`] : []),
+    "",
+    "الطلب:",
+    ...order.lines.map((line) => `- ${line.name} × ${line.weighed ? `${line.quantity} كيلو` : line.quantity} = ${formatMoney(line.price * line.quantity)} ج.م`),
+    ...(order.delivery ? [`التوصيل: ${formatMoney(order.delivery)} ج.م`] : []),
+    `الإجمالي: ${formatMoney(order.total)} ج.م (الدفع عند الاستلام)`,
+  ].join("\n");
+  return `https://wa.me/2${number}?text=${encodeURIComponent(text)}`;
 }
 
 /** Egyptian mobile number: strips spaces and dashes and turns Arabic-Indic digits into 0-9 (v29 `submitOrder`). */
@@ -41,11 +60,14 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [areaId, setAreaId] = useState("");
-  const areas = useSettings().deliveryAreas.filter((area) => area.active);
+  const settings = useSettings();
+  const areas = settings.deliveryAreas.filter((area) => area.active);
   const area = areas.find((a) => a.id === areaId);
   const deliveryFee = area?.fee ?? 0;
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
+  /** Set when the order could not reach the store: a WhatsApp link with the order written out. */
+  const [fallback, setFallback] = useState("");
   /** One id per opening of the form: a retry after a lost answer is recognised by the server as the same order. */
   const requestId = useRef("");
   const nameRef = useRef<HTMLInputElement>(null);
@@ -66,6 +88,7 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
     }
     setErrors({});
     setBusy(false);
+    setFallback("");
     requestId.current = newRequestId();
     const focusName = () => nameRef.current?.focus({ preventScroll: true });
     // Second pass: the cart drawer restores focus to the header button while it closes.
@@ -109,6 +132,24 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
       onPlaced(placed);
     } catch (error) {
       setBusy(false);
+      const whatsapp = settings.whatsapp || settings.phone;
+      if (isOrderNotDelivered(error) && whatsapp) {
+        // The store could not be reached: the order is not lost, the customer sends it on WhatsApp in one tap.
+        setErrors({});
+        setFallback(
+          whatsappOrderLink(whatsapp, {
+            name: trimmedName,
+            phone: mobile,
+            area: area?.name,
+            address: trimmedAddress,
+            note: note.trim(),
+            lines: lines.map(({ product, quantity }) => ({ name: product.name, quantity, weighed: product.weighed, price: product.price })),
+            delivery: deliveryFee,
+            total: total + deliveryFee,
+          }),
+        );
+        return;
+      }
       // The server explains what went wrong (e.g. a product just went out of stock).
       setErrors({ address: error instanceof Error && error.message ? error.message : "تعذّر إرسال الطلب، حاول مرة أخرى." });
     }
@@ -219,9 +260,23 @@ export function CheckoutSheet({ onPlaced }: { onPlaced: (order: Order) => void }
           <span>الإجمالي</span>
           <strong id="coTotal">{formatMoney(total + deliveryFee)} ج.م</strong>
         </div>
-        <button className="btn btn-primary" type="button" id="coSubmit" style={{ width: "100%" }} disabled={busy} onClick={submit}>
-          تأكيد الطلب
-        </button>
+        {fallback ? (
+          <div className="co-fallback" role="alert">
+            <p>
+              <b>لم يصل طلبك إلى المتجر بسبب عطل مؤقت.</b> لا تقلق، طلبك محفوظ: أرسله لنا على واتساب بضغطة واحدة وسنؤكده معك.
+            </p>
+            <a className="btn btn-primary" href={fallback} target="_blank" rel="noreferrer" style={{ width: "100%" }}>
+              أرسل الطلب على واتساب
+            </a>
+            <button className="btn btn-ghost" type="button" style={{ width: "100%" }} disabled={busy} onClick={submit}>
+              حاول الإرسال من الموقع مرة أخرى
+            </button>
+          </div>
+        ) : (
+          <button className="btn btn-primary" type="button" id="coSubmit" style={{ width: "100%" }} disabled={busy} onClick={submit}>
+            تأكيد الطلب
+          </button>
+        )}
       </form>
     </aside>
   );

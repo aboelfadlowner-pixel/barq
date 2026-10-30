@@ -24,3 +24,6 @@
 .co-lines{display:grid;gap:6px;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line);color:var(--muted);font-size:.92rem}
 .co-lines div{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
 .co-lines + .co-sum{margin-top:8px}
+/* order could not reach the store: send it on WhatsApp instead (CheckoutSheet) */
+.co-fallback{display:grid;gap:10px;margin-top:4px;padding:14px;border-radius:16px;background:#FFF6E5;border:1px solid #F3D9A4}
+.co-fallback p{margin:0;font-size:.92rem;line-height:1.7;color:#5A4210}

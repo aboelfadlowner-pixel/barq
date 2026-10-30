@@ -71,7 +71,7 @@ const result = await build({
   minify: true,
   jsx: "automatic",
   tsconfig: r("tsconfig.json"),
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_STORE_URL": '""' },
   plugins: [demoPlugin],
   logLevel: "warning",
 });

@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "@/types/auth";
 import { api } from "./api";
 import { AlertToggle, useNewOrderAlert } from "./NewOrderAlert";
 import { Ic } from "./ui";
+import { STORE_URL } from "@/lib/links";
 
 /** `main` links stay in the phone's bottom bar; the others open from «المزيد». `admin` links are hidden from the call center. */
 const LINKS = [
@@ -85,7 +86,7 @@ export function AdminNav() {
         </button>
         <div className="more-foot">
           <AlertToggle enabled={alert.enabled} onToggle={alert.toggle} />
-          <a href="/" target="_blank" rel="noreferrer">
+          <a href={STORE_URL} target="_blank" rel="noreferrer">
             <Ic name="store" />
             فتح المتجر
           </a>
@@ -98,7 +99,7 @@ export function AdminNav() {
       {moreOpen ? <button type="button" className="more-backdrop" aria-label="إغلاق" onClick={() => setMoreOpen(false)} /> : null}
       <div className="adm-side-foot">
         <AlertToggle className={alert.enabled ? "btn btn-ghost alert-on" : "btn btn-ghost"} enabled={alert.enabled} onToggle={alert.toggle} />
-        <a className="btn btn-ghost" href="/" target="_blank" rel="noreferrer">
+        <a className="btn btn-ghost" href={STORE_URL} target="_blank" rel="noreferrer">
           <Ic name="store" />
           فتح المتجر
         </a>

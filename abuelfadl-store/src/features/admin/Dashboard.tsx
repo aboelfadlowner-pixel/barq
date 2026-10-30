@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DashboardStats } from "@/server/orders";
 import { api, egp, formatDateTime } from "./api";
+import { STORE_URL } from "@/lib/links";
 
 export function Dashboard() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export function Dashboard() {
           <p>ملخص اليوم</p>
         </div>
         <div className="row">
-          <a className="btn btn-sm" href="/" target="_blank" rel="noreferrer">
+          <a className="btn btn-sm" href={STORE_URL} target="_blank" rel="noreferrer">
             فتح المتجر
           </a>
           <button className="btn btn-sm" type="button" onClick={logout}>
