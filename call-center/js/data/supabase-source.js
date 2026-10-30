@@ -393,7 +393,9 @@ export async function driverTrails() {
   if (res.error) return new Map();            // not installed yet: no lines, the map still works
   return new Map(res.data.map((r) => [r.user_id, {
     points: (r.points || []).map((p) => ({ lat: p[0], lng: p[1], at: p[2] })),
-    stops: (r.stops || []).map((x) => ({ number: x.order_no, lat: x.lat, lng: x.lng, at: x.at })),
+    stops: (r.stops || []).map((x) => ({ number: x.order_no, lat: x.lat, lng: x.lng, at: x.at, id: x.id || null,
+      photoPath: x.photo_path || null,
+      address: { areaName: x.area_name || '', label: x.address_label || '', street: x.street || '', housingType: x.housing_type || '', notes: x.address_notes || '' } })),
   }]));
 }
 /* Branch: «اتسلّم» / «رجع الفرع» times of today's orders that left (order id → times). */

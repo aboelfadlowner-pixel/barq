@@ -5,11 +5,12 @@
    driver, «كل الطيارين» shows them all again. The light circle = how exact the phone's place is.
    CONFIRMED «خط سير المشوار»: each driver's line since he left (20_driver_trail.sql, kept 7 days);
    his dot glides to each new place. CONFIRMED «علامات التسليم»: a ✓ with the order number where
-   each order of the trip was delivered.
+   each order of the trip was delivered; tapping it shows the order's ADDRESS, the time and the photo,
+   so the admin can check he delivered at the right place (21_trail_stop_details.sql).
    The map is OpenStreetMap (free, no key); without it the list still works, with map links. */
 import * as ds from '../data/data-source.js';
 import { esc } from '../utils/dom.js';
-import { formatTime } from '../utils/format.js';
+import { formatTime, housingLabel } from '../utils/format.js';
 import { icon } from './icons.js';
 
 const REFRESH_MS = 20000;
@@ -72,6 +73,32 @@ export function mountDriversNow(el) {
     requestAnimationFrame(step);
   };
 
+  // the ✓ popup: the order's address (to compare with where he delivered), the time, the photo
+  const stopPopup = (x) => {
+    const a = x.address || {};
+    const el = document.createElement('div');   // an element (not text), so the photo stays when the popup resizes
+    el.innerHTML = `<div class="dn-pop">
+      <strong>طلب <span class="ltr-inline">#${esc(x.number)}</span></strong>
+      <div class="muted">اتسلّم ${esc(formatTime(x.at))}</div>
+      <div class="dn-pop-addr"><strong>${esc(a.areaName || '')}</strong> · ${esc(a.street || '')}
+        ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}
+        ${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div>
+      <div class="dn-pop-photo" data-pop-photo>${x.photoPath ? '<span class="muted">جارٍ تحميل الصورة…</span>' : ''}</div>
+      ${x.id ? `<a class="link-btn" href="#/orders/${encodeURIComponent(x.id)}">تفاصيل الطلب</a>` : ''}
+    </div>`;
+    return el;
+  };
+  const showStopPhoto = async (popup, x) => {
+    if (!x.photoPath) return;
+    const box = popup.getContent()?.querySelector?.('[data-pop-photo]');
+    if (!box || box.querySelector('img')) return;
+    try {
+      const url = await ds.photoUrl(x.photoPath);
+      box.innerHTML = `<img src="${esc(url)}" alt="صورة التسليم">`;
+      box.querySelector('img').addEventListener('load', () => popup.update());
+    } catch { box.innerHTML = '<span class="muted">الصورة مش موجودة</span>'; }
+  };
+
   const paintMap = async (rows, branch, trails) => {
     const placed = rows.filter((r) => r.lat != null);
     let L;
@@ -121,11 +148,16 @@ export function mountDriversNow(el) {
       }
       d.dot.setStyle({ fillColor: old ? '#f04438' : color });
       // ✓ where he delivered each order of this trip
+      const key = trail.stops.map((x) => `${x.number}@${x.lat},${x.lng}`).join('|');
+      if (d.stopsKey !== key) {
       d.stops?.remove();
+      d.stopsKey = key;
       d.stops = L.layerGroup(trail.stops.filter((x) => x.lat != null).map((x) => L.marker([x.lat, x.lng], {
         icon: L.divIcon({ className: 'dn-stop', html: `<span style="border-color:${color}">✓ ${esc(String(x.number).replace(/^CC-/, ''))}</span>`, iconSize: null }),
         zIndexOffset: -100,
-      }).bindTooltip(`طلب <span class="ltr-inline">#${esc(x.number)}</span> · اتسلّم ${formatTime(x.at)}`, { direction: 'top' }))).addTo(map);
+      }).bindPopup(stopPopup(x), { maxWidth: 280, className: 'dn-popup' })
+        .on('popupopen', (ev) => showStopPhoto(ev.popup, x)))).addTo(map);
+      }
       trail.stops.forEach((x) => { if (x.lat != null) pts.push([x.lat, x.lng]); });
       pts.push(...line);                 // the whole line in view, not just his dot
     });
