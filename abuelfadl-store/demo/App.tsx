@@ -272,10 +272,32 @@ function AdminApp({ pathname }: { pathname: string }) {
 
 // ---------------- demo bar ----------------
 
-/** Small floating bar that only exists in the demo: switch between store and dashboard, and reset the data. */
+/**
+ * The demo's category and product order as one line of text («نسخ الترتيب»), to be applied to the real database:
+ * "AF-ORDER1|<category ids>|<product ids>", each list in display order (a product's position is its place in the list).
+ */
+function orderCode(): string {
+  const { categories, products } = snapshot();
+  return `AF-ORDER1|${categories.map((c) => c.id).join(",")}|${products.map((p) => p.id).join(",")}`;
+}
+
+/** Small floating bar that only exists in the demo: switch between store and dashboard, reset the data, copy the order. */
 function DemoBar({ admin }: { admin: boolean }) {
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
+  const [code, setCode] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const copyOrder = async () => {
+    const text = orderCode();
+    setCode(text);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false); // the box below lets it be copied by hand
+    }
+  };
 
   const reset = () => {
     if (!confirming) return setConfirming(true);
@@ -301,9 +323,23 @@ function DemoBar({ admin }: { admin: boolean }) {
         {admin ? "فتح المتجر" : "لوحة التحكم"}
       </button>
       {admin ? (
+        <button type="button" onClick={copyOrder}>
+          نسخ الترتيب
+        </button>
+      ) : null}
+      {admin ? (
         <button type="button" className={confirming ? "warn" : undefined} onClick={reset} onBlur={() => setConfirming(false)}>
           {done ? "تمت الاستعادة ✓" : confirming ? "هل أنت متأكد؟ اضغط مرة أخرى" : "استعادة البيانات الأصلية"}
         </button>
+      ) : null}
+      {code ? (
+        <div className="demo-order" role="dialog" aria-label="الترتيب">
+          <b>{copied ? "تم نسخ الترتيب ✓ ابعته في الشات" : "انسخ الكلام ده كله وابعته في الشات"}</b>
+          <textarea readOnly value={code} rows={4} onFocus={(e) => e.currentTarget.select()} />
+          <button type="button" onClick={() => setCode("")}>
+            إغلاق
+          </button>
+        </div>
       ) : null}
     </div>
   );

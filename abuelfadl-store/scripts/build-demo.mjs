@@ -84,7 +84,10 @@ const demoCss = `
 .demo-bar button{all:unset;cursor:pointer;background:#2B7A4B;color:#fff;border-radius:999px;padding:6px 12px;font:inherit}
 .demo-bar button.warn{background:#C62828}
 .demo-bar button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-@media(min-width:900px){.demo-bar{bottom:calc(16px + env(safe-area-inset-bottom,0px))}}`;
+@media(min-width:900px){.demo-bar{bottom:calc(16px + env(safe-area-inset-bottom,0px))}}
+.demo-order{position:absolute;bottom:calc(100% + 8px);left:0;width:min(420px,calc(100vw - 24px));display:grid;gap:8px;padding:12px;border-radius:16px;background:#14261B;color:#fff}
+.demo-order textarea{width:100%;box-sizing:border-box;border-radius:10px;border:0;padding:8px;font:12px/1.4 monospace;direction:ltr;resize:none}
+.demo-order button{justify-self:start}`;
 
 const html = `<title>أبو الفضل ستور تجريبي</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
