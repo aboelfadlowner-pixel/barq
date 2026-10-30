@@ -455,7 +455,8 @@ export function driverTrails() {
     // DEMO: his delivered orders of this trip, on the line
     const stops = orders.filter((o) => o.driverUserId === r.userId && o.stage === 'out' && deliveries.get(o.id)?.deliveredAt
       && !deliveries.get(o.id)?.returnedAt).map((o, k) => ({ number: o.number, lat: pts[Math.min(n - 2, 5 + k * 3)].lat,
-      lng: pts[Math.min(n - 2, 5 + k * 3)].lng, at: deliveries.get(o.id).deliveredAt }));
+      lng: pts[Math.min(n - 2, 5 + k * 3)].lng, at: deliveries.get(o.id).deliveredAt,
+      id: o.id, photoPath: deliveries.get(o.id).photo ?? null, address: { ...o.address } }));
     return [r.userId, { points: pts, stops }];
   })));
 }

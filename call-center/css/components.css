@@ -840,3 +840,13 @@ body.cam-open { overflow: hidden; }
 .dn-map.leaflet-container.leaflet-dragging { cursor: grabbing; }
 .dn.is-full { position: fixed; inset: 0; z-index: 900; margin: 0; border-radius: 0; display: flex; flex-direction: column; overflow: auto; }
 .dn.is-full .dn-map { flex: 1 0 60vh; height: auto; }
+/* ✓ popup on the live map: the order's address + photo */
+.dn-stop { cursor: pointer; }
+.dn-popup .leaflet-popup-content { margin: 10px 12px; direction: rtl; text-align: right; font-family: inherit; }
+.dn-pop { display: grid; gap: 4px; font-size: 14px; }
+.dn-pop-addr { margin-top: 2px; }
+.dn-pop-photo img { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 4px; }
+/* ✓ popup: written address vs the real delivery spot */
+.dn-cmp { display: grid; gap: 6px; margin-top: 4px; }
+.dn-cmp-row { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #f4f6f4; }
+.dn-cmp-k { font-size: 12px; color: var(--muted, #667); }
