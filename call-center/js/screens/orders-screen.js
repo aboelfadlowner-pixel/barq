@@ -100,7 +100,7 @@ export function mountOrders(view) {
       <span><strong class="num">${r.count}</strong> طلب${r.cancelled ? ` <span class="muted">(منها ${r.cancelled} ملغي)</span>` : ''}</span>
       <span>إجمالي الطلبات غير الملغاة: <strong>${money(r.sum)}</strong></span>`;
     const pages = Math.max(1, Math.ceil(r.count / PAGE_SIZE));
-    $('[data-pager]').hidden = !r.count;            // always shown (greyed out when there is no other page)
+    $('[data-pager]').hidden = r.count <= PAGE_SIZE;   // CONFIRMED: only when there is more than one page
     $('[data-page-info]').textContent = r.count ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, r.count)} من ${r.count} · صفحة ${page + 1} من ${pages}` : '';
     $('[data-page="-1"]').disabled = page === 0;
     $('[data-page="1"]').disabled = page >= pages - 1;
