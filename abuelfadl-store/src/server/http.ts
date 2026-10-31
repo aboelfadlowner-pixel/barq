@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { ApiError } from "./errors";
 
 /**
@@ -39,7 +39,23 @@ export function parseId(value: string, what: string): number {
   return id;
 }
 
-/** After a catalog change: rebuild the store pages so customers see it. */
+/**
+ * After a catalog or settings change: rebuild the store pages so customers see it.
+ * With the dashboard deployed apart from the store (APP_PART=admin), this deployment's own pages are not the ones
+ * customers see, so the store is also asked to rebuild through its /api/revalidate (NEXT_PUBLIC_STORE_URL +
+ * REVALIDATE_SECRET), after the response is sent. Without it the store would show the change within 10 minutes.
+ */
 export function refreshStore() {
   revalidatePath("/", "layout");
+  const store = process.env.NEXT_PUBLIC_STORE_URL;
+  const secret = process.env.REVALIDATE_SECRET;
+  if (process.env.APP_PART !== "admin" || !store || !secret) return;
+  after(async () => {
+    try {
+      const response = await fetch(new URL("/api/revalidate", store), { method: "POST", headers: { "x-revalidate-secret": secret } });
+      if (!response.ok) console.error("[refreshStore] store answered", response.status);
+    } catch (error) {
+      console.error("[refreshStore] store not reached", error);
+    }
+  });
 }

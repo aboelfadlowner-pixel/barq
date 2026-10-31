@@ -13,3 +13,4 @@ export class NextResponse extends Response {
     return new NextResponse(JSON.stringify(body), { ...init, headers });
   }
 }
+export function after(task: () => unknown) { void Promise.resolve().then(task); }

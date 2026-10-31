@@ -16,7 +16,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const part = process.env.APP_PART;
   const { pathname } = request.nextUrl;
-  if (pathname === "/api/health") return NextResponse.next();
+  // Uptime monitor, and the dashboard asking the store to rebuild (secret-protected): never locked.
+  if (pathname === "/api/health" || pathname === "/api/revalidate") return NextResponse.next();
   const dashboard = pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/admin/") || pathname === "/api/admin";
 
   if (part === "admin") {
