@@ -1,8 +1,10 @@
-/* Orders list with search and filters. */
+/* Orders list with search and filters.
+   CONFIRMED: 50 orders a page («التالي» / «السابق»); the search and the filters run on the server
+   (22_order_log_backup.sql), so any old order can be found, and the totals cover the whole filter. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
-import { dayLabel, formatTime, isSameDay, normalizeArabic, normalizePhone } from '../utils/format.js';
+import { dayLabel, formatTime, workDayStart } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
@@ -10,29 +12,24 @@ import { getState } from '../store.js';
 import { can } from '../permissions.js';
 import { startNewOrder } from './board-screen.js';
 import { openPrintPreview } from '../components/print-ticket.js';
-import { agentFilterHtml, initAgentFilter, matchesAgent } from '../components/agent-filter.js';
+import { agentFilterHtml, initAgentFilter } from '../components/agent-filter.js';
 
 // Filters survive navigating to an order and back.
 const DEFAULT_FILTERS = { q: '', date: 'today', status: '' };
 let filters = { ...DEFAULT_FILTERS };
 const agentFilter = new Set();   // employee names; empty = everyone
 
-function matchesDate(iso, range) {
-  const now = new Date();
-  if (range === 'all') return true;
-  if (range === 'today') return isSameDay(iso, now);
-  if (range === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); return isSameDay(iso, y); }
-  if (range === '7d') return now - new Date(iso) <= 7 * 864e5;
-  return true;
-}
+const PAGE_SIZE = 50;
+let page = 0;                     // survives navigating to an order and back, like the filters
 
-function matchesQuery(o, q) {
-  if (!q) return true;
-  const text = normalizeArabic(q);
-  const digits = normalizePhone(q);
-  return normalizeArabic(o.number).includes(text)
-    || normalizeArabic(o.customer.name).includes(text)
-    || (digits.length >= 3 && normalizePhone(o.customer.phone).includes(digits));
+/* The date filter as [from, to) — by working day (it starts at 2 AM), like the board. */
+function dateRange(range) {
+  const start = workDayStart();
+  const day = 864e5;
+  if (range === 'today') return [start, null];
+  if (range === 'yesterday') return [new Date(start - day), start];
+  if (range === '7d') return [new Date(start - 6 * day), null];
+  return [null, null];
 }
 
 export function mountOrders(view) {
@@ -75,23 +72,40 @@ export function mountOrders(view) {
           <tbody data-body><tr><td colspan="9" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
+      <div class="pager" data-pager hidden>
+        <button type="button" class="btn btn-secondary" data-page="-1">${icon('arrowRight')}السابق</button>
+        <span class="muted num" data-page-info></span>
+        <button type="button" class="btn btn-secondary" data-page="1">التالي${icon('chevronLeft')}</button>
+      </div>
     </div></div>`;
 
   const $ = (sel) => view.querySelector(sel);
   let orders = [];
 
-  function renderList() {
-    const list = orders.filter((o) =>
-      matchesDate(o.createdAt, filters.date)
-      && (!filters.status || o.status === filters.status)
-      && matchesAgent(o, agentFilter)
-      && matchesQuery(o, filters.q.trim()));
-
-    const sum = list.reduce((acc, o) => acc + (o.status === 'cancelled' ? 0 : computeTotals(o.items, o.deliveryFee).total), 0);
+  let seq = 0;
+  async function renderList() {
+    const mine = ++seq;
+    const [from, to] = dateRange(filters.date);
+    let r;
+    try {
+      r = await ds.orderLog({ from, to, status: filters.status, agents: [...agentFilter], q: filters.q.trim(), limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+    } catch (err) {
+      if (mine === seq) $('[data-body]').innerHTML = `<tr><td colspan="9" class="table-empty">${esc(err.message)}</td></tr>`;
+      return;
+    }
+    if (mine !== seq) return;                       // a newer search is on its way
+    if (!r.orders.length && page > 0 && r.count) { page = Math.max(0, Math.ceil(r.count / PAGE_SIZE) - 1); renderList(); return; }
+    orders = r.orders;
     $('[data-meta]').innerHTML = `
-      <span><strong class="num">${list.length}</strong> طلب</span>
-      <span>إجمالي الطلبات غير الملغاة: <strong>${money(sum)}</strong></span>`;
+      <span><strong class="num">${r.count}</strong> طلب${r.cancelled ? ` <span class="muted">(منها ${r.cancelled} ملغي)</span>` : ''}</span>
+      <span>إجمالي الطلبات غير الملغاة: <strong>${money(r.sum)}</strong></span>`;
+    const pages = Math.max(1, Math.ceil(r.count / PAGE_SIZE));
+    $('[data-pager]').hidden = r.count <= PAGE_SIZE;   // CONFIRMED: only when there is more than one page
+    $('[data-page-info]').textContent = r.count ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, r.count)} من ${r.count} · صفحة ${page + 1} من ${pages}` : '';
+    $('[data-page="-1"]').disabled = page === 0;
+    $('[data-page="1"]').disabled = page >= pages - 1;
 
+    const list = orders;
     $('[data-body]').innerHTML = list.length ? list.map((o) => {
       const t = computeTotals(o.items, o.deliveryFee);
       return `
@@ -110,8 +124,12 @@ export function mountOrders(view) {
         ${filters.date !== 'all' ? '<button type="button" class="btn btn-soft btn-sm" data-all-dates>عرض كل التواريخ</button>' : ''}</td></tr>`;
   }
 
-  const setFilter = (patch) => { filters = { ...filters, ...patch }; renderList(); };
-  $('#ordQ').addEventListener('input', (e) => setFilter({ q: e.target.value }));
+  let typing = null;
+  const setFilter = (patch) => { filters = { ...filters, ...patch }; page = 0; renderList(); };
+  $('#ordQ').addEventListener('input', (e) => {      // search on the server after a short pause
+    clearTimeout(typing);
+    typing = setTimeout(() => setFilter({ q: e.target.value }), 350);
+  });
   $('#ordDate').addEventListener('change', (e) => setFilter({ date: e.target.value }));
   $('#ordStatus').addEventListener('change', (e) => setFilter({ status: e.target.value }));
 
@@ -125,7 +143,13 @@ export function mountOrders(view) {
       agentFilter.clear();
       cleanAgentFilter();
       mountAgentFilter();
+      page = 0;
       renderList();
+    }),
+    on(view, 'click', '[data-page]', (e, btn) => {
+      page = Math.max(0, page + Number(btn.dataset.page));
+      renderList();
+      view.querySelector('.orders-table')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }),
     on(view, 'click', '[data-all-dates]', () => { $('#ordDate').value = 'all'; setFilter({ date: 'all' }); }),
     on(view, 'click', '[data-print-order]', (e, btn) => {
@@ -146,25 +170,26 @@ export function mountOrders(view) {
   const mountAgentFilter = () => {
     const holder = view.querySelector('[data-agent-filter]');
     holder.outerHTML = agentFilterHtml();
-    cleanAgentFilter = initAgentFilter(view, { selected: agentFilter, getOrders: () => orders, onChange: renderList });
+    cleanAgentFilter = initAgentFilter(view, { selected: agentFilter, getOrders: () => orders, onChange: () => { page = 0; renderList(); } });
   };
   mountAgentFilter();
   offs.push(() => cleanAgentFilter());
 
+  // today's numbers (on the server, so they are right however many orders there are)
   function renderSummary() {
     if (!can(getState().user, 'viewDailySummary')) return;
-    const today = orders.filter((o) => isSameDay(o.createdAt, new Date()));
-    const active = today.filter((o) => o.status !== 'cancelled');
-    const total = active.reduce((acc, o) => acc + computeTotals(o.items, o.deliveryFee).total, 0);
-    $('[data-summary]').innerHTML = `
-      <div class="summary-row">
-        <div class="stat card"><span class="k">طلبات اليوم</span><strong class="v num">${active.length}</strong></div>
-        <div class="stat card"><span class="k">إجمالي اليوم</span><strong class="v">${money(total)}</strong></div>
-        <div class="stat card"><span class="k">ملغي اليوم</span><strong class="v num tone-text-red">${today.length - active.length}</strong></div>
-      </div>`;
+    ds.orderLog({ from: workDayStart(), limit: 1 }).then((r) => {
+      $('[data-summary]').innerHTML = `
+        <div class="summary-row">
+          <div class="stat card"><span class="k">طلبات اليوم</span><strong class="v num">${r.count - r.cancelled}</strong></div>
+          <div class="stat card"><span class="k">إجمالي اليوم</span><strong class="v">${money(r.sum)}</strong></div>
+          <div class="stat card"><span class="k">ملغي اليوم</span><strong class="v num tone-text-red">${r.cancelled}</strong></div>
+        </div>`;
+    }).catch(() => {});
   }
 
-  ds.listOrders().then((list) => { orders = list; renderSummary(); renderList(); });
+  renderSummary();
+  renderList();
   $('#ordQ').focus();
   return () => offs.forEach((f) => f());
 }

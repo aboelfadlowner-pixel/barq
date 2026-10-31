@@ -1520,4 +1520,42 @@ do $$ declare r jsonb; d jsonb; begin
   if (r->>'total')::numeric <= 0 or r->>'delivery_fee' is null then raise exception 'FAIL T40 report money %', r; end if;
   raise notice 'PASS T40 drivers: admin adds drivers with a personal link (new link replaces the old, stop ends it), not in employee names; branch picks/changes the driver; driver sees only his picked orders (number+address); «خرجت» once = one trip; photo in his folder; the DRIVER taps «رجعت الفرع» with his place (the branch sees it), his place while out for the admin only, «بعيد عن الفرع» from the branch place; admin report and records; call center sees times only';
 end $$;
+reset role;
+
+-- T41 — «سجل الطلبات» 50 a page with filters on the server; «نسخة احتياطية» for the admin only
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; n int; v_no text; begin
+  r := public.cc_order_log(null, null, null, null, null, 2, 0);
+  n := (r->>'count')::int;
+  if n < 3 or jsonb_array_length(r->'ids') <> 2 then raise exception 'FAIL T41 page %', r; end if;
+  if (public.cc_order_log(null, null, null, null, null, 2, 2)->'ids'->>0) = (r->'ids'->>0) then raise exception 'FAIL T41 next page repeats'; end if;
+  if (r->>'sum')::numeric <= 0 then raise exception 'FAIL T41 sum %', r; end if;
+  select order_no into v_no from public.cc_orders where id = (r->'ids'->>0)::uuid;
+  if (public.cc_order_log(null, null, null, null, v_no, 50, 0)->>'count')::int <> 1 then raise exception 'FAIL T41 search by number'; end if;
+  if (public.cc_order_log(null, null, null, null, (select customer_phone from public.cc_orders where order_no = v_no), 50, 0)->>'count')::int < 1 then raise exception 'FAIL T41 search by phone'; end if;
+  if (public.cc_order_log(null, null, 'cancelled', null, null, 50, 0)->>'count')::int
+     <> (select count(*) from public.cc_orders where status = 'cancelled') then raise exception 'FAIL T41 status filter'; end if;
+  if (public.cc_order_log(now() + interval '1 day', null, null, null, null, 50, 0)->>'count')::int <> 0 then raise exception 'FAIL T41 date filter'; end if;
+  if (public.cc_order_log(null, null, null, array['nobody-xyz'], null, 50, 0)->>'count')::int <> 0 then raise exception 'FAIL T41 employee filter'; end if;
+  if (public.cc_order_log(null, null, null, null, '%', 50, 0)->>'count')::int <> 0 then raise exception 'FAIL T41 %% is not a wildcard'; end if;
+  begin perform public.cc_backup_export(); raise exception 'FAIL T41 call center made a backup';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep40@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_order_log(null, null, null, null, null, 50, 0); raise exception 'FAIL T41 branch read the orders log';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare b jsonb; begin
+  b := public.cc_backup_export();
+  if jsonb_array_length(b->'orders') < 3 or jsonb_array_length(b->'customers') < 1 or b->'order_items' is null then raise exception 'FAIL T41 backup %', left(b::text, 200); end if;
+  if b::text like '%login_token_hash%' or b::text like '%value_hash%' then raise exception 'FAIL T41 backup has secrets'; end if;
+  raise notice 'PASS T41 orders log page by page (server filters: date, status, employee, number/name/phone; totals for the whole filter); backup for the admin only, no secrets';
+end $$;
 rollback;

@@ -85,7 +85,9 @@ export const findTodayOrdersByPhone    = (phone) => impl.findTodayOrdersByPhone(
 export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(phone);
 
 /* Orders */
-export const listOrders  = () => impl.listOrders();
+export const listOrders  = (opts) => impl.listOrders(opts);
+export const orderLog    = (opts) => impl.orderLog(opts);
+export const backupExport = () => impl.backupExport();
 export const getOrder    = (id) => impl.getOrder(id);
 export const createOrder = (draft) => impl.createOrder(draft);
 export const cancelOrder = (orderId, reason, agent) => impl.cancelOrder(orderId, reason, agent);

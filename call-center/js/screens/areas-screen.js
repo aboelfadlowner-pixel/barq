@@ -12,6 +12,7 @@ import { showToast } from '../components/modal.js';
 import { ROLES } from '../permissions.js';
 import { mountModifiersSettings } from '../components/modifiers-settings.js';
 import { mountDriversSettings } from '../components/drivers-settings.js';
+import { mountBackupButton } from '../components/backup-button.js';
 
 const parseFee = (v) => {
   const n = parseFloat(toWesternDigits(v).replace(/[^\d.]/g, ''));
@@ -94,9 +95,12 @@ export function mountAreas(view) {
       </div>
 
       <div data-mods-section></div>
+
+      <div data-backup-section></div>
     </div></div>`;
   const unmountMods = mountModifiersSettings(view.querySelector('[data-mods-section]'));
   const unmountDrivers = mountDriversSettings(view.querySelector('[data-drivers-mount]'));
+  const unmountBackup = mountBackupButton(view.querySelector('[data-backup-section]'));
 
   const rows = view.querySelector('[data-rows]');
   const render = () => {
@@ -241,5 +245,5 @@ export function mountAreas(view) {
     }),
   ];
   view.querySelector('#newAreaName').focus();
-  return () => { offs.forEach((f) => f()); unmountMods(); unmountDrivers(); };
+  return () => { offs.forEach((f) => f()); unmountMods(); unmountDrivers(); unmountBackup(); };
 }

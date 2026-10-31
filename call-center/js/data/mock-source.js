@@ -237,8 +237,35 @@ export function phoneBelongsToCustomer(phone) {
 }
 
 /* ---------- Orders ---------- */
-export const listOrders = () =>
-  resolve([...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+export const listOrders = ({ since = null } = {}) =>
+  resolve([...orders].filter((o) => !since || new Date(o.createdAt) >= new Date(since))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+
+/* «سجل الطلبات» one page — same rules as cc_order_log (22_order_log_backup.sql). */
+export function orderLog({ from = null, to = null, status = '', agents = [], q = '', limit = 50, offset = 0 } = {}) {
+  const text = String(q || '').trim().toLowerCase();
+  const digits = /[^0-9\s+()-]/.test(normalizePhone(q || '')) ? '' : normalizePhone(q || '').replace(/\D/g, '');
+  const list = [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).filter((o) =>
+    (!from || new Date(o.createdAt) >= new Date(from)) && (!to || new Date(o.createdAt) < new Date(to))
+    && (!status || o.status === status) && (!agents.length || agents.includes(o.employee))
+    && (!text || o.number.toLowerCase().includes(text) || o.customer.name.toLowerCase().includes(text)
+      || (digits.length >= 3 && normalizePhone(o.customer.phone).includes(digits))));
+  const live = list.filter((o) => o.status !== 'cancelled');
+  return resolve({ count: list.length, sum: live.reduce((t, o) => t + computeTotals(o.items, o.deliveryFee).total, 0),
+    cancelled: list.length - live.length, orders: list.slice(offset, offset + limit) });
+}
+
+/* Backup (demo): the demo data in the same shape as cc_backup_export. */
+export const backupExport = () => resolve({
+  made_at: new Date().toISOString(),
+  orders: orders.map((o) => ({ order_no: o.number, created_at: o.createdAt, status: o.status, customer_name: o.customer.name,
+    customer_phone: o.customer.phone, area_name: o.address.areaName, street: o.address.street, total: computeTotals(o.items, o.deliveryFee).total,
+    delivery_fee: o.deliveryFee, agent_name: o.employee })),
+  order_items: orders.flatMap((o) => o.items.map((it) => ({ order_no: o.number, product_name: it.name, qty: it.qty ?? null, weight_grams: it.grams ?? null }))),
+  customers: customers.map((c) => ({ name: c.name, phone: c.phones[0], phone2: c.phones[1] || null })),
+  areas: areas.map((a) => ({ name: a.name, fee: a.fee, active: a.active })),
+  staff: staff.map((s) => ({ display_name: s.name, role: s.role, active: s.active, phone: s.phone || null })),
+});
 
 /* Preparation (branch): today's orders + older ones not out yet; one step at a time. */
 const STAGE_IDS = ['new', 'preparing', 'at_cashier', 'out'];

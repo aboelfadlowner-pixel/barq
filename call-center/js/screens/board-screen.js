@@ -5,7 +5,7 @@ import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
 import { esc, on } from '../utils/dom.js';
-import { formatRelative, inWorkDay, normalizeArabic, normalizePhone } from '../utils/format.js';
+import { formatRelative, inWorkDay, normalizeArabic, normalizePhone, workDayStart } from '../utils/format.js';
 import { can } from '../permissions.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
@@ -187,7 +187,8 @@ export function mountBoard(view) {
   // The branch moves orders on: check every few seconds (only while this screen is visible).
   let stopped = false;
   let timer = null;
-  const load = () => ds.listOrders().then((list) => { if (!stopped) { orders = list; render(); } }).catch(() => {});
+  // CONFIRMED: only this working day's orders are loaded (the board shows nothing older) — light on every check.
+  const load = () => ds.listOrders({ since: workDayStart() }).then((list) => { if (!stopped) { orders = list; render(); } }).catch(() => {});
   const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
   load().then(schedule);
   return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };
