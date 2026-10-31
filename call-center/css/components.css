@@ -850,3 +850,5 @@ body.cam-open { overflow: hidden; }
 .dn-cmp { display: grid; gap: 6px; margin-top: 4px; }
 .dn-cmp-row { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #f4f6f4; }
 .dn-cmp-k { font-size: 12px; color: var(--muted, #667); }
+/* «سجل الطلبات» pages */
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 4px; flex-wrap: wrap; }

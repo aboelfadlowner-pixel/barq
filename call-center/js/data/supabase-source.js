@@ -800,9 +800,36 @@ export async function phoneBelongsToCustomer(phone) {
 }
 
 /* Latest 1,000 orders, newest first (the board and the orders list filter them further). */
-export async function listOrders() {
+/* The board: this working day's orders only (since = start of the day). Without since: the latest 1000. */
+export async function listOrders({ since = null } = {}) {
   const c = await sb();
-  return ok(await c.from('cc_orders').select(ORDER_SELECT).order('created_at', { ascending: false }).limit(PAGE)).map(toOrder);
+  let q = c.from('cc_orders').select(ORDER_SELECT);
+  if (since) q = q.gte('created_at', new Date(since).toISOString());
+  return ok(await q.order('created_at', { ascending: false }).limit(PAGE)).map(toOrder);
+}
+
+/* «سجل الطلبات» one page (22_order_log_backup.sql): filters on the server, totals for the whole filter.
+   → { count, sum, cancelled, orders } */
+export async function orderLog({ from = null, to = null, status = '', agents = [], q = '', limit = 50, offset = 0 } = {}) {
+  const c = await sb();
+  const r = ok(await c.rpc('cc_order_log', {
+    p_from: from ? new Date(from).toISOString() : null, p_to: to ? new Date(to).toISOString() : null,
+    p_status: status || null, p_agents: agents.length ? agents : null, p_q: q || null, p_limit: limit, p_offset: offset,
+  }));
+  const ids = r.ids || [];
+  let orders = [];
+  if (ids.length) {
+    const rows = ok(await c.from('cc_orders').select(ORDER_SELECT).in('id', ids));
+    const by = new Map(rows.map((x) => [x.id, toOrder(x)]));
+    orders = ids.map((id) => by.get(id)).filter(Boolean);
+  }
+  return { count: Number(r.count) || 0, sum: Number(r.sum) || 0, cancelled: Number(r.cancelled) || 0, orders };
+}
+
+/* Admin: all the call-center data, one list of rows per table (for the backup file). */
+export async function backupExport() {
+  const c = await sb();
+  return ok(await c.rpc('cc_backup_export'));
 }
 
 export async function getOrder(id) {
