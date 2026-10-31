@@ -244,7 +244,7 @@ export const listOrders = ({ since = null } = {}) =>
 /* «سجل الطلبات» one page — same rules as cc_order_log (22_order_log_backup.sql). */
 export function orderLog({ from = null, to = null, status = '', agents = [], q = '', limit = 50, offset = 0 } = {}) {
   const text = String(q || '').trim().toLowerCase();
-  const digits = normalizePhone(q || '').replace(/\D/g, '');
+  const digits = /[^0-9\s+()-]/.test(normalizePhone(q || '')) ? '' : normalizePhone(q || '').replace(/\D/g, '');
   const list = [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).filter((o) =>
     (!from || new Date(o.createdAt) >= new Date(from)) && (!to || new Date(o.createdAt) < new Date(to))
     && (!status || o.status === status) && (!agents.length || agents.includes(o.employee))

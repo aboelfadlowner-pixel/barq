@@ -29,7 +29,8 @@ begin
   if v_q is not null then
     v_like := '%' || replace(replace(replace(v_q, '\', '\\'), '%', '\%'), '_', '\_') || '%';
   end if;
-  if v_digits is not null and length(v_digits) < 3 then v_digits := null; end if;
+  -- a phone is searched only when the text is a number (an order number like «CC-1006» is not a phone)
+  if v_digits is not null and (length(v_digits) < 3 or v_q ~ '[^0-9 +()-]') then v_digits := null; end if;
   with f as (
     select o.id, o.created_at, o.status, o.total
       from public.cc_orders o

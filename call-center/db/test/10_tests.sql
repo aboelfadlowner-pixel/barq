@@ -1533,6 +1533,7 @@ do $$ declare r jsonb; n int; v_no text; begin
   if (r->>'sum')::numeric <= 0 then raise exception 'FAIL T41 sum %', r; end if;
   select order_no into v_no from public.cc_orders where id = (r->'ids'->>0)::uuid;
   if (public.cc_order_log(null, null, null, null, v_no, 50, 0)->>'count')::int <> 1 then raise exception 'FAIL T41 search by number'; end if;
+  if (public.cc_order_log(null, null, null, null, (select customer_phone from public.cc_orders where order_no = v_no), 50, 0)->>'count')::int < 1 then raise exception 'FAIL T41 search by phone'; end if;
   if (public.cc_order_log(null, null, 'cancelled', null, null, 50, 0)->>'count')::int
      <> (select count(*) from public.cc_orders where status = 'cancelled') then raise exception 'FAIL T41 status filter'; end if;
   if (public.cc_order_log(now() + interval '1 day', null, null, null, null, 50, 0)->>'count')::int <> 0 then raise exception 'FAIL T41 date filter'; end if;
