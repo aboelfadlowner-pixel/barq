@@ -88,6 +88,8 @@ export const phoneBelongsToCustomer    = (phone) => impl.phoneBelongsToCustomer(
 export const listOrders  = (opts) => impl.listOrders(opts);
 export const orderLog    = (opts) => impl.orderLog(opts);
 export const backupExport = () => impl.backupExport();
+export const listBackups  = () => impl.listBackups();
+export const getBackup    = (name) => impl.getBackup(name);
 export const getOrder    = (id) => impl.getOrder(id);
 export const createOrder = (draft) => impl.createOrder(draft);
 export const cancelOrder = (orderId, reason, agent) => impl.cancelOrder(orderId, reason, agent);

@@ -255,6 +255,13 @@ export function orderLog({ from = null, to = null, status = '', agents = [], q =
     cancelled: list.length - live.length, orders: list.slice(offset, offset + limit) });
 }
 
+/* Nightly copies (demo): the last 3 days, each = the demo data. */
+export const listBackups = () => resolve([0, 1, 2].map((i) => {
+  const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+  return { day: d, name: `${d}.json`, size: 48000 };
+}));
+export const getBackup = () => backupExport();
+
 /* Backup (demo): the demo data in the same shape as cc_backup_export. */
 export const backupExport = () => resolve({
   made_at: new Date().toISOString(),
