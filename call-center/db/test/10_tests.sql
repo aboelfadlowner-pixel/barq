@@ -1558,4 +1558,11 @@ do $$ declare b jsonb; begin
   if b::text like '%login_token_hash%' or b::text like '%value_hash%' then raise exception 'FAIL T41 backup has secrets'; end if;
   raise notice 'PASS T41 orders log page by page (server filters: date, status, employee, number/name/phone; totals for the whole filter); backup for the admin only, no secrets';
 end $$;
+reset role;
+-- T42 — the nightly job (the server key, no signed-in user) takes the backup (23_daily_backup.sql)
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+do $$ begin
+  if jsonb_array_length(public.cc_backup_export()->'orders') < 3 then raise exception 'FAIL T42 nightly backup'; end if;
+  raise notice 'PASS T42 the nightly job (server key) takes the backup';
+end $$;
 rollback;

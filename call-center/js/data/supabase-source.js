@@ -826,6 +826,21 @@ export async function orderLog({ from = null, to = null, status = '', agents = [
   return { count: Number(r.count) || 0, sum: Number(r.sum) || 0, cancelled: Number(r.cancelled) || 0, orders };
 }
 
+/* Admin: the nightly copies (23_daily_backup.sql), newest first: [{ day: 'YYYY-MM-DD', name, size }]. */
+export async function listBackups() {
+  const c = await sb();
+  const { data, error } = await c.storage.from('cc-backups').list('daily', { limit: 100, sortBy: { column: 'name', order: 'desc' } });
+  if (error) return [];
+  return (data || []).filter((f) => f.name.endsWith('.json'))
+    .map((f) => ({ day: f.name.slice(0, 10), name: f.name, size: f.metadata?.size ?? null }));
+}
+export async function getBackup(name) {
+  const c = await sb();
+  const { data, error } = await c.storage.from('cc-backups').download(`daily/${name}`);
+  if (error) throw new Error('النسخة دي مش موجودة');
+  return JSON.parse(await data.text());
+}
+
 /* Admin: all the call-center data, one list of rows per table (for the backup file). */
 export async function backupExport() {
   const c = await sb();
