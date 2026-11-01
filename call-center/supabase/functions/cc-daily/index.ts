@@ -4,6 +4,10 @@
 //   2) the drivers' delivery photos older than 30 days are removed (bucket cc-delivery-photos only).
 // Only the scheduler can run it: header x-cc-cleanup must equal the CC_CLEANUP_SECRET set in the
 // function's settings. Uses the project's own service key from the environment — no key is written here.
+//
+// CONFIRMED (Google Drive copy): GET with header x-cc-backup = CC_BACKUP_SECRET (a SEPARATE password,
+// kept in the owner's Google Apps Script) returns today's backup as JSON, so her own Google account
+// saves it to her Drive every day. That password can only read the backup — it cannot run the cleanup.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -15,6 +19,16 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req: Request) => {
+  // the Google Drive copy (read only)
+  const backupSecret = Deno.env.get("CC_BACKUP_SECRET");
+  if (req.method === "GET") {
+    if (!backupSecret || req.headers.get("x-cc-backup") !== backupSecret) return json({ error: "forbidden" }, 403);
+    const sbr = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await sbr.rpc("cc_backup_export");
+    if (error) return json({ error: error.message }, 500);
+    return json(data);
+  }
+
   const secret = Deno.env.get("CC_CLEANUP_SECRET");
   if (!secret || req.headers.get("x-cc-cleanup") !== secret) return json({ error: "forbidden" }, 403);
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
