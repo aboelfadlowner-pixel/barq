@@ -10,7 +10,8 @@
  *  1) Project Settings ← Script Properties ← Add property:
  *       Property: CC_BACKUP_SECRET   Value: نفس كلمة السر اللي اتحطت في Supabase
  *  2) شغّلي الدالة backupToDrive مرة بإيدك (Run) ووافقي على الصلاحيات.
- *  3) Triggers ← Add Trigger ← backupToDrive ← Time-driven ← Day timer ← 5am to 6am.
+ *  3) شغّلي الدالة setupDailyTrigger مرة بإيدك — بتظبط تشغيل backupToDrive كل يوم 5 الصبح (القاهرة).
+ *     (أو: Triggers ← Add Trigger ← backupToDrive ← Time-driven ← Day timer ← 5am to 6am)
  */
 const CC_URL = 'https://ojvbydnvywbsgyhqftap.supabase.co/functions/v1/cc-daily';
 const FOLDER_NAME = 'نسخ الكول سنتر';
@@ -56,4 +57,13 @@ function backupToDrive() {
 function getFolder_() {
   const it = DriveApp.getFoldersByName(FOLDER_NAME);
   return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+}
+
+function setupDailyTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'backupToDrive')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('backupToDrive')
+    .timeBased().everyDays(1).atHour(5).inTimezone('Africa/Cairo')
+    .create();
 }

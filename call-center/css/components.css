@@ -733,6 +733,9 @@ a.agent-chip.needs-value { border-color: var(--warn); color: var(--warn); }
 .dr-no { font-size: 1.35rem; }
 .dr-addr { display: flex; gap: 8px; align-items: flex-start; font-size: 1.05rem; line-height: 1.6; }
 .dr-done { color: var(--green-700); font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.dr-phones { display: grid; gap: 8px; }
+.dr-call { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+.dr-call .num { font-weight: 700; letter-spacing: .5px; }
 .dr-untake { justify-self: center; color: var(--muted); }
 .dr-pick { grid-template-columns: auto 1fr; align-items: start; cursor: pointer; }
 .dr-pick input { width: 26px; height: 26px; margin-top: 4px; }

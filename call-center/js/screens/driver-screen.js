@@ -175,6 +175,8 @@ export function mountDriver(view) {
               ${o.tripSize > 1 ? `<span class="tag tag-info">${o.tripSeq} من ${o.tripSize}</span>` : ''}
               <span class="muted">خرج ${esc(formatTime(o.outAt))}</span></header>
             ${addressHtml(o.address)}
+            ${!o.deliveredAt && !o.cancelled && o.phones?.length ? `<div class="dr-phones">${o.phones.map((ph, i) => `
+              <a class="btn btn-secondary btn-lg dr-call" href="tel:${esc(ph)}">${icon('phone')}<span>${o.phones.length > 1 ? `اتصل بالعميل (${i + 1})` : 'اتصل بالعميل'}</span><span class="ltr-inline num">${esc(ph)}</span></a>`).join('')}</div>` : ''}
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
             ${o.deliveredAt ? `<div class="dr-done">${icon('check')}اتسلّم ${esc(formatTime(o.deliveredAt))}</div>`
               : o.cancelled ? '' : `

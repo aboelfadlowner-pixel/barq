@@ -1566,3 +1566,51 @@ do $$ begin
   raise notice 'PASS T42 the nightly job (server key) takes the backup';
 end $$;
 rollback;
+
+-- T43 — the driver sees the customer's numbers (24_driver_customer_phone.sql): only for orders out with him and
+--        not delivered; both numbers when there are two; none at the cashier, after «سلّمت», or when cancelled
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv43@cc.test');
+select set_config('cc.drv43', (select id::text from auth.users where email = 'drv43@cc.test'), true);
+select public.cc_driver_setup(current_setting('cc.drv43')::uuid, 'طيار 43', '01043434343');
+insert into public.cc_agents (name) values ('موظف 43') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 43');
+  o public.cc_orders; i int; begin
+  for i in 1..4 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 43'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 43-' || i, 'phone', '0104343430' || i, 'phone2', case when i = 1 then '01143434301' end),
+           addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.p' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- p1, p2, p3 out with him (p2 delivered, p3 cancelled); p4 still at the cashier, picked for him
+update public.cc_orders set stage = 'out', driver_user_id = current_setting('cc.drv43')::uuid, out_at = now(),
+       trip_id = gen_random_uuid(), trip_seq = 1, trip_size = 1
+ where id::text in (current_setting('cc.p1'), current_setting('cc.p2'), current_setting('cc.p3'));
+update public.cc_orders set status = 'cancelled', cancelled_at = now(), cancel_reason = 'تجربة 43' where id::text = current_setting('cc.p3');
+insert into public.cc_order_delivery (order_id, delivered_at) values (current_setting('cc.p2')::uuid, now());
+update public.cc_orders set stage = 'at_cashier', driver_user_id = current_setting('cc.drv43')::uuid, assigned_at = now()
+ where id::text = current_setting('cc.p4');
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv43'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare d jsonb; m jsonb; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  d := public.cc_driver_orders();
+  select x into m from jsonb_array_elements(d->'mine') x where x->>'id' = current_setting('cc.p1');
+  if m->'phones' <> '["01043434301", "01143434301"]'::jsonb then raise exception 'FAIL T43 both numbers while out %', m->'phones'; end if;
+  select x into m from jsonb_array_elements(d->'mine') x where x->>'id' = current_setting('cc.p2');
+  if jsonb_array_length(m->'phones') <> 0 then raise exception 'FAIL T43 number after «سلّمت»'; end if;
+  select x into m from jsonb_array_elements(d->'mine') x where x->>'id' = current_setting('cc.p3');
+  if jsonb_array_length(m->'phones') <> 0 then raise exception 'FAIL T43 number on a cancelled order'; end if;
+  if (d->'ready'->0) ? 'phones' or (d->'ready'->0) ? 'customer_phone' then raise exception 'FAIL T43 number at the cashier'; end if;
+  if (d->'mine'->0) ? 'customer_name' or (d->'mine'->0) ? 'total' then raise exception 'FAIL T43 driver sees too much'; end if;
+  raise notice 'PASS T43 the driver sees the customer''s numbers only while the order is with him';
+end $$;
+reset role;
+rollback;

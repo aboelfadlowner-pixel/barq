@@ -278,7 +278,7 @@ export async function sendOut(orderId, driver) {
 const PHOTO_BUCKET = 'cc-delivery-photos';
 const toDriverAddress = (r) => ({ areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' });
 
-/* The driver's screen: the order number and the address only. */
+/* The driver's screen: the order number, the address, and the customer's numbers while the order is with him (24). */
 export async function getDriverOrders() {
   const c = await sb();
   const d = ok(await c.rpc('cc_driver_orders'));
@@ -288,6 +288,7 @@ export async function getDriverOrders() {
     mine: (d.mine || []).map((r) => ({
       id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, tripSize: r.trip_size,
       cancelled: !!r.cancelled, deliveredAt: r.delivered_at || null, address: toDriverAddress(r),
+      phones: Array.isArray(r.phones) ? r.phones : [],
     })),
   };
 }
