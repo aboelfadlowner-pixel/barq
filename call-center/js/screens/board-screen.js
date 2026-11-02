@@ -55,7 +55,7 @@ function matches(o) {
 function orderCard(o) {
   const t = computeTotals(o.items, o.deliveryFee);
   return `
-    <div class="o-card" role="button" tabindex="0" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
+    <a class="o-card" href="#/orders/${encodeURIComponent(o.id)}" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
       <div class="o-head">
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
         <span class="o-head-end">${orderStateChip(o)}
@@ -70,7 +70,7 @@ function orderCard(o) {
       ${o.stage === 'out' && o.driver ? `<div class="o-row o-driver">${icon('user')}<span>الطيار: <strong>${esc(o.driver)}</strong></span></div>` : ''}
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
-    </div>`;
+    </a>`;
 }
 
 /* "· على الكاشير من 3 دقايق" — how long the order has been in its stage. */
@@ -123,7 +123,7 @@ export function mountBoard(view) {
             <input id="boardQ" type="search" autocomplete="off" placeholder="رقم الطلب أو الموبايل أو الاسم" value="${esc(filters.q)}" aria-label="بحث في طلبات اليوم">
           </div>
           ${agentSelectHtml()}
-          <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
+          <a href="#/pos/new" class="btn btn-primary btn-lg" data-new-order title="كليك يمين ← فتح في تاب جديد: طلب تاني في نفس الوقت">${icon('headset')}طلب جديد لمركز الاتصال</a>
         </div>
       </div>
       <nav class="tabs" aria-label="عرض الطلبات">
@@ -152,25 +152,21 @@ export function mountBoard(view) {
 
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
   const offs = [
-    on(view, 'click', '[data-new-order]', () => startNewOrder()),
+    on(view, 'click', '[data-new-order]', (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;   // the browser opens it in a new tab
+      e.preventDefault(); startNewOrder();
+    }),
     // Print again straight from the card (in case the first ticket got lost).
     on(view, 'click', '[data-print-order]', (e, btn) => {
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();   // the card is a link: don't open the order
       const o = orders.find((x) => x.id === btn.dataset.printOrder);
       if (o) openPrintPreview(o);
     }),
     // Ready WhatsApp message to the customer (the employee presses «إرسال» in WhatsApp).
     on(view, 'click', '[data-wa-order]', (e, btn) => {
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       const o = orders.find((x) => x.id === btn.dataset.waOrder);
       if (o) openWhatsAppDialog(o);
-    }),
-    on(view, 'click', '.o-card[data-id]', (e, el) => {
-      if (e.target.closest('[data-print-order], [data-wa-order]')) return;
-      location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`;
-    }),
-    on(view, 'keydown', '.o-card[data-id]', (e, el) => {
-      if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); location.hash = `#/orders/${encodeURIComponent(el.dataset.id)}`; }
     }),
     on(view, 'click', '[data-discard]', async () => {
       if (await confirmDialog({ title: 'إلغاء المسودة', message: 'سيتم حذف العميل والأصناف في الطلب غير المؤكد.', confirmLabel: 'إلغاء المسودة', danger: true })) {

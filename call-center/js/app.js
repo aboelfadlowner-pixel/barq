@@ -12,7 +12,7 @@ import { can, isPrepOnly, isDriverOnly } from './permissions.js';
 import { mountTopbar } from './components/topbar.js';
 import { restoreAgent } from './components/agent-select.js';
 import { mountLogin, mountNameStep } from './screens/login-screen.js';
-import { mountBoard } from './screens/board-screen.js';
+import { mountBoard, startNewOrder } from './screens/board-screen.js';
 import { mountPos } from './screens/pos-screen.js';
 import { mountOrders } from './screens/orders-screen.js';
 import { mountOrderDetails } from './screens/order-details-screen.js';
@@ -31,7 +31,7 @@ function parseRoute() {
   if (section === 'orders') return { route: 'orders', param: null };
   if (section === 'areas') return { route: 'areas', param: null };
   if (section === 'customers') return { route: 'customers', param: param ? decodeURIComponent(param) : null };
-  if (section === 'pos') return { route: 'pos', param: null };
+  if (section === 'pos') return { route: 'pos', param: param === 'new' ? 'new' : null };
   if (section === 'prep') return { route: 'prep', param: null };
   if (section === 'driver') return { route: 'driver', param: null };
   if (section === 'delivery') return { route: 'delivery', param: null };
@@ -50,6 +50,12 @@ function render() {
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
   else if (route === 'customers' && !can(user, 'customers')) route = 'board';
 
+  // «طلب جديد» opened in another tab (right-click → open in new tab): that tab starts its own order.
+  if (route === 'pos' && param === 'new') {
+    history.replaceState(null, '', '#/board');
+    route = 'board'; param = null;
+    setTimeout(() => startNewOrder(), 0);
+  }
   if (unmount) unmount();
   view.innerHTML = '';
   setState({ route, routeParam: param, cartOpen: false });
