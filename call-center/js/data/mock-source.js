@@ -344,7 +344,9 @@ export function getDriverOrders() {
       && !deliveries.get(o.id)?.returnedAt)
       .sort((a, b) => b.outAt.localeCompare(a.outAt) || a.tripSeq - b.tripSeq)
       .map((o) => ({ id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq, tripSize: o.tripSize,
-        cancelled: o.status === 'cancelled', deliveredAt: deliveries.get(o.id)?.deliveredAt ?? null, address: driverAddress(o) })),
+        cancelled: o.status === 'cancelled', deliveredAt: deliveries.get(o.id)?.deliveredAt ?? null, address: driverAddress(o),
+        phones: o.status === 'cancelled' || deliveries.get(o.id)?.deliveredAt ? []
+          : [...new Set([o.customer?.phone, o.customer?.phone2].filter(Boolean))] })),
   });
 }
 export function setPhone(userId, phone) {
