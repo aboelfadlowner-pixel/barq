@@ -1,0 +1,49 @@
+# Publishes ONLY the web pages to GitHub Pages (same links as before):
+#   - the tools' pages at the root (*.html)
+#   - the call center's screens (call-center/index.html, css/, js/, assets/)
+# Not published: database files (call-center/db), server functions (*/supabase),
+# the Google Drive script, website-sync, READMEs, and anything else in the repo.
+# Settings → Pages → Source must be «GitHub Actions» for this to take effect.
+name: Publish site (web pages only)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the web pages only
+        run: |
+          set -euo pipefail
+          mkdir -p _site/call-center
+          cp ./*.html _site/
+          cp call-center/index.html _site/call-center/
+          cp -r call-center/css call-center/js call-center/assets _site/call-center/
+          touch _site/.nojekyll
+          # guard: nothing private may slip in
+          if find _site \( -name '*.sql' -o -name '*.ts' -o -name '*.gs' -o -name '*.md' -o -path '*/supabase/*' -o -path '*/db/*' \) | grep -q .; then
+            echo "Private files found in _site — stopping"; find _site \( -name '*.sql' -o -name '*.ts' -o -name '*.gs' -o -name '*.md' \); exit 1
+          fi
+          echo "Published files:"; find _site -type f | sort
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
