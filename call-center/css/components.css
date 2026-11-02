@@ -378,6 +378,7 @@
   display: flex; flex-direction: column; gap: 9px; width: 100%; text-align: start; cursor: pointer;
   padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm);
 }
+a.o-card { color: inherit; text-decoration: none; }
 .o-card[data-id]:hover, .o-card[data-id]:focus-visible { border-color: var(--green-500); box-shadow: var(--shadow); }
 /* Narrow columns (6 on a wide screen): the number keeps one line and the status + buttons move under it. */
 .o-head-end { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: auto; min-width: 0; }

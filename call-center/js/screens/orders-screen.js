@@ -44,7 +44,7 @@ export function mountOrders(view) {
             <span class="demo-pill">${icon('info')}بيانات وحالات تجريبية</span>
           </div>
         </div>
-        <button type="button" class="btn btn-primary btn-lg" data-new-order>${icon('headset')}طلب جديد لمركز الاتصال</button>
+        <a href="#/pos/new" class="btn btn-primary btn-lg" data-new-order title="كليك يمين ← فتح في تاب جديد: طلب تاني في نفس الوقت">${icon('headset')}طلب جديد لمركز الاتصال</a>
       </div>
 
       <div data-summary></div>
@@ -134,7 +134,10 @@ export function mountOrders(view) {
   $('#ordStatus').addEventListener('change', (e) => setFilter({ status: e.target.value }));
 
   const offs = [
-    on(view, 'click', '[data-new-order]', () => startNewOrder()),
+    on(view, 'click', '[data-new-order]', (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;   // the browser opens it in a new tab
+      e.preventDefault(); startNewOrder();
+    }),
     on(view, 'click', '[data-reset]', () => {
       filters = { ...DEFAULT_FILTERS };
       $('#ordQ').value = filters.q;
