@@ -36,6 +36,7 @@ export const getCategories    = () => impl.getCategories();
 export const getModifiers     = () => impl.getModifiers();       // add-ons: { groups, links }
 export const saveProductModifiers = (sku, links) => impl.saveProductModifiers(sku, links);
 export const listStaff        = () => impl.listStaff();
+export const ownerId          = () => impl.ownerId();
 export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);
 export const ackEdit          = (id) => impl.ackEdit(id);

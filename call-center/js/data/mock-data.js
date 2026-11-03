@@ -16,6 +16,7 @@ export const MOCK_LABEL = 'بيانات تجريبية';
 export const account = { id: 'acc-cc', name: 'مركز الاتصال', role: 'admin', email: 'admin@demo' };
 export const staff = [
   { id: 'acc-cc',   email: 'admin@demo',       name: 'عمر',        role: 'admin',       active: true, createdAt: '2026-10-01T09:00:00Z' },
+  { id: 'acc-owner', email: 'owner@demo',     name: 'آية',        role: 'admin',       active: true, createdAt: '2026-09-30T09:00:00Z', isOwner: true },
   { id: 'acc-cc2',  email: 'callcenter@demo',  name: 'كريم',       role: 'call_center', active: true, createdAt: '2026-10-05T09:00:00Z' },
   { id: 'acc-prep', email: 'betash.prep@demo', name: 'فرع البيطاش', role: 'prep',        active: true, createdAt: '2026-10-10T09:00:00Z' },
   { id: 'drv-1',    email: 'ahmed.driver@demo', name: 'أحمد',       role: 'driver',      active: true, createdAt: '2026-10-12T09:00:00Z', phone: '01011112222' },
