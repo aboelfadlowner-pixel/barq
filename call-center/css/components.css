@@ -856,3 +856,10 @@ body.cam-open { overflow: hidden; }
 .dn-cmp-k { font-size: 12px; color: var(--muted, #667); }
 /* «سجل الطلبات» pages */
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 4px; flex-wrap: wrap; }
+
+/* «⚠️ لينك أحمد اتفتح من جهاز تاني» (26_driver_devices.sql) */
+.device-alerts { display: grid; gap: 10px; margin-bottom: 14px; }
+.device-alert { align-items: flex-start; }
+.device-alert .da-body { display: grid; gap: 4px; }
+.device-alert .da-line { font-size: 14px; }
+.device-alert .da-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }

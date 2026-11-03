@@ -459,6 +459,17 @@ export function setBranchPlace(lat, lng) {
 }
 /* «الطيارين دلوقتي» (demo): the drivers out now; their last place is made up near the branch. */
 const places = new Map();
+/* Demo: أحمد's link was opened on another phone. */
+const demoDeviceAlerts = [{ userId: 'drv-1', name: 'أحمد',
+  main: { label: 'iPhone – Safari', firstSeen: new Date(Date.now() - 6 * 3600e3).toISOString(), lastSeen: new Date(Date.now() - 20 * 60e3).toISOString() },
+  others: [{ label: 'Android – SM-A515F – Chrome', firstSeen: new Date(Date.now() - 50 * 60e3).toISOString(), lastSeen: new Date(Date.now() - 8 * 60e3).toISOString(), opens: 3 }] }];
+export const driverDevice = () => resolve(true);
+export const driverDeviceAlerts = () => resolve(demoAccount.role === 'admin' ? clone(demoDeviceAlerts) : []);
+export function driverDeviceSeen(userId) {
+  const i = demoDeviceAlerts.findIndex((a) => a.userId === userId);
+  if (i >= 0) demoDeviceAlerts.splice(i, 1);
+  return resolve(1);
+}
 export function driverPing(pos) {
   const out = orders.some((o) => o.stage === 'out' && o.driverUserId === demoAccount.id && !deliveries.get(o.id)?.returnedAt);
   if (out) places.set(demoAccount.id, { ...pos, at: new Date().toISOString() });
