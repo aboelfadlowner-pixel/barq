@@ -16,7 +16,7 @@
  * ===================================================================== */
 import { SUPABASE_URL, SUPABASE_ANON_KEY, ACCOUNT_EMAIL } from '../config.js';
 import { ORDER_STATUSES } from '../constants.js';
-import { normalizePhone } from '../utils/format.js';
+import { normalizePhone, workDayStart } from '../utils/format.js';
 
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 const PAGE = 1000;   // Supabase API row limit per request
@@ -452,6 +452,11 @@ export async function getOrderDelivery(orderId) {
   const r = ok(res);
   return r ? toDelivery(r) : null;
 }
+/* «التقارير» (27_reports.sql): admin only. Days are Cairo days 'YYYY-MM-DD'. */
+export async function report(from, to) {
+  const c = await sb();
+  return ok(await c.rpc('cc_report', { p_from: from, p_to: to }));
+}
 export async function deliveryReport(from, to) {
   const c = await sb();
   const res = await c.rpc('cc_delivery_report', { p_from: from, p_to: to });
@@ -817,7 +822,7 @@ export async function findTodayOrdersByPhone(phone) {
   const q = digits(phone);
   if (!q) return [];
   const c = await sb();
-  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const start = workDayStart();          // the working day (from 2 AM)
   return ok(await c.from('cc_orders').select('id, order_no, created_at')
     .eq('customer_phone', q).neq('status', 'cancelled').gte('created_at', start.toISOString())
     .order('created_at', { ascending: false }))

@@ -21,6 +21,7 @@ import { mountCustomers } from './screens/customers-screen.js';
 import { mountPrep } from './screens/prep-screen.js';
 import { mountDriver } from './screens/driver-screen.js';
 import { mountDelivery } from './screens/delivery-screen.js';
+import { mountReports } from './screens/reports-screen.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -35,6 +36,7 @@ function parseRoute() {
   if (section === 'prep') return { route: 'prep', param: null };
   if (section === 'driver') return { route: 'driver', param: null };
   if (section === 'delivery') return { route: 'delivery', param: null };
+  if (section === 'reports') return { route: 'reports', param: null };
   return { route: 'board', param: null };
 }
 
@@ -45,6 +47,7 @@ function render() {
   else if (isDriverOnly(user)) route = 'driver';
   else if (route === 'driver') route = 'board';
   else if (route === 'delivery' && !can(user, 'deliveryReport')) route = 'board';
+  else if (route === 'reports' && !can(user, 'reports')) route = 'board';
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
@@ -67,6 +70,7 @@ function render() {
   else if (route === 'prep') unmount = mountPrep(view);
   else if (route === 'driver') unmount = mountDriver(view);
   else if (route === 'delivery') unmount = mountDelivery(view);
+  else if (route === 'reports') unmount = mountReports(view);
   else unmount = mountBoard(view);
 }
 

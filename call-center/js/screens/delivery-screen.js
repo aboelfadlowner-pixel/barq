@@ -6,7 +6,7 @@
    of a trip, +10 minutes for each order after it (to be adjusted from real numbers). */
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
-import { formatTime, dayLabel } from '../utils/format.js';
+import { formatTime, dayLabel, shiftIso, workDayIso } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { openModal, showToast } from '../components/modal.js';
 import { mountDriversNow } from '../components/drivers-now.js';
@@ -23,14 +23,13 @@ const PERIODS = [
 ];
 const state = { period: 'today' };   // kept while going to an order and back
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function range(period) {
-  const today = new Date();
-  const back = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
-  if (period === 'yesterday') return [iso(back(1)), iso(back(1))];
-  if (period === 'week') return [iso(back(6)), iso(today)];
-  if (period === 'month') return [iso(back(29)), iso(today)];
-  return [iso(today), iso(today)];
+  const today = workDayIso();                  // the working day (from 2 AM)
+  const back = (n) => shiftIso(today, n);
+  if (period === 'yesterday') return [back(1), back(1)];
+  if (period === 'week') return [back(6), today];
+  if (period === 'month') return [back(29), today];
+  return [today, today];
 }
 const minutes = (a, b) => (a && b ? Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000)) : null);
 const avg = (xs) => { const v = xs.filter((x) => x != null); return v.length ? Math.round(v.reduce((s, x) => s + x, 0) / v.length) : null; };

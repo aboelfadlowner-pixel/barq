@@ -52,11 +52,23 @@ export function workDayStart(now = new Date()) {
   return new Date(local - cairoOffset(local - cairoOffset(ms)));
 }
 export const inWorkDay = (iso, now = new Date()) => !!iso && new Date(iso) >= workDayStart(now);
+/* The working day's date as YYYY-MM-DD (1 AM on the 4th → "2026-11-03"). */
+export function workDayIso(when = new Date()) {
+  const p = Object.fromEntries(cairoFmt.formatToParts(new Date(new Date(when).getTime() - DAY_START_HOUR * 3600e3))
+    .map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+/* YYYY-MM-DD, n days before (n < 0: after). */
+export function shiftIso(iso, n) {
+  const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+export const isSameWorkDay = (a, b) => !!a && !!b && workDayIso(a) === workDayIso(b);
 
 export function dayLabel(iso, now = new Date()) {
-  if (isSameDay(iso, now)) return 'اليوم';
-  const y = new Date(now); y.setDate(y.getDate() - 1);
-  if (isSameDay(iso, y)) return 'أمس';
+  const day = workDayIso(iso); const today = workDayIso(now);
+  if (day === today) return 'اليوم';
+  if (day === shiftIso(today, 1)) return 'أمس';
   return dateFmt.format(new Date(iso));
 }
 

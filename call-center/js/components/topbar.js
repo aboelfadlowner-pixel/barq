@@ -84,6 +84,7 @@ export function mountTopbar(el) {
         ${can(user, 'ordersLog') ? `<a href="#/orders" title="سجل الطلبات" class="${route === 'orders' || route === 'order' ? 'active' : ''}">${icon('list')}<span>سجل الطلبات</span></a>` : ''}
         ${can(user, 'customers') ? `<a href="#/customers" title="العملاء" class="${route === 'customers' ? 'active' : ''}">${icon('user')}<span>العملاء</span></a>` : ''}
         ${can(user, 'deliveryReport') ? `<a href="#/delivery" title="التوصيل" class="${route === 'delivery' ? 'active' : ''}">${icon('package')}<span>التوصيل</span></a>` : ''}
+        ${can(user, 'reports') ? `<a href="#/reports" title="التقارير" class="${route === 'reports' ? 'active' : ''}">${icon('chart')}<span>التقارير</span></a>` : ''}
         ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والموظفين" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والموظفين</span></a>` : ''}
       </nav>
       <div class="spacer"></div>

@@ -3,11 +3,11 @@
    call_center — creates, follows and cancels orders. No settings.
    prep        — the person preparing orders at the branch: the preparation screen only.
    driver      — «طيار»: his own screen only (order number + address, «خرجت», «سلّمت» with a photo).
-   «التوصيل» (delivery times, photos, places): admin only.
+   «التوصيل» (delivery times, photos, places) and «التقارير» (27_reports.sql): admin only.
    «سجل الطلبات» (orders of past days) and «العملاء» (customers page): admin and call center.
    The database enforces the same rules; this only decides what is shown. */
 const ALLOWED = {
-  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen', 'deliveryReport'],
+  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen', 'deliveryReport', 'reports'],
   call_center: ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary'],
   prep:        ['prepScreen'],
   driver:      ['driverScreen'],
