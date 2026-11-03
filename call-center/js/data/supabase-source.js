@@ -457,6 +457,12 @@ export async function report(from, to) {
   const c = await sb();
   return ok(await c.rpc('cc_report', { p_from: from, p_to: to }));
 }
+
+/* «التقارير» phase 2 (29_reports_ops.sql): speed, areas, items, add-ons. */
+export async function reportOps(from, to) {
+  const c = await sb();
+  return ok(await c.rpc('cc_report_ops', { p_from: from, p_to: to }));
+}
 export async function deliveryReport(from, to) {
   const c = await sb();
   const res = await c.rpc('cc_delivery_report', { p_from: from, p_to: to });

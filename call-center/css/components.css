@@ -891,3 +891,6 @@ body.cam-open { overflow: hidden; }
 .rp-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; background: #f4f6f4; border-radius: 8px; }
 .rp-custom { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
 .rp-custom label { display: flex; gap: 6px; align-items: center; }
+.rp-tabs { margin: 4px 0 10px; }
+.rp-share { display: inline-block; width: 70px; height: 8px; background: #eef1ee; border-radius: 4px; vertical-align: middle; overflow: hidden; }
+.rp-share > span { display: block; height: 100%; background: var(--green-600); }

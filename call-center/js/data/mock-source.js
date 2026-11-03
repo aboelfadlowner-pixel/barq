@@ -6,8 +6,8 @@
  *  supabase-source.js exports the same functions with the same shapes.
  * ===================================================================== */
 import * as mock from './mock-data.js';
-import { normalizePhone, isSameWorkDay } from '../utils/format.js';
-import { computeTotals } from '../utils/pricing.js';
+import { normalizePhone, isSameWorkDay, workDayIso } from '../utils/format.js';
+import { computeTotals, lineTotal } from '../utils/pricing.js';
 
 const clone = (v) => structuredClone(v);
 const resolve = (v) => Promise.resolve(clone(v));
@@ -683,7 +683,7 @@ export function saveArea({ id, name, fee, active }) {
 
 /* «التقارير» (27_reports.sql) on the demo orders — same shape as cc_report. */
 export function report(from, to) {
-  const day = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const day = (iso) => workDayIso(iso);
   const len = Math.round((new Date(to) - new Date(from)) / 864e5) + 1;
   const pf = new Date(from); pf.setDate(pf.getDate() - len);
   const prevFrom = day(pf);
@@ -719,5 +719,47 @@ export function report(from, to) {
       by: count(cancelled, (c) => c.by || 'غير معروف').map(({ k, n }) => ({ name: k, n })),
       orders: cancelled,
     },
+  });
+}
+
+/* «التقارير» phase 2 (29_reports_ops.sql): speed, areas, items, add-ons. */
+export function reportOps(from, to) {
+  const ok = orders.filter((o) => { const d = workDayIso(o.createdAt); return d >= from && d <= to && o.status !== 'cancelled'; });
+  const mins = (a, b) => (a && b && b >= a ? (new Date(b) - new Date(a)) / 60000 : null);
+  const rows = ok.map((o) => ({ o, to_prep: mins(o.createdAt, o.preparingAt), prep: mins(o.preparingAt, o.atCashierAt),
+    wait: mins(o.atCashierAt, o.outAt), deliver: mins(o.outAt, deliveries.get(o.id)?.deliveredAt), total: mins(o.createdAt, o.outAt) }));
+  const stat = (k) => {
+    const v = rows.map((r) => r[k]).filter((x) => x != null).sort((a, b) => a - b);
+    if (!v.length) return { n: 0, avg: null, mid: null };
+    const mid = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+    return { n: v.length, avg: Math.round(v.reduce((t, x) => t + x, 0) / v.length), mid: Math.round(mid) };
+  };
+  const areas = new Map(); const items = new Map(); const mods = new Map();
+  for (const o of ok) {
+    const a = areas.get(o.address.areaName) ?? { name: o.address.areaName || 'بدون منطقة', orders: 0, sales: 0, fees: 0 };
+    a.orders += 1; a.sales += computeTotals(o.items, o.deliveryFee).total; a.fees += o.deliveryFee || 0; areas.set(a.name, a);
+    const seen = new Set();
+    for (const it of o.items) {
+      const p = items.get(it.productId) ?? { name: it.name, sku: it.productId, orders: 0, qty: 0, kg: 0, sales: 0 };
+      if (!seen.has(it.productId)) { p.orders += 1; seen.add(it.productId); }
+      if (it.unitType === 'weight') p.kg += (it.grams || 0) / 1000; else p.qty += it.qty || 0;
+      p.sales += lineTotal(it); items.set(it.productId, p);
+      for (const m of it.modifiers || []) {
+        const k = `${m.group || ''}|${m.name}`; const x = mods.get(k) ?? { group: m.group || '', name: m.name, times: 0, sales: 0 };
+        const n = (m.qty || 1) * (it.unitType === 'weight' ? 1 : it.qty || 1); x.times += n; x.sales += m.price * n; mods.set(k, x);
+      }
+    }
+  }
+  const r2 = (x) => Math.round(x * 100) / 100;
+  return resolve({
+    from, to,
+    speed: { orders: ok.length, to_prep: stat('to_prep'), prep: stat('prep'), wait: stat('wait'), deliver: stat('deliver'), total: stat('total') },
+    slow: rows.filter((r) => r.total != null).sort((a, b) => b.total - a.total).slice(0, 10).map((r) => ({ id: r.o.id, order_no: r.o.number,
+      at: r.o.createdAt, area: r.o.address.areaName, driver: r.o.driver || null, to_prep: r.to_prep && Math.round(r.to_prep),
+      prep: r.prep && Math.round(r.prep), wait: r.wait && Math.round(r.wait), total: Math.round(r.total) })),
+    areas: [...areas.values()].map((a) => ({ ...a, sales: r2(a.sales) })).sort((a, b) => b.orders - a.orders || b.sales - a.sales),
+    items: [...items.values()].map((p) => ({ ...p, kg: r2(p.kg), sales: r2(p.sales) })).sort((a, b) => b.sales - a.sales).slice(0, 50),
+    items_count: items.size,
+    modifiers: [...mods.values()].map((m) => ({ ...m, sales: r2(m.sales) })).sort((a, b) => b.times - a.times || b.sales - a.sales).slice(0, 30),
   });
 }

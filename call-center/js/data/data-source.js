@@ -38,6 +38,7 @@ export const saveProductModifiers = (sku, links) => impl.saveProductModifiers(sk
 export const listStaff        = () => impl.listStaff();
 export const ownerId          = () => impl.ownerId();
 export const report           = (from, to) => impl.report(from, to);
+export const reportOps        = (from, to) => impl.reportOps(from, to);
 export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);
 export const ackEdit          = (id) => impl.ackEdit(id);
