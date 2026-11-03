@@ -93,10 +93,12 @@ export const signIn = () => resolve(demoAccount);
 
 const staff = clone(mock.staff);
 export const listStaff = () => resolve(staff);
+export const ownerId = () => resolve(staff.find((s) => s.isOwner)?.id ?? null);
 export function setStaff({ id, role, active }) {
   if (id === demoAccount.id) return Promise.reject(new Error('لا يمكنك تغيير صلاحية حسابك'));
   const s = staff.find((x) => x.id === id);
   if (!s) return Promise.reject(new Error('الحساب غير موجود'));
+  if (s.isOwner) return Promise.reject(new Error('ده حساب المالك — محدش يقدر يغيّر صلاحيته أو يوقفه'));
   Object.assign(s, { role, active });
   return Promise.resolve(true);
 }

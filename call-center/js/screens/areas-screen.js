@@ -129,20 +129,26 @@ export function mountAreas(view) {
 
   const staffRows = view.querySelector('[data-staff-rows]');
   const me = getState().user?.id;
-  const renderStaff = () => ds.listStaff().then((all) => {
+  const renderStaff = () => Promise.all([ds.listStaff(), ds.ownerId().catch(() => null)]).then(([all, owner]) => {
     view.querySelector('[data-staff-section]').hidden = !all;   // hidden until roles are installed
     if (!all) return;
     const list = all.filter((s) => s.role !== 'driver');        // the drivers: «الطيارين» below
-    staffRows.innerHTML = list.map((s) => `
+    staffRows.innerHTML = list.map((s) => {
+      const isOwner = !!owner && s.id === owner;
+      const locked = s.id === me || isOwner;   // your own account, and the owner's (25_owner.sql)
+      return `
       <tr data-staff-id="${esc(s.id)}" class="${s.active ? '' : 'row-off'}">
         <td><strong>${esc(s.name || 'بدون اسم بعد')}</strong>${s.id === me ? ' <span class="muted">(أنت)</span>' : ''}
-          <div class="muted ltr-cell staff-email">${esc(s.email)}</div></td>
-        <td><select class="input" name="staffRole" ${s.id === me ? 'disabled' : ''} aria-label="الصلاحية">
+          ${isOwner ? ' <span class="tag tag-owner" title="حساب المالك — محدش يقدر يغيّر صلاحيته أو يوقفه">👑 المالك</span>' : ''}
+          <div class="muted ltr-cell staff-email">${esc(s.email)}</div>
+          ${isOwner && s.id !== me ? '<div class="muted staff-owner-note">حساب المالك — مش هتقدر تغيّر صلاحيته أو توقفه</div>' : ''}</td>
+        <td><select class="input" name="staffRole" ${locked ? 'disabled' : ''} aria-label="الصلاحية">
           ${ROLES.filter((r) => r.id !== 'driver').map((r) => `<option value="${r.id}" ${r.id === s.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select></td>
-        <td><label class="switch"><input type="checkbox" name="staffActive" ${s.active ? 'checked' : ''} ${s.id === me ? 'disabled' : ''}>
+        <td><label class="switch"><input type="checkbox" name="staffActive" ${s.active ? 'checked' : ''} ${locked ? 'disabled' : ''}>
           <span>${s.active ? 'نشط' : 'موقوف'}</span></label></td>
-        <td>${s.id === me ? '' : `<button type="button" class="btn btn-soft btn-sm" data-save-staff>${icon('check')}حفظ</button>`}</td>
-      </tr>`).join('');
+        <td>${locked ? '' : `<button type="button" class="btn btn-soft btn-sm" data-save-staff>${icon('check')}حفظ</button>`}</td>
+      </tr>`;
+    }).join('');
   }).catch(() => { view.querySelector('[data-staff-section]').hidden = true; });
   renderStaff();
 

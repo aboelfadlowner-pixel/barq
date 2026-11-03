@@ -491,6 +491,14 @@ export async function setMyName(name) {
   return getAccount();
 }
 
+/* The owner's account (25_owner.sql): locked for every other admin. null if not set / not installed. */
+export async function ownerId() {
+  const c = await sb();
+  const res = await c.rpc('cc_owner_id');
+  if (res.error) return null;
+  return res.data || null;
+}
+
 export async function setStaff({ id, role, active }) {
   const c = await sb();
   return ok(await c.rpc('cc_set_staff', { p_user_id: id, p_role: role, p_active: active }));

@@ -1614,3 +1614,58 @@ do $$ declare d jsonb; m jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T44 — the owner (25_owner.sql): another admin cannot change the owner's role, stop the owner, or rename/stop the
+--        owner's name; the owner still manages everyone else; only one owner
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'own44@cc.test'), (gen_random_uuid(), 'adm44@cc.test'), (gen_random_uuid(), 'cc44@cc.test');
+insert into public.cc_agents (name) values ('المالك 44'), ('أدمن 44') on conflict do nothing;
+insert into public.cc_staff (user_id, display_name, role, agent_id, is_owner)
+select u.id, 'x', case when u.email like 'cc44%' then 'call_center' else 'admin' end,
+       (select id from public.cc_agents where name = case when u.email like 'own44%' then 'المالك 44' when u.email like 'adm44%' then 'أدمن 44' end),
+       u.email like 'own44%'
+  from auth.users u where u.email in ('own44@cc.test', 'adm44@cc.test', 'cc44@cc.test');
+do $$ begin
+  begin update public.cc_staff set is_owner = true where user_id = (select id from auth.users where email = 'adm44@cc.test');
+    raise exception 'FAIL T44 two owners'; exception when unique_violation then null; end;
+end $$;
+select set_config('cc.own', (select id::text from auth.users where email = 'own44@cc.test'), true);
+select set_config('cc.adm', (select id::text from auth.users where email = 'adm44@cc.test'), true);
+select set_config('cc.cc44', (select id::text from auth.users where email = 'cc44@cc.test'), true);
+-- the other admin
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.adm'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if public.cc_owner_id() is distinct from current_setting('cc.own')::uuid then raise exception 'FAIL T44 owner id'; end if;
+  begin perform public.cc_set_staff(current_setting('cc.own')::uuid, 'call_center', true); raise exception 'FAIL T44 demoted the owner';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_set_staff(current_setting('cc.own')::uuid, 'admin', false); raise exception 'FAIL T44 stopped the owner';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_save_agent((select id from public.cc_agents where name = 'المالك 44'), 'اسم تاني', true); raise exception 'FAIL T44 renamed the owner';
+  exception when insufficient_privilege then null; end;
+  perform public.cc_set_staff(current_setting('cc.cc44')::uuid, 'prep', true);     -- others: still allowed
+  perform public.cc_save_agent((select id from public.cc_agents where name = 'أدمن 44'), 'أدمن 44', true);
+end $$;
+reset role;
+-- the owner manages the other admin, keeps her own name
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.own'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  perform public.cc_set_staff(current_setting('cc.adm')::uuid, 'call_center', true);
+  perform public.cc_save_agent((select id from public.cc_agents where name = 'المالك 44'), 'المالك 44', true);
+  begin perform public.cc_set_staff(current_setting('cc.own')::uuid, 'call_center', true); raise exception 'FAIL T44 owner changed herself';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+do $$ begin
+  if (select role from public.cc_staff where user_id = current_setting('cc.own')::uuid) <> 'admin'
+     or not (select active from public.cc_staff where user_id = current_setting('cc.own')::uuid) then raise exception 'FAIL T44 owner changed'; end if;
+  if (select role from public.cc_staff where user_id = current_setting('cc.adm')::uuid) <> 'call_center' then raise exception 'FAIL T44 owner could not manage'; end if;
+  raise notice 'PASS T44 the owner''s account and name are locked for other admins; the owner still manages everyone else; one owner only';
+end $$;
+rollback;
