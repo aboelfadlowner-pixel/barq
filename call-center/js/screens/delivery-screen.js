@@ -7,6 +7,7 @@
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
 import { formatTime, dayLabel, shiftIso, workDayIso } from '../utils/format.js';
+import { paginate } from '../components/pager.js';
 import { icon } from '../components/icons.js';
 import { openModal, showToast } from '../components/modal.js';
 import { mountDriversNow } from '../components/drivers-now.js';
@@ -158,7 +159,7 @@ export function mountDelivery(view) {
       </div>
 
       <h2 class="section-title">${icon('user')}الطيارين</h2>
-      <div class="card table-wrap"><table class="table">
+      <div class="card table-wrap"><table class="table" data-more="10">
         <thead><tr><th>الطيار</th><th>الطلبات</th><th class="col-opt">المشاوير</th><th>فلوس الطلبات</th><th class="col-opt">رسوم التوصيل</th><th>كم (تقريبي)</th>
           <th class="col-opt">الانتظار قبل الخروج</th><th>متوسط التوصيل</th><th>متوسط الرجوع</th>
           <th>متأخر</th><th class="col-opt">من غير مكان</th><th class="col-opt">رجوع بعيد</th><th class="col-opt">سجّلها الأدمن</th></tr></thead>
@@ -175,7 +176,7 @@ export function mountDelivery(view) {
       </table></div>
 
       <h2 class="section-title">${icon('pin')}المناطق</h2>
-      <div class="card table-wrap"><table class="table">
+      <div class="card table-wrap"><table class="table" data-more="10">
         <thead><tr><th>المنطقة</th><th>الطلبات</th><th>فلوس الطلبات</th><th class="col-opt">رسوم التوصيل</th><th>متوسط التوصيل</th><th class="col-opt">أطول توصيل</th></tr></thead>
         <tbody>${[...byArea].sort((a, b) => b[1].length - a[1].length).map(([name, rs]) => `
           <tr><td><strong>${esc(name)}</strong></td><td class="num">${rs.length}</td>
@@ -186,7 +187,7 @@ export function mountDelivery(view) {
 
       <h2 class="section-title">${icon('list')}الطلبات</h2>
       <p class="muted">المتأخر بالأحمر: أكتر من ${LATE_FIRST} دقيقة لأول طلب في المشوار، و+${LATE_STEP} دقايق لكل طلب بعده.</p>
-      <div class="card table-wrap"><table class="table delivery-table">
+      <div class="card table-wrap"><table class="table delivery-table" data-paged="20">
         <thead><tr><th>رقم الطلب</th><th>الطيار</th><th class="col-opt">المنطقة</th><th>خرج</th><th>التوصيل</th>
           <th class="col-opt">الرجوع</th><th class="col-opt">في المشوار</th><th>الصورة</th></tr></thead>
         <tbody>${list.map((r) => `
@@ -202,6 +203,7 @@ export function mountDelivery(view) {
           </tr>`).join('')}</tbody>
       </table></div>`
       : '<div class="card card-pad center-note"><h3>مفيش طلبات خرجت في الفترة دي</h3></div>';
+    paginate(body);
   }
 
   const offs = [
