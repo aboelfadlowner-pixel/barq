@@ -1669,3 +1669,71 @@ do $$ begin
   raise notice 'PASS T44 the owner''s account and name are locked for other admins; the owner still manages everyone else; one owner only';
 end $$;
 rollback;
+
+-- T45 — which phone opened a driver's link (26_driver_devices.sql): the first phone on the current link is the main
+--        one; another phone works but alerts the admin with its type; «شفته» hides it; a new link starts over;
+--        only the driver records, only the admin reads
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv45@cc.test'), (gen_random_uuid(), 'adm45@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'admin' from auth.users where email = 'adm45@cc.test';
+select set_config('cc.drv45', (select id::text from auth.users where email = 'drv45@cc.test'), true);
+select set_config('cc.adm45', (select id::text from auth.users where email = 'adm45@cc.test'), true);
+select public.cc_driver_setup(current_setting('cc.drv45')::uuid, 'طيار 45', '01045454545');
+-- his phone, then another phone, then his phone again
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  perform public.cc_driver_device('phoneA-0001', 'iPhone – Safari');
+  perform pg_sleep(0.01);
+  perform public.cc_driver_device('phoneB-0002', 'Android – SM-A515F – Chrome');
+  perform public.cc_driver_device('phoneA-0001', 'iPhone – Safari');
+  begin perform public.cc_driver_device('bad id!', 'x'); raise exception 'FAIL T45 bad id accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_driver_device_alerts(); raise exception 'FAIL T45 driver read alerts';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.cc_driver_devices; raise exception 'FAIL T45 driver reads the table';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- the admin
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.adm45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare a jsonb; begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP'; end if;
+  if public.cc_driver_device('phoneC-0003', 'x') then raise exception 'FAIL T45 admin recorded a phone'; end if;   -- no personal link: nothing recorded
+  select x into a from jsonb_array_elements(public.cc_driver_device_alerts()) x where x->>'user_id' = current_setting('cc.drv45');
+  if a is null or a->'main'->>'label' <> 'iPhone – Safari' or jsonb_array_length(a->'others') <> 1
+     or a->'others'->0->>'label' <> 'Android – SM-A515F – Chrome' then raise exception 'FAIL T45 alert %', a; end if;
+  if public.cc_driver_device_seen(current_setting('cc.drv45')::uuid) < 1 then raise exception 'FAIL T45 seen'; end if;
+  if exists (select 1 from jsonb_array_elements(public.cc_driver_device_alerts()) x where x->>'user_id' = current_setting('cc.drv45')) then raise exception 'FAIL T45 alert after «شفته»'; end if;
+  perform public.cc_new_driver_link(current_setting('cc.drv45')::uuid);    -- a new link
+end $$;
+reset role;
+-- the new link opened on phone B first: B is the main phone now, no alert
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_driver_device('phoneB-0002', 'Android – SM-A515F – Chrome'); end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.adm45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if exists (select 1 from jsonb_array_elements(public.cc_driver_device_alerts()) x where x->>'user_id' = current_setting('cc.drv45')) then raise exception 'FAIL T45 alert on a fresh link'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.drv45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_driver_device('phoneA-0001', 'iPhone – Safari'); end $$;   -- old phone on the new link
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.adm45'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare a jsonb; begin
+  select x into a from jsonb_array_elements(public.cc_driver_device_alerts()) x where x->>'user_id' = current_setting('cc.drv45');
+  if a is null or a->'main'->>'label' <> 'Android – SM-A515F – Chrome' or a->'others'->0->>'label' <> 'iPhone – Safari' then raise exception 'FAIL T45 new link main %', a; end if;
+  raise notice 'PASS T45 another phone on a driver''s link alerts the admin (phone type, times); «شفته» hides it; a new link starts over; driver records, admin reads';
+end $$;
+reset role;
+rollback;

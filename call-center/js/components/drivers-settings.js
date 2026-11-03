@@ -8,6 +8,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatRelative, toWesternDigits } from '../utils/format.js';
 import { icon } from './icons.js';
 import { openModal, showToast } from './modal.js';
+import { mountDeviceAlerts } from './device-alerts.js';
 
 /* His personal link: this same page + #d=<secret>. */
 const driverLink = (token) => `${location.href.split('#')[0]}#d=${token}`;
@@ -39,6 +40,7 @@ export function mountDriversSettings(el) {
   el.innerHTML = `
     <div data-drivers-section hidden>
     <h2 class="section-title">${icon('package')}الطيارين</h2>
+    <div data-device-alerts></div>
     <p class="muted section-sub">ضيفي الطيار باسمه ورقمه، وابعتيله لينكه على واتساب — بيفتح شاشة الطيار على موبايله من غير باسورد.
       لو وقفتيه أو عملتيله لينك جديد، القديم مبيفتحش.</p>
     <form class="card card-pad add-area" data-add-driver novalidate>
@@ -110,6 +112,7 @@ export function mountDriversSettings(el) {
 
   load();
   showBranch();
+  const unmountAlerts = mountDeviceAlerts(el.querySelector('[data-device-alerts]'), { linkToDrivers: false });
 
   const offs = [
     on(el, 'submit', '[data-add-driver]', async (e, form) => {
@@ -170,5 +173,5 @@ export function mountDriversSettings(el) {
       saveBranch(nums[0], nums[1]).then((saved) => { if (saved) form.reset(); });
     }),
   ];
-  return () => offs.forEach((f) => f());
+  return () => { offs.forEach((f) => f()); unmountAlerts(); };
 }

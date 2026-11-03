@@ -373,6 +373,27 @@ export async function setBranchPlace(lat, lng) {
   return ok(await c.rpc('cc_set_branch_place', { p_lat: lat, p_lng: lng }));
 }
 /* The driver's place while he is out (about once a minute); ignored by the server when he is not. */
+/* Which phone opened the driver's link (26_driver_devices.sql). */
+export async function driverDevice(id, label) {
+  const c = await sb();
+  const res = await c.rpc('cc_driver_device', { p_device_id: id, p_label: label || '' });
+  return res.error ? false : !!res.data;
+}
+/* For the admin: drivers whose link was opened on another phone. [] if not installed. */
+export async function driverDeviceAlerts() {
+  const c = await sb();
+  const res = await c.rpc('cc_driver_device_alerts');
+  if (res.error) return [];
+  return (res.data || []).map((r) => ({
+    userId: r.user_id, name: r.name || '',
+    main: { label: r.main?.label || '', firstSeen: r.main?.first_seen, lastSeen: r.main?.last_seen },
+    others: (r.others || []).map((d) => ({ label: d.label || '', firstSeen: d.first_seen, lastSeen: d.last_seen, opens: d.opens })),
+  }));
+}
+export async function driverDeviceSeen(userId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_driver_device_seen', { p_user_id: userId }));
+}
 export async function driverPing(pos) {
   const c = await sb();
   const res = await c.rpc('cc_driver_ping', { p_lat: pos.lat, p_lng: pos.lng, p_accuracy: pos.accuracy ?? null });

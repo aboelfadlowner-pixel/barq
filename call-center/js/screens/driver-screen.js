@@ -15,6 +15,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
+import { deviceId, deviceLabel } from '../utils/device.js';
 
 const REFRESH_MS = 15000;
 const PING_MS = 30000;   // his place, about every 30 seconds while he is out
@@ -247,6 +248,9 @@ export function mountDriver(view) {
   document.addEventListener('visibilitychange', onVisible);
 
   load().then(schedule);
+  // Which phone opened this link (the admin is alerted if it's not his usual phone — nothing is blocked).
+  const id = deviceId();
+  if (id) deviceLabel().then((label) => ds.driverDevice(id, label)).catch(() => {});
   return () => {
     stopped = true;
     clearTimeout(timer);
