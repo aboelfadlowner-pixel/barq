@@ -680,3 +680,44 @@ export function saveArea({ id, name, fee, active }) {
   areas.push(created);
   return resolve(created);
 }
+
+/* «التقارير» (27_reports.sql) on the demo orders — same shape as cc_report. */
+export function report(from, to) {
+  const day = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const len = Math.round((new Date(to) - new Date(from)) / 864e5) + 1;
+  const pf = new Date(from); pf.setDate(pf.getDate() - len);
+  const prevFrom = day(pf);
+  const inRange = (o, a, b) => { const d = day(o.createdAt); return d >= a && d <= b; };
+  const tot = (o) => computeTotals(o.items, o.deliveryFee).total;
+  const sum = (list) => {
+    const ok = list.filter((o) => o.status !== 'cancelled');
+    const sales = ok.reduce((t, o) => t + tot(o), 0);
+    return { orders: ok.length, sales, avg: ok.length ? Math.round((sales / ok.length) * 100) / 100 : 0,
+      fees: ok.reduce((t, o) => t + (o.deliveryFee || 0), 0), cancelled: list.length - ok.length, all: list.length };
+  };
+  const cur = orders.filter((o) => inRange(o, from, to));
+  const prev = orders.filter((o) => { const d = day(o.createdAt); return d >= prevFrom && d < from; });
+  const ok = cur.filter((o) => o.status !== 'cancelled');
+  const count = (arr, key) => Object.entries(arr.reduce((m, x) => { const k = key(x); m[k] = (m[k] || 0) + 1; return m; }, {}))
+    .map(([k, n]) => ({ k, n })).sort((a, b) => b.n - a.n);
+  const agents = Object.values(cur.reduce((m, o) => {
+    const a = (m[o.employee] ??= { name: o.employee || 'بدون اسم', orders: 0, sales: 0, cancelled: 0 });
+    if (o.status === 'cancelled') a.cancelled += 1; else { a.orders += 1; a.sales += tot(o); }
+    return m;
+  }, {})).map((a) => ({ ...a, avg: a.orders ? Math.round((a.sales / a.orders) * 100) / 100 : 0 })).sort((a, b) => b.orders - a.orders);
+  const cancelled = cur.filter((o) => o.status === 'cancelled').map((o) => {
+    const h = o.statusHistory.find((x) => x.status === 'cancelled') || {};
+    return { id: o.id, order_no: o.number, at: h.at || o.createdAt, reason: o.cancelReason || h.reason || '', by: h.by || o.employee, total: tot(o), agent: o.employee };
+  });
+  return resolve({
+    from, to, summary: sum(cur), previous: sum(prev),
+    hours: Array.from({ length: 24 }, (_, h) => { const l = ok.filter((o) => new Date(o.createdAt).getHours() === h); return { h, n: l.length, sales: l.reduce((t, o) => t + tot(o), 0) }; }),
+    weekdays: Array.from({ length: 7 }, (_, d) => { const l = ok.filter((o) => new Date(o.createdAt).getDay() === d); return { d, n: l.length, sales: l.reduce((t, o) => t + tot(o), 0) }; }),
+    agents,
+    cancel: {
+      reasons: count(cancelled, (c) => c.reason || 'بدون سبب').map(({ k, n }) => ({ reason: k, n })),
+      by: count(cancelled, (c) => c.by || 'غير معروف').map(({ k, n }) => ({ name: k, n })),
+      orders: cancelled,
+    },
+  });
+}

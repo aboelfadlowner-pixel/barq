@@ -1737,3 +1737,59 @@ do $$ declare a jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T46 — «التقارير» (27_reports.sql): admin only; sales/average skip cancelled orders; per hour, weekday, employee;
+--        cancel reasons and who cancelled; the previous period for comparison
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'adm46@cc.test'), (gen_random_uuid(), 'cc46@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case when email like 'adm%' then 'admin' else 'call_center' end from auth.users where email in ('adm46@cc.test', 'cc46@cc.test');
+insert into public.cc_agents (name) values ('موظف 46أ'), ('موظف 46ب') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 46');
+  o public.cc_orders; i int; begin
+  for i in 1..4 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = case when i <= 3 then 'موظف 46أ' else 'موظف 46ب' end),
+           gen_random_uuid(), jsonb_build_object('name', 'عميل 46-' || i, 'phone', '0104646460' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.r' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- move them to a known far day so other tests' orders don't mix in: 2020-03-05 (a Thursday) 20:30 Cairo; one the day before
+update public.cc_orders set created_at = ('2020-03-05 20:30'::timestamp at time zone 'Africa/Cairo')
+ where id::text in (current_setting('cc.r1'), current_setting('cc.r2'), current_setting('cc.r3'));
+update public.cc_orders set created_at = ('2020-03-04 11:10'::timestamp at time zone 'Africa/Cairo') where id::text = current_setting('cc.r4');
+update public.cc_orders set status = 'cancelled', cancelled_at = ('2020-03-05 20:45'::timestamp at time zone 'Africa/Cairo'),
+       cancel_reason = 'العميل مردّش', cancelled_by_agent = 'موظف 46أ'
+ where id::text = current_setting('cc.r3');
+select set_config('cc.t1', (select total::text from public.cc_orders where id::text = current_setting('cc.r1')), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc46@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_report('2020-03-05', '2020-03-05'); raise exception 'FAIL T46 call center read the report';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm46@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; t numeric := current_setting('cc.t1')::numeric; a jsonb; begin
+  r := public.cc_report('2020-03-05', '2020-03-05');
+  if (r->'summary'->>'orders')::int <> 2 or (r->'summary'->>'cancelled')::int <> 1 or (r->'summary'->>'all')::int <> 3 then raise exception 'FAIL T46 summary %', r->'summary'; end if;
+  if (r->'summary'->>'sales')::numeric <> 2 * t or (r->'summary'->>'avg')::numeric <> t then raise exception 'FAIL T46 sales skip cancelled %', r->'summary'; end if;
+  if (r->'previous'->>'orders')::int <> 1 then raise exception 'FAIL T46 previous day %', r->'previous'; end if;
+  if (r->'hours'->20->>'n')::int <> 2 or jsonb_array_length(r->'hours') <> 24 then raise exception 'FAIL T46 hours'; end if;
+  if (r->'weekdays'->4->>'n')::int <> 2 then raise exception 'FAIL T46 weekday (Thursday)'; end if;
+  select x into a from jsonb_array_elements(r->'agents') x where x->>'name' = 'موظف 46أ';
+  if (a->>'orders')::int <> 2 or (a->>'cancelled')::int <> 1 then raise exception 'FAIL T46 agent %', a; end if;
+  if r->'cancel'->'reasons'->0->>'reason' <> 'العميل مردّش' or r->'cancel'->'by'->0->>'name' <> 'موظف 46أ'
+     or jsonb_array_length(r->'cancel'->'orders') <> 1 then raise exception 'FAIL T46 cancel %', r->'cancel'; end if;
+  begin perform public.cc_report('2020-03-05', '2020-01-01'); raise exception 'FAIL T46 bad range';
+  exception when invalid_parameter_value then null; end;
+  raise notice 'PASS T46 reports for the admin only: summary without cancelled, previous period, hours, weekdays, employees, cancel reasons';
+end $$;
+reset role;
+rollback;

@@ -452,6 +452,11 @@ export async function getOrderDelivery(orderId) {
   const r = ok(res);
   return r ? toDelivery(r) : null;
 }
+/* «التقارير» (27_reports.sql): admin only. Days are Cairo days 'YYYY-MM-DD'. */
+export async function report(from, to) {
+  const c = await sb();
+  return ok(await c.rpc('cc_report', { p_from: from, p_to: to }));
+}
 export async function deliveryReport(from, to) {
   const c = await sb();
   const res = await c.rpc('cc_delivery_report', { p_from: from, p_to: to });

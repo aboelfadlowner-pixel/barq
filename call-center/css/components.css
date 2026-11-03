@@ -863,3 +863,31 @@ body.cam-open { overflow: hidden; }
 .device-alert .da-body { display: grid; gap: 4px; }
 .device-alert .da-line { font-size: 14px; }
 .device-alert .da-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+
+/* «التقارير» (27_reports.sql) */
+.rp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 14px; }
+.rp-card { padding: 14px 16px; display: grid; gap: 6px; }
+.rp-card.is-warn { border-color: var(--warn); }
+.rp-k { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+.rp-k .svg-icon { width: 16px; height: 16px; }
+.rp-v { font-size: 26px; font-weight: 700; }
+.rp-v small { font-size: 14px; color: var(--muted); font-weight: 600; }
+.rp-chg { font-size: 13px; font-weight: 600; }
+.rp-chg.is-good { color: var(--green-700); }
+.rp-chg.is-bad { color: var(--danger); }
+.rp-note { margin: 8px 0 16px; font-size: 13px; }
+.rp-sec { margin-bottom: 16px; }
+.rp-hint { margin: 4px 0 12px; }
+.rp-sub { font-size: 15px; margin: 14px 0 8px; }
+.rp-bars { display: flex; align-items: flex-end; gap: 4px; height: 170px; padding-top: 18px; overflow-x: auto; }
+.rp-bar { flex: 1 0 28px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.rp-bar-fill { width: 70%; min-height: 2px; background: #bfe3cf; border-radius: 4px 4px 0 0; }
+.rp-bar.is-top .rp-bar-fill { background: var(--green-600); }
+.rp-bar-n { font-size: 12px; color: var(--muted); }
+.rp-bar-l { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.rp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .rp-two { grid-template-columns: 1fr; } }
+.rp-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.rp-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; background: #f4f6f4; border-radius: 8px; }
+.rp-custom { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+.rp-custom label { display: flex; gap: 6px; align-items: center; }
