@@ -1834,3 +1834,60 @@ do $$ declare r jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T48 — «التقارير» phase 2 (29_reports_ops.sql): admin only; minutes of each step; areas; items; add-ons; no cancelled
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'adm48@cc.test'), (gen_random_uuid(), 'cc48@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case when email like 'adm%' then 'admin' else 'call_center' end from auth.users where email in ('adm48@cc.test', 'cc48@cc.test');
+insert into public.cc_agents (name) values ('موظف 48') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 48');
+  o public.cc_orders; i int; begin
+  for i in 1..3 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 48'),
+           gen_random_uuid(), jsonb_build_object('name', 'عميل 48-' || i, 'phone', '0104848480' || i), addr,
+           case when i = 2 then '[{"sku": "T-201", "qty": 3}]' else '[{"sku": "T-201", "qty": 1}]' end::jsonb, null);
+    perform set_config('cc.x' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- 2020-05-10 20:00 Cairo: prep after 5 / 9 min, 10 / 14 min of prep, 3 / 7 min waiting; the third one is cancelled
+update public.cc_orders set created_at = t0, preparing_at = t0 + interval '5 min', at_cashier_at = t0 + interval '15 min',
+       out_at = t0 + interval '18 min', stage = 'out'
+  from (select '2020-05-10 20:00'::timestamp at time zone 'Africa/Cairo' t0) z where id::text = current_setting('cc.x1');
+update public.cc_orders set created_at = t0, preparing_at = t0 + interval '9 min', at_cashier_at = t0 + interval '23 min',
+       out_at = t0 + interval '30 min', stage = 'out'
+  from (select '2020-05-10 20:00'::timestamp at time zone 'Africa/Cairo' t0) z where id::text = current_setting('cc.x2');
+update public.cc_orders set created_at = '2020-05-10 20:00'::timestamp at time zone 'Africa/Cairo', status = 'cancelled',
+       cancelled_at = '2020-05-10 20:05'::timestamp at time zone 'Africa/Cairo', cancel_reason = 'تجربة'
+ where id::text = current_setting('cc.x3');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc48@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_report_ops('2020-05-10', '2020-05-10'); raise exception 'FAIL T48 call center read the report';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm48@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; it jsonb; begin
+  r := public.cc_report_ops('2020-05-10', '2020-05-10');
+  if (r->'speed'->>'orders')::int <> 2 then raise exception 'FAIL T48 cancelled counted %', r->'speed'; end if;
+  if (r->'speed'->'to_prep'->>'avg')::int <> 7 or (r->'speed'->'prep'->>'mid')::int <> 12 or (r->'speed'->'wait'->>'avg')::int <> 5
+     or (r->'speed'->'total'->>'avg')::int <> 24 then raise exception 'FAIL T48 speed %', r->'speed'; end if;
+  if r->'slow'->0->>'total' <> '30' then raise exception 'FAIL T48 slowest %', r->'slow'; end if;
+  if (r->'areas'->0->>'orders')::int <> 2 then raise exception 'FAIL T48 areas %', r->'areas'; end if;
+  select x into it from jsonb_array_elements(r->'items') x where x->>'sku' = 'T-201';
+  if (it->>'orders')::int <> 2 or (it->>'qty')::int <> 4 then raise exception 'FAIL T48 items %', it; end if;
+  if jsonb_typeof(r->'modifiers') <> 'array' then raise exception 'FAIL T48 modifiers'; end if;
+  begin perform public.cc_report_ops('2020-05-10', '2020-01-01'); raise exception 'FAIL T48 bad range';
+  exception when invalid_parameter_value then null; end;
+  raise notice 'PASS T48 reports phase 2 for the admin only: speed of each step, slowest orders, areas, items, add-ons, no cancelled';
+end $$;
+reset role;
+rollback;
