@@ -3,7 +3,7 @@
    call-center employees, cancellations (reasons, who, the orders), and Excel. */
 import * as ds from '../data/data-source.js';
 import { esc, on } from '../utils/dom.js';
-import { formatTime, formatMoney } from '../utils/format.js';
+import { formatTime, formatMoney, shiftIso, workDayIso } from '../utils/format.js';
 import { money } from '../components/chips.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
@@ -18,15 +18,14 @@ const PERIODS = [
 const DAYS = ['الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
 const state = { period: 'today', from: null, to: null };
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function range() {
-  const today = new Date();
-  const back = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
-  if (state.period === 'yesterday') return [iso(back(1)), iso(back(1))];
-  if (state.period === 'week') return [iso(back(6)), iso(today)];
-  if (state.period === 'month') return [iso(back(29)), iso(today)];
+  const today = workDayIso();                  // the working day (from 2 AM)
+  const back = (n) => shiftIso(today, n);
+  if (state.period === 'yesterday') return [back(1), back(1)];
+  if (state.period === 'week') return [back(6), today];
+  if (state.period === 'month') return [back(29), today];
   if (state.period === 'custom' && state.from && state.to) return [state.from, state.to];
-  return [iso(today), iso(today)];
+  return [today, today];
 }
 const prevLabel = () => ({ today: 'عن إمبارح', yesterday: 'عن اليوم اللي قبله', week: 'عن الـ 7 أيام اللي قبلها', month: 'عن الـ 30 يوم اللي قبلها' }[state.period] || 'عن الفترة اللي قبلها');
 const hourLabel = (h) => { const t = h % 12 || 12; return `${t} ${h < 12 ? 'ص' : 'م'}`; };

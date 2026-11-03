@@ -11,7 +11,7 @@ import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import {
-  formatAddress, formatDateTime, formatRelative, formatWeight, housingLabel, isSameDay, isValidPhone, normalizePhone,
+  formatAddress, formatDateTime, formatRelative, formatWeight, housingLabel, isSameWorkDay, isValidPhone, normalizePhone,
 } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
@@ -35,7 +35,7 @@ export function mountCustomers(view, customerId) {
 }
 
 // «اليوم · منذ ساعتين» today, otherwise the date and time («أمس · 8:15 م»).
-const when = (iso) => (!iso ? '—' : isSameDay(iso, new Date()) ? `اليوم · ${formatRelative(iso)}` : formatDateTime(iso));
+const when = (iso) => (!iso ? '—' : isSameWorkDay(iso, new Date()) ? `اليوم · ${formatRelative(iso)}` : formatDateTime(iso));
 
 /* ---------- List ---------- */
 function mountList(view) {

@@ -1793,3 +1793,44 @@ do $$ declare r jsonb; t numeric := current_setting('cc.t1')::numeric; a jsonb; 
 end $$;
 reset role;
 rollback;
+
+-- T47 — the working day is 2 AM → 2 AM Cairo (28_work_day.sql): 1:30 AM belongs to the evening before,
+--        2:10 AM is the next day; the report and the day start agree
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+do $$ begin
+  if public.cc_work_day_from('2020-03-05') <> ('2020-03-05 02:00'::timestamp at time zone 'Africa/Cairo') then raise exception 'FAIL T47 day from'; end if;
+  if public.cc_work_day_start() > now() or public.cc_work_day_start() <= now() - interval '1 day' then raise exception 'FAIL T47 day start %', public.cc_work_day_start(); end if;
+  if extract(hour from public.cc_work_day_start() at time zone 'Africa/Cairo') <> 2 then raise exception 'FAIL T47 day start is not 2 AM'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'adm47@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'admin' from auth.users where email = 'adm47@cc.test';
+insert into public.cc_agents (name) values ('موظف 47') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 47');
+  o public.cc_orders; i int; begin
+  for i in 1..3 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 47'),
+           gen_random_uuid(), jsonb_build_object('name', 'عميل 47-' || i, 'phone', '0104747470' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.w' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- 2020-04-07 23:00, 2020-04-08 01:30 (same working day) and 2020-04-08 02:10 (the next day)
+update public.cc_orders set created_at = ('2020-04-07 23:00'::timestamp at time zone 'Africa/Cairo') where id::text = current_setting('cc.w1');
+update public.cc_orders set created_at = ('2020-04-08 01:30'::timestamp at time zone 'Africa/Cairo') where id::text = current_setting('cc.w2');
+update public.cc_orders set created_at = ('2020-04-08 02:10'::timestamp at time zone 'Africa/Cairo') where id::text = current_setting('cc.w3');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm47@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; begin
+  r := public.cc_report('2020-04-07', '2020-04-07');
+  if (r->'summary'->>'all')::int <> 2 then raise exception 'FAIL T47 7 April should have 23:00 and 1:30 %', r->'summary'; end if;
+  r := public.cc_report('2020-04-08', '2020-04-08');
+  if (r->'summary'->>'all')::int <> 1 or (r->'previous'->>'all')::int <> 2 then raise exception 'FAIL T47 8 April starts at 2 AM % %', r->'summary', r->'previous'; end if;
+  raise notice 'PASS T47 working day 2 AM → 2 AM: 1:30 AM is the evening before, 2:10 AM is a new day';
+end $$;
+reset role;
+rollback;

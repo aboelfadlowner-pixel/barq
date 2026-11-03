@@ -6,7 +6,7 @@
  *  supabase-source.js exports the same functions with the same shapes.
  * ===================================================================== */
 import * as mock from './mock-data.js';
-import { normalizePhone, isSameDay } from '../utils/format.js';
+import { normalizePhone, isSameWorkDay } from '../utils/format.js';
 import { computeTotals } from '../utils/pricing.js';
 
 const clone = (v) => structuredClone(v);
@@ -227,7 +227,7 @@ export function findTodayOrdersByPhone(phone) {
   const q = normalizePhone(phone);
   const now = new Date();
   const list = orders
-    .filter((o) => normalizePhone(o.customer.phone) === q && isSameDay(o.createdAt, now) && o.status !== 'cancelled')
+    .filter((o) => normalizePhone(o.customer.phone) === q && isSameWorkDay(o.createdAt, now) && o.status !== 'cancelled')
     .map((o) => ({ id: o.id, number: o.number, createdAt: o.createdAt }));
   return resolve(list);
 }
@@ -279,7 +279,7 @@ export const backupExport = () => resolve({
 /* Preparation (branch): today's orders + older ones not out yet; one step at a time. */
 const STAGE_IDS = ['new', 'preparing', 'at_cashier', 'out'];
 export const listPrepOrders = () => resolve(orders
-  .filter((o) => isSameDay(o.createdAt, new Date()) || (o.status !== 'cancelled' && o.stage !== 'out'))
+  .filter((o) => isSameWorkDay(o.createdAt, new Date()) || (o.status !== 'cancelled' && o.stage !== 'out'))
   .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   .map((o) => ({ ...o, cancelledAt: o.statusHistory.find((h) => h.status === 'cancelled')?.at ?? null })));
 export function setStage(orderId, stage) {
@@ -342,7 +342,7 @@ export function getDriverOrders() {
     ready: orders.filter((o) => o.stage === 'at_cashier' && o.status !== 'cancelled' && o.driverUserId === demoAccount.id)
       .sort((a, b) => String(a.assignedAt).localeCompare(String(b.assignedAt)))
       .map((o) => ({ id: o.id, number: o.number, assignedAt: o.assignedAt, address: driverAddress(o) })),
-    mine: orders.filter((o) => o.driverUserId === demoAccount.id && o.stage === 'out' && isSameDay(o.outAt, today)
+    mine: orders.filter((o) => o.driverUserId === demoAccount.id && o.stage === 'out' && isSameWorkDay(o.outAt, today)
       && !deliveries.get(o.id)?.returnedAt)
       .sort((a, b) => b.outAt.localeCompare(a.outAt) || a.tripSeq - b.tripSeq)
       .map((o) => ({ id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq, tripSize: o.tripSize,
