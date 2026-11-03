@@ -5,6 +5,7 @@ import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { dayLabel, formatTime, workDayStart } from '../utils/format.js';
+import { pagerNav } from '../components/pager.js';
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
@@ -19,7 +20,7 @@ const DEFAULT_FILTERS = { q: '', date: 'today', status: '' };
 let filters = { ...DEFAULT_FILTERS };
 const agentFilter = new Set();   // employee names; empty = everyone
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 let page = 0;                     // survives navigating to an order and back, like the filters
 
 /* The date filter as [from, to) — by working day (it starts at 2 AM), like the board. */
@@ -72,11 +73,7 @@ export function mountOrders(view) {
           <tbody data-body><tr><td colspan="9" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
-      <div class="pager" data-pager hidden>
-        <button type="button" class="btn btn-secondary" data-page="-1">${icon('arrowRight')}السابق</button>
-        <span class="muted num" data-page-info></span>
-        <button type="button" class="btn btn-secondary" data-page="1">التالي${icon('chevronLeft')}</button>
-      </div>
+      <nav class="pager pager-nums" data-pager aria-label="صفحات الطلبات" hidden></nav>
     </div></div>`;
 
   const $ = (sel) => view.querySelector(sel);
@@ -101,9 +98,7 @@ export function mountOrders(view) {
       <span>إجمالي الطلبات غير الملغاة: <strong>${money(r.sum)}</strong></span>`;
     const pages = Math.max(1, Math.ceil(r.count / PAGE_SIZE));
     $('[data-pager]').hidden = r.count <= PAGE_SIZE;   // CONFIRMED: only when there is more than one page
-    $('[data-page-info]').textContent = r.count ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, r.count)} من ${r.count} · صفحة ${page + 1} من ${pages}` : '';
-    $('[data-page="-1"]').disabled = page === 0;
-    $('[data-page="1"]').disabled = page >= pages - 1;
+    $('[data-pager]').innerHTML = r.count > PAGE_SIZE ? pagerNav(page, pages, r.count, PAGE_SIZE) : '';
 
     const list = orders;
     $('[data-body]').innerHTML = list.length ? list.map((o) => {
@@ -149,8 +144,9 @@ export function mountOrders(view) {
       page = 0;
       renderList();
     }),
-    on(view, 'click', '[data-page]', (e, btn) => {
-      page = Math.max(0, page + Number(btn.dataset.page));
+    on(view, 'click', '[data-pager] [data-pg]', (e, btn) => {
+      if (btn.disabled) return;
+      page = Math.max(0, Number(btn.dataset.pg));
       renderList();
       view.querySelector('.orders-table')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }),

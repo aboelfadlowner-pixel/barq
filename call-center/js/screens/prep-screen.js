@@ -8,6 +8,7 @@
    center prints the ticket and hands it over). It checks for changes every few seconds and
    rings when a new order arrives. */
 import * as ds from '../data/data-source.js';
+import { keepColumnScroll } from '../components/pager.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } from '../utils/format.js';
@@ -190,8 +191,8 @@ export function mountPrep(view) {
     // so the branch knows what went out and can go back to an order.
     const out = orders.filter((o) => o.stage === 'out' && o.status !== 'cancelled')
       .sort((a, b) => String(b.outAt).localeCompare(String(a.outAt)));
-    cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
-      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId);
+    keepColumnScroll(cols, '.p-col-body', () => { cols.innerHTML = column('new', by('new'), busyId) + column('preparing', by('preparing'), busyId)
+      + column('at_cashier', by('at_cashier'), busyId) + column('out', out, busyId); });
     driversEl.innerHTML = driversBar(orders, dels);
   };
 

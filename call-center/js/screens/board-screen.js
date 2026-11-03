@@ -5,6 +5,7 @@ import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
 import { esc, on } from '../utils/dom.js';
+import { keepColumnScroll } from '../components/pager.js';
 import { formatRelative, inWorkDay, normalizeArabic, normalizePhone, workDayStart } from '../utils/format.js';
 import { can } from '../permissions.js';
 import { computeTotals } from '../utils/pricing.js';
@@ -141,13 +142,13 @@ export function mountBoard(view) {
     const cancelled = today.filter((o) => o.status === 'cancelled');
     const draft = draftCard();
     const empty = { new: 'لا توجد طلبات جديدة', preparing: 'لا توجد طلبات قيد التجهيز', at_cashier: 'لا توجد طلبات على الكاشير', out: 'لم يخرج أي طلب بعد' };
-    cols.innerHTML =
+    keepColumnScroll(cols, '.b-col-body', () => { cols.innerHTML =
       column('مسودة', draft ? 1 : 0, draft, 'لا يوجد طلب قيد الإنشاء') +
       STAGES.map((st) => {
         const list = active.filter((o) => (o.stage || 'new') === st.id);
         return column(st.label, list.length, list.map(orderCard).join(''), empty[st.id], `is-${st.id}`);
       }).join('') +
-      column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'لا توجد طلبات ملغاة اليوم', 'is-cancelled');
+      column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'لا توجد طلبات ملغاة اليوم', 'is-cancelled'); });
   };
 
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });

@@ -9,6 +9,7 @@ import { dayLabel, formatTime, formatMoney, shiftIso, workDayIso } from '../util
 import { money } from '../components/chips.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
+import { paginate } from '../components/pager.js';
 
 const PERIODS = [
   { id: 'today', label: 'النهارده' },
@@ -90,7 +91,7 @@ function render(el, r) {
 
     <section class="card rp-sec">
       <div class="card-pad"><h2 class="section-title">${icon('headset')}موظفين الكول سنتر</h2></div>
-      <div class="table-wrap"><table class="table">
+      <div class="table-wrap"><table class="table" data-more="10">
         <thead><tr><th>الموظف</th><th>الطلبات</th><th>المبيعات</th><th>متوسط الطلب</th><th>الملغي</th></tr></thead>
         <tbody>${r.agents.length ? r.agents.map((a) => {
           const sh = a.orders + a.cancelled ? Math.round((a.cancelled / (a.orders + a.cancelled)) * 100) : 0;
@@ -110,7 +111,7 @@ function render(el, r) {
           <ul class="rp-list">${r.cancel.by.map((x) => `<li><span>${esc(x.name)}</span><strong class="num">${x.n}</strong></li>`).join('')}</ul></div>
       </div>
       <h3 class="rp-sub">الطلبات الملغية</h3>
-      <div class="table-wrap"><table class="table">
+      <div class="table-wrap"><table class="table" data-paged="20">
         <thead><tr><th>الطلب</th><th>الوقت</th><th>السبب</th><th>مين لغى</th><th>القيمة</th></tr></thead>
         <tbody>${r.cancel.orders.map((c) => `<tr><td><a class="link-btn ltr-inline" href="#/orders/${encodeURIComponent(c.id)}">#${esc(c.order_no)}</a></td>
           <td>${esc(formatTime(c.at))}${multiDay ? ` · ${esc(new Date(c.at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }))}` : ''}</td>
@@ -159,7 +160,7 @@ function renderOps(el, r) {
 
     <section class="card rp-sec">
       <div class="card-pad"><h2 class="section-title">${icon('package')}المناطق</h2></div>
-      <div class="table-wrap"><table class="table">
+      <div class="table-wrap"><table class="table" data-more="10">
         <thead><tr><th>المنطقة</th><th>الطلبات</th><th>المبيعات</th><th>من المبيعات</th><th>رسوم التوصيل</th></tr></thead>
         <tbody>${r.areas.length ? r.areas.map((a) => {
           const sh = totalSales ? Math.round((Number(a.sales) / totalSales) * 100) : 0;
@@ -175,9 +176,9 @@ function renderOps(el, r) {
         <p class="rp-hint">${r.items_count ? `${r.items_count} صنف اتباع في الفترة دي · مترتبين من الأكتر فلوس${r.items_count > r.items.length ? ` (أول ${r.items.length} — الباقي في Excel)` : ''}` : 'مفيش أصناف في الفترة دي'}</p>
       </div>
       ${r.items.length ? `
-      <div class="table-wrap"><table class="table">
+      <div class="table-wrap"><table class="table" data-paged="20">
         <thead><tr><th>#</th><th>الصنف</th><th>في كام طلب</th><th>الكمية</th><th>المبيعات</th></tr></thead>
-        <tbody>${r.items.slice(0, 20).map((it, i) => `<tr><td class="num muted">${i + 1}</td><td><strong>${esc(it.name)}</strong></td>
+        <tbody>${r.items.map((it, i) => `<tr><td class="num muted">${i + 1}</td><td><strong>${esc(it.name)}</strong></td>
           <td class="num">${it.orders}</td><td>${esc(amount(it))}</td><td>${money(it.sales)}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="card-pad"><h3 class="rp-sub">أكتر أصناف بتتطلب (عدد الطلبات)</h3>
@@ -186,7 +187,7 @@ function renderOps(el, r) {
 
     <section class="card rp-sec">
       <div class="card-pad"><h2 class="section-title">${icon('note')}الإضافات</h2></div>
-      <div class="table-wrap"><table class="table">
+      <div class="table-wrap"><table class="table" data-more="10">
         <thead><tr><th>الإضافة</th><th>المجموعة</th><th>اتطلبت كام مرة</th><th>فلوسها</th></tr></thead>
         <tbody>${r.modifiers.length ? r.modifiers.map((m) => `<tr><td><strong>${esc(m.name)}</strong></td><td class="muted">${esc(m.group || '—')}</td>
           <td class="num">${m.times}</td><td>${money(m.sales)}</td></tr>`).join('') : '<tr><td colspan="4" class="table-empty">مفيش إضافات في الفترة دي</td></tr>'}</tbody>
@@ -275,10 +276,12 @@ export function mountReports(view) {
         ops ??= { key, r: await ds.reportOps(from, to) };
         if (my !== seq) return;
         renderOps(body, ops.r);
+        paginate(body);
       } else {
         data ??= { key, r: await ds.report(from, to) };
         if (my !== seq) return;
         render(body, data.r);
+        paginate(body);
       }
     } catch (err) {
       if (my !== seq) return;

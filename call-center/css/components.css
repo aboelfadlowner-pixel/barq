@@ -894,3 +894,17 @@ body.cam-open { overflow: hidden; }
 .rp-tabs { margin: 4px 0 10px; }
 .rp-share { display: inline-block; width: 70px; height: 8px; background: #eef1ee; border-radius: 4px; vertical-align: middle; overflow: hidden; }
 .rp-share > span { display: block; height: 100%; background: var(--green-600); }
+
+/* Pages: numbered pager under long tables / lists (pager.js) */
+.pager-nums { gap: 8px; }
+.pg-nums { display: inline-flex; gap: 4px; align-items: center; }
+.pg-num { min-width: 34px; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-2); font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums; }
+.pg-num:hover { border-color: var(--green-600); color: var(--green-700); }
+.pg-num.is-on { background: var(--green-700); border-color: var(--green-700); color: #fff; cursor: default; }
+.pg-gap { padding: 0 2px; color: var(--muted); }
+.pg-info { font-size: 13px; }
+tr[hidden] { display: none; }
+
+/* Board / prep: each column scrolls inside itself — the page stays on one screen */
+.b-col-body, .p-col-body { max-height: max(340px, calc(100vh - 290px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+@media (max-width: 1000px) { .b-col-body, .p-col-body { max-height: 70vh; } }

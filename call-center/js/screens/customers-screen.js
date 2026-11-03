@@ -8,6 +8,7 @@
    blocked number; the customer page blocks / unblocks the customer's numbers. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
+import { pagerNav, paginate } from '../components/pager.js';
 import { getState, loadDraftFromOrder } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import {
@@ -19,7 +20,7 @@ import { money, orderStateChip } from '../components/chips.js';
 import { confirmDialog, showToast } from '../components/modal.js';
 import { startNewOrder } from './board-screen.js';
 
-const PAGE = 50;
+const PAGE = 20;
 const SORTS = [
   { id: 'last', label: 'آخر طلب' },
   { id: 'orders', label: 'الأكثر طلبًا' },
@@ -72,11 +73,12 @@ function mountList(view) {
           <tbody data-body><tr><td colspan="6" class="table-empty">جارٍ التحميل…</td></tr></tbody>
         </table>
       </div>
-      <div class="more-row"><button type="button" class="btn btn-secondary" data-more hidden>عرض المزيد</button></div>
+      <nav class="pager pager-nums" data-pager aria-label="صفحات العملاء" hidden></nav>
     </div></div>`;
   const $ = (sel) => view.querySelector(sel);
   let rows = [];
   let total = 0;
+  let page = 0;
   let seq = 0;
   let blocked = null;        // [{ phone, customerId, customerName, source, by, at }] — null = not installed
   const isBlocked = (c) => !!blocked?.some((b) => c.phones.includes(b.phone));
@@ -118,7 +120,7 @@ function mountList(view) {
     view.querySelector('.customers-table thead').innerHTML = '<tr><th>العميل</th><th>الرقم</th><th>حظره</th><th>إمتى</th><th></th></tr>';
     $('[data-body]').innerHTML = shown.length ? shown.map(blockedRowHtml).join('')
       : '<tr><td colspan="5" class="table-empty">لا توجد أرقام محظورة</td></tr>';
-    $('[data-more]').hidden = true;
+    $('[data-pager]').hidden = true;
   }
   const HEAD = view.querySelector('.customers-table thead').innerHTML;
 
@@ -127,30 +129,37 @@ function mountList(view) {
     paintBlockedToggle();
   }
 
-  async function load({ append = false } = {}) {
+  async function load({ keepPage = false } = {}) {
+    if (!keepPage) page = 0;
     if (listState.blockedOnly && blocked) { showBlocked(); return; }
     view.querySelector('.customers-table thead').innerHTML = HEAD;
     const mySeq = ++seq;
-    const res = await ds.listCustomerSummaries({ q: listState.q, sort: listState.sort, limit: PAGE, offset: append ? rows.length : 0 })
+    const res = await ds.listCustomerSummaries({ q: listState.q, sort: listState.sort, limit: PAGE, offset: page * PAGE })
       .catch((err) => { showToast(err.message); return { rows: [], total: 0 }; });
     if (mySeq !== seq) return;
     if (!res) {
       $('[data-body]').innerHTML = '<tr><td colspan="6" class="table-empty">صفحة العملاء غير مفعّلة على قاعدة البيانات بعد</td></tr>';
       return;
     }
-    rows = append ? [...rows, ...res.rows] : res.rows;
+    rows = res.rows;
     total = res.total;
     $('[data-meta]').textContent = total ? `${total} عميل${listState.q ? ' مطابق للبحث' : ''}` : '';
     $('[data-body]').innerHTML = rows.length ? rows.map(rowHtml).join('')
       : `<tr><td colspan="6" class="table-empty">${listState.q ? 'لا يوجد عميل مطابق' : 'لا يوجد عملاء بعد'}</td></tr>`;
-    $('[data-more]').hidden = rows.length >= total;
+    const pg = $('[data-pager]');
+    pg.hidden = total <= PAGE;
+    pg.innerHTML = total > PAGE ? pagerNav(page, Math.ceil(total / PAGE), total, PAGE) : '';
   }
 
   let timer;
   const offs = [
     on(view, 'input', '#cuQ', (e, input) => { listState.q = input.value; clearTimeout(timer); timer = setTimeout(() => load(), 250); }),
     on(view, 'change', '#cuSort', (e, sel) => { listState.sort = sel.value; load(); }),
-    on(view, 'click', '[data-more]', () => load({ append: true })),
+    on(view, 'click', '[data-pager] [data-pg]', (e, btn) => {
+      if (btn.disabled) return;
+      page = Math.max(0, Number(btn.dataset.pg));
+      load({ keepPage: true }).then(() => view.querySelector('.customers-table')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    }),
     on(view, 'click', '[data-blocked-only]', () => { listState.blockedOnly = !listState.blockedOnly; paintBlockedToggle(); load(); }),
     on(view, 'submit', '[data-block-add]', async (e, form) => {
       e.preventDefault();
@@ -279,7 +288,7 @@ function mountProfile(view, customerId) {
 
           <h2 class="section-title">${icon('list')}الطلبات</h2>
           <div class="card table-wrap">
-            <table class="table orders-table">
+            <table class="table orders-table" data-paged="20">
               <thead><tr><th>رقم الطلب</th><th>الوقت</th><th class="col-opt">الأصناف</th><th class="col-opt">المنطقة</th>
                 <th class="col-opt">الموظف</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
               <tbody>${orders.length ? orders.map((o) => `
@@ -296,6 +305,7 @@ function mountProfile(view, customerId) {
           </div>
         </div></div>`;
 
+      paginate(view);
       offs = [
         on(view, 'click', '[data-new]', () => startNewOrder({ phone: c.phones[0] })),
         on(view, 'click', '[data-repeat]', async () => {
