@@ -36,14 +36,21 @@ function range() {
 }
 const prevLabel = () => ({ today: 'عن إمبارح', yesterday: 'عن اليوم اللي قبله', week: 'عن الـ 7 أيام اللي قبلها', month: 'عن الـ 30 يوم اللي قبلها' }[state.period] || 'عن الفترة اللي قبلها');
 const hourLabel = (h) => { const t = h % 12 || 12; return `${t} ${h < 12 ? 'ص' : 'م'}`; };
-const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
 
-function change(cur, prev, { lowerIsBetter = false } = {}) {
-  const p = pct(Number(cur) || 0, Number(prev) || 0);
-  if (p === null) return (Number(cur) || 0) > 0 ? '<span class="rp-chg muted">جديد</span>' : '';
-  if (p === 0) return '<span class="rp-chg muted">زي ما هو</span>';
+const prevShort = () => ({ today: 'إمبارح', yesterday: 'اليوم اللي قبله', week: 'الأسبوع اللي قبله', month: 'الـ 30 يوم اللي قبلها' }[state.period] || 'الفترة اللي قبلها');
+
+/* «▲ 12%» against the period before. A jump of 3 times or more reads «▲ 305 ضعف»
+   (a % in the thousands is hard to read), and the number of the period before is
+   always written under it, so a big jump from a tiny start is obvious. */
+function change(cur, prev, { lowerIsBetter = false, fmt = (v) => String(v) } = {}) {
+  const c = Number(cur) || 0, b = Number(prev) || 0;
+  const before = `<span class="rp-prev">${esc(prevShort())}: ${fmt(b)}</span>`;
+  if (b <= 0) return `<span class="rp-chg muted">${c > 0 ? 'جديد' : '—'}</span>${before}`;
+  const p = Math.round(((c - b) / b) * 100);
+  if (p === 0) return `<span class="rp-chg muted">زي ما هو</span>${before}`;
   const good = lowerIsBetter ? p < 0 : p > 0;
-  return `<span class="rp-chg ${good ? 'is-good' : 'is-bad'}">${p > 0 ? '⬆️' : '⬇️'} ${Math.abs(p)}% ${good ? '' : ''}</span>`;
+  const size = p >= 200 ? `${Math.round(c / b).toLocaleString('en')} ضعف` : `${Math.abs(p)}%`;
+  return `<span class="rp-chg ${good ? 'is-good' : 'is-bad'}"><span class="rp-arrow">${p > 0 ? '▲' : '▼'}</span> ${size}</span>${before}`;
 }
 
 function bars(list, labelOf, { highlight = true } = {}) {
@@ -75,9 +82,9 @@ function render(el, r) {
   el.innerHTML = `
     <div class="rp-cards">
       <div class="card rp-card"><div class="rp-k">${icon('clipboard')}عدد الطلبات</div><div class="rp-v num">${s.orders}</div>${change(s.orders, p.orders)}</div>
-      <div class="card rp-card"><div class="rp-k">${icon('chart')}المبيعات</div><div class="rp-v">${money(s.sales)}</div>${change(s.sales, p.sales)}</div>
-      <div class="card rp-card"><div class="rp-k">${icon('cart')}متوسط الطلب</div><div class="rp-v">${money(s.avg)}</div>${change(s.avg, p.avg)}</div>
-      <div class="card rp-card"><div class="rp-k">${icon('package')}رسوم التوصيل</div><div class="rp-v">${money(s.fees)}</div>${change(s.fees, p.fees)}</div>
+      <div class="card rp-card"><div class="rp-k">${icon('chart')}المبيعات</div><div class="rp-v">${money(s.sales)}</div>${change(s.sales, p.sales, { fmt: formatMoney })}</div>
+      <div class="card rp-card"><div class="rp-k">${icon('cart')}متوسط الطلب</div><div class="rp-v">${money(s.avg)}</div>${change(s.avg, p.avg, { fmt: formatMoney })}</div>
+      <div class="card rp-card"><div class="rp-k">${icon('package')}رسوم التوصيل</div><div class="rp-v">${money(s.fees)}</div>${change(s.fees, p.fees, { fmt: formatMoney })}</div>
       <div class="card rp-card ${share >= 10 ? 'is-warn' : ''}"><div class="rp-k">${icon('x')}الملغي</div><div class="rp-v num">${s.cancelled} <small>(${share}%)</small></div>${change(s.cancelled, p.cancelled, { lowerIsBetter: true })}</div>
     </div>
     <p class="muted rp-note">المقارنة ${esc(prevLabel())} · المبيعات والمتوسط من غير الطلبات الملغية</p>
