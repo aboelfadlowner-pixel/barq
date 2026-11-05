@@ -4,7 +4,8 @@ import { esc } from '../utils/dom.js';
 import { formatAddress, formatDateTime } from '../utils/format.js';
 import { quantityLabel, modifiersText } from '../utils/pricing.js';
 import { TICKET_LOGO } from '../brand-logo.js';
-import { showToast } from './modal.js';
+import { icon } from './icons.js';
+import { openModal, showToast } from './modal.js';
 
 export function ticketHtml(order) {
   const a = order.address;
@@ -67,10 +68,23 @@ export function printOrder(order) {
   window.print();
 }
 
-/* «طباعة» (board card, order page, orders log, after saving an order): print straight away —
-   no preview window — then a short «تم طباعة الطلب ✓». (The browser's own print window
-   still opens: that is where the printer is chosen; it can't be skipped from a web page.) */
+/* «ورقة الطلب»: the preview, then «طباعة». After printing the preview closes by itself
+   and a short «تم طباعة الطلب ✓» shows — the employee is back where they were. */
 export function openPrintPreview(order) {
-  printOrder(order);                       // returns when the print window is closed
-  showToast(order.number ? `تم طباعة الطلب ${order.number} ✓` : 'تم طباعة الطلب ✓');
+  const m = openModal({
+    title: `${icon('note')} ورقة الطلب`,
+    size: 'sm',
+    body: `
+      <div class="ticket-preview">${ticketHtml(order)}</div>
+      <p class="hint">تعمل الطباعة عند فتح البرنامج من الجهاز أو الخادم. في رابط العرض تظهر المعاينة فقط.</p>`,
+    footer: `
+      <button type="button" class="btn btn-primary btn-lg" data-print>${icon('note')}طباعة</button>
+      <button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>`,
+  });
+  m.foot.querySelector('[data-print]').addEventListener('click', () => {
+    printOrder(order);                     // returns when the browser's print window is closed
+    m.close();
+    showToast(order.number ? `تم طباعة الطلب ${order.number} ✓` : 'تم طباعة الطلب ✓');
+  });
+  m.foot.querySelector('[data-print]').focus();
 }
