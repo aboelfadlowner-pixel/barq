@@ -5,7 +5,7 @@ import { formatAddress, formatDateTime } from '../utils/format.js';
 import { quantityLabel, modifiersText } from '../utils/pricing.js';
 import { TICKET_LOGO } from '../brand-logo.js';
 import { icon } from './icons.js';
-import { openModal } from './modal.js';
+import { openModal, showToast } from './modal.js';
 
 export function ticketHtml(order) {
   const a = order.address;
@@ -68,6 +68,8 @@ export function printOrder(order) {
   window.print();
 }
 
+/* «ورقة الطلب»: the preview, then «طباعة». After printing the preview closes by itself
+   and a short «تم طباعة الطلب ✓» shows — the employee is back where they were. */
 export function openPrintPreview(order) {
   const m = openModal({
     title: `${icon('note')} ورقة الطلب`,
@@ -79,6 +81,10 @@ export function openPrintPreview(order) {
       <button type="button" class="btn btn-primary btn-lg" data-print>${icon('note')}طباعة</button>
       <button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>`,
   });
-  m.foot.querySelector('[data-print]').addEventListener('click', () => printOrder(order));
+  m.foot.querySelector('[data-print]').addEventListener('click', () => {
+    printOrder(order);                     // returns when the browser's print window is closed
+    m.close();
+    showToast(order.number ? `تم طباعة الطلب ${order.number} ✓` : 'تم طباعة الطلب ✓');
+  });
   m.foot.querySelector('[data-print]').focus();
 }
