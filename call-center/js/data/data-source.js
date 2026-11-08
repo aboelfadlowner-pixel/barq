@@ -41,6 +41,7 @@ export const report           = (from, to) => impl.report(from, to);
 export const reportOps        = (from, to) => impl.reportOps(from, to);
 export const listPrepOrders   = () => impl.listPrepOrders();
 export const setStage         = (id, stage) => impl.setStage(id, stage);
+export const prepClaim        = (id) => impl.prepClaim(id);
 export const ackEdit          = (id) => impl.ackEdit(id);
 export const sendOut          = (id, driver) => impl.sendOut(id, driver);
 /* Drivers (18_driver_tracking.sql) */

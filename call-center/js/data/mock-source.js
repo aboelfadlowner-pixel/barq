@@ -281,7 +281,22 @@ const STAGE_IDS = ['new', 'preparing', 'at_cashier', 'out'];
 export const listPrepOrders = () => resolve(orders
   .filter((o) => isSameWorkDay(o.createdAt, new Date()) || (o.status !== 'cancelled' && o.stage !== 'out'))
   .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  .map((o) => ({ ...o, cancelledAt: o.statusHistory.find((h) => h.status === 'cancelled')?.at ?? null })));
+  .map((o) => ({ ...o, prepMine: !!o.prepUserId && o.prepUserId === demoAccount.id, cancelledAt: o.statusHistory.find((h) => h.status === 'cancelled')?.at ?? null })));
+/* «استلمت» (32_prep_claim.sql): the demo has a colleague «نادية» preparing one order. */
+const myPrepName = () => (demoAccount.role === 'prep' ? 'إنت (التجربة)' : demoAccount.name || 'الأدمن');
+(function seedPrep() {
+  const p = orders.filter((o) => o.stage === 'preparing' && o.status !== 'cancelled');
+  if (p[0]) Object.assign(p[0], { prepUserId: 'prep-nadia', prepName: 'نادية', prepClaimedAt: p[0].preparingAt });
+  if (p[1]) Object.assign(p[1], { prepUserId: demoAccount.id, prepName: myPrepName(), prepClaimedAt: p[1].preparingAt });
+}());
+export function prepClaim(orderId) {
+  const o = orders.find((x) => x.id === orderId);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
+  if (!['preparing', 'at_cashier'].includes(o.stage)) return Promise.reject(new Error('الطلب ده مش في التجهيز'));
+  Object.assign(o, { prepUserId: demoAccount.id, prepName: myPrepName(), prepClaimedAt: new Date().toISOString() });
+  return resolve({ id: o.id, prep_name: o.prepName });
+}
 export function setStage(orderId, stage) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
@@ -293,7 +308,12 @@ export function setStage(orderId, stage) {
   if (to < 0) return Promise.reject(new Error('حالة غير معروفة'));
   if (to === from) return resolve({ id: o.id, stage: o.stage });
   if (Math.abs(to - from) !== 1) return Promise.reject(new Error('تغيّرت حالة الطلب من جهاز آخر — يرجى التحديث'));
+  if (o.prepUserId && o.prepUserId !== demoAccount.id && demoAccount.role !== 'admin') {
+    return Promise.reject(new Error(`الطلب ده مع ${o.prepName || 'زميلك'} — دوس «خده مني» لو هتكمّله إنت`));
+  }
   const now = new Date().toISOString();
+  if (stage === 'new') Object.assign(o, { prepUserId: null, prepName: '', prepClaimedAt: null });
+  else if (!o.prepUserId) Object.assign(o, { prepUserId: demoAccount.id, prepName: myPrepName(), prepClaimedAt: now });
   o.stage = stage;
   if (to > from) o[['', 'preparingAt', 'atCashierAt', 'outAt'][to]] = now;
   else o[['', 'preparingAt', 'atCashierAt', 'outAt'][from]] = null;
@@ -766,6 +786,9 @@ export function reportOps(from, to) {
     areas: [...areas.values()].map((a) => ({ ...a, sales: r2(a.sales) })).sort((a, b) => b.orders - a.orders || b.sales - a.sales),
     items: [...items.values()].map((p) => ({ ...p, kg: r2(p.kg), sales: r2(p.sales) })).sort((a, b) => b.sales - a.sales).slice(0, 50),
     items_count: items.size,
+    prep_people: Object.values(rows.filter((r) => r.prep != null).reduce((m, r) => {
+      const n = r.o.prepName || 'من غير اسم'; (m[n] ??= { name: n, list: [] }).list.push(r.prep); return m;
+    }, {})).map(({ name, list }) => ({ name, orders: list.length, avg: Math.round(list.reduce((t, x) => t + x, 0) / list.length), mid: Math.round(list.sort((a, b) => a - b)[Math.floor(list.length / 2)]) })),
     modifiers: [...mods.values()].map((m) => ({ ...m, sales: r2(m.sales) })).sort((a, b) => b.times - a.times || b.sales - a.sales).slice(0, 30),
   });
 }

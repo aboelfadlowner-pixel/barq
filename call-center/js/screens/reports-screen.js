@@ -165,6 +165,17 @@ function renderOps(el, r) {
       </table></div>` : ''}
     </section>
 
+    ${(r.prep_people || []).length ? `
+    <section class="card rp-sec">
+      <div class="card-pad"><h2 class="section-title">${icon('clipboard')}التجهيز — مين جهّز إيه</h2>
+        <p class="rp-hint">عدد الطلبات اللي كل واحد استلمها، ووقت التجهيز (من «استلمت» لحد «على الكاشير»)</p></div>
+      <div class="table-wrap"><table class="table" data-more="10">
+        <thead><tr><th>الاسم</th><th>الطلبات</th><th>الوقت العادي</th><th>المتوسط</th></tr></thead>
+        <tbody>${r.prep_people.map((x) => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.orders}</td>
+          <td class="num">${mins(x.mid)}</td><td class="num">${mins(x.avg)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>` : ''}
+
     <section class="card rp-sec">
       <div class="card-pad"><h2 class="section-title">${icon('package')}المناطق</h2></div>
       <div class="table-wrap"><table class="table" data-more="10">
@@ -233,6 +244,7 @@ async function toExcel(r, o) {
   if (o) {
     add('السرعة', STEPS.map((x) => ({ 'الخطوة': x.label, 'الوقت العادي (دقيقة)': o.speed[x.k].mid ?? '', 'المتوسط (دقيقة)': o.speed[x.k].avg ?? '', 'عدد الطلبات': o.speed[x.k].n })));
     add('أبطأ الطلبات', o.slow.map((x) => ({ 'الطلب': x.order_no, 'الوقت': new Date(x.at).toLocaleString('ar-EG'), 'المنطقة': x.area || '', 'لحد التجهيز': x.to_prep ?? '', 'التجهيز': x.prep ?? '', 'استنى الطيار': x.wait ?? '', 'الإجمالي': x.total })));
+    if ((o.prep_people || []).length) add('التجهيز', o.prep_people.map((x) => ({ 'الاسم': x.name, 'الطلبات': x.orders, 'الوقت العادي (دقيقة)': x.mid ?? '', 'المتوسط (دقيقة)': x.avg ?? '' })));
     add('المناطق', o.areas.map((a) => ({ 'المنطقة': a.name, 'الطلبات': a.orders, 'المبيعات': a.sales, 'رسوم التوصيل': a.fees })));
     add('الأصناف', o.items.map((it) => ({ 'الصنف': it.name, 'الكود': it.sku, 'في كام طلب': it.orders, 'قطع': it.qty, 'كيلو': it.kg, 'المبيعات': it.sales })));
     add('الإضافات', o.modifiers.map((m) => ({ 'الإضافة': m.name, 'المجموعة': m.group || '', 'المرات': m.times, 'فلوسها': m.sales })));
