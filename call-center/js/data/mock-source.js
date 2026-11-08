@@ -367,7 +367,7 @@ export function driverTake() {
   const trip = `trip-${Date.now()}`; const now = new Date().toISOString();
   list.forEach((o, i) => Object.assign(o, { stage: 'out', outAt: now, driver: driverLabel(demoAccount.id),
     tripId: trip, tripSeq: i + 1, tripSize: list.length, outByAdmin: false }));
-  chatAuto(demoAccount.id, `🛵 خرج بـ ${list.length === 1 ? list[0].number : `${list.length} طلبات: ${list.map((o) => o.number).join('، ')}`}`, 'out');
+  chatAuto(demoAccount.id, `خرج بـ ${list.length === 1 ? list[0].number : `${list.length} طلبات: ${list.map((o) => o.number).join('، ')}`}`, 'out');
   return resolve(list.length);
 }
 export function assignDriver(id, driverId) {
@@ -388,7 +388,7 @@ export function driverDelivered(id, photo, pos) {
   if (d.deliveredAt) return resolve(d.deliveredAt);
   deliveries.set(id, { ...d, deliveredAt: new Date().toISOString(), photo: URL.createObjectURL(photo),
     lat: pos?.lat ?? null, lng: pos?.lng ?? null, accuracy: pos?.accuracy ?? null, deliveredAdmin: false });
-  chatAuto(demoAccount.id, `✅ سلّم ${o.number}`, 'delivered', o);
+  chatAuto(demoAccount.id, `سلّم ${o.number}`, 'delivered', o);
   return resolve(deliveries.get(id).deliveredAt);
 }
 /* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
@@ -406,7 +406,7 @@ export function driverReturned(pos) {
   const now = new Date().toISOString();
   list.forEach((o) => deliveries.set(o.id, { ...(deliveries.get(o.id) ?? {}), returnedAt: now, returnedAdmin: false,
     returnedLat: pos?.lat ?? null, returnedLng: pos?.lng ?? null, returnedDistance: dist, returnedFar: far }));
-  chatAuto(demoAccount.id, '↩️ رجع الفرع', 'returned');
+  chatAuto(demoAccount.id, 'رجع الفرع', 'returned');
   return resolve({ orders: list.length, distanceM: dist, far });
 }
 
@@ -668,7 +668,7 @@ export function cancelOrder(orderId, reason, agent) {
   o.cancelReason = reason;
   o.statusHistory.push({ status: 'cancelled', at: new Date().toISOString(), by: agent.name, reason });
   if (o.driverUserId && ['at_cashier', 'out'].includes(o.stage)) {
-    chatAuto(o.driverUserId, `⚠️ ${o.number} اتلغى${o.stage === 'out' ? ' — رجّعه للفرع' : ''}`, 'cancelled', o, true);
+    chatAuto(o.driverUserId, `${o.number} اتلغى${o.stage === 'out' ? ' — رجّعه للفرع' : ''}`, 'cancelled', o, true);
   }
   return resolve(o);
 }
@@ -782,7 +782,7 @@ const chatAdd = (m) => { const msg = { id: ++chatSeq, at: new Date().toISOString
   const t = (min) => new Date(Date.now() - min * 60000).toISOString();
   const o = orders.find((x) => x.driverUserId === 'drv-1');
   chat.push(
-    { id: ++chatSeq, driverId: 'drv-1', from: 'system', name: 'السيستم', body: '🛵 خرج بـ 2 طلبات', kind: 'out', notify: false, at: t(40), orderId: null, orderNo: null },
+    { id: ++chatSeq, driverId: 'drv-1', from: 'system', name: 'السيستم', body: 'خرج بـ 2 طلبات', kind: 'out', notify: false, at: t(40), orderId: null, orderNo: null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'driver', name: 'أحمد', body: 'العنوان مش واضح 📍', kind: 'text', notify: false, at: t(25), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'staff', name: 'منى', body: 'هكلّم العميل وأرد عليك 📞', kind: 'text', notify: false, at: t(23), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'العميل مش بيرد 📵', kind: 'text', notify: false, at: t(3), orderId: null, orderNo: null },
