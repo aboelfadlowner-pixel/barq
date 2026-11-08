@@ -367,6 +367,7 @@ export function driverTake() {
   const trip = `trip-${Date.now()}`; const now = new Date().toISOString();
   list.forEach((o, i) => Object.assign(o, { stage: 'out', outAt: now, driver: driverLabel(demoAccount.id),
     tripId: trip, tripSeq: i + 1, tripSize: list.length, outByAdmin: false }));
+  chatAuto(demoAccount.id, `🛵 خرج بـ ${list.length === 1 ? list[0].number : `${list.length} طلبات: ${list.map((o) => o.number).join('، ')}`}`, 'out');
   return resolve(list.length);
 }
 export function assignDriver(id, driverId) {
@@ -387,6 +388,7 @@ export function driverDelivered(id, photo, pos) {
   if (d.deliveredAt) return resolve(d.deliveredAt);
   deliveries.set(id, { ...d, deliveredAt: new Date().toISOString(), photo: URL.createObjectURL(photo),
     lat: pos?.lat ?? null, lng: pos?.lng ?? null, accuracy: pos?.accuracy ?? null, deliveredAdmin: false });
+  chatAuto(demoAccount.id, `✅ سلّم ${o.number}`, 'delivered', o);
   return resolve(deliveries.get(id).deliveredAt);
 }
 /* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
@@ -404,6 +406,7 @@ export function driverReturned(pos) {
   const now = new Date().toISOString();
   list.forEach((o) => deliveries.set(o.id, { ...(deliveries.get(o.id) ?? {}), returnedAt: now, returnedAdmin: false,
     returnedLat: pos?.lat ?? null, returnedLng: pos?.lng ?? null, returnedDistance: dist, returnedFar: far }));
+  chatAuto(demoAccount.id, '↩️ رجع الفرع', 'returned');
   return resolve({ orders: list.length, distanceM: dist, far });
 }
 
@@ -664,6 +667,9 @@ export function cancelOrder(orderId, reason, agent) {
   o.status = 'cancelled';
   o.cancelReason = reason;
   o.statusHistory.push({ status: 'cancelled', at: new Date().toISOString(), by: agent.name, reason });
+  if (o.driverUserId && ['at_cashier', 'out'].includes(o.stage)) {
+    chatAuto(o.driverUserId, `⚠️ ${o.number} اتلغى${o.stage === 'out' ? ' — رجّعه للفرع' : ''}`, 'cancelled', o, true);
+  }
   return resolve(o);
 }
 
@@ -762,4 +768,84 @@ export function reportOps(from, to) {
     items_count: items.size,
     modifiers: [...mods.values()].map((m) => ({ ...m, sales: r2(m.sales) })).sort((a, b) => b.times - a.times || b.sales - a.sales).slice(0, 30),
   });
+}
+
+/* ---------- «الشات» (30_driver_chat.sql) — demo: kept in memory only ---------- */
+const chat = [];
+const chatReads = new Map();   // `${driverId}|staff` / `${driverId}|driver` → last read id
+let chatSeq = 0;
+function chatAuto(driverId, body, kind, o = null, notify = false) {   // hoisted: used by the driver actions above
+  chatAdd({ driverId, from: 'system', name: 'السيستم', body, kind, notify, orderId: o?.id ?? null, orderNo: o?.number ?? null });
+}
+const chatAdd = (m) => { const msg = { id: ++chatSeq, at: new Date().toISOString(), orderId: null, orderNo: null, kind: 'text', notify: false, name: '', ...m }; chat.push(msg); return msg; };
+(function seedChat() {
+  const t = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const o = orders.find((x) => x.driverUserId === 'drv-1');
+  chat.push(
+    { id: ++chatSeq, driverId: 'drv-1', from: 'system', name: 'السيستم', body: '🛵 خرج بـ 2 طلبات', kind: 'out', notify: false, at: t(40), orderId: null, orderNo: null },
+    { id: ++chatSeq, driverId: 'drv-1', from: 'driver', name: 'أحمد', body: 'العنوان مش واضح 📍', kind: 'text', notify: false, at: t(25), orderId: o?.id ?? null, orderNo: o?.number ?? null },
+    { id: ++chatSeq, driverId: 'drv-1', from: 'staff', name: 'منى', body: 'هكلّم العميل وأرد عليك 📞', kind: 'text', notify: false, at: t(23), orderId: o?.id ?? null, orderNo: o?.number ?? null },
+    { id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'العميل مش بيرد 📵', kind: 'text', notify: false, at: t(3), orderId: null, orderNo: null },
+  );
+  chatReads.set('drv-1|staff', 2);
+}());
+const isDriverMe = () => demoAccount.role === 'driver';
+const meId = () => demoAccount.id;
+const chatView = (m) => ({ ...m, mine: isDriverMe() ? m.from === 'driver' : m.from === 'staff' });
+export function chatSend(driverId, body, orderId = null) {
+  const text = String(body || '').trim();
+  if (!text || text.length > 500) return Promise.reject(new Error('اكتب الرسالة (لحد 500 حرف)'));
+  const d = isDriverMe() ? meId() : driverId;
+  if (!staff.some((x) => x.id === d && x.role === 'driver')) return Promise.reject(new Error('الطيار غير موجود'));
+  let no = null;
+  if (orderId) {
+    const o = orders.find((x) => x.id === orderId && x.driverUserId === d);
+    if (!o) return Promise.reject(new Error('الطلب ده مش مع الطيار ده'));
+    no = o.number;
+  }
+  const msg = chatAdd({ driverId: d, from: isDriverMe() ? 'driver' : 'staff', name: isDriverMe() ? (me()?.name || 'الطيار') : 'الكول سنتر',
+    body: text, orderId: orderId || null, orderNo: no });
+  chatReads.set(`${d}|${isDriverMe() ? 'driver' : 'staff'}`, msg.id);
+  // DEMO: an answer so the other side can be seen
+  if (isDriverMe()) setTimeout(() => chatAdd({ driverId: d, from: 'staff', name: 'منى', body: 'تمام ✅', orderId: msg.orderId, orderNo: msg.orderNo }), 4000);
+  return resolve(chatView(msg));
+}
+export function chatThread(driverId = null, after = 0) {
+  const d = isDriverMe() ? meId() : driverId;
+  const list = chat.filter((m) => m.driverId === d && m.id > (after || 0)).slice(-200);
+  if (list.length) chatReads.set(`${d}|${isDriverMe() ? 'driver' : 'staff'}`, Math.max(chatReads.get(`${d}|${isDriverMe() ? 'driver' : 'staff'}`) || 0, list[list.length - 1].id));
+  return resolve({ driverId: d, messages: list.map(chatView) });
+}
+export function chatUnread() {
+  if (isDriverMe()) {
+    const r = chatReads.get(`${meId()}|driver`) || 0;
+    return resolve({ unread: chat.filter((m) => m.driverId === meId() && m.id > r && (m.from === 'staff' || m.notify)).length });
+  }
+  const drivers = staff.filter((s) => s.role === 'driver');
+  const unreadOf = (id) => chat.filter((m) => m.driverId === id && m.from === 'driver' && m.id > (chatReads.get(`${id}|staff`) || 0));
+  const all = drivers.flatMap((d) => unreadOf(d.id));
+  const newest = all.sort((a, b) => b.id - a.id)[0];
+  return resolve({
+    unread: all.length,
+    newest: newest ? { ...chatView(newest), driverName: drivers.find((d) => d.id === newest.driverId)?.name || '' } : null,
+    orders: [...new Set(all.map((m) => m.orderId).filter(Boolean))],
+    drivers: drivers.map((d) => {
+      const mine = chat.filter((m) => m.driverId === d.id);
+      return { id: d.id, name: d.name, phone: d.phone || '', active: d.active !== false, unread: unreadOf(d.id).length, last: mine.length ? chatView(mine[mine.length - 1]) : null };
+    }).sort((a, b) => (b.last?.id || 0) - (a.last?.id || 0)),
+  });
+}
+const contacts = [
+  { id: 'cn-1', label: 'الكول سنتر', phone: '01000000100', sort: 1, active: true },
+  { id: 'cn-2', label: 'أ. حسن', phone: '01000000200', sort: 2, active: true },
+];
+export const contactNumbers = () => resolve(contacts.filter((c) => c.active || demoAccount.role === 'admin').map((c) => ({ ...c })));
+export function saveContactNumber({ id = null, label, phone, active = true, sort = 0 }) {
+  const l = String(label || '').trim(); const p = String(phone || '').replace(/[^0-9+]/g, '');
+  if (!l || l.length > 40) return Promise.reject(new Error('اكتب الاسم (لحد 40 حرف)'));
+  if (!/^[0-9+]{3,20}$/.test(p)) return Promise.reject(new Error('رقم غير صحيح'));
+  if (id) { const c = contacts.find((x) => x.id === id); if (!c) return Promise.reject(new Error('الرقم غير موجود')); Object.assign(c, { label: l, phone: p, active: !!active, sort }); return resolve({ ...c }); }
+  const c = { id: `cn-${Date.now()}`, label: l, phone: p, active: !!active, sort };
+  contacts.push(c);
+  return resolve({ ...c });
 }

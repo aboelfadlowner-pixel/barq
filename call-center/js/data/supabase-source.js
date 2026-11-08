@@ -929,3 +929,39 @@ export async function saveArea({ id = null, name, fee, active = true }) {
     p_id: id || null, p_name: String(name).trim(), p_fee: Number(fee), p_active: !!active,
   })));
 }
+
+/* «الشات» (30_driver_chat.sql). A message: { id, driverId, from: 'driver'|'staff'|'system', name, orderId, orderNo, body, kind, notify, at, mine }. */
+const toMsg = (m) => m && ({ id: m.id, driverId: m.driver_id, from: m.from, name: m.name || '', orderId: m.order_id || null,
+  orderNo: m.order_no || null, body: m.body, kind: m.kind, notify: !!m.notify, at: m.at, mine: !!m.mine });
+export async function chatSend(driverId, body, orderId = null) {
+  const c = await sb();
+  return toMsg(ok(await c.rpc('cc_chat_send', { p_driver: driverId || null, p_body: body, p_order: orderId || null })));
+}
+export async function chatThread(driverId = null, after = 0) {
+  const c = await sb();
+  const r = ok(await c.rpc('cc_chat_thread', { p_driver: driverId || null, p_after: after || 0 }));
+  return { driverId: r.driver_id, messages: (r.messages || []).map(toMsg) };
+}
+/* Driver: { unread }. Call center / admin: { unread, newest, orders, drivers }. null when the chat is not installed. */
+export async function chatUnread() {
+  const c = await sb();
+  const res = await c.rpc('cc_chat_unread');
+  if (res.error) return null;
+  const r = res.data || {};
+  return {
+    unread: r.unread || 0,
+    newest: r.newest ? { ...toMsg(r.newest), driverName: r.newest.driver_name || '' } : null,
+    orders: r.orders || [],
+    drivers: (r.drivers || []).map((d) => ({ id: d.id, name: d.name, phone: d.phone || '', active: d.active !== false, unread: d.unread || 0, last: toMsg(d.last) })),
+  };
+}
+/* «اتصل بـ…» numbers: [{ id, label, phone, sort, active }]. [] when not installed. */
+export async function contactNumbers() {
+  const c = await sb();
+  const res = await c.rpc('cc_contact_numbers');
+  return res.error ? [] : (res.data || []);
+}
+export async function saveContactNumber({ id = null, label, phone, active = true, sort = 0 }) {
+  const c = await sb();
+  return ok(await c.rpc('cc_save_contact_number', { p_id: id, p_label: label, p_phone: phone, p_active: active, p_sort: sort }));
+}

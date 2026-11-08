@@ -69,6 +69,11 @@ export const adminDelivery    = (id, what, driverId) => impl.adminDelivery(id, w
 export const getOrderDelivery = (id) => impl.getOrderDelivery(id);
 export const deliveryReport   = (from, to) => impl.deliveryReport(from, to);
 export const photoUrl         = (path) => impl.photoUrl(path);
+export const chatSend         = (driverId, body, orderId) => impl.chatSend(driverId, body, orderId);
+export const chatThread       = (driverId, after) => impl.chatThread(driverId, after);
+export const chatUnread       = () => impl.chatUnread();
+export const contactNumbers   = () => impl.contactNumbers();
+export const saveContactNumber = (c) => impl.saveContactNumber(c);
 export const listPhones       = () => impl.listPhones();
 export const editOrder        = (a) => impl.editOrder(a);
 export const setStaff         = (a) => impl.setStaff(a);

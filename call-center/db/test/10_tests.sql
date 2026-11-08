@@ -1891,3 +1891,121 @@ do $$ declare r jsonb; it jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T49 — «الشات» (30_driver_chat.sql): each driver sees only his conversation; the call center / admin see all;
+--        unread counts both ways; 💬 orders; automatic lines (خرج / سلّم / رجع / اتلغى); prep has no chat;
+--        «اتصل بـ…» numbers: admin manages, drivers read the active ones
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv49a@cc.test'), (gen_random_uuid(), 'drv49b@cc.test'),
+  (gen_random_uuid(), 'adm49@cc.test'), (gen_random_uuid(), 'cc49@cc.test'), (gen_random_uuid(), 'prep49@cc.test');
+select set_config('cc.da', (select id::text from auth.users where email = 'drv49a@cc.test'), true);
+select set_config('cc.db', (select id::text from auth.users where email = 'drv49b@cc.test'), true);
+select public.cc_driver_setup(current_setting('cc.da')::uuid, 'طيار 49أ', '01049494901');
+select public.cc_driver_setup(current_setting('cc.db')::uuid, 'طيار 49ب', '01049494902');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case when email like 'adm%' then 'admin' when email like 'cc%' then 'call_center' else 'prep' end
+  from auth.users where email in ('adm49@cc.test', 'cc49@cc.test', 'prep49@cc.test');
+insert into public.cc_agents (name) values ('موظف 49') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 49');
+  o public.cc_orders; i int; begin
+  for i in 1..3 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 49'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 49-' || i, 'phone', '0104949490' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.o' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- o1, o2 picked for driver A and out on one trip (two separate updates, like the app); o3 for driver B at the cashier
+select set_config('cc.trip', gen_random_uuid()::text, true);
+update public.cc_orders set stage = 'at_cashier', driver_user_id = current_setting('cc.da')::uuid, assigned_at = now()
+ where id::text in (current_setting('cc.o1'), current_setting('cc.o2'));
+update public.cc_orders set stage = 'out', out_at = now(), trip_id = current_setting('cc.trip')::uuid, trip_seq = 1, trip_size = 2 where id::text = current_setting('cc.o1');
+update public.cc_orders set stage = 'out', out_at = now(), trip_id = current_setting('cc.trip')::uuid, trip_seq = 2, trip_size = 2 where id::text = current_setting('cc.o2');
+update public.cc_orders set stage = 'at_cashier', driver_user_id = current_setting('cc.db')::uuid, assigned_at = now() where id::text = current_setting('cc.o3');
+do $$ begin
+  if (select count(*) from public.cc_chat_messages where driver_id = current_setting('cc.da')::uuid and kind = 'out') <> 1
+     or (select body from public.cc_chat_messages where driver_id = current_setting('cc.da')::uuid and kind = 'out') not like '%2 طلبات%' then
+    raise exception 'FAIL T49 one «خرج» line per trip %', (select jsonb_agg(body) from public.cc_chat_messages where driver_id = current_setting('cc.da')::uuid);
+  end if;
+end $$;
+-- driver A writes about o1; not about o3 (not his)
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.da'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare m jsonb; begin
+  m := public.cc_chat_send(null, 'العميل مش بيرد', current_setting('cc.o1')::uuid);
+  if m->>'from' <> 'driver' or m->>'order_no' is null or (m->>'mine')::boolean is not true then raise exception 'FAIL T49 driver send %', m; end if;
+  begin perform public.cc_chat_send(null, 'x', current_setting('cc.o3')::uuid); raise exception 'FAIL T49 driver wrote about another driver''s order';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_chat_send(null, '   ', null); raise exception 'FAIL T49 empty message';
+  exception when invalid_parameter_value then null; end;
+  begin perform 1 from public.cc_chat_messages; raise exception 'FAIL T49 driver read the table';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- driver B: writing to A is ignored (goes to his own); sees none of A's lines
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.db'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare t jsonb; begin
+  perform public.cc_chat_send(current_setting('cc.da')::uuid, 'من ب', null);
+  t := public.cc_chat_thread(current_setting('cc.da')::uuid, 0);
+  if t->>'driver_id' <> current_setting('cc.db') or jsonb_array_length(t->'messages') <> 1 then raise exception 'FAIL T49 driver B sees only his own %', t; end if;
+end $$;
+reset role;
+-- call center: unread 2 (A 1, B 1), o1 marked 💬; reading A's thread clears A; reply → A has 1 unread
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc49@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare u jsonb; t jsonb; begin
+  u := public.cc_chat_unread();
+  if (u->>'unread')::int <> 2 or not (u->'orders' ? current_setting('cc.o1')) or u->'newest'->>'driver_name' is null then raise exception 'FAIL T49 staff unread %', u; end if;
+  t := public.cc_chat_thread(current_setting('cc.da')::uuid, 0);
+  if jsonb_array_length(t->'messages') <> 2 then raise exception 'FAIL T49 A thread % ', t; end if;
+  if (public.cc_chat_unread()->>'unread')::int <> 1 then raise exception 'FAIL T49 read clears'; end if;
+  perform public.cc_chat_send(current_setting('cc.da')::uuid, 'هكلّم العميل وأرد عليك', current_setting('cc.o1')::uuid);
+  begin perform public.cc_save_contact_number(null, 'الكول سنتر', '0123', true, 0); raise exception 'FAIL T49 call center saved a number';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- cancelling o2 (out with A) alerts A; delivery and return add lines (return once)
+update public.cc_orders set status = 'cancelled', cancelled_at = now(), cancel_reason = 'تجربة 49' where id::text = current_setting('cc.o2');
+insert into public.cc_order_delivery (order_id, delivered_at) values (current_setting('cc.o1')::uuid, now());
+update public.cc_order_delivery set returned_at = now() where order_id::text = current_setting('cc.o1');
+insert into public.cc_order_delivery (order_id, returned_at) values (current_setting('cc.o2')::uuid, now());
+-- admin: numbers (one stopped)
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm49@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare c jsonb; begin
+  c := public.cc_save_contact_number(null, 'الكول سنتر', '0120 000 0001', true, 1);
+  if c->>'phone' <> '01200000001' then raise exception 'FAIL T49 phone cleaned %', c; end if;
+  perform public.cc_save_contact_number(null, 'رقم قديم', '01200000002', false, 2);
+  begin perform public.cc_save_contact_number(null, 'غلط', 'abc', true, 0); raise exception 'FAIL T49 bad number';
+  exception when invalid_parameter_value then null; end;
+  if jsonb_array_length(public.cc_contact_numbers()) <> 2 then raise exception 'FAIL T49 admin sees all numbers'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.da'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare u jsonb; t jsonb; begin
+  u := public.cc_chat_unread();
+  if (u->>'unread')::int <> 2 then raise exception 'FAIL T49 driver unread (reply + cancelled) %', u; end if;
+  t := public.cc_chat_thread(null, 0);
+  if (select count(*) from jsonb_array_elements(t->'messages') x where x->>'kind' = 'returned') <> 1
+     or (select count(*) from jsonb_array_elements(t->'messages') x where x->>'kind' = 'delivered') <> 1
+     or (select count(*) from jsonb_array_elements(t->'messages') x where x->>'kind' = 'cancelled') <> 1 then raise exception 'FAIL T49 automatic lines %', t; end if;
+  if (public.cc_chat_unread()->>'unread')::int <> 0 then raise exception 'FAIL T49 driver read clears'; end if;
+  if jsonb_array_length(public.cc_contact_numbers()) <> 1 then raise exception 'FAIL T49 driver sees active numbers only'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'prep49@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_chat_unread(); raise exception 'FAIL T49 prep read the chat';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T49 chat: own conversation per driver, call center sees all, unread both ways, 💬 orders, automatic lines, numbers for drivers';
+end $$;
+reset role;
+rollback;
