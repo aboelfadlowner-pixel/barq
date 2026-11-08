@@ -16,8 +16,7 @@ import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 import { deviceId, deviceLabel } from '../utils/device.js';
-import { mountChatBox, contactsHtml, ring } from '../components/chat-box.js';
-import { openModal } from '../components/modal.js';
+import { mountChatBox, openContactsSheet, ring } from '../components/chat-box.js';
 
 const REFRESH_MS = 15000;
 const PING_MS = 30000;   // his place, about every 30 seconds while he is out
@@ -268,11 +267,7 @@ export function mountDriver(view) {
     chatEl.querySelector('[data-chat-close]').addEventListener('click', closeChat);
     chatEl.querySelector('[data-contacts]').addEventListener('click', openContacts);
   };
-  async function openContacts() {
-    const m = openModal({ title: `${icon('phone')} اتصل بـ…`, size: 'sm', body: '<p class="muted">جارٍ التحميل…</p>',
-      footer: '<button type="button" class="btn btn-secondary" data-close>إغلاق</button>' });
-    m.body.innerHTML = `<div class="dr-phones">${await contactsHtml()}</div>`;
-  }
+  const openContacts = () => openContactsSheet();
   checkUnread().then(scheduleChat);
 
   const offs = [
