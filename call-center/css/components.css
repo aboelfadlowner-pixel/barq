@@ -993,3 +993,8 @@ tr[hidden] { display: none; }
 .po-take { width: 100%; }
 .o-prep { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #8a5300; }
 .o-prep .svg-icon { width: 14px; height: 14px; }
+.call-btns { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.call-go, .call-wa { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 8px 14px; font-weight: 800; text-decoration: none; min-width: 108px; }
+.call-go .svg-icon, .call-wa .svg-icon { width: 18px; height: 18px; }
+.call-wa { background: #25d366; color: #fff; }
+.call-row { flex-shrink: 0; }

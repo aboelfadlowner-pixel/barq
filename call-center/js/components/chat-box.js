@@ -155,12 +155,17 @@ export async function openContactsSheet() {
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-sheet-close]')) close(); });
   const list = await ds.contactNumbers().catch(() => []);
+  // Egyptian mobile 01xxxxxxxxx → 201xxxxxxxxx for WhatsApp (other numbers: as written, without «+»)
+  const waNo = (p) => { const d = String(p).replace(/\D/g, ''); return d.startsWith('0') ? `2${d}` : d; };
   wrap.querySelector('[data-list]').innerHTML = list.length ? list.map((c) => `
-    <a class="call-row" href="tel:${esc(c.phone)}">
+    <div class="call-row">
       <span class="call-ic">${icon('phone')}</span>
       <span class="call-txt"><strong>${esc(c.label)}</strong><span class="ltr-inline num">${esc(c.phone)}</span></span>
-      <span class="call-go">اتصل</span>
-    </a>`).join('')
+      <span class="call-btns">
+        <a class="call-go" href="tel:${esc(c.phone)}">${icon('phone')}اتصل</a>
+        <a class="call-wa" href="https://wa.me/${esc(waNo(c.phone))}" target="_blank" rel="noopener">${icon('whatsapp')}واتساب</a>
+      </span>
+    </div>`).join('')
     : '<p class="muted call-empty">مفيش أرقام متسجلة — الإدارة بتضيفها من الإعدادات.</p>';
 }
 
