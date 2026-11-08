@@ -155,17 +155,64 @@ export async function openContactsSheet() {
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-sheet-close]')) close(); });
   const list = await ds.contactNumbers().catch(() => []);
-  // Egyptian mobile 01xxxxxxxxx → 201xxxxxxxxx for WhatsApp (other numbers: as written, without «+»)
-  const waNo = (p) => { const d = String(p).replace(/\D/g, ''); return d.startsWith('0') ? `2${d}` : d; };
   wrap.querySelector('[data-list]').innerHTML = list.length ? list.map((c) => `
     <div class="call-row">
       <span class="call-ic">${icon('phone')}</span>
       <span class="call-txt"><strong>${esc(c.label)}</strong><span class="ltr-inline num">${esc(c.phone)}</span></span>
-      <span class="call-btns">
-        <a class="call-go" href="tel:${esc(c.phone)}">${icon('phone')}اتصل</a>
-        <a class="call-wa" href="https://wa.me/${esc(waNo(c.phone))}" target="_blank" rel="noopener">${icon('whatsapp')}واتساب</a>
-      </span>
+      <a class="call-go" href="tel:${esc(c.phone)}">${icon('phone')}اتصل</a>
     </div>`).join('')
+    : '<p class="muted call-empty">مفيش أرقام متسجلة — الإدارة بتضيفها من الإعدادات.</p>';
+}
+
+/* «واتساب للكول سنتر عن الطلب ده»: the driver picks what happened (ready messages) and the number,
+   and WhatsApp opens with the message already written: «طلب #CC-1003 — العميل مش بيرد». He only taps «إرسال». */
+const waNumber = (p) => { const d = String(p).replace(/\D/g, ''); return d.startsWith('0') ? `2${d}` : d; };
+export async function openOrderWhatsApp(order, driverName = '') {
+  document.querySelector('.call-sheet-wrap')?.remove();
+  const reasons = DRIVER_QUICK.filter((q) => !q.startsWith('تمام'));
+  let reason = reasons[0];
+  const wrap = document.createElement('div');
+  wrap.className = 'call-sheet-wrap';
+  wrap.innerHTML = `
+    <div class="call-sheet" role="dialog" aria-modal="true" aria-label="واتساب للكول سنتر">
+      <div class="call-sheet-grip" aria-hidden="true"></div>
+      <div class="call-sheet-head"><strong>${icon('whatsapp')}واتساب عن الطلب <span class="ltr-inline">#${esc(order.number)}</span></strong>
+        <button type="button" class="btn btn-ghost btn-icon" data-sheet-close aria-label="إغلاق">${icon('x')}</button></div>
+      <div class="call-sheet-list">
+        <p class="wa-step">1. إيه اللي حصل؟</p>
+        <div class="wa-reasons">${reasons.map((q, i) => `<button type="button" class="chip ${i === 0 ? 'is-on' : ''}" data-reason="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+        <input class="input" data-wa-extra maxlength="200" placeholder="أو اكتب تفاصيل زيادة (اختياري)" aria-label="تفاصيل زيادة" autocomplete="off">
+        <p class="wa-step">2. ابعت لمين؟</p>
+        <div data-wa-list><p class="muted">جارٍ التحميل…</p></div>
+      </div>
+    </div>`;
+  document.body.append(wrap);
+  requestAnimationFrame(() => wrap.classList.add('is-open'));
+  const close = () => { wrap.classList.remove('is-open'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 200); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  const text = () => {
+    const extra = wrap.querySelector('[data-wa-extra]').value.trim();
+    return `طلب #${order.number} — ${reason}${extra ? `\n${extra}` : ''}${driverName ? `\n(الطيار: ${driverName})` : ''}`;
+  };
+  wrap.addEventListener('click', (e) => {
+    if (e.target === wrap || e.target.closest('[data-sheet-close]')) { close(); return; }
+    const r = e.target.closest('[data-reason]');
+    if (r) {
+      reason = r.dataset.reason;
+      wrap.querySelectorAll('[data-reason]').forEach((b) => b.classList.toggle('is-on', b === r));
+      return;
+    }
+    const go = e.target.closest('[data-wa-to]');
+    if (go) { go.href = `https://wa.me/${waNumber(go.dataset.waTo)}?text=${encodeURIComponent(text())}`; setTimeout(close, 300); }
+  });
+  const list = await ds.contactNumbers().catch(() => []);
+  wrap.querySelector('[data-wa-list]').innerHTML = list.length ? list.map((c) => `
+    <a class="call-row wa-row" data-wa-to="${esc(c.phone)}" href="https://wa.me/${esc(waNumber(c.phone))}" target="_blank" rel="noopener">
+      <span class="call-ic wa-ic">${icon('whatsapp')}</span>
+      <span class="call-txt"><strong>${esc(c.label)}</strong><span class="ltr-inline num">${esc(c.phone)}</span></span>
+      <span class="call-wa">${icon('whatsapp')}ابعت</span>
+    </a>`).join('')
     : '<p class="muted call-empty">مفيش أرقام متسجلة — الإدارة بتضيفها من الإعدادات.</p>';
 }
 

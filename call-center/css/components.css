@@ -998,3 +998,11 @@ tr[hidden] { display: none; }
 .call-go .svg-icon, .call-wa .svg-icon { width: 18px; height: 18px; }
 .call-wa { background: #25d366; color: #fff; }
 .call-row { flex-shrink: 0; }
+.dr-msg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.dr-wa { background: #25d366; color: #fff; border: 0; }
+.dr-wa .svg-icon { width: 18px; height: 18px; }
+.wa-step { margin: 6px 0 2px; font-weight: 800; }
+.wa-reasons { display: flex; flex-wrap: wrap; gap: 8px; }
+.wa-reasons .chip { height: 40px; font-size: 15px; }
+.wa-reasons .chip.is-on { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+.wa-ic { background: #e6f9ee; color: #128c4b; }
