@@ -135,12 +135,33 @@ export function mountChatBox(el, { side, driverId = null, orders = [], orderId =
   };
 }
 
-/* «📞 اتصل بـ…»: the numbers the admin keeps. Opens a small list; each line calls on tap. */
-export async function contactsHtml() {
+/* «📞 اتصل بـ…»: the numbers the admin keeps, in a sheet from the bottom of the phone —
+   one big line per number (name + number); a tap calls it. Scrolls when there are many. */
+export async function openContactsSheet() {
+  document.querySelector('.call-sheet-wrap')?.remove();
+  const wrap = document.createElement('div');
+  wrap.className = 'call-sheet-wrap';
+  wrap.innerHTML = `
+    <div class="call-sheet" role="dialog" aria-modal="true" aria-label="اتصل بـ…">
+      <div class="call-sheet-grip" aria-hidden="true"></div>
+      <div class="call-sheet-head"><strong>${icon('phone')}اتصل بـ…</strong>
+        <button type="button" class="btn btn-ghost btn-icon" data-sheet-close aria-label="إغلاق">${icon('x')}</button></div>
+      <div class="call-sheet-list" data-list><p class="muted">جارٍ التحميل…</p></div>
+    </div>`;
+  document.body.append(wrap);
+  requestAnimationFrame(() => wrap.classList.add('is-open'));
+  const close = () => { wrap.classList.remove('is-open'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 200); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-sheet-close]')) close(); });
   const list = await ds.contactNumbers().catch(() => []);
-  return list.length ? list.map((c) => `
-    <a class="btn btn-secondary btn-lg btn-block dr-call" href="tel:${esc(c.phone)}">${icon('phone')}<span>${esc(c.label)}</span><span class="ltr-inline num">${esc(c.phone)}</span></a>`).join('')
-    : '<p class="muted">مفيش أرقام متسجلة — الإدارة بتضيفها من الإعدادات.</p>';
+  wrap.querySelector('[data-list]').innerHTML = list.length ? list.map((c) => `
+    <a class="call-row" href="tel:${esc(c.phone)}">
+      <span class="call-ic">${icon('phone')}</span>
+      <span class="call-txt"><strong>${esc(c.label)}</strong><span class="ltr-inline num">${esc(c.phone)}</span></span>
+      <span class="call-go">اتصل</span>
+    </a>`).join('')
+    : '<p class="muted call-empty">مفيش أرقام متسجلة — الإدارة بتضيفها من الإعدادات.</p>';
 }
 
 /* Short two-tone ring for a new message (browsers allow sound only after a tap on the page). */
