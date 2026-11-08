@@ -22,6 +22,8 @@ import { mountPrep } from './screens/prep-screen.js';
 import { mountDriver } from './screens/driver-screen.js';
 import { mountDelivery } from './screens/delivery-screen.js';
 import { mountReports } from './screens/reports-screen.js';
+import { mountChat } from './screens/chat-screen.js';
+import { startChatWatch } from './components/chat-watch.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -37,6 +39,7 @@ function parseRoute() {
   if (section === 'driver') return { route: 'driver', param: null };
   if (section === 'delivery') return { route: 'delivery', param: null };
   if (section === 'reports') return { route: 'reports', param: null };
+  if (section === 'chat') return { route: 'chat', param: param ? decodeURIComponent(param) : null };
   return { route: 'board', param: null };
 }
 
@@ -48,6 +51,7 @@ function render() {
   else if (route === 'driver') route = 'board';
   else if (route === 'delivery' && !can(user, 'deliveryReport')) route = 'board';
   else if (route === 'reports' && !can(user, 'reports')) route = 'board';
+  else if (route === 'chat' && !can(user, 'chat')) route = 'board';
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
@@ -71,6 +75,7 @@ function render() {
   else if (route === 'driver') unmount = mountDriver(view);
   else if (route === 'delivery') unmount = mountDelivery(view);
   else if (route === 'reports') unmount = mountReports(view);
+  else if (route === 'chat') unmount = mountChat(view, param);
   else unmount = mountBoard(view);
 }
 
@@ -102,6 +107,8 @@ async function startSignedIn(user) {
   refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});
   // Products & prices stay up to date while open (data-center sync like the other tools, every 5 min).
   startCatalogSync(refreshing);
+  // New driver messages: the red number on «الشات», 💬 on the cards, a ring (call center and admin).
+  if (can(user, 'chat')) startChatWatch();
 }
 
 /* A driver opens his personal link (#d=<secret>, sent by the admin on WhatsApp): signed in

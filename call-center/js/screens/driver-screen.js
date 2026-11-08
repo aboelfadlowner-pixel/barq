@@ -16,6 +16,8 @@ import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 import { deviceId, deviceLabel } from '../utils/device.js';
+import { mountChatBox, contactsHtml, ring } from '../components/chat-box.js';
+import { openModal } from '../components/modal.js';
 
 const REFRESH_MS = 15000;
 const PING_MS = 30000;   // his place, about every 30 seconds while he is out
@@ -121,10 +123,14 @@ export function mountDriver(view) {
           <div class="page-sub"><span class="muted" data-updated></span>
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
-        <div class="board-actions"><button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button></div>
+        <div class="board-actions">
+          <button type="button" class="btn btn-secondary" data-contacts>${icon('phone')}اتصل</button>
+          <button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button>
+        </div>
       </div>
       <div data-body><p class="muted">جارٍ التحميل…</p></div>
-    </div></div>`;
+    </div></div>
+    <button type="button" class="dr-chat-fab" data-chat hidden>${icon('chat')}<span>الشات</span><span class="dr-chat-n num" data-chat-n hidden></span></button>`;
   const body = view.querySelector('[data-body]');
   let data = null;
   let busy = false;
@@ -178,6 +184,7 @@ export function mountDriver(view) {
             ${addressHtml(o.address)}
             ${!o.deliveredAt && !o.cancelled && o.phones?.length ? `<div class="dr-phones">${o.phones.map((ph, i) => `
               <a class="btn btn-secondary btn-lg dr-call" href="tel:${esc(ph)}">${icon('phone')}<span>${o.phones.length > 1 ? `اتصل بالعميل (${i + 1})` : 'اتصل بالعميل'}</span><span class="ltr-inline num">${esc(ph)}</span></a>`).join('')}</div>` : ''}
+            ${!o.deliveredAt && !o.cancelled ? `<button type="button" class="btn btn-soft btn-block dr-msg" data-chat-order="${esc(o.id)}">${icon('chat')}رسالة للكول سنتر عن الطلب ده</button>` : ''}
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
             ${o.deliveredAt ? `<div class="dr-done">${icon('check')}اتسلّم ${esc(formatTime(o.deliveredAt))}</div>`
               : o.cancelled ? '' : `
@@ -214,7 +221,64 @@ export function mountDriver(view) {
     await load();
   };
 
+  // «الشات» with the call center + «اتصل بـ…» (30_driver_chat.sql). Hidden until the database has it.
+  let chatBox = null;
+  let chatEl = null;
+  let unread = 0;
+  let chatTimer = null;
+  const fab = view.querySelector('[data-chat]');
+  const paintUnread = () => {
+    const n = view.querySelector('[data-chat-n]');
+    n.hidden = !unread; n.textContent = unread > 9 ? '9+' : String(unread);
+    fab.classList.toggle('has-new', !!unread);
+  };
+  const checkUnread = async () => {
+    const r = await ds.chatUnread().catch(() => null);
+    if (stopped || !r) return;
+    fab.hidden = false;
+    if (r.unread > unread && !chatEl) { ring(); showToast('💬 رسالة جديدة من الكول سنتر'); }
+    unread = chatEl ? 0 : r.unread;
+    paintUnread();
+  };
+  const scheduleChat = () => { chatTimer = setTimeout(async () => { if (!document.hidden) await checkUnread(); if (!stopped) scheduleChat(); }, REFRESH_MS); };
+  const closeChat = () => {
+    chatBox?.destroy(); chatBox = null;
+    chatEl?.remove(); chatEl = null;
+    document.body.classList.remove('cam-open');
+    checkUnread();
+  };
+  const openChat = (orderId = null) => {
+    if (chatEl) { chatBox?.setOrder(orderId); return; }
+    chatEl = document.createElement('div');
+    chatEl.className = 'chat-full';
+    chatEl.setAttribute('role', 'dialog');
+    chatEl.setAttribute('aria-label', 'الشات مع الكول سنتر');
+    chatEl.innerHTML = `
+      <div class="chat-top">
+        <button type="button" class="btn btn-ghost btn-icon" data-chat-close aria-label="رجوع">${icon('arrowRight')}</button>
+        <strong>الشات مع الكول سنتر</strong>
+        <button type="button" class="btn btn-secondary btn-sm" data-contacts>${icon('phone')}اتصل</button>
+      </div>
+      <div class="chat-box" data-box></div>`;
+    document.body.append(chatEl);
+    document.body.classList.add('cam-open');
+    const open = (data?.mine || []).filter((o) => !o.deliveredAt && !o.cancelled).map((o) => ({ id: o.id, number: o.number }));
+    chatBox = mountChatBox(chatEl.querySelector('[data-box]'), { side: 'driver', orders: open, orderId,
+      onRead: () => { unread = 0; paintUnread(); } });
+    chatEl.querySelector('[data-chat-close]').addEventListener('click', closeChat);
+    chatEl.querySelector('[data-contacts]').addEventListener('click', openContacts);
+  };
+  async function openContacts() {
+    const m = openModal({ title: `${icon('phone')} اتصل بـ…`, size: 'sm', body: '<p class="muted">جارٍ التحميل…</p>',
+      footer: '<button type="button" class="btn btn-secondary" data-close>إغلاق</button>' });
+    m.body.innerHTML = `<div class="dr-phones">${await contactsHtml()}</div>`;
+  }
+  checkUnread().then(scheduleChat);
+
   const offs = [
+    on(view, 'click', '[data-chat]', () => openChat()),
+    on(view, 'click', '[data-chat-order]', (e, b) => openChat(b.dataset.chatOrder)),
+    on(view, 'click', '[data-contacts]', () => openContacts()),
     on(view, 'click', '[data-take]', () => {
       const n = data.ready.length;
       run(() => ds.driverTake(), n === 1 ? 'خرجت بطلب واحد' : `خرجت بـ ${n} طلبات`);
@@ -254,6 +318,8 @@ export function mountDriver(view) {
   return () => {
     stopped = true;
     clearTimeout(timer);
+    clearTimeout(chatTimer);
+    if (chatEl) closeChat();
     syncTracking();
     document.removeEventListener('visibilitychange', onVisible);
     offs.forEach((f) => f());

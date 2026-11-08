@@ -5,10 +5,11 @@
    driver      — «طيار»: his own screen only (order number + address, «خرجت», «سلّمت» with a photo).
    «التوصيل» (delivery times, photos, places) and «التقارير» (27_reports.sql): admin only.
    «سجل الطلبات» (orders of past days) and «العملاء» (customers page): admin and call center.
+   «الشات» with the drivers (30_driver_chat.sql): admin and call center.
    The database enforces the same rules; this only decides what is shown. */
 const ALLOWED = {
-  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen', 'deliveryReport', 'reports'],
-  call_center: ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary'],
+  admin:       ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'manageAreas', 'manageAccounts', 'prepScreen', 'deliveryReport', 'reports', 'chat'],
+  call_center: ['orders', 'ordersLog', 'customers', 'createOrder', 'cancelOrder', 'viewDailySummary', 'chat'],
   prep:        ['prepScreen'],
   driver:      ['driverScreen'],
 };

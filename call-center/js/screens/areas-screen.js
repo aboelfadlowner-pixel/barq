@@ -12,6 +12,7 @@ import { showToast } from '../components/modal.js';
 import { ROLES } from '../permissions.js';
 import { mountModifiersSettings } from '../components/modifiers-settings.js';
 import { mountDriversSettings } from '../components/drivers-settings.js';
+import { mountContactsSettings } from '../components/contacts-settings.js';
 import { mountBackupButton } from '../components/backup-button.js';
 
 const parseFee = (v) => {
@@ -76,6 +77,7 @@ export function mountAreas(view) {
       </div>
 
       <div data-drivers-mount></div>
+      <div data-contacts-mount></div>
 
       <h2 class="section-title">${icon('headset')}أسماء الموظفين</h2>
       <p class="muted section-sub">هذه القائمة يختار منها الموظف اسمه عند فتح البرنامج. الاسم الموقوف لا يظهر في القائمة، وتبقى الطلبات السابقة باسمه.</p>
@@ -100,6 +102,7 @@ export function mountAreas(view) {
     </div></div>`;
   const unmountMods = mountModifiersSettings(view.querySelector('[data-mods-section]'));
   const unmountDrivers = mountDriversSettings(view.querySelector('[data-drivers-mount]'));
+  const unmountContacts = mountContactsSettings(view.querySelector('[data-contacts-mount]'));
   const unmountBackup = mountBackupButton(view.querySelector('[data-backup-section]'));
 
   const rows = view.querySelector('[data-rows]');
@@ -251,5 +254,5 @@ export function mountAreas(view) {
     }),
   ];
   view.querySelector('#newAreaName').focus();
-  return () => { offs.forEach((f) => f()); unmountMods(); unmountDrivers(); unmountBackup(); };
+  return () => { offs.forEach((f) => f()); unmountMods(); unmountDrivers(); unmountContacts(); unmountBackup(); };
 }
