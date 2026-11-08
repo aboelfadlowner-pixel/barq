@@ -63,6 +63,7 @@ function orderCard(o) {
           ${o.status !== 'cancelled' ? `<button type="button" class="btn btn-ghost btn-icon btn-sm o-wa" data-wa-order="${esc(o.id)}" title="واتساب للعميل" aria-label="واتساب للعميل — طلب ${esc(o.number)}">${icon('whatsapp')}</button>` : ''}
           <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
+      ${o.prepName && o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage) ? `<div class="o-prep">${icon('clipboard')}${o.stage === 'preparing' ? 'بيجهزه' : 'جهّزه'}: <strong>${esc(o.prepName)}</strong></div>` : ''}
       ${(getState().chatOrders || []).includes(o.id) ? `<button type="button" class="o-chat" data-chat-go>${icon('chat')}رسالة جديدة من الطيار عن الطلب ده</button>` : ''}
       ${o.editCount ? `<div class="o-edited">${icon('edit')}تم التعديل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · اطّلع عليه الفرع' : ' · لم يطّلع عليه الفرع بعد'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>

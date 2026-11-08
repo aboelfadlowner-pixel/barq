@@ -2009,3 +2009,88 @@ do $$ begin
 end $$;
 reset role;
 rollback;
+
+-- T50 — «استلمت» (32_prep_claim.sql): «ابدأ التجهيز» makes the order the person's; the other prep person cannot
+--        move it until «خده مني»; back to «جديد» frees it; the admin can always move it; names on screens / report
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'pa50@cc.test'), (gen_random_uuid(), 'pb50@cc.test'), (gen_random_uuid(), 'adm50@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, case email when 'pa50@cc.test' then 'نادية' when 'pb50@cc.test' then 'كريم' else 'x' end,
+       case when email like 'adm%' then 'admin' else 'prep' end
+  from auth.users where email in ('pa50@cc.test', 'pb50@cc.test', 'adm50@cc.test');
+insert into public.cc_agents (name) values ('موظف 50') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 50');
+  o public.cc_orders; i int; begin
+  for i in 1..2 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 50'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 50-' || i, 'phone', '0105050500' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.q' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+-- A (نادية) starts q1 → it is hers
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare p jsonb; begin
+  perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'preparing');
+  select x into p from public.cc_prep_orders() x where x->>'id' = current_setting('cc.q1');
+  if p->>'prep_name' <> 'نادية' or (p->>'prep_mine')::boolean is not true then raise exception 'FAIL T50 claim on start %', p; end if;
+end $$;
+reset role;
+-- B (كريم) cannot move it; «خده مني» then he can; A then cannot
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pb50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare p jsonb; begin
+  select x into p from public.cc_prep_orders() x where x->>'id' = current_setting('cc.q1');
+  if (p->>'prep_mine')::boolean then raise exception 'FAIL T50 B sees it as his'; end if;
+  begin perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'at_cashier'); raise exception 'FAIL T50 B moved A''s order';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_prep_claim(current_setting('cc.q2')::uuid); raise exception 'FAIL T50 claim a new order';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_prep_claim(current_setting('cc.q1')::uuid);
+  perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'at_cashier');
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'preparing'); raise exception 'FAIL T50 A moved after take-over';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+-- admin moves it back to «جديد» → nobody's; names in the history
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'preparing');
+  perform public.cc_set_stage(current_setting('cc.q1')::uuid, 'new');
+end $$;
+reset role;
+do $$ begin
+  if (select prep_user_id from public.cc_orders where id::text = current_setting('cc.q1')) is not null then raise exception 'FAIL T50 back to new frees it'; end if;
+  if not exists (select 1 from public.cc_order_stage_events where order_id::text = current_setting('cc.q1') and by_name = 'كريم' and stage = 'at_cashier') then
+    raise exception 'FAIL T50 name in history %', (select jsonb_agg(by_name) from public.cc_order_stage_events where order_id::text = current_setting('cc.q1'));
+  end if;
+end $$;
+-- report: per person
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.cc_set_stage(current_setting('cc.q2')::uuid, 'preparing');
+select public.cc_set_stage(current_setting('cc.q2')::uuid, 'at_cashier');
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm50@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; begin
+  r := public.cc_report_ops(public.cc_work_day_from(current_date)::date - 1, current_date);
+  if not exists (select 1 from jsonb_array_elements(r->'prep_people') x where x->>'name' = 'نادية' and (x->>'orders')::int >= 1) then
+    raise exception 'FAIL T50 report prep_people %', r->'prep_people';
+  end if;
+  raise notice 'PASS T50 «استلمت»: one person per order, «خده مني», back to new frees it, admin can move, names in history and report';
+end $$;
+reset role;
+rollback;

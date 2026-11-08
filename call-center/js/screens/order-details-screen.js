@@ -53,6 +53,7 @@ export function mountOrderDetails(view, orderId) {
               ${orderStateChip(order)}
               <span>${icon('clock')} ${formatDateTime(order.createdAt)}</span>
               <span>${icon('headset')} سجّل الطلب: <strong>${esc(order.employee)}</strong></span>
+              ${order.prepName ? `<span>${icon('clipboard')} ${order.stage === 'preparing' ? 'بيجهزه' : 'جهّزه'}: <strong>${esc(order.prepName)}</strong></span>` : ''}
               <span class="tag tag-green">${PAYMENT_METHOD.label}</span>
               ${order.isDemo ? '<span class="demo-pill">طلب تجريبي</span>' : ''}
               ${order.editCount ? `<span class="tag tag-amber">${icon('edit')}تم التعديل${order.editCount > 1 ? ` ${order.editCount} مرات` : ''}${order.editedBy ? ` — آخر تعديل: ${esc(order.editedBy)}` : ''}</span>` : ''}

@@ -173,6 +173,7 @@ export function toOrder(r) {
     statusHistory,
     stage: r.stage || 'new',                  // preparation stage (09_prep.sql); 'new' before it is installed
     preparingAt: r.preparing_at || null,
+    prepName: r.prep_name || '',            // «بيجهزه: نادية» (32_prep_claim.sql)
     atCashierAt: r.at_cashier_at || null,
     outAt: r.out_at || null,
     driver: r.driver || '',                   // «الاسم (الرقم)» typed by the branch (11_driver.sql)
@@ -250,6 +251,7 @@ const toPrepOrder = (r) => ({
   id: r.id, number: r.order_no, createdAt: r.created_at, status: r.status,
   cancelReason: r.cancel_reason || '', cancelledAt: r.cancelled_at || null,
   stage: r.stage, preparingAt: r.preparing_at, atCashierAt: r.at_cashier_at, outAt: r.out_at, driver: r.driver || '',
+  prepUserId: r.prep_user_id || null, prepName: r.prep_name || '', prepMine: !!r.prep_mine,
   customer: { name: r.customer_name, phone: r.customer_phone, phone2: r.customer_phone2 || '' },
   address: { areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' },
   note: r.note || '', employee: r.agent_name || '',
@@ -503,6 +505,11 @@ export async function editOrder({ orderId, cart, address, orderNote, agent }) {
   return getOrder(orderId);
 }
 
+/* «خده مني»: take over an order another person is preparing (32_prep_claim.sql). */
+export async function prepClaim(orderId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_prep_claim', { p_order_id: orderId }));
+}
 export async function setStage(orderId, stage) {
   const c = await sb();
   return ok(await c.rpc('cc_set_stage', { p_order_id: orderId, p_stage: stage }));

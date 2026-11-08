@@ -15,6 +15,7 @@ import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } fro
 import { icon } from '../components/icons.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { modifiersText } from '../utils/pricing.js';
+import { getState } from '../store.js';
 
 const SOUND_KEY = 'cc-prep-sound';
 const stageOf = (id) => STAGES.find((s) => s.id === id) ?? STAGES[0];
@@ -95,21 +96,30 @@ function driversBar(orders, dels) {
   return `<div class="prep-drivers"><span class="pd-title">${icon('user')}الطيارين</span>${chips.join('')}</div>`;
 }
 
+/* «استلمت» (32_prep_claim.sql): the order is with one person; the other sees the name and «خده مني». */
+const isAdmin = () => getState().user?.role === 'admin';
+const inPrep = (o) => o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage);
+const takenByOther = (o) => inPrep(o) && !!o.prepUserId && !o.prepMine && !isAdmin();
+const whoLine = (o) => (inPrep(o) && o.prepName
+  ? `<div class="po-who ${o.prepMine ? 'is-mine' : 'is-other'}">${icon('user')}<span>${o.prepMine ? 'معاك إنت' : `مع <strong>${esc(o.prepName)}</strong>`}</span></div>` : '');
+
 function prepCard(o, busy, checks = {}) {
   const cancelled = o.status === 'cancelled';
-  const next = cancelled || nextOf(o.stage)?.id === 'out' ? null : nextOf(o.stage);   // «خرج»: the driver taps it
-  const prev = cancelled ? null : prevOf(o.stage);
+  const taken = takenByOther(o);
+  const next = cancelled || taken || nextOf(o.stage)?.id === 'out' ? null : nextOf(o.stage);   // «خرج»: the driver taps it
+  const prev = cancelled || taken ? null : prevOf(o.stage);
   const since = { preparing: o.preparingAt, at_cashier: o.atCashierAt }[o.stage];
   const out = o.stage === 'out';
   const canTick = !cancelled && !out;   // an order that left is for reference only
   const a = o.address;
   return `
-    <article class="p-order ${cancelled ? 'is-cancelled' : ''} ${editUnseen(o) ? 'is-edited' : ''}" data-oid="${esc(o.id)}">
+    <article class="p-order ${cancelled ? 'is-cancelled' : ''} ${editUnseen(o) ? 'is-edited' : ''} ${taken ? 'is-taken' : ''} ${inPrep(o) && o.prepMine ? 'is-mine' : ''}" data-oid="${esc(o.id)}">
       <header class="po-head">
         <strong class="po-no num">#${esc(o.number)}</strong>
         ${canTick && o.items.length ? `<span class="po-progress ${checkedCount(o, checks) === o.items.length ? 'is-full' : ''}">تم <span class="num">${checkedCount(o, checks)}</span> من <span class="num">${o.items.length}</span></span>` : ''}
         <span class="po-time">${icon('clock')}<span class="num">${formatTime(o.createdAt)}</span> · ${formatRelative(o.createdAt)}</span>
       </header>
+      ${whoLine(o)}
       ${cancelled ? `<div class="po-cancel">${icon('alert')}<div><strong>تم إلغاء هذا الطلب، يرجى إيقاف تجهيزه</strong>
         ${o.cancelReason ? `<div>السبب: ${esc(o.cancelReason)}</div>` : ''}</div></div>` : ''}
       ${editUnseen(o) ? `<div class="po-edited">
@@ -130,7 +140,8 @@ function prepCard(o, busy, checks = {}) {
         : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
       ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
-        ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${esc(stageOf(o.stage).next)}</button>` : ''}
+        ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${o.stage === 'new' ? 'استلمت — ابدأ التجهيز' : esc(stageOf(o.stage).next)}</button>` : ''}
+      ${taken ? `<button type="button" class="btn btn-secondary po-take" data-takeover ${busy ? 'disabled' : ''}>${icon('repeat')}خده مني — هكمّله أنا</button>` : ''}
       ${prev ? `<button type="button" class="link-btn po-back" data-back="${prev.id}" ${busy ? 'disabled' : ''}>رجوع لـ «${esc(prev.label)}»</button>` : ''}
     </article>`;
 }
@@ -154,6 +165,10 @@ export function mountPrep(view) {
             <span class="demo-pill">${icon('info')}بيانات تجريبية</span></div>
         </div>
         <div class="board-actions">
+          <div class="seg" role="tablist" aria-label="عرض الطلبات">
+            <button type="button" data-mine-filter="all">الكل</button>
+            <button type="button" data-mine-filter="mine">طلباتي</button>
+          </div>
           <button type="button" class="btn btn-secondary" data-sound></button>
           <button type="button" class="btn btn-secondary" data-refresh>${icon('repeat')}تحديث</button>
         </div>
@@ -180,12 +195,21 @@ export function mountPrep(view) {
   };
   paintSound();
 
+  // «طلباتي»: the orders in preparation that are mine (and the new ones nobody took yet) — kept on this device.
+  let onlyMine = (() => { try { return localStorage.getItem('cc-prep-mine') === '1'; } catch { return false; } })();
+  const paintFilter = () => view.querySelectorAll('[data-mine-filter]').forEach((b) => {
+    const on_ = (b.dataset.mineFilter === 'mine') === onlyMine;
+    b.classList.toggle('active', on_); b.setAttribute('aria-selected', String(on_));
+  });
+  paintFilter();
+  const shown = (o) => !onlyMine || !inPrep(o) || o.prepMine || !o.prepUserId;
+
   const render = () => {
     // A cancelled order stays in its column (red, no button) for an hour, so nobody keeps preparing it.
     const recent = (iso) => !iso || Date.now() - new Date(iso).getTime() < 60 * 60000;
     // CONFIRMED: the newest order is on top in every column.
     const by = (stage) => orders.filter((o) => (o.stage || 'new') === stage && stage !== 'out'
-      && (o.status !== 'cancelled' || recent(o.cancelledAt)))
+      && (o.status !== 'cancelled' || recent(o.cancelledAt)) && shown(o))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     // CONFIRMED: the orders that left with the driver (this working day) stay in their own column, newest first,
     // so the branch knows what went out and can go back to an order.
@@ -311,6 +335,20 @@ export function mountPrep(view) {
       const id = btn.closest('[data-oid]').dataset.oid;
       busyId = id; render();
       try { await ds.ackEdit(id); } catch (err) { showToast(err.message); }
+      busyId = null;
+      await load();
+    }),
+    on(view, 'click', '[data-mine-filter]', (e, b) => {
+      onlyMine = b.dataset.mineFilter === 'mine';
+      try { localStorage.setItem('cc-prep-mine', onlyMine ? '1' : '0'); } catch { /* ignore */ }
+      paintFilter(); render();
+    }),
+    on(view, 'click', '[data-takeover]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      const o = orders.find((x) => x.id === id);
+      if (!(await confirmDialog({ title: 'خده مني', message: `الطلب #${o?.number ?? ''} مع ${o?.prepName || 'زميلك'}. هتكمّله إنت؟ هيتكتب باسمك وهو مش هيقدر يحرّكه.`, confirmLabel: 'أيوه، هكمّله أنا' }))) return;
+      busyId = id; render();
+      try { await ds.prepClaim(id); showToast(`الطلب #${o?.number ?? ''} بقى معاك`); } catch (err) { showToast(err.message); }
       busyId = null;
       await load();
     }),
