@@ -993,3 +993,19 @@ tr[hidden] { display: none; }
 .po-take { width: 100%; }
 .o-prep { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #8a5300; }
 .o-prep .svg-icon { width: 14px; height: 14px; }
+.call-btns { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.call-go, .call-wa { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 8px 14px; font-weight: 800; text-decoration: none; min-width: 108px; }
+.call-go .svg-icon, .call-wa .svg-icon { width: 18px; height: 18px; }
+.call-wa { background: #25d366; color: #fff; }
+.call-row { flex-shrink: 0; }
+.dr-msg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.dr-wa { background: #25d366; color: #fff; border: 0; }
+.dr-wa .svg-icon { width: 18px; height: 18px; }
+.wa-step { margin: 6px 0 2px; font-weight: 800; }
+.wa-reasons { display: flex; flex-wrap: wrap; gap: 8px; }
+.wa-reasons .chip { height: 40px; font-size: 15px; }
+.wa-reasons .chip.is-on { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+.wa-ic { background: #e6f9ee; color: #128c4b; }
+.dr-msg.has-new { background: #c0392b; color: #fff; border-color: #c0392b; animation: drPulse 1.6s ease-in-out infinite; }
+@keyframes drPulse { 50% { box-shadow: 0 0 0 6px rgba(192, 57, 43, .18); } }
+.driver-page { padding-bottom: 24px; }
