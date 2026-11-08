@@ -16,8 +16,7 @@ import { formatRelative, formatTime, housingLabel } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { showToast } from '../components/modal.js';
 import { deviceId, deviceLabel } from '../utils/device.js';
-import { getState } from '../store.js';
-import { mountChatBox, openContactsSheet, openOrderWhatsApp, ring } from '../components/chat-box.js';
+import { mountChatBox, openContactsSheet, ring } from '../components/chat-box.js';
 
 const REFRESH_MS = 15000;
 const PING_MS = 30000;   // his place, about every 30 seconds while he is out
@@ -183,10 +182,7 @@ export function mountDriver(view) {
             ${addressHtml(o.address)}
             ${!o.deliveredAt && !o.cancelled && o.phones?.length ? `<div class="dr-phones">${o.phones.map((ph, i) => `
               <a class="btn btn-secondary btn-lg dr-call" href="tel:${esc(ph)}">${icon('phone')}<span>${o.phones.length > 1 ? `اتصل بالعميل (${i + 1})` : 'اتصل بالعميل'}</span><span class="ltr-inline num">${esc(ph)}</span></a>`).join('')}</div>` : ''}
-            ${!o.deliveredAt && !o.cancelled ? `<div class="dr-msg-row">
-              <button type="button" class="btn btn-soft dr-msg" data-chat-order="${esc(o.id)}" ${chatOn ? '' : 'hidden'}>${icon('chat')}<span data-chat-label>رسالة في الشات</span></button>
-              <button type="button" class="btn dr-wa" data-wa-order="${esc(o.id)}">${icon('whatsapp')}واتساب للكول سنتر</button>
-            </div>` : ''}
+            ${!o.deliveredAt && !o.cancelled ? `<button type="button" class="btn btn-soft btn-block dr-msg" data-chat-order="${esc(o.id)}" ${chatOn ? '' : 'hidden'}>${icon('chat')}<span data-chat-label>رسالة للكول سنتر عن الطلب ده</span></button>` : ''}
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
             ${o.deliveredAt ? `<div class="dr-done">${icon('check')}اتسلّم ${esc(formatTime(o.deliveredAt))}</div>`
               : o.cancelled ? '' : `
@@ -236,7 +232,7 @@ export function mountDriver(view) {
       b.hidden = !chatOn;
       b.classList.toggle('has-new', !!unread);
       const label = b.querySelector('[data-chat-label]');
-      if (label) label.textContent = unread ? `رسالة جديدة (${unread > 9 ? '9+' : unread})` : 'رسالة في الشات';
+      if (label) label.textContent = unread ? `رسالة جديدة من الكول سنتر (${unread > 9 ? '9+' : unread})` : 'رسالة للكول سنتر عن الطلب ده';
     });
   };
   const checkUnread = async () => {
@@ -281,10 +277,6 @@ export function mountDriver(view) {
   const offs = [
     on(view, 'click', '[data-chat-order]', (e, b) => openChat(b.dataset.chatOrder)),
     on(view, 'click', '[data-contacts]', () => openContacts()),
-    on(view, 'click', '[data-wa-order]', (e, b) => {
-      const o = data?.mine.find((x) => x.id === b.dataset.waOrder);
-      if (o) openOrderWhatsApp(o, getState().user?.name || '');
-    }),
     on(view, 'click', '[data-take]', () => {
       const n = data.ready.length;
       run(() => ds.driverTake(), n === 1 ? 'خرجت بطلب واحد' : `خرجت بـ ${n} طلبات`);
