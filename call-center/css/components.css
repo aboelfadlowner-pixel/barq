@@ -1006,3 +1006,6 @@ tr[hidden] { display: none; }
 .wa-reasons .chip { height: 40px; font-size: 15px; }
 .wa-reasons .chip.is-on { background: var(--green-700); color: #fff; border-color: var(--green-700); }
 .wa-ic { background: #e6f9ee; color: #128c4b; }
+.dr-msg.has-new { background: #c0392b; color: #fff; border-color: #c0392b; animation: drPulse 1.6s ease-in-out infinite; }
+@keyframes drPulse { 50% { box-shadow: 0 0 0 6px rgba(192, 57, 43, .18); } }
+.driver-page { padding-bottom: 24px; }

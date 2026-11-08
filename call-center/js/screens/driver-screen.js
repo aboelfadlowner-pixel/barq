@@ -129,8 +129,7 @@ export function mountDriver(view) {
         </div>
       </div>
       <div data-body><p class="muted">جارٍ التحميل…</p></div>
-    </div></div>
-    <button type="button" class="dr-chat-fab" data-chat hidden>${icon('chat')}<span>الشات</span><span class="dr-chat-n num" data-chat-n hidden></span></button>`;
+    </div></div>`;
   const body = view.querySelector('[data-body]');
   let data = null;
   let busy = false;
@@ -185,7 +184,7 @@ export function mountDriver(view) {
             ${!o.deliveredAt && !o.cancelled && o.phones?.length ? `<div class="dr-phones">${o.phones.map((ph, i) => `
               <a class="btn btn-secondary btn-lg dr-call" href="tel:${esc(ph)}">${icon('phone')}<span>${o.phones.length > 1 ? `اتصل بالعميل (${i + 1})` : 'اتصل بالعميل'}</span><span class="ltr-inline num">${esc(ph)}</span></a>`).join('')}</div>` : ''}
             ${!o.deliveredAt && !o.cancelled ? `<div class="dr-msg-row">
-              <button type="button" class="btn btn-soft dr-msg" data-chat-order="${esc(o.id)}">${icon('chat')}رسالة في الشات</button>
+              <button type="button" class="btn btn-soft dr-msg" data-chat-order="${esc(o.id)}" ${chatOn ? '' : 'hidden'}>${icon('chat')}<span data-chat-label>رسالة في الشات</span></button>
               <button type="button" class="btn dr-wa" data-wa-order="${esc(o.id)}">${icon('whatsapp')}واتساب للكول سنتر</button>
             </div>` : ''}
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
@@ -205,6 +204,7 @@ export function mountDriver(view) {
       if (stopped) return;
       data = d;
       render();
+      paintUnread();
       syncTracking();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
     } catch (err) {
@@ -229,16 +229,20 @@ export function mountDriver(view) {
   let chatEl = null;
   let unread = 0;
   let chatTimer = null;
-  const fab = view.querySelector('[data-chat]');
+  // No floating «الشات» button: a new message from the call center turns «رسالة في الشات» red on his orders.
+  let chatOn = false;
   const paintUnread = () => {
-    const n = view.querySelector('[data-chat-n]');
-    n.hidden = !unread; n.textContent = unread > 9 ? '9+' : String(unread);
-    fab.classList.toggle('has-new', !!unread);
+    view.querySelectorAll('[data-chat-order]').forEach((b) => {
+      b.hidden = !chatOn;
+      b.classList.toggle('has-new', !!unread);
+      const label = b.querySelector('[data-chat-label]');
+      if (label) label.textContent = unread ? `رسالة جديدة (${unread > 9 ? '9+' : unread})` : 'رسالة في الشات';
+    });
   };
   const checkUnread = async () => {
     const r = await ds.chatUnread().catch(() => null);
     if (stopped || !r) return;
-    fab.hidden = false;
+    chatOn = true;
     if (r.unread > unread && !chatEl) { ring(); showToast('💬 رسالة جديدة من الكول سنتر'); }
     unread = chatEl ? 0 : r.unread;
     paintUnread();
@@ -275,7 +279,6 @@ export function mountDriver(view) {
   checkUnread().then(scheduleChat);
 
   const offs = [
-    on(view, 'click', '[data-chat]', () => openChat()),
     on(view, 'click', '[data-chat-order]', (e, b) => openChat(b.dataset.chatOrder)),
     on(view, 'click', '[data-contacts]', () => openContacts()),
     on(view, 'click', '[data-wa-order]', (e, b) => {
