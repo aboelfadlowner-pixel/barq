@@ -105,7 +105,14 @@ begin
                        else '[]'::jsonb end) order by o.out_at desc, o.trip_seq)
       from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
      where o.driver_user_id = auth.uid() and o.stage = 'out' and o.out_at >= v_day_start
-       and d.returned_at is null), '[]'::jsonb));
+       and d.returned_at is null), '[]'::jsonb),
+    -- «طلباتي»: every order he went out with today (also after «رجعت الفرع») — numbers and what happened, no customer data
+    'today', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', o.id, 'order_no', o.order_no, 'out_at', o.out_at, 'trip_id', o.trip_id, 'trip_seq', o.trip_seq,
+        'cancelled', o.status = 'cancelled', 'delivered_at', d.delivered_at, 'refused_at', d.refused_at,
+        'refused_reason', d.refused_reason, 'returned_at', d.returned_at, 'area_name', o.area_name) order by o.out_at, o.trip_seq)
+      from public.cc_orders o left join public.cc_order_delivery d on d.order_id = o.id
+     where o.driver_user_id = auth.uid() and o.stage = 'out' and o.out_at >= v_day_start), '[]'::jsonb));
 end;
 $$;
 

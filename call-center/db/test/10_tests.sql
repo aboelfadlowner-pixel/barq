@@ -2195,6 +2195,12 @@ do $$ declare m jsonb; begin
   perform public.cc_driver_refused(current_setting('cc.r1')::uuid, 'مش بيرد', 31.1, 29.8, 20);   -- double tap
   select x into m from jsonb_array_elements(public.cc_driver_orders()->'mine') x where x->>'id' = current_setting('cc.r1');
   if m->>'refused_reason' <> 'مش بيرد' or m->>'refused_at' is null then raise exception 'FAIL T52 driver sees it %', m; end if;
+  perform public.cc_driver_returned(null, null, null);
+  if jsonb_array_length(public.cc_driver_orders()->'mine') <> 0 or jsonb_array_length(public.cc_driver_orders()->'today') <> 2
+     or (select count(*) from jsonb_array_elements(public.cc_driver_orders()->'today') x where x->>'refused_reason' = 'مش بيرد') <> 1
+     or exists (select 1 from jsonb_array_elements(public.cc_driver_orders()->'today') x where x ? 'phones') then
+    raise exception 'FAIL T52 «طلباتي» after back at the branch %', public.cc_driver_orders()->'today';
+  end if;
   -- the customer takes it after all: «سلّمت» still works
 end $$;
 reset role;
@@ -2207,7 +2213,7 @@ do $$ declare u jsonb; d jsonb; begin
   end if;
   d := public.cc_order_delivery_of(current_setting('cc.r1')::uuid);
   if d->>'refused_reason' <> 'مش بيرد' then raise exception 'FAIL T52 order page %', d; end if;
-  raise notice 'PASS T52 «متسلّمش»: his order only, reason required, once, the call center is told, shown on the order page';
+  raise notice 'PASS T52 «متسلّمش»: his order only, reason required, once, the call center is told, shown on the order page; «طلباتي» stays after «رجعت الفرع»';
 end $$;
 reset role;
 rollback;

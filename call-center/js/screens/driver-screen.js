@@ -204,27 +204,43 @@ export function mountDriver(view) {
     }
   };
 
-  // «طلباتي» on the side: how many orders he went out with and their numbers (tap → a small list).
+  // «طلباتي» on the side: every order he went out with today (also after «رجعت الفرع») —
+  // how many, how many delivered / not, and their numbers, trip by trip. Tap → a small list.
+  const todayList = () => data?.today ?? data?.mine ?? [];
   const paintTrip = () => {
-    const tab = view.querySelector('[data-trip]');
-    tab.hidden = !data?.mine.length;
-    view.querySelector('[data-trip-n]').textContent = data?.mine.length || '';
+    const n = todayList().length;
+    view.querySelector('[data-trip]').hidden = !n;
+    view.querySelector('[data-trip-n]').textContent = n || '';
   };
   const openTrip = () => {
-    const list = data?.mine || [];
+    const list = todayList();
+    const withMe = new Set((data?.mine || []).map((o) => o.id));
+    const state = (o) => (o.deliveredAt ? ['is-done', 'اتسلّم'] : o.cancelled ? ['is-off', 'اتلغى']
+      : o.refusedAt ? ['is-off', 'متسلّمش'] : withMe.has(o.id) ? ['', 'معاك'] : ['is-off', 'رجع بيه الفرع']);
+    const done = list.filter((o) => o.deliveredAt).length;
+    const notDone = list.filter((o) => !o.deliveredAt && (o.refusedAt || o.cancelled || !withMe.has(o.id))).length;
+    const still = list.length - done - notDone;
+    const trips = [];
+    list.forEach((o) => { let t = trips.find((x) => x.id === (o.tripId || o.id)); if (!t) trips.push(t = { id: o.tripId || o.id, at: o.outAt, orders: [] }); t.orders.push(o); });
     document.querySelector('.call-sheet-wrap')?.remove();
-    const state = (o) => (o.deliveredAt ? ['is-done', 'اتسلّم'] : o.cancelled ? ['is-off', 'اتلغى'] : o.refusedAt ? ['is-off', 'متسلّمش'] : ['', 'معاك']);
     const wrap = document.createElement('div');
     wrap.className = 'call-sheet-wrap';
     wrap.innerHTML = `
-      <div class="call-sheet" role="dialog" aria-modal="true" aria-label="الطلبات اللي خرجت بيها">
+      <div class="call-sheet" role="dialog" aria-modal="true" aria-label="طلباتي النهارده">
         <div class="call-sheet-grip" aria-hidden="true"></div>
-        <div class="call-sheet-head"><strong>${icon('package')}خرجت بـ <span class="num">${list.length}</span> ${list.length === 1 ? 'طلب' : 'طلبات'}</strong>
+        <div class="call-sheet-head"><strong>${icon('package')}طلباتي النهارده: <span class="num">${list.length}</span> ${list.length === 1 ? 'طلب' : 'طلبات'}</strong>
           <button type="button" class="btn btn-ghost btn-icon" data-sheet-close aria-label="إغلاق">${icon('x')}</button></div>
-        <div class="call-sheet-list">${list.map((o) => { const [cls, txt] = state(o); return `
-          <button type="button" class="trip-row ${cls}" data-go="${esc(o.id)}">
-            <strong class="ltr-inline num">#${esc(o.number)}</strong><span class="trip-area">${esc(o.address.areaName || '')}</span><span class="trip-st">${txt}</span>
-          </button>`; }).join('')}</div>
+        <div class="trip-sum">
+          <span class="is-done">${icon('check')}اتسلّم <b class="num">${done}</b></span>
+          <span class="is-off">${icon('x')}متسلّمش <b class="num">${notDone}</b></span>
+          ${still ? `<span>${icon('package')}لسه معاك <b class="num">${still}</b></span>` : ''}
+        </div>
+        <div class="call-sheet-list">${trips.map((t, i) => `
+          ${trips.length > 1 ? `<p class="trip-head">المشوار ${i + 1} — خرجت ${esc(formatTime(t.at))} بـ ${t.orders.length} ${t.orders.length === 1 ? 'طلب' : 'طلبات'}</p>` : ''}
+          ${t.orders.map((o) => { const [cls, txt] = state(o); return `
+          <button type="button" class="trip-row ${cls}" ${withMe.has(o.id) ? `data-go="${esc(o.id)}"` : ''}>
+            <strong class="ltr-inline num">#${esc(o.number)}</strong><span class="trip-area">${esc(o.areaName ?? o.address?.areaName ?? '')}</span><span class="trip-st">${txt}</span>
+          </button>`; }).join('')}`).join('')}</div>
       </div>`;
     document.body.append(wrap);
     requestAnimationFrame(() => wrap.classList.add('is-open'));

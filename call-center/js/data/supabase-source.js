@@ -293,6 +293,12 @@ export async function getDriverOrders() {
       refusedAt: r.refused_at || null, refusedReason: r.refused_reason || '',
       phones: Array.isArray(r.phones) ? r.phones : [],
     })),
+    // «طلباتي» (34): today's orders, also after «رجعت الفرع»; null before 34 is applied
+    today: Array.isArray(d.today) ? d.today.map((r) => ({
+      id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, cancelled: !!r.cancelled,
+      deliveredAt: r.delivered_at || null, refusedAt: r.refused_at || null, refusedReason: r.refused_reason || '',
+      returnedAt: r.returned_at || null, areaName: r.area_name || '',
+    })) : null,
   };
 }
 export async function setPhone(userId, phone) {

@@ -1033,3 +1033,9 @@ tr[hidden] { display: none; }
 .trip-st { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #eef1ef; }
 .trip-row.is-done .trip-st { background: #e3f4ea; color: var(--green-700); }
 .trip-row.is-off .trip-st { background: var(--danger-50); color: var(--danger); }
+.trip-sum { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 10px; }
+.trip-sum span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: #eef1ef; font-weight: 700; }
+.trip-sum .svg-icon { width: 16px; height: 16px; }
+.trip-sum .is-done { background: #e3f4ea; color: var(--green-700); }
+.trip-sum .is-off { background: var(--danger-50); color: var(--danger); }
+.trip-head { margin: 6px 0 0; font-weight: 700; color: var(--muted); font-size: 14px; flex-shrink: 0; }

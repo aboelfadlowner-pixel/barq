@@ -370,6 +370,11 @@ export function getDriverOrders() {
         refusedAt: deliveries.get(o.id)?.refusedAt ?? null, refusedReason: deliveries.get(o.id)?.refusedReason ?? '',
         phones: o.status === 'cancelled' || deliveries.get(o.id)?.deliveredAt ? []
           : [...new Set([o.customer?.phone, o.customer?.phone2].filter(Boolean))] })),
+    today: orders.filter((o) => o.driverUserId === demoAccount.id && o.stage === 'out' && isSameWorkDay(o.outAt, today))
+      .sort((a, b) => a.outAt.localeCompare(b.outAt) || a.tripSeq - b.tripSeq)
+      .map((o) => { const d = deliveries.get(o.id) ?? {}; return { id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq,
+        cancelled: o.status === 'cancelled', deliveredAt: d.deliveredAt ?? null, refusedAt: d.refusedAt ?? null, refusedReason: d.refusedReason ?? '',
+        returnedAt: d.returnedAt ?? null, areaName: o.address?.areaName ?? '' }; }),
   });
 }
 export function setPhone(userId, phone) {
