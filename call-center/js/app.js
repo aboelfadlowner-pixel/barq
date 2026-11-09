@@ -24,6 +24,7 @@ import { mountDelivery } from './screens/delivery-screen.js';
 import { mountReports } from './screens/reports-screen.js';
 import { mountChat } from './screens/chat-screen.js';
 import { startChatWatch } from './components/chat-watch.js';
+import { startDraftKeep } from './draft-keep.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -102,6 +103,7 @@ async function startSignedIn(user) {
   // An account with its own name: that name goes on its orders. A shared account picks a name, as before.
   if (user.agentId) setAgent({ id: user.agentId, name: user.name });
   else restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
+  startDraftKeep(user);   // the order being written comes back after a refresh / closing the page
   render();
   // Opened with the product list saved on this device → bring it up to date quietly.
   refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});
