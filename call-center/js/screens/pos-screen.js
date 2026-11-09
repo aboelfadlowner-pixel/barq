@@ -1,5 +1,6 @@
 /* Order screen (Foodics-style): order summary panel on the side | product search. */
 import { bind, getState, setState } from '../store.js';
+import { discardDraft } from '../drafts-sync.js';
 import { isTypingTarget, on } from '../utils/dom.js';
 import { computeTotals } from '../utils/pricing.js';
 import { currentDeliveryFee } from '../store.js';
@@ -91,6 +92,7 @@ export function mountPos(view) {
         title: 'إلغاء الطلب', message: 'سيتم حذف العميل والأصناف في هذا الطلب. لاستكماله لاحقًا اختر «حفظ كمسودة».',
         confirmLabel: 'إلغاء الطلب', cancelLabel: 'رجوع', danger: true,
       }))) return;
+      await discardDraft(s.requestId);   // gone from «مسودة» too (33_drafts.sql)
       resetDraft();
       location.hash = '#/board';
     }),

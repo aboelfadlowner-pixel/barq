@@ -2094,3 +2094,61 @@ do $$ declare r jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T51 — «مسودة» in the database (33_drafts.sql): each employee saves / sees / removes his own drafts; the admin sees
+--        everyone's (read only); a sent draft disappears; prep cannot use drafts
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'ca51@cc.test'), (gen_random_uuid(), 'cb51@cc.test'), (gen_random_uuid(), 'adm51@cc.test'), (gen_random_uuid(), 'pr51@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case when email like 'adm%' then 'admin' when email like 'pr%' then 'prep' else 'call_center' end
+  from auth.users where email in ('ca51@cc.test', 'cb51@cc.test', 'adm51@cc.test', 'pr51@cc.test');
+select set_config('cc.d1', gen_random_uuid()::text, true);
+select set_config('cc.d2', gen_random_uuid()::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'ca51@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  perform public.cc_draft_save(current_setting('cc.d1')::uuid, '{"customer": {"name": "عميل 51"}, "cart": [{"name": "صنف"}]}', 'منى');
+  perform public.cc_draft_save(current_setting('cc.d2')::uuid, '{"cart": []}', 'منى');
+  perform public.cc_draft_save(current_setting('cc.d1')::uuid, '{"customer": {"name": "عميل 51 معدّل"}, "cart": []}', 'منى');
+  if jsonb_array_length(public.cc_draft_list()) <> 2 then raise exception 'FAIL T51 my drafts'; end if;
+  if public.cc_draft_list()->1->'data'->'customer'->>'name' <> 'عميل 51 معدّل' then raise exception 'FAIL T51 update %', public.cc_draft_list(); end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cb51@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if jsonb_array_length(public.cc_draft_list()) <> 0 then raise exception 'FAIL T51 B sees A''s drafts'; end if;
+  begin perform public.cc_draft_save(current_setting('cc.d1')::uuid, '{}', 'x'); raise exception 'FAIL T51 B changed A''s draft';
+  exception when insufficient_privilege then null; end;
+  if public.cc_draft_delete(current_setting('cc.d1')::uuid) then raise exception 'FAIL T51 B removed A''s draft'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'adm51@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare l jsonb; begin
+  l := public.cc_draft_list();
+  if jsonb_array_length(l) <> 2 or (l->0->>'mine')::boolean or l->0->>'agent_name' <> 'منى' then raise exception 'FAIL T51 admin sees all %', l; end if;
+end $$;
+reset role;
+-- d1 sent as an order → gone from the list
+update public.cc_orders set client_request_id = current_setting('cc.d1')::uuid
+ where id = (select id from public.cc_orders order by created_at limit 1);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'ca51@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  if (select count(*) from public.cc_orders) > 0 and jsonb_array_length(public.cc_draft_list()) <> 1 then raise exception 'FAIL T51 sent draft still listed'; end if;
+  if not public.cc_draft_delete(current_setting('cc.d2')::uuid) then raise exception 'FAIL T51 delete mine'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pr51@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_draft_list(); raise exception 'FAIL T51 prep read drafts';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T51 drafts: own drafts saved/updated/removed, others'' drafts untouchable, admin sees all, sent draft disappears, prep has none';
+end $$;
+reset role;
+rollback;

@@ -972,3 +972,20 @@ export async function saveContactNumber({ id = null, label, phone, active = true
   const c = await sb();
   return ok(await c.rpc('cc_save_contact_number', { p_id: id, p_label: label, p_phone: phone, p_active: active, p_sort: sort }));
 }
+
+/* «مسودة» in the database (33_drafts.sql). null from draftList() = not installed (drafts stay on the device only). */
+export async function draftSave(id, data, agentName) {
+  const c = await sb();
+  return ok(await c.rpc('cc_draft_save', { p_id: id, p_data: data, p_agent_name: agentName || null }));
+}
+export async function draftDelete(id) {
+  const c = await sb();
+  const res = await c.rpc('cc_draft_delete', { p_id: id });
+  return res.error ? false : !!res.data;
+}
+export async function draftList() {
+  const c = await sb();
+  const res = await c.rpc('cc_draft_list');
+  if (res.error) return null;
+  return (res.data || []).map((d) => ({ id: d.id, mine: !!d.mine, agentName: d.agent_name || '', data: d.data || {}, createdAt: d.created_at, updatedAt: d.updated_at }));
+}
