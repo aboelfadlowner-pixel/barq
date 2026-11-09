@@ -175,7 +175,8 @@ export function mountDriver(view) {
         </div>
       </div>
       <div data-body><p class="muted">جارٍ التحميل…</p></div>
-    </div></div>`;
+    </div></div>
+    <button type="button" class="dr-side" data-trip hidden aria-label="الطلبات اللي خرجت بيها"><span class="dr-side-n num" data-trip-n></span><span>طلباتي</span></button>`;
   const body = view.querySelector('[data-body]');
   let data = null;
   let busy = false;
@@ -203,7 +204,42 @@ export function mountDriver(view) {
     }
   };
 
+  // «طلباتي» on the side: how many orders he went out with and their numbers (tap → a small list).
+  const paintTrip = () => {
+    const tab = view.querySelector('[data-trip]');
+    tab.hidden = !data?.mine.length;
+    view.querySelector('[data-trip-n]').textContent = data?.mine.length || '';
+  };
+  const openTrip = () => {
+    const list = data?.mine || [];
+    document.querySelector('.call-sheet-wrap')?.remove();
+    const state = (o) => (o.deliveredAt ? ['is-done', 'اتسلّم'] : o.cancelled ? ['is-off', 'اتلغى'] : o.refusedAt ? ['is-off', 'متسلّمش'] : ['', 'معاك']);
+    const wrap = document.createElement('div');
+    wrap.className = 'call-sheet-wrap';
+    wrap.innerHTML = `
+      <div class="call-sheet" role="dialog" aria-modal="true" aria-label="الطلبات اللي خرجت بيها">
+        <div class="call-sheet-grip" aria-hidden="true"></div>
+        <div class="call-sheet-head"><strong>${icon('package')}خرجت بـ <span class="num">${list.length}</span> ${list.length === 1 ? 'طلب' : 'طلبات'}</strong>
+          <button type="button" class="btn btn-ghost btn-icon" data-sheet-close aria-label="إغلاق">${icon('x')}</button></div>
+        <div class="call-sheet-list">${list.map((o) => { const [cls, txt] = state(o); return `
+          <button type="button" class="trip-row ${cls}" data-go="${esc(o.id)}">
+            <strong class="ltr-inline num">#${esc(o.number)}</strong><span class="trip-area">${esc(o.address.areaName || '')}</span><span class="trip-st">${txt}</span>
+          </button>`; }).join('')}</div>
+      </div>`;
+    document.body.append(wrap);
+    requestAnimationFrame(() => wrap.classList.add('is-open'));
+    const close = () => { wrap.classList.remove('is-open'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 200); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', (e) => {
+      const go = e.target.closest('[data-go]');
+      if (go) { close(); view.querySelector(`[data-oid="${CSS.escape(go.dataset.go)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (e.target === wrap || e.target.closest('[data-sheet-close]')) close();
+    });
+  };
+
   function render() {
+    paintTrip();
     const { ready, mine } = data;
     const open = mine.filter((o) => !o.deliveredAt && !o.cancelled && !o.refusedAt);
     body.innerHTML = `
@@ -362,6 +398,7 @@ export function mountDriver(view) {
       run(() => ds.driverReturned(pos), pos ? 'تم تسجيل رجوعك ✓' : 'تم تسجيل رجوعك ✓ (من غير مكان — شغّل اللوكيشن)');
     }),
     on(view, 'click', '[data-refresh]', () => load()),
+    on(view, 'click', '[data-trip]', () => openTrip()),
   ];
   const onVisible = () => {
     if (document.hidden) return;
