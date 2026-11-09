@@ -4,6 +4,8 @@
    «طلباتي»: the orders picked for him → ONE «خرجت» for all of them (one trip).
    «معايا»: each order → «سلّمت»: the camera opens INSIDE the page (no gallery), he takes a
    photo of the bag with the ticket showing, and the server records the time (and his place).
+   CONFIRMED: «متسلّمش» — the customer did not take it: he picks the reason (or writes it), the
+   time and his place are recorded, the call center gets it in the chat, and the card says «رجّعه للفرع».
    CONFIRMED: back at the branch HE taps «رجعت الفرع» — his place is recorded, and the admin
    sees «بعيد عن الفرع» when it is far from the branch. He opens this screen with his own link
    (no password); the admin adds him with his mobile.
@@ -113,6 +115,51 @@ function takePhoto(orderNumber) {
   });
 }
 
+/* «متسلّمش» (34_driver_refused.sql): he picks why — or writes it — and confirms. Resolves with the reason, or null. */
+const REFUSE_REASONS = ['العميل رفض يستلم', 'مش بيرد ومش موجود', 'العنوان غلط', 'العميل غيّر رأيه'];
+function askRefuseReason(orderNumber) {
+  return new Promise((done) => {
+    document.querySelector('.call-sheet-wrap')?.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'call-sheet-wrap';
+    wrap.innerHTML = `
+      <div class="call-sheet" role="dialog" aria-modal="true" aria-label="الطلب متسلّمش">
+        <div class="call-sheet-grip" aria-hidden="true"></div>
+        <div class="call-sheet-head"><strong>${icon('alert')}طلب <span class="ltr-inline">#${esc(orderNumber)}</span> متسلّمش — ليه؟</strong>
+          <button type="button" class="btn btn-ghost btn-icon" data-sheet-close aria-label="إغلاق">${icon('x')}</button></div>
+        <div class="call-sheet-list">
+          <div class="rf-reasons">${REFUSE_REASONS.map((q) => `<button type="button" class="rf-reason" data-reason="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+          <input class="input" data-other maxlength="200" placeholder="سبب تاني — اكتبه هنا" aria-label="سبب تاني" autocomplete="off">
+          <p class="field-error" data-err role="alert"></p>
+          <button type="button" class="btn btn-danger btn-lg btn-block" data-ok disabled>${icon('x')}تأكيد — متسلّمش</button>
+        </div>
+      </div>`;
+    document.body.append(wrap);
+    requestAnimationFrame(() => wrap.classList.add('is-open'));
+    let reason = '';
+    const other = wrap.querySelector('[data-other]');
+    const okBtn = wrap.querySelector('[data-ok]');
+    const sync = () => { okBtn.disabled = !(other.value.trim() || reason); };
+    const close = (v) => { wrap.classList.remove('is-open'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 200); done(v); };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    document.addEventListener('keydown', onKey);
+    other.addEventListener('input', () => {
+      if (other.value.trim()) { reason = ''; wrap.querySelectorAll('[data-reason]').forEach((b) => b.classList.remove('is-on')); }
+      sync();
+    });
+    wrap.addEventListener('click', (e) => {
+      if (e.target === wrap || e.target.closest('[data-sheet-close]')) { close(null); return; }
+      const r = e.target.closest('[data-reason]');
+      if (r) {
+        reason = r.dataset.reason; other.value = '';
+        wrap.querySelectorAll('[data-reason]').forEach((b) => b.classList.toggle('is-on', b === r));
+        sync();
+      }
+      if (e.target.closest('[data-ok]')) close(other.value.trim() || reason);
+    });
+  });
+}
+
 export function mountDriver(view) {
   view.innerHTML = `
     <div class="page driver-page"><div class="page-inner">
@@ -158,7 +205,7 @@ export function mountDriver(view) {
 
   function render() {
     const { ready, mine } = data;
-    const open = mine.filter((o) => !o.deliveredAt && !o.cancelled);
+    const open = mine.filter((o) => !o.deliveredAt && !o.cancelled && !o.refusedAt);
     body.innerHTML = `
       ${ready.length ? `
       <section class="dr-section">
@@ -175,7 +222,7 @@ export function mountDriver(view) {
       <section class="dr-section">
         <h2 class="section-title">${icon('package')}معايا <span class="b-count num">${open.length}</span></h2>
         ${mine.length ? mine.map((o) => `
-          <article class="card dr-card ${o.deliveredAt ? 'is-done' : ''} ${o.cancelled ? 'is-cancelled' : ''}" data-oid="${esc(o.id)}">
+          <article class="card dr-card ${o.deliveredAt ? 'is-done' : ''} ${o.cancelled ? 'is-cancelled' : ''} ${o.refusedAt && !o.deliveredAt ? 'is-refused' : ''}" data-oid="${esc(o.id)}">
             <header class="dr-head"><strong class="dr-no num">#${esc(o.number)}</strong>
               ${o.tripSize > 1 ? `<span class="tag tag-info">${o.tripSeq} من ${o.tripSize}</span>` : ''}
               <span class="muted">خرج ${esc(formatTime(o.outAt))}</span></header>
@@ -185,8 +232,13 @@ export function mountDriver(view) {
             ${!o.deliveredAt && !o.cancelled ? `<button type="button" class="btn btn-soft btn-block dr-msg" data-chat-order="${esc(o.id)}" ${chatOn ? '' : 'hidden'}>${icon('chat')}<span data-chat-label>رسالة للكول سنتر عن الطلب ده</span></button>` : ''}
             ${o.cancelled ? `<div class="alert alert-danger">${icon('alert')}<span>الطلب ده اتلغى — رجّعه للفرع</span></div>` : ''}
             ${o.deliveredAt ? `<div class="dr-done">${icon('check')}اتسلّم ${esc(formatTime(o.deliveredAt))}</div>`
-              : o.cancelled ? '' : `
-              <button type="button" class="btn btn-primary btn-lg btn-block" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}سلّمت — صوّر الطلب</button>`}
+              : o.cancelled ? '' : o.refusedAt ? `
+              <div class="alert alert-danger dr-refused">${icon('x')}<span><strong>متسلّمش</strong> — ${esc(o.refusedReason)} · ${esc(formatTime(o.refusedAt))}<br>رجّعه للفرع</span></div>
+              <button type="button" class="btn btn-ghost btn-block dr-late" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}العميل استلم في الآخر؟ صوّر الطلب</button>` : `
+              <div class="dr-actions">
+                <button type="button" class="btn btn-primary btn-lg" data-deliver ${busy ? 'disabled' : ''}>${icon('check')}سلّمت — صوّر الطلب</button>
+                <button type="button" class="btn btn-danger-soft btn-lg" data-refuse ${busy ? 'disabled' : ''}>${icon('x')}متسلّمش</button>
+              </div>`}
           </article>`).join('')
           : `<p class="muted dr-empty">${ready.length ? 'اضغط «خرجت» الأول' : 'مفيش طلبات معاك دلوقتي — الفرع هيحدّدلك الطلبات'}</p>`}
         ${mine.length ? `
@@ -292,8 +344,17 @@ export function mountDriver(view) {
       const pos = await Promise.race([placing, new Promise((r) => setTimeout(() => r(null), 4000))]);
       run(() => ds.driverDelivered(id, photo, pos), pos ? 'تم تسجيل التسليم ✓' : 'تم تسجيل التسليم ✓ (من غير مكان)');
     }),
+    on(view, 'click', '[data-refuse]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      const o = data.mine.find((x) => x.id === id);
+      const placing = position();              // his place, while he picks the reason
+      const reason = await askRefuseReason(o?.number ?? '');
+      if (!reason) return;
+      const pos = await Promise.race([placing, new Promise((r) => setTimeout(() => r(null), 4000))]);
+      run(() => ds.driverRefused(id, reason, pos), 'اتسجّل إن الطلب متسلّمش — رجّعه للفرع');
+    }),
     on(view, 'click', '[data-back]', async () => {
-      const left = data.mine.filter((o) => !o.deliveredAt && !o.cancelled).length;
+      const left = data.mine.filter((o) => !o.deliveredAt && !o.cancelled && !o.refusedAt).length;
       if (left && !window.confirm(left === 1 ? 'فيه طلب لسه ما اتسلّمش — رجعت بيه الفرع؟' : `فيه ${left} طلبات لسه ما اتسلّمتش — رجعت بيهم الفرع؟`)) return;
       busy = true; render();
       const pos = await Promise.race([position(), new Promise((r) => setTimeout(() => r(null), 8000))]);

@@ -1009,3 +1009,14 @@ tr[hidden] { display: none; }
 .dr-msg.has-new { background: #c0392b; color: #fff; border-color: #c0392b; animation: drPulse 1.6s ease-in-out infinite; }
 @keyframes drPulse { 50% { box-shadow: 0 0 0 6px rgba(192, 57, 43, .18); } }
 .driver-page { padding-bottom: 24px; }
+/* «متسلّمش» (34_driver_refused.sql) */
+.dr-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.dr-actions .btn { white-space: nowrap; }
+.dr-card.is-refused { border-color: var(--danger); }
+.dr-refused { margin: 0; }
+.dr-late { color: var(--muted); font-size: 14px; }
+.rf-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rf-reason { min-height: 56px; padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; color: inherit; }
+.rf-reason.is-on { border-color: var(--danger); background: var(--danger-50); color: var(--danger); }
+.timeline .dl-refused strong { color: var(--danger); display: inline-flex; align-items: center; gap: 4px; }
+.timeline .dl-refused .svg-icon { width: 16px; height: 16px; }

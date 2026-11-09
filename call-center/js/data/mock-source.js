@@ -367,6 +367,7 @@ export function getDriverOrders() {
       .sort((a, b) => b.outAt.localeCompare(a.outAt) || a.tripSeq - b.tripSeq)
       .map((o) => ({ id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq, tripSize: o.tripSize,
         cancelled: o.status === 'cancelled', deliveredAt: deliveries.get(o.id)?.deliveredAt ?? null, address: driverAddress(o),
+        refusedAt: deliveries.get(o.id)?.refusedAt ?? null, refusedReason: deliveries.get(o.id)?.refusedReason ?? '',
         phones: o.status === 'cancelled' || deliveries.get(o.id)?.deliveredAt ? []
           : [...new Set([o.customer?.phone, o.customer?.phone2].filter(Boolean))] })),
   });
@@ -410,6 +411,19 @@ export function driverDelivered(id, photo, pos) {
     lat: pos?.lat ?? null, lng: pos?.lng ?? null, accuracy: pos?.accuracy ?? null, deliveredAdmin: false });
   chatAuto(demoAccount.id, `سلّم ${o.number}`, 'delivered', o);
   return resolve(deliveries.get(id).deliveredAt);
+}
+export function driverRefused(id, reason, pos) {
+  const o = orders.find((x) => x.id === id);
+  if (!o || o.driverUserId !== demoAccount.id || o.stage !== 'out') return Promise.reject(new Error('الطلب ده مش معاك'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى — رجّعه للفرع'));
+  const why = String(reason || '').trim().slice(0, 200);
+  if (!why) return Promise.reject(new Error('اختار السبب'));
+  const d = deliveries.get(id) ?? {};
+  if (d.deliveredAt) return Promise.reject(new Error('الطلب ده اتسجّل إنه اتسلّم'));
+  if (d.refusedAt) return resolve(d.refusedAt);
+  deliveries.set(id, { ...d, refusedAt: new Date().toISOString(), refusedReason: why, refusedLat: pos?.lat ?? null, refusedLng: pos?.lng ?? null });
+  chatAdd({ driverId: demoAccount.id, from: 'driver', name: me()?.name || 'الطيار', body: `متسلّمش — ${why}`, orderId: o.id, orderNo: o.number });
+  return resolve(deliveries.get(id).refusedAt);
 }
 /* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
 const branch = { lat: 31.1100, lng: 29.7800, radius: 300, updatedAt: '2026-10-12T09:00:00Z' };
@@ -555,7 +569,8 @@ const deliveryOf = (o) => {
   return { outByAdmin: !!o.outByAdmin, tripSeq: o.tripSeq ?? null, tripSize: o.tripSize ?? null, assignedAt: o.assignedAt ?? null,
     deliveredAt: d.deliveredAt ?? null, deliveredAdmin: !!d.deliveredAdmin, returnedAt: d.returnedAt ?? null, returnedAdmin: !!d.returnedAdmin,
     photoPath: d.photo ?? null, lat: d.lat ?? null, lng: d.lng ?? null, accuracy: d.accuracy ?? null,
-    returnedLat: d.returnedLat ?? null, returnedLng: d.returnedLng ?? null, returnedDistance: d.returnedDistance ?? null, returnedFar: !!d.returnedFar };
+    returnedLat: d.returnedLat ?? null, returnedLng: d.returnedLng ?? null, returnedDistance: d.returnedDistance ?? null, returnedFar: !!d.returnedFar,
+    refusedAt: d.refusedAt ?? null, refusedReason: d.refusedReason ?? '', refusedLat: d.refusedLat ?? null, refusedLng: d.refusedLng ?? null };
 };
 export function getOrderDelivery(id) {
   const o = orders.find((x) => x.id === id);
