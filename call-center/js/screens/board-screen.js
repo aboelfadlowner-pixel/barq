@@ -12,7 +12,10 @@ import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
-import { confirmDialog } from '../components/modal.js';
+import { confirmDialog, openModal, showToast } from '../components/modal.js';
+import { draftsOn, flushDraft, listDrafts, openDraft, discardDraft } from '../drafts-sync.js';
+import { formatTime } from '../utils/format.js';
+import { quantityLabel } from '../utils/pricing.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
 import { openPrintPreview } from '../components/print-ticket.js';
@@ -31,7 +34,13 @@ export async function startNewOrder({ phone = '' } = {}) {
     return;
   }
   const s = getState();
-  if (s.customer || s.cart.length) {
+  if ((s.customer || s.cart.length) && draftsOn() && !s.editing) {
+    // 33_drafts.sql: the order being written stays in «مسودة» — nothing is lost
+    await flushDraft();
+    resetDraft();
+    showToast('الطلب اللي كان مفتوح اتحفظ في «مسودة» — تقدر تكمّله بعدين');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  } else if (s.customer || s.cart.length) {
     const ok = await confirmDialog({
       title: 'يوجد طلب قيد الإنشاء',
       message: 'إذا بدأت طلبًا جديدًا سيتم حذف الطلب غير المؤكد. يمكنك استكماله من بطاقة «مسودة».',
@@ -81,6 +90,33 @@ function stageSince(o) {
   if (o.status === 'cancelled') return '';
   const at = { preparing: o.preparingAt, at_cashier: o.atCashierAt, out: o.outAt }[o.stage];
   return at ? ` · <span class="o-stage-since">${o.stage === 'out' ? 'خرج' : 'في هذه المرحلة'} ${formatRelative(at)}</span>` : '';
+}
+
+/* «مسودة» from the database (33_drafts.sql): my drafts (continue / cancel) and, for the admin,
+   everyone's with the employee's name (look only). The one open on this screen is marked. */
+const draftTotal = (d) => {
+  const fee = d.address?.areaId ? catalog.areasById.get(d.address.areaId)?.fee ?? null : null;
+  return computeTotals(d.cart || [], fee).total;
+};
+function dbDraftCard(d, openId) {
+  const x = d.data || {};
+  const open = d.mine && d.id === openId;
+  return `
+    <div class="o-card o-draft ${open ? 'is-open' : ''} ${d.mine ? '' : 'is-other'}" data-draft="${esc(d.id)}">
+      <div class="o-head"><strong>${open ? 'مفتوح دلوقتي' : 'مسودة'}</strong>
+        <span class="status tone-amber">${d.mine ? 'مسودتي' : esc(d.agentName || 'موظف')}</span></div>
+      <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(x.customer?.name ?? 'لم يتم تحديد العميل')}</div>
+        ${x.customer ? `<div class="ltr-inline o-muted">${esc(x.customer.phone || '')}</div>` : ''}</div></div>
+      <div class="o-row">${icon('cart')}<span>${(x.cart || []).length} أصناف</span></div>
+      ${x.address?.areaId ? `<div class="o-row">${icon('pin')}<span>${esc(catalog.areasById.get(x.address.areaId)?.name ?? '')}</span></div>` : ''}
+      <div class="o-row o-muted">${icon('clock')}<span>آخر تعديل ${esc(formatRelative(d.updatedAt))}${d.mine ? '' : ` · ${esc(d.agentName)}`}</span></div>
+      <div class="o-total">${money(draftTotal(x))}</div>
+      <div class="o-actions">
+        ${d.mine ? `<button type="button" class="btn btn-primary btn-sm" data-draft-open>${icon('edit')}استكمال الطلب</button>
+          <button type="button" class="btn btn-danger-ghost btn-sm" data-draft-discard>${icon('trash')}إلغاء المسودة</button>`
+          : `<button type="button" class="btn btn-secondary btn-sm" data-draft-view>${icon('note')}عرض</button>`}
+      </div>
+    </div>`;
 }
 
 function draftCard() {
@@ -138,14 +174,27 @@ export function mountBoard(view) {
 
   const cols = view.querySelector('[data-cols]');
   let orders = [];
+  let dbDrafts = null;      // null = drafts not in the database (33_drafts.sql not applied)
   const render = () => {
     const today = orders.filter((o) => inWorkDay(o.createdAt) && matches(o));   // until 2 AM
     const active = today.filter((o) => o.status !== 'cancelled');
     const cancelled = today.filter((o) => o.status === 'cancelled');
-    const draft = draftCard();
+    // drafts from the database when installed; else the one on this screen (as before)
+    const s = getState();
+    let draftHtml; let draftCount;
+    if (dbDrafts) {
+      const list = dbDrafts.slice();
+      const live = (s.customer || s.cart.length) && !s.editing && !list.some((d) => d.id === s.requestId);
+      if (live) list.unshift({ id: s.requestId, mine: true, agentName: '', updatedAt: new Date().toISOString(), data: { customer: s.customer, address: s.address, cart: s.cart, orderNote: s.orderNote } });
+      draftHtml = list.map((d) => dbDraftCard(d, s.requestId)).join('');
+      draftCount = list.length;
+    } else {
+      draftHtml = draftCard();
+      draftCount = draftHtml ? 1 : 0;
+    }
     const empty = { new: 'لا توجد طلبات جديدة', preparing: 'لا توجد طلبات قيد التجهيز', at_cashier: 'لا توجد طلبات على الكاشير', out: 'لم يخرج أي طلب بعد' };
     keepColumnScroll(cols, '.b-col-body', () => { cols.innerHTML =
-      column('مسودة', draft ? 1 : 0, draft, 'لا يوجد طلب قيد الإنشاء') +
+      column('مسودة', draftCount, draftHtml, 'لا يوجد طلب قيد الإنشاء') +
       STAGES.map((st) => {
         const list = active.filter((o) => (o.stage || 'new') === st.id);
         return column(st.label, list.length, list.map(orderCard).join(''), empty[st.id], `is-${st.id}`);
@@ -172,6 +221,34 @@ export function mountBoard(view) {
       if (o) openWhatsAppDialog(o);
     }),
     on(view, 'click', '[data-chat-go]', (e) => { e.preventDefault(); e.stopPropagation(); location.hash = '#/chat'; }),
+    on(view, 'click', '[data-draft-open]', async (e, b) => {
+      const d = dbDrafts?.find((x) => x.id === b.closest('[data-draft]').dataset.draft);
+      if (d && d.id !== getState().requestId) await openDraft(d);
+      location.hash = '#/pos';
+    }),
+    on(view, 'click', '[data-draft-discard]', async (e, b) => {
+      const id = b.closest('[data-draft]').dataset.draft;
+      if (!(await confirmDialog({ title: 'إلغاء المسودة', message: 'سيتم حذف العميل والأصناف في المسودة دي.', confirmLabel: 'إلغاء المسودة', danger: true }))) return;
+      await discardDraft(id);
+      dbDrafts = (dbDrafts || []).filter((x) => x.id !== id);
+      render();
+    }),
+    on(view, 'click', '[data-draft-view]', (e, b) => {
+      const d = dbDrafts?.find((x) => x.id === b.closest('[data-draft]').dataset.draft);
+      if (!d) return;
+      const x = d.data || {};
+      openModal({
+        title: `${icon('note')} مسودة ${esc(d.agentName)}`,
+        size: 'sm',
+        body: `<p><strong>${esc(x.customer?.name ?? 'لم يتم تحديد العميل')}</strong> <span class="ltr-inline">${esc(x.customer?.phone ?? '')}</span></p>
+          ${x.address?.areaId ? `<p class="muted">${esc(catalog.areasById.get(x.address.areaId)?.name ?? '')} · ${esc(x.address.street ?? '')}</p>` : ''}
+          <ul class="draft-items">${(x.cart || []).map((l) => `<li><span class="num">${esc(quantityLabel(l))}</span> ${esc(l.name)}</li>`).join('') || '<li class="muted">لسه مفيش أصناف</li>'}</ul>
+          ${x.orderNote ? `<p class="muted">ملاحظات: ${esc(x.orderNote)}</p>` : ''}
+          <p><strong>الإجمالي: ${money(draftTotal(x))}</strong></p>
+          <p class="muted">آخر تعديل ${esc(formatTime(d.updatedAt))} — المسودة دي بتاعة ${esc(d.agentName)}، هو اللي يكمّلها.</p>`,
+        footer: '<button type="button" class="btn btn-secondary" data-close>إغلاق</button>',
+      });
+    }),
     on(view, 'click', '[data-discard]', async () => {
       if (await confirmDialog({ title: 'إلغاء المسودة', message: 'سيتم حذف العميل والأصناف في الطلب غير المؤكد.', confirmLabel: 'إلغاء المسودة', danger: true })) {
         resetDraft();
@@ -188,7 +265,8 @@ export function mountBoard(view) {
   let stopped = false;
   let timer = null;
   // CONFIRMED: only this working day's orders are loaded (the board shows nothing older) — light on every check.
-  const load = () => ds.listOrders({ since: workDayStart() }).then((list) => { if (!stopped) { orders = list; render(); } }).catch(() => {});
+  const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts()])
+    .then(([list, drafts]) => { if (!stopped) { orders = list; dbDrafts = drafts; render(); } }).catch(() => {});
   const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
   load().then(schedule);
   return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };

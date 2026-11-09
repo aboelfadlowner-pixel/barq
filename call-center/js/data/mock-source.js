@@ -674,6 +674,7 @@ export function createOrder(draft) {
     employee: agent.name,
     cancelReason: '',
     isDemo: true,
+    requestId: draft.requestId || null,   // = the draft's id (33_drafts.sql): a sent draft leaves «مسودة»
   };
   orders.push(order);
   return resolve(order);
@@ -872,3 +873,29 @@ export function saveContactNumber({ id = null, label, phone, active = true, sort
   contacts.push(c);
   return resolve({ ...c });
 }
+
+/* ---------- «مسودة» in the database (33_drafts.sql) — demo: in memory ---------- */
+const drafts = [];
+(function seedDrafts() {
+  const c = orders[0]?.customer; const a = orders[0]?.address; const it = orders[0]?.items?.slice(0, 2) || [];
+  if (c) drafts.push({ id: 'draft-demo-karim', owner: 'other', agentName: 'كريم', data: { customer: { ...c, todayOrders: [] }, address: a, cart: it.map((x, i) => ({ ...x, lineId: `d${i}` })), orderNote: '' },
+    createdAt: new Date(Date.now() - 18 * 60000).toISOString(), updatedAt: new Date(Date.now() - 15 * 60000).toISOString() });
+}());
+export function draftSave(id, data, agentName) {
+  if (orders.some((o) => o.requestId === id)) return resolve(new Date().toISOString());
+  const d = drafts.find((x) => x.id === id);
+  if (d && d.owner !== 'me') return Promise.reject(new Error('المسودة دي بتاعة موظف تاني'));
+  const at = new Date().toISOString();
+  if (d) Object.assign(d, { data, agentName, updatedAt: at });
+  else drafts.unshift({ id, owner: 'me', agentName, data, createdAt: at, updatedAt: at });
+  return resolve(at);
+}
+export function draftDelete(id) {
+  const i = drafts.findIndex((x) => x.id === id && x.owner === 'me');
+  if (i >= 0) drafts.splice(i, 1);
+  return resolve(i >= 0);
+}
+export const draftList = () => resolve(drafts
+  .filter((d) => (d.owner === 'me' || demoAccount.role === 'admin') && !orders.some((o) => o.requestId === d.id))
+  .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  .map((d) => ({ id: d.id, mine: d.owner === 'me', agentName: d.agentName || '', data: JSON.parse(JSON.stringify(d.data)), createdAt: d.createdAt, updatedAt: d.updatedAt })));

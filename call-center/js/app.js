@@ -25,6 +25,7 @@ import { mountReports } from './screens/reports-screen.js';
 import { mountChat } from './screens/chat-screen.js';
 import { startChatWatch } from './components/chat-watch.js';
 import { startDraftKeep } from './draft-keep.js';
+import { startDraftSync } from './drafts-sync.js';
 
 const view = document.getElementById('view');
 let unmount = null;
@@ -104,6 +105,7 @@ async function startSignedIn(user) {
   if (user.agentId) setAgent({ id: user.agentId, name: user.name });
   else restoreAgent();   // the name picked earlier in this tab, if any (picked from «اختار اسمك» on the board)
   startDraftKeep(user);   // the order being written comes back after a refresh / closing the page
+  if (can(user, 'createOrder')) startDraftSync();   // drafts in the database: any device, seen by the admin (33_drafts.sql)
   render();
   // Opened with the product list saved on this device → bring it up to date quietly.
   refreshing?.then(() => setState({ catalogVersion: Date.now() })).catch(() => {});

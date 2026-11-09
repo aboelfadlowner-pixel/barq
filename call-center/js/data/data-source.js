@@ -75,6 +75,9 @@ export const chatThread       = (driverId, after) => impl.chatThread(driverId, a
 export const chatUnread       = () => impl.chatUnread();
 export const contactNumbers   = () => impl.contactNumbers();
 export const saveContactNumber = (c) => impl.saveContactNumber(c);
+export const draftSave        = (id, data, agentName) => impl.draftSave(id, data, agentName);
+export const draftDelete      = (id) => impl.draftDelete(id);
+export const draftList        = () => impl.draftList();
 export const listPhones       = () => impl.listPhones();
 export const editOrder        = (a) => impl.editOrder(a);
 export const setStaff         = (a) => impl.setStaff(a);
