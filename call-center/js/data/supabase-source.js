@@ -290,8 +290,15 @@ export async function getDriverOrders() {
     mine: (d.mine || []).map((r) => ({
       id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, tripSize: r.trip_size,
       cancelled: !!r.cancelled, deliveredAt: r.delivered_at || null, address: toDriverAddress(r),
+      refusedAt: r.refused_at || null, refusedReason: r.refused_reason || '',
       phones: Array.isArray(r.phones) ? r.phones : [],
     })),
+    // «طلباتي» (34): today's orders, also after «رجعت الفرع»; null before 34 is applied
+    today: Array.isArray(d.today) ? d.today.map((r) => ({
+      id: r.id, number: r.order_no, outAt: r.out_at, tripId: r.trip_id, tripSeq: r.trip_seq, cancelled: !!r.cancelled,
+      deliveredAt: r.delivered_at || null, refusedAt: r.refused_at || null, refusedReason: r.refused_reason || '',
+      returnedAt: r.returned_at || null, areaName: r.area_name || '',
+    })) : null,
   };
 }
 export async function setPhone(userId, phone) {
@@ -318,6 +325,21 @@ export async function driverDelivered(orderId, photo, pos) {
   return ok(await c.rpc('cc_driver_delivered', {
     p_order_id: orderId, p_photo: path, p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
   }));
+}
+/* «متسلّمش» (34_driver_refused.sql): the customer did not take it — the reason, the time and his place. */
+export async function driverRefused(orderId, reason, pos) {
+  const c = await sb();
+  return ok(await c.rpc('cc_driver_refused', {
+    p_order_id: orderId, p_reason: String(reason || ''), p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
+  }));
+}
+/* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
+   → Map(order id → { reason, at }); an empty Map before 35 is applied. */
+export async function refusedOrders() {
+  const c = await sb();
+  const res = await c.rpc('cc_refused_orders');
+  if (res.error) return new Map();
+  return new Map((res.data || []).map((r) => [r.order_id, { reason: r.reason || '', at: r.at }]));
 }
 /* The driver: «رجعت الفرع» with his place → { orders, distanceM, far } («بعيد عن الفرع»). */
 export async function driverReturned(pos) {
@@ -446,6 +468,7 @@ const toDelivery = (r) => ({
   returnedAt: r.returned_at || null, returnedAdmin: !!r.returned_admin,
   returnedLat: r.returned_lat ?? null, returnedLng: r.returned_lng ?? null, returnedDistance: r.returned_distance_m ?? null, returnedFar: !!r.returned_far,
   photoPath: r.photo_path || null, lat: r.lat ?? null, lng: r.lng ?? null, accuracy: r.accuracy_m ?? null,
+  refusedAt: r.refused_at || null, refusedReason: r.refused_reason || '', refusedLat: r.refused_lat ?? null, refusedLng: r.refused_lng ?? null,
 });
 export async function getOrderDelivery(orderId) {
   const c = await sb();

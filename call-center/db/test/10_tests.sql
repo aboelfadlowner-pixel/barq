@@ -2152,3 +2152,88 @@ do $$ begin
 end $$;
 reset role;
 rollback;
+
+-- T52 — «متسلّمش» (34_driver_refused.sql): the driver marks an order the customer did not take (reason, time, place);
+--        the call center gets a chat message about it; only his orders that are out; «سلّمت» still works after it
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv52@cc.test'), (gen_random_uuid(), 'drv52b@cc.test'), (gen_random_uuid(), 'cc52@cc.test');
+select set_config('cc.dr', (select id::text from auth.users where email = 'drv52@cc.test'), true);
+select public.cc_driver_setup(current_setting('cc.dr')::uuid, 'طيار 52', '01052525252');
+select public.cc_driver_setup((select id from auth.users where email = 'drv52b@cc.test'), 'طيار 52ب', '01052525253');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'cc52@cc.test';
+insert into public.cc_agents (name) values ('موظف 52') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 52');
+  o public.cc_orders; i int; begin
+  for i in 1..2 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 52'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 52-' || i, 'phone', '0105252520' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.r' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+update public.cc_orders set stage = 'out', driver_user_id = current_setting('cc.dr')::uuid, out_at = now(), trip_id = gen_random_uuid(), trip_seq = 1, trip_size = 2
+ where id::text in (current_setting('cc.r1'), current_setting('cc.r2'));
+-- another driver cannot mark his order
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'drv52b@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_driver_refused(current_setting('cc.r1')::uuid, 'مش بيرد', null, null, null); raise exception 'FAIL T52 other driver';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.dr'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare m jsonb; begin
+  begin perform public.cc_driver_refused(current_setting('cc.r1')::uuid, '  ', null, null, null); raise exception 'FAIL T52 empty reason';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_driver_refused(current_setting('cc.r1')::uuid, 'مش بيرد', 31.1, 29.8, 20);
+  perform public.cc_driver_refused(current_setting('cc.r1')::uuid, 'مش بيرد', 31.1, 29.8, 20);   -- double tap
+  select x into m from jsonb_array_elements(public.cc_driver_orders()->'mine') x where x->>'id' = current_setting('cc.r1');
+  if m->>'refused_reason' <> 'مش بيرد' or m->>'refused_at' is null then raise exception 'FAIL T52 driver sees it %', m; end if;
+  perform public.cc_driver_returned(null, null, null);
+  if jsonb_array_length(public.cc_driver_orders()->'mine') <> 0 or jsonb_array_length(public.cc_driver_orders()->'today') <> 2
+     or (select count(*) from jsonb_array_elements(public.cc_driver_orders()->'today') x where x->>'refused_reason' = 'مش بيرد') <> 1
+     or exists (select 1 from jsonb_array_elements(public.cc_driver_orders()->'today') x where x ? 'phones') then
+    raise exception 'FAIL T52 «طلباتي» after back at the branch %', public.cc_driver_orders()->'today';
+  end if;
+  -- the customer takes it after all: «سلّمت» still works
+end $$;
+reset role;
+-- the board line (35): shown while he is still out with it …
+update public.cc_order_delivery set returned_at = null where order_id::text in (current_setting('cc.r1'), current_setting('cc.r2'));
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc52@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb := public.cc_refused_orders(); begin
+  if jsonb_array_length(r) <> 1 or r->0->>'order_id' <> current_setting('cc.r1') or r->0->>'reason' <> 'مش بيرد' then
+    raise exception 'FAIL T52 board line %', r;
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.dr'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_refused_orders(); raise exception 'FAIL T52 driver reads the board line';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- … and gone once he is back at the branch
+update public.cc_order_delivery set returned_at = now() where order_id::text in (current_setting('cc.r1'), current_setting('cc.r2'));
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc52@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare u jsonb; d jsonb; begin
+  if jsonb_array_length(public.cc_refused_orders()) <> 0 then raise exception 'FAIL T52 board line stays after «رجعت الفرع»'; end if;
+  u := public.cc_chat_unread();
+  if not (u->'orders' ? current_setting('cc.r1')) or (select count(*) from jsonb_array_elements(u->'drivers') x where (x->>'unread')::int = 1) <> 1 then
+    raise exception 'FAIL T52 call center told %', u;
+  end if;
+  d := public.cc_order_delivery_of(current_setting('cc.r1')::uuid);
+  if d->>'refused_reason' <> 'مش بيرد' then raise exception 'FAIL T52 order page %', d; end if;
+  raise notice 'PASS T52 «متسلّمش»: his order only, reason required, once, the call center is told, shown on the order page; «طلباتي» stays after «رجعت الفرع»';
+end $$;
+reset role;
+rollback;

@@ -1009,3 +1009,36 @@ tr[hidden] { display: none; }
 .dr-msg.has-new { background: #c0392b; color: #fff; border-color: #c0392b; animation: drPulse 1.6s ease-in-out infinite; }
 @keyframes drPulse { 50% { box-shadow: 0 0 0 6px rgba(192, 57, 43, .18); } }
 .driver-page { padding-bottom: 24px; }
+/* «متسلّمش» (34_driver_refused.sql) */
+.dr-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.dr-actions .btn { white-space: nowrap; }
+.dr-card.is-refused { border-color: var(--danger); }
+.dr-refused { margin: 0; }
+.dr-late { color: var(--muted); font-size: 14px; }
+.rf-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rf-reason { min-height: 56px; padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; color: inherit; }
+.rf-reason.is-on { border-color: var(--danger); background: var(--danger-50); color: var(--danger); }
+.timeline .dl-refused strong { color: var(--danger); display: inline-flex; align-items: center; gap: 4px; }
+.timeline .dl-refused .svg-icon { width: 16px; height: 16px; }
+/* «طلباتي» side tab on the driver screen: how many orders he went out with + their numbers */
+.dr-side { position: fixed; left: 0; top: 45%; z-index: 900; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 8px; border: 0; border-radius: 0 14px 14px 0; background: var(--green-700); color: #fff; font: inherit; font-size: 12px; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,0,0,.2); cursor: pointer; }
+.dr-side[hidden] { display: none; }
+.dr-side-n { font-size: 20px; font-weight: 800; line-height: 1; }
+.trip-row { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-height: 56px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px;
+  background: #fff; font: inherit; color: inherit; cursor: pointer; text-align: start; }
+.trip-row strong { font-size: 18px; }
+.trip-area { flex: 1; color: var(--muted); }
+.trip-st { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #eef1ef; }
+.trip-row.is-done .trip-st { background: #e3f4ea; color: var(--green-700); }
+.trip-row.is-off .trip-st { background: var(--danger-50); color: var(--danger); }
+.trip-sum { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 10px; }
+.trip-sum span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: #eef1ef; font-weight: 700; }
+.trip-sum .svg-icon { width: 16px; height: 16px; }
+.trip-sum .is-done { background: #e3f4ea; color: var(--green-700); }
+.trip-sum .is-off { background: var(--danger-50); color: var(--danger); }
+.trip-head { margin: 6px 0 0; font-weight: 700; color: var(--muted); font-size: 14px; flex-shrink: 0; }
+/* «متسلّمش» on the board card (35_board_refused.sql) — stays until the driver is back at the branch */
+.o-refused { display: flex; align-items: flex-start; gap: 6px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 13px; padding: 7px 10px; line-height: 1.5; }
+.o-refused .svg-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; }

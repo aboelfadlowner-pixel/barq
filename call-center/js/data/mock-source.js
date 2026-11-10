@@ -367,8 +367,14 @@ export function getDriverOrders() {
       .sort((a, b) => b.outAt.localeCompare(a.outAt) || a.tripSeq - b.tripSeq)
       .map((o) => ({ id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq, tripSize: o.tripSize,
         cancelled: o.status === 'cancelled', deliveredAt: deliveries.get(o.id)?.deliveredAt ?? null, address: driverAddress(o),
+        refusedAt: deliveries.get(o.id)?.refusedAt ?? null, refusedReason: deliveries.get(o.id)?.refusedReason ?? '',
         phones: o.status === 'cancelled' || deliveries.get(o.id)?.deliveredAt ? []
           : [...new Set([o.customer?.phone, o.customer?.phone2].filter(Boolean))] })),
+    today: orders.filter((o) => o.driverUserId === demoAccount.id && o.stage === 'out' && isSameWorkDay(o.outAt, today))
+      .sort((a, b) => a.outAt.localeCompare(b.outAt) || a.tripSeq - b.tripSeq)
+      .map((o) => { const d = deliveries.get(o.id) ?? {}; return { id: o.id, number: o.number, outAt: o.outAt, tripId: o.tripId, tripSeq: o.tripSeq,
+        cancelled: o.status === 'cancelled', deliveredAt: d.deliveredAt ?? null, refusedAt: d.refusedAt ?? null, refusedReason: d.refusedReason ?? '',
+        returnedAt: d.returnedAt ?? null, areaName: o.address?.areaName ?? '' }; }),
   });
 }
 export function setPhone(userId, phone) {
@@ -411,6 +417,22 @@ export function driverDelivered(id, photo, pos) {
   chatAuto(demoAccount.id, `سلّم ${o.number}`, 'delivered', o);
   return resolve(deliveries.get(id).deliveredAt);
 }
+export function driverRefused(id, reason, pos) {
+  const o = orders.find((x) => x.id === id);
+  if (!o || o.driverUserId !== demoAccount.id || o.stage !== 'out') return Promise.reject(new Error('الطلب ده مش معاك'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى — رجّعه للفرع'));
+  const why = String(reason || '').trim().slice(0, 200);
+  if (!why) return Promise.reject(new Error('اختار السبب'));
+  const d = deliveries.get(id) ?? {};
+  if (d.deliveredAt) return Promise.reject(new Error('الطلب ده اتسجّل إنه اتسلّم'));
+  if (d.refusedAt) return resolve(d.refusedAt);
+  deliveries.set(id, { ...d, refusedAt: new Date().toISOString(), refusedReason: why, refusedLat: pos?.lat ?? null, refusedLng: pos?.lng ?? null });
+  chatAdd({ driverId: demoAccount.id, from: 'driver', name: me()?.name || 'الطيار', body: `متسلّمش — ${why}`, orderId: o.id, orderNo: o.number });
+  return resolve(deliveries.get(id).refusedAt);
+}
+export const refusedOrders = () => resolve(new Map(orders
+  .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
+  .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
 /* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
 const branch = { lat: 31.1100, lng: 29.7800, radius: 300, updatedAt: '2026-10-12T09:00:00Z' };
 const distanceM = (a, b) => {
@@ -555,7 +577,8 @@ const deliveryOf = (o) => {
   return { outByAdmin: !!o.outByAdmin, tripSeq: o.tripSeq ?? null, tripSize: o.tripSize ?? null, assignedAt: o.assignedAt ?? null,
     deliveredAt: d.deliveredAt ?? null, deliveredAdmin: !!d.deliveredAdmin, returnedAt: d.returnedAt ?? null, returnedAdmin: !!d.returnedAdmin,
     photoPath: d.photo ?? null, lat: d.lat ?? null, lng: d.lng ?? null, accuracy: d.accuracy ?? null,
-    returnedLat: d.returnedLat ?? null, returnedLng: d.returnedLng ?? null, returnedDistance: d.returnedDistance ?? null, returnedFar: !!d.returnedFar };
+    returnedLat: d.returnedLat ?? null, returnedLng: d.returnedLng ?? null, returnedDistance: d.returnedDistance ?? null, returnedFar: !!d.returnedFar,
+    refusedAt: d.refusedAt ?? null, refusedReason: d.refusedReason ?? '', refusedLat: d.refusedLat ?? null, refusedLng: d.refusedLng ?? null };
 };
 export function getOrderDelivery(id) {
   const o = orders.find((x) => x.id === id);
@@ -805,12 +828,18 @@ const chatAdd = (m) => { const msg = { id: ++chatSeq, at: new Date().toISOString
 (function seedChat() {
   const t = (min) => new Date(Date.now() - min * 60000).toISOString();
   const o = orders.find((x) => x.driverUserId === 'drv-1');
+  // DEMO «متسلّمش» (34): one of محمود's orders — the customer did not take it
+  const rf = orders.filter((x) => x.driverUserId === 'drv-2' && x.stage === 'out' && x.status !== 'cancelled').pop();
+  if (rf) {
+    deliveries.set(rf.id, { refusedAt: t(2), refusedReason: 'مش بيرد ومش موجود', refusedLat: 31.118, refusedLng: 29.792 });
+  }
   chat.push(
     { id: ++chatSeq, driverId: 'drv-1', from: 'system', name: 'السيستم', body: 'خرج بـ 2 طلبات', kind: 'out', notify: false, at: t(40), orderId: null, orderNo: null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'driver', name: 'أحمد', body: 'العنوان مش واضح 📍', kind: 'text', notify: false, at: t(25), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'staff', name: 'منى', body: 'هكلّم العميل وأرد عليك 📞', kind: 'text', notify: false, at: t(23), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'العميل مش بيرد 📵', kind: 'text', notify: false, at: t(3), orderId: null, orderNo: null },
   );
+  if (rf) chat.push({ id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'متسلّمش — مش بيرد ومش موجود', kind: 'text', notify: false, at: t(2), orderId: rf.id, orderNo: rf.number });
   chatReads.set('drv-1|staff', 2);
 }());
 const isDriverMe = () => demoAccount.role === 'driver';
