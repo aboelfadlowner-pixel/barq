@@ -98,6 +98,8 @@ function driversBar(orders, dels) {
 
 /* «استلمت» (32_prep_claim.sql): the order is with one person; the other sees the name and «خده مني». */
 const isAdmin = () => getState().user?.role === 'admin';
+const PICKUP = 'استلام من الفرع';   // 36_pickup.sql: the order's driver text when the customer takes it from the branch
+const isPickup = (o) => o.driver === PICKUP;
 const inPrep = (o) => o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage);
 const takenByOther = (o) => inPrep(o) && !!o.prepUserId && !o.prepMine && !isAdmin();
 const whoLine = (o) => (inPrep(o) && o.prepName
@@ -134,11 +136,16 @@ function prepCard(o, busy, checks = {}) {
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} ${formatRelative(since)}</div>` : ''}
-      ${o.stage === 'at_cashier' && !cancelled ? (o.driver
+      ${o.stage === 'at_cashier' && !cancelled && isPickup(o) ? `
+        <div class="po-pickup">${icon('home')}<span><strong>العميل هيستلم من الفرع</strong> — مستني العميل</span></div>
+        <button type="button" class="btn btn-primary po-next tone-btn-out" data-pickup-done ${busy ? 'disabled' : ''}>${icon('check')}العميل استلم</button>
+        <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير — هيتوصل مع طيار</button>`
+      : o.stage === 'at_cashier' && !cancelled ? (o.driver
         ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
            <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`
         : `<button type="button" class="btn btn-primary po-next tone-btn-out" data-pick-driver ${busy ? 'disabled' : ''}>${icon('user')}اختيار الطيار</button>`) : ''}
-      ${out ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
+      ${out && isPickup(o) ? `<div class="po-out">${icon('check')}<span>العميل استلم من الفرع <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span></span></div>` : ''}
+      ${out && !isPickup(o) ? `<div class="po-out">${icon('check')}<span>خرج <span class="num">${o.outAt ? formatTime(o.outAt) : ''}</span>${o.driver ? ` مع <strong>${esc(o.driver)}</strong>` : ''}</span></div>` : ''}
       ${next ? `<button type="button" class="btn btn-primary po-next tone-btn-${next.id}" data-next="${next.id}" ${busy ? 'disabled' : ''}>
         ${icon(next.id === 'out' ? 'check' : 'chevronLeft')}${o.stage === 'new' ? 'استلمت — ابدأ التجهيز' : esc(stageOf(o.stage).next)}</button>` : ''}
       ${taken ? `<button type="button" class="btn btn-secondary po-take" data-takeover ${busy ? 'disabled' : ''}>${icon('repeat')}خده مني — هكمّله أنا</button>` : ''}
@@ -308,11 +315,13 @@ export function mountPrep(view) {
       const id = btn.closest('[data-oid]').dataset.oid;
       const o = orders.find((x) => x.id === id);
       const drivers = await ds.listDrivers().catch(() => []);
-      if (!drivers.length) { showToast('مفيش طيارين — الأدمن يضيفهم من صفحة الإعدادات («الطيارين»)'); return; }
+      // no drivers yet: «العميل هيستلم من الفرع» is still offered
       const m = openModal({
         title: `${icon('user')} اختيار الطيار — طلب <span class="ltr-inline">#${esc(o?.number ?? '')}</span>`,
         size: 'sm',
         body: `<p class="muted">الطلب هيظهر على موبايل الطيار، وهو يدوس «خرجت» لما ياخده.</p>
+          <button type="button" class="result-card pk-card ${isPickup(o ?? {}) ? 'is-current' : ''}" data-set-pickup>
+            ${icon('home')}<div class="grow cust-name">العميل هيستلم من الفرع</div>${isPickup(o ?? {}) ? '<span class="tag tag-green">الحالي</span>' : ''}</button>
           <div class="returned-list">${drivers.map((d) => `
             <button type="button" class="result-card ${o?.driver === d.label ? 'is-current' : ''}" data-set-driver="${esc(d.userId)}">
               <div class="grow cust-name">${esc(d.label)}</div>${o?.driver === d.label ? '<span class="tag tag-green">الحالي</span>' : ''}</button>`).join('')}</div>
@@ -320,6 +329,13 @@ export function mountPrep(view) {
         footer: '<button type="button" class="btn btn-secondary" data-close>إلغاء</button>',
       });
       m.body.addEventListener('click', async (ev) => {
+        const pk = ev.target.closest('[data-set-pickup]');
+        if (pk) {
+          pk.disabled = true;
+          try { await ds.setPickup(id); m.close(); showToast('العميل هيستلم من الفرع'); load(); }
+          catch (err) { pk.disabled = false; showToast(err.message); }
+          return;
+        }
         const b = ev.target.closest('[data-set-driver]');
         if (!b) return;
         b.disabled = true;
@@ -330,6 +346,13 @@ export function mountPrep(view) {
           load();
         } catch (err) { b.disabled = false; showToast(err.message); }
       });
+    }),
+    on(view, 'click', '[data-pickup-done]', async (e, btn) => {
+      const id = btn.closest('[data-oid]').dataset.oid;
+      busyId = id; render();
+      try { await ds.pickupDone(id); showToast('تم — العميل استلم الطلب ✓'); } catch (err) { showToast(err.message); }
+      busyId = null;
+      await load();
     }),
     on(view, 'click', '[data-ack]', async (e, btn) => {
       const id = btn.closest('[data-oid]').dataset.oid;

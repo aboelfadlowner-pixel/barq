@@ -430,6 +430,24 @@ export function driverRefused(id, reason, pos) {
   chatAdd({ driverId: demoAccount.id, from: 'driver', name: me()?.name || 'الطيار', body: `متسلّمش — ${why}`, orderId: o.id, orderNo: o.number });
   return resolve(deliveries.get(id).refusedAt);
 }
+export function setPickup(id) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
+  if (o.stage !== 'at_cashier') return Promise.reject(new Error('الطلب لازم يكون على الكاشير'));
+  Object.assign(o, { driverUserId: null, driver: 'استلام من الفرع', assignedAt: new Date().toISOString() });
+  return resolve('استلام من الفرع');
+}
+export function pickupDone(id) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.stage === 'out' && o.driver === 'استلام من الفرع') return resolve(o.outAt);
+  if (o.stage !== 'at_cashier' || o.driverUserId || o.driver !== 'استلام من الفرع') return Promise.reject(new Error('الطلب ده مش متحدد إن العميل هيستلمه من الفرع — اعمل تحديث'));
+  const now = new Date().toISOString();
+  Object.assign(o, { stage: 'out', outAt: now, tripId: null, tripSeq: null, tripSize: null });
+  deliveries.set(id, { ...(deliveries.get(id) ?? {}), deliveredAt: now, deliveredAdmin: false });
+  return resolve(now);
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
