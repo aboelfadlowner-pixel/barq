@@ -825,12 +825,18 @@ const chatAdd = (m) => { const msg = { id: ++chatSeq, at: new Date().toISOString
 (function seedChat() {
   const t = (min) => new Date(Date.now() - min * 60000).toISOString();
   const o = orders.find((x) => x.driverUserId === 'drv-1');
+  // DEMO «متسلّمش» (34): one of محمود's orders — the customer did not take it
+  const rf = orders.filter((x) => x.driverUserId === 'drv-2' && x.stage === 'out' && x.status !== 'cancelled').pop();
+  if (rf) {
+    deliveries.set(rf.id, { refusedAt: t(2), refusedReason: 'مش بيرد ومش موجود', refusedLat: 31.118, refusedLng: 29.792 });
+  }
   chat.push(
     { id: ++chatSeq, driverId: 'drv-1', from: 'system', name: 'السيستم', body: 'خرج بـ 2 طلبات', kind: 'out', notify: false, at: t(40), orderId: null, orderNo: null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'driver', name: 'أحمد', body: 'العنوان مش واضح 📍', kind: 'text', notify: false, at: t(25), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-1', from: 'staff', name: 'منى', body: 'هكلّم العميل وأرد عليك 📞', kind: 'text', notify: false, at: t(23), orderId: o?.id ?? null, orderNo: o?.number ?? null },
     { id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'العميل مش بيرد 📵', kind: 'text', notify: false, at: t(3), orderId: null, orderNo: null },
   );
+  if (rf) chat.push({ id: ++chatSeq, driverId: 'drv-2', from: 'driver', name: 'محمود', body: 'متسلّمش — مش بيرد ومش موجود', kind: 'text', notify: false, at: t(2), orderId: rf.id, orderNo: rf.number });
   chatReads.set('drv-1|staff', 2);
 }());
 const isDriverMe = () => demoAccount.role === 'driver';
