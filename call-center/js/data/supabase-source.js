@@ -333,6 +333,15 @@ export async function driverRefused(orderId, reason, pos) {
     p_order_id: orderId, p_reason: String(reason || ''), p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
   }));
 }
+/* «🏬 العميل هيستلم من الفرع» / «✅ العميل استلم» (36_pickup.sql): the branch only. */
+export async function setPickup(orderId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_pickup', { p_order_id: orderId }));
+}
+export async function pickupDone(orderId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_pickup_done', { p_order_id: orderId }));
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {

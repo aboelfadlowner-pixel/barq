@@ -2237,3 +2237,71 @@ do $$ declare u jsonb; d jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T53 — «العميل هيستلم من الفرع» (36_pickup.sql): only at the cashier, the branch only; «العميل استلم» ends the order
+--        (out + delivered, no driver, no chat line); a driver can still be picked instead before that; fee unchanged
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'p53@cc.test'), (gen_random_uuid(), 'd53@cc.test'), (gen_random_uuid(), 'c53@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'جهاز 53', 'prep' from auth.users where email = 'p53@cc.test';
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'c53@cc.test';
+select public.cc_driver_setup((select id from auth.users where email = 'd53@cc.test'), 'طيار 53', '01053535353');
+select set_config('cc.d53', (select id::text from auth.users where email = 'd53@cc.test'), true);
+insert into public.cc_agents (name) values ('موظف 53') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 53');
+  o public.cc_orders; i int; begin
+  for i in 1..2 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 53'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 53-' || i, 'phone', '0105353530' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.k' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+select set_config('cc.fee', (select delivery_fee::text || '|' || total::text from public.cc_orders where id::text = current_setting('cc.k1')), true);
+-- the call center cannot do it
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c53@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_pickup(current_setting('cc.k1')::uuid); raise exception 'FAIL T53 call center';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p53@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  -- not before the cashier
+  begin perform public.cc_set_pickup(current_setting('cc.k1')::uuid); raise exception 'FAIL T53 before the cashier';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_stage(current_setting('cc.k1')::uuid, 'preparing');
+  perform public.cc_set_stage(current_setting('cc.k1')::uuid, 'at_cashier');
+  perform public.cc_set_stage(current_setting('cc.k2')::uuid, 'preparing');
+  perform public.cc_set_stage(current_setting('cc.k2')::uuid, 'at_cashier');
+  -- «العميل استلم» only after «هيستلم من الفرع»
+  begin perform public.cc_pickup_done(current_setting('cc.k1')::uuid); raise exception 'FAIL T53 done without pickup';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_pickup(current_setting('cc.k1')::uuid);
+  perform public.cc_set_pickup(current_setting('cc.k2')::uuid);
+  -- k2: the customer changed his mind → a driver after all
+  perform public.cc_assign_driver(current_setting('cc.k2')::uuid, current_setting('cc.d53')::uuid);
+  begin perform public.cc_pickup_done(current_setting('cc.k2')::uuid); raise exception 'FAIL T53 done after a driver was picked';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_pickup_done(current_setting('cc.k1')::uuid);
+  perform public.cc_pickup_done(current_setting('cc.k1')::uuid);   -- double tap
+end $$;
+reset role;
+do $$ declare o public.cc_orders; d public.cc_order_delivery; begin
+  select * into o from public.cc_orders where id::text = current_setting('cc.k1');
+  select * into d from public.cc_order_delivery where order_id = o.id;
+  if o.stage <> 'out' or o.out_at is null or o.driver <> 'استلام من الفرع' or o.driver_user_id is not null or d.delivered_at is null then
+    raise exception 'FAIL T53 pickup done % %', o.stage, o.driver;
+  end if;
+  if o.delivery_fee::text || '|' || o.total::text <> current_setting('cc.fee') then raise exception 'FAIL T53 fee changed'; end if;
+  if exists (select 1 from public.cc_chat_messages where order_id = o.id) then raise exception 'FAIL T53 chat line for a pickup'; end if;
+  if (select driver_user_id from public.cc_orders where id::text = current_setting('cc.k2')) is null then raise exception 'FAIL T53 driver after pickup'; end if;
+  raise notice 'PASS T53 «استلام من الفرع»: branch only, at the cashier, «العميل استلم» ends it with no driver, driver can still be picked, fee unchanged';
+end $$;
+rollback;

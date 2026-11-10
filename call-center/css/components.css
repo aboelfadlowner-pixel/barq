@@ -1042,3 +1042,8 @@ tr[hidden] { display: none; }
 /* «متسلّمش» on the board card (35_board_refused.sql) — stays until the driver is back at the branch */
 .o-refused { display: flex; align-items: flex-start; gap: 6px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 13px; padding: 7px 10px; line-height: 1.5; }
 .o-refused .svg-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; }
+/* «العميل هيستلم من الفرع» (36_pickup.sql) */
+.po-pickup { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: #e8f0fb; color: #1d4f91; font-size: 14px; }
+.po-pickup .svg-icon { width: 18px; height: 18px; flex: 0 0 auto; }
+.pk-card { width: 100%; margin-bottom: 10px; border: 1.5px dashed #7aa3d6; background: #f3f8fe; display: flex; align-items: center; gap: 10px; }
+.pk-card .svg-icon { width: 20px; height: 20px; color: #1d4f91; }
