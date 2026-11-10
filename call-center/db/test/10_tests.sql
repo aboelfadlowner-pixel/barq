@@ -2204,9 +2204,29 @@ do $$ declare m jsonb; begin
   -- the customer takes it after all: «سلّمت» still works
 end $$;
 reset role;
+-- the board line (35): shown while he is still out with it …
+update public.cc_order_delivery set returned_at = null where order_id::text in (current_setting('cc.r1'), current_setting('cc.r2'));
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc52@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb := public.cc_refused_orders(); begin
+  if jsonb_array_length(r) <> 1 or r->0->>'order_id' <> current_setting('cc.r1') or r->0->>'reason' <> 'مش بيرد' then
+    raise exception 'FAIL T52 board line %', r;
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.dr'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_refused_orders(); raise exception 'FAIL T52 driver reads the board line';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- … and gone once he is back at the branch
+update public.cc_order_delivery set returned_at = now() where order_id::text in (current_setting('cc.r1'), current_setting('cc.r2'));
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc52@cc.test'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$ declare u jsonb; d jsonb; begin
+  if jsonb_array_length(public.cc_refused_orders()) <> 0 then raise exception 'FAIL T52 board line stays after «رجعت الفرع»'; end if;
   u := public.cc_chat_unread();
   if not (u->'orders' ? current_setting('cc.r1')) or (select count(*) from jsonb_array_elements(u->'drivers') x where (x->>'unread')::int = 1) <> 1 then
     raise exception 'FAIL T52 call center told %', u;

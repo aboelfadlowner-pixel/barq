@@ -22,6 +22,7 @@ import { openPrintPreview } from '../components/print-ticket.js';
 import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
 
 const filters = { q: '' };
+let refused = new Map();   // order id → { reason, at } — «متسلّمش» while the driver is still out (35_board_refused.sql)
 let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
@@ -73,6 +74,7 @@ function orderCard(o) {
           <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
       ${o.prepName && o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage) ? `<div class="o-prep">${icon('clipboard')}${o.stage === 'preparing' ? 'بيجهزه' : 'جهّزه'}: <strong>${esc(o.prepName)}</strong></div>` : ''}
+      ${refused.has(o.id) && o.status !== 'cancelled' ? `<div class="o-refused">${icon('x')}<span><strong>متسلّمش</strong> — ${esc(refused.get(o.id).reason)} · ${esc(formatTime(refused.get(o.id).at))}</span></div>` : ''}
       ${(getState().chatOrders || []).includes(o.id) ? `<button type="button" class="o-chat" data-chat-go>${icon('chat')}رسالة جديدة من الطيار عن الطلب ده</button>` : ''}
       ${o.editCount ? `<div class="o-edited">${icon('edit')}تم التعديل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · اطّلع عليه الفرع' : ' · لم يطّلع عليه الفرع بعد'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
@@ -265,8 +267,8 @@ export function mountBoard(view) {
   let stopped = false;
   let timer = null;
   // CONFIRMED: only this working day's orders are loaded (the board shows nothing older) — light on every check.
-  const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts()])
-    .then(([list, drafts]) => { if (!stopped) { orders = list; dbDrafts = drafts; render(); } }).catch(() => {});
+  const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts(), ds.refusedOrders().catch(() => new Map())])
+    .then(([list, drafts, rf]) => { if (!stopped) { orders = list; dbDrafts = drafts; refused = rf; render(); } }).catch(() => {});
   const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
   load().then(schedule);
   return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };

@@ -430,6 +430,9 @@ export function driverRefused(id, reason, pos) {
   chatAdd({ driverId: demoAccount.id, from: 'driver', name: me()?.name || 'الطيار', body: `متسلّمش — ${why}`, orderId: o.id, orderNo: o.number });
   return resolve(deliveries.get(id).refusedAt);
 }
+export const refusedOrders = () => resolve(new Map(orders
+  .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
+  .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
 /* The driver: «رجعت الفرع» with his place; farther than the branch radius → «بعيد عن الفرع». */
 const branch = { lat: 31.1100, lng: 29.7800, radius: 300, updatedAt: '2026-10-12T09:00:00Z' };
 const distanceM = (a, b) => {

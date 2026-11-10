@@ -333,6 +333,14 @@ export async function driverRefused(orderId, reason, pos) {
     p_order_id: orderId, p_reason: String(reason || ''), p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null, p_accuracy: pos?.accuracy ?? null,
   }));
 }
+/* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
+   → Map(order id → { reason, at }); an empty Map before 35 is applied. */
+export async function refusedOrders() {
+  const c = await sb();
+  const res = await c.rpc('cc_refused_orders');
+  if (res.error) return new Map();
+  return new Map((res.data || []).map((r) => [r.order_id, { reason: r.reason || '', at: r.at }]));
+}
 /* The driver: «رجعت الفرع» with his place → { orders, distanceM, far } («بعيد عن الفرع»). */
 export async function driverReturned(pos) {
   const c = await sb();

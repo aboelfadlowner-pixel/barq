@@ -52,6 +52,7 @@ export const assignDriver     = (id, driverId) => impl.assignDriver(id, driverId
 export const driverDelivered  = (id, photo, pos) => impl.driverDelivered(id, photo, pos);
 export const driverReturned   = (pos) => impl.driverReturned(pos);
 export const driverRefused    = (id, reason, pos) => impl.driverRefused(id, reason, pos);
+export const refusedOrders    = () => impl.refusedOrders();
 export const linkLogin        = (token) => impl.linkLogin(token);
 export const prepDeliveries   = () => impl.prepDeliveries();
 export const driverPing       = (pos) => impl.driverPing(pos);

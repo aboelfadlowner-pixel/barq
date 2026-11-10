@@ -1039,3 +1039,6 @@ tr[hidden] { display: none; }
 .trip-sum .is-done { background: #e3f4ea; color: var(--green-700); }
 .trip-sum .is-off { background: var(--danger-50); color: var(--danger); }
 .trip-head { margin: 6px 0 0; font-weight: 700; color: var(--muted); font-size: 14px; flex-shrink: 0; }
+/* «متسلّمش» on the board card (35_board_refused.sql) — stays until the driver is back at the branch */
+.o-refused { display: flex; align-items: flex-start; gap: 6px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 13px; padding: 7px 10px; line-height: 1.5; }
+.o-refused .svg-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; }
