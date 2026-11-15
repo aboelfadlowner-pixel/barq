@@ -57,7 +57,7 @@ export function mountOrders(view) {
           ${opt('today', 'اليوم', filters.date)}${opt('yesterday', 'أمس', filters.date)}${opt('7d', 'آخر 7 أيام', filters.date)}${opt('all', 'كل الطلبات', filters.date)}
         </select>
         <select class="select" id="ordStatus" aria-label="الحالة">
-          ${opt('', 'كل الحالات', filters.status)}${catalog.statuses.map((s) => opt(s.id, s.label, filters.status)).join('')}
+          ${opt('', 'كل الحالات', filters.status)}${catalog.statuses.map((s) => opt(s.id, s.label, filters.status)).join('')}${opt('out', 'خرج مع الطيار', filters.status)}${opt('closed', 'الطلبات المغلقة', filters.status)}
         </select>
         ${agentFilterHtml()}
         <button type="button" class="btn btn-ghost" data-reset>مسح الفلاتر</button>

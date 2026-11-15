@@ -2796,3 +2796,40 @@ do $$ begin
   raise notice 'PASS T61 العميل الجديد بيتسجل قبل الطلب: بعنوانه، نفس الرقم = نفس العميل، الطلب بعدها مربوط بيه، القائمة السوداء مرفوضة';
 end $$;
 rollback;
+
+-- T62 — «سجل الطلبات» status choices (45_order_log_status.sql): «خرج مع الطيار» = out, not delivered;
+--        «الطلبات المغلقة» = delivered; «جديد» and «ملغي» unchanged; count and total follow
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into public.cc_agents (name) values ('موظف 62') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; i int; begin
+  for i in 1..3 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 62'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 62-' || i, 'phone', '0106262620' || i),
+           jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 62'),
+           '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.y' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+update public.cc_orders set stage = 'out', out_at = now() where id::text in (current_setting('cc.y1'), current_setting('cc.y2'));
+insert into public.cc_order_delivery (order_id, delivered_at) values (current_setting('cc.y2')::uuid, now());
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; begin
+  r := public.cc_order_log(now() - interval '1 hour', null, 'out', null, 'عميل 62', 50, 0);
+  if (r->>'count')::int <> 1 or r->'ids'->>0 <> current_setting('cc.y1') then raise exception 'FAIL T62 out %', r; end if;
+  r := public.cc_order_log(now() - interval '1 hour', null, 'closed', null, 'عميل 62', 50, 0);
+  if (r->>'count')::int <> 1 or r->'ids'->>0 <> current_setting('cc.y2') or (r->>'sum')::numeric <= 0 then raise exception 'FAIL T62 closed %', r; end if;
+  r := public.cc_order_log(now() - interval '1 hour', null, 'new', null, 'عميل 62', 50, 0);
+  if (r->>'count')::int <> 3 then raise exception 'FAIL T62 new %', r; end if;
+  r := public.cc_order_log(now() - interval '1 hour', null, null, null, 'عميل 62', 50, 0);
+  if (r->>'count')::int <> 3 then raise exception 'FAIL T62 all %', r; end if;
+  raise notice 'PASS T62 سجل الطلبات: خرج مع الطيار / الطلبات المغلقة، وجديد وملغي زي ما هم';
+end $$;
+reset role;
+rollback;

@@ -244,12 +244,20 @@ export const listOrders = ({ since = null } = {}) =>
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
 
 /* «سجل الطلبات» one page — same rules as cc_order_log (22_order_log_backup.sql). */
+// «سجل الطلبات» status choice — 'out' = left with the driver, not delivered yet; 'closed' = delivered (45)
+function logStatusMatch(o, status) {
+  const done = !!deliveries.get(o.id)?.deliveredAt;
+  if (status === 'out') return o.status !== 'cancelled' && o.stage === 'out' && !done;
+  if (status === 'closed') return o.status !== 'cancelled' && done;
+  return !status || o.status === status;
+}
+
 export function orderLog({ from = null, to = null, status = '', agents = [], q = '', limit = 50, offset = 0 } = {}) {
   const text = String(q || '').trim().toLowerCase();
   const digits = /[^0-9\s+()-]/.test(normalizePhone(q || '')) ? '' : normalizePhone(q || '').replace(/\D/g, '');
   const list = [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).filter((o) =>
     (!from || new Date(o.createdAt) >= new Date(from)) && (!to || new Date(o.createdAt) < new Date(to))
-    && (!status || o.status === status) && (!agents.length || agents.includes(o.employee))
+    && logStatusMatch(o, status) && (!agents.length || agents.includes(o.employee))
     && (!text || o.number.toLowerCase().includes(text) || o.customer.name.toLowerCase().includes(text)
       || (digits.length >= 3 && normalizePhone(o.customer.phone).includes(digits))));
   const live = list.filter((o) => o.status !== 'cancelled');
