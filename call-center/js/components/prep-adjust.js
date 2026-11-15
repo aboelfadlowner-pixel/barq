@@ -29,13 +29,15 @@ export async function askWeight(order, it, lineNo) {
   const m = openModal({
     title: `${icon('edit')} الوزن الفعلي — ${esc(it.name)}`,
     size: 'sm',
-    body: `<p class="muted">المطلوب: <strong class="num">${esc(formatWeight(it.grams))}</strong>. اكتب الوزن اللي طلع معاك بالجرام.</p>
-      <div class="field"><label for="adjGrams">الوزن الفعلي (جرام)</label>
-        <input id="adjGrams" class="input ltr num" type="number" inputmode="numeric" min="10" max="20000" step="1" value="${esc(String(it.grams))}" data-grams></div>
+    body: `<div class="adj-asked">المطلوب: <strong class="num">${esc(formatWeight(it.grams))}</strong></div>
+      <label class="adj-label" for="adjGrams">اكتب الوزن اللي طلع معاك (بالجرام)</label>
+      <div class="adj-big-wrap"><input id="adjGrams" class="adj-big num" type="number" inputmode="numeric" min="10" max="20000" step="1" value="${esc(String(it.grams))}" data-grams>
+        <span class="adj-unit">جرام</span></div>
       <p class="field-error" data-err role="alert"></p>`,
     footer: `<button type="button" class="btn btn-secondary" data-close>إلغاء</button>
       <button type="button" class="btn btn-primary" data-ok>${icon('check')}حفظ الوزن</button>`,
   });
+  m.el.classList.add('modal-adj');   // stays at the top on the phone, so the keyboard never squeezes it
   const input = m.body.querySelector('[data-grams]');
   input.select?.();
   const save = async () => {
@@ -68,6 +70,7 @@ export function askReplace(order, it, lineNo) {
       footer: `<button type="button" class="btn btn-secondary" data-close>إلغاء</button>
         <button type="button" class="btn btn-primary" data-ok disabled>${icon('check')}تبديل</button>`,
     });
+    m.el.classList.add('modal-adj');
     const q = m.body.querySelector('[data-q]');
     const results = m.body.querySelector('[data-results]');
     const box = m.body.querySelector('[data-picked]');
@@ -82,19 +85,20 @@ export function askReplace(order, it, lineNo) {
             <strong class="num">${money(p.price)}</strong></button>`).join('')
           : '<p class="muted">مفيش صنف بالاسم ده</p>';
     };
-    q.addEventListener('input', search);
+    q.addEventListener('input', () => { results.hidden = false; search(); });   // typing again: search again
     search();
     q.focus();
     results.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pid]');
       if (!b) return;
       picked = catalog.productsById.get(b.dataset.pid);
+      results.hidden = true;   // the list closes so the amount is right under the search (above the phone keyboard)
       const w = picked.unitType === 'weight';
       box.hidden = false;
       box.innerHTML = `<div class="adj-chosen">${icon('check')}<strong>${esc(picked.name)}</strong> · ${money(picked.price)} ${w ? 'للكيلو' : 'للوحدة'}</div>
-        <div class="field"><label for="adjAmt">${w ? 'الوزن (جرام)' : 'الكمية'}</label>
-          <input id="adjAmt" class="input ltr num" type="number" inputmode="numeric" min="${w ? 10 : 1}" max="${w ? 20000 : 999}" step="1"
-            value="${w ? (it.unitType === 'weight' ? it.grams : 500) : (it.unitType === 'weight' ? 1 : it.qty)}" data-amt></div>`;
+        <label class="adj-label" for="adjAmt">${w ? 'الوزن (بالجرام)' : 'الكمية'}</label>
+        <div class="adj-big-wrap"><input id="adjAmt" class="adj-big num" type="number" inputmode="numeric" min="${w ? 10 : 1}" max="${w ? 20000 : 999}" step="1"
+            value="${w ? (it.unitType === 'weight' ? it.grams : 500) : (it.unitType === 'weight' ? 1 : it.qty)}" data-amt><span class="adj-unit">${w ? 'جرام' : 'قطعة'}</span></div>`;
       ok.disabled = false;
       box.querySelector('[data-amt]').focus();
     });

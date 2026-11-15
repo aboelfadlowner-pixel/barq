@@ -1060,3 +1060,14 @@ tr[hidden] { display: none; }
 .adj-chosen .svg-icon { width: 16px; height: 16px; }
 .o-adj { display: flex; align-items: flex-start; gap: 6px; border-radius: 8px; background: #e8f0fb; color: #1d4f91; font-size: 13px; padding: 7px 10px; line-height: 1.6; }
 .o-adj .svg-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 3px; }
+/* the correction windows: pinned to the top on a phone (the keyboard opens below), a big field */
+.modal.modal-adj { margin: 12px auto auto; max-height: calc(100vh - 24px); }
+.modal-adj .modal-body { flex: 0 1 auto; }
+.adj-asked { font-size: 16px; margin-bottom: 10px; }
+.adj-asked strong { font-size: 18px; }
+.adj-label { display: block; font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+.adj-big-wrap { position: relative; }
+.adj-big { width: 100%; height: 68px; padding: 0 70px 0 16px; border: 2px solid var(--green-600, #2f7a52); border-radius: 14px;
+  font: inherit; font-size: 32px; font-weight: 800; direction: ltr; text-align: left; background: #fff; color: var(--ink); }
+.adj-big:focus { outline: 3px solid rgba(47, 122, 82, .25); }
+.adj-unit { position: absolute; inset-inline-start: 16px; top: 50%; transform: translateY(-50%); font-size: 16px; font-weight: 700; color: var(--muted); pointer-events: none; }
