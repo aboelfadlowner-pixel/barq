@@ -369,6 +369,20 @@ export async function prepFindProduct(digits) {
   const c = await sb();
   return (ok(await c.rpc('cc_prep_find_product', { p_digits: String(digits || '') })) || []).map(toProduct);
 }
+/* «العملاء» (42_customer_edit.sql): name and numbers; add / edit / hide an address. */
+export async function updateCustomer(customerId, { name, phone, phone2 }) {
+  const c = await sb();
+  return ok(await c.rpc('cc_customer_update', { p_customer_id: customerId, p_name: name, p_phone: phone, p_phone2: phone2 || null }));
+}
+export async function saveCustomerAddress(customerId, a) {
+  const c = await sb();
+  return ok(await c.rpc('cc_customer_address_save', { p_customer_id: customerId, p_address_id: a.id || null, p_label: a.label,
+    p_area_id: a.areaId, p_street: a.street, p_housing_type: a.housingType || null, p_notes: a.notes || null }));
+}
+export async function hideCustomerAddress(addressId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_customer_address_hide', { p_address_id: addressId }));
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {

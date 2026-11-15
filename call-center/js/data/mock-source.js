@@ -516,6 +516,34 @@ export function prepFindProduct(digits) {
   if (d.length < 3) return resolve([]);
   return resolve(mock.products.filter((p) => p.barcode && p.barcode.endsWith(d)).slice(0, 30).map((p) => ({ ...p })));
 }
+/* 42_customer_edit.sql in the demo */
+export function updateCustomer(id, { name, phone, phone2 }) {
+  const c = customers.find((x) => x.id === id);
+  if (!c) return Promise.reject(new Error('العميل غير موجود'));
+  const n = String(name || '').trim(); const p1 = normalizePhone(phone); const p2 = normalizePhone(phone2 || '');
+  if (!n) return Promise.reject(new Error('اكتب اسم العميل (لحد 120 حرف)'));
+  if (!/^0[0-9]{8,10}$/.test(p1)) return Promise.reject(new Error('رقم الموبايل غير صحيح — مثال: 01012345678'));
+  if (p2 && !/^0[0-9]{8,10}$/.test(p2)) return Promise.reject(new Error('الرقم الإضافي غير صحيح'));
+  if (p2 && p2 === p1) return Promise.reject(new Error('الرقم الإضافي هو نفس الرقم الأساسي'));
+  const fresh = [p1, p2].filter((n) => n && !c.phones.map(normalizePhone).includes(n));   // only a new number is checked
+  const other = customers.find((x) => x.id !== id && x.phones.some((ph) => fresh.includes(normalizePhone(ph))));
+  if (other) return Promise.reject(new Error(`الرقم ده متسجل للعميل «${other.name}» — مينفعش يتكرر`));
+  Object.assign(c, { name: n, phones: [p1, p2].filter(Boolean) });
+  return resolve({ name: n, phone: p1, phone2: p2 || null });
+}
+export function saveCustomerAddress(customerId, a) {
+  const c = customers.find((x) => x.id === customerId);
+  if (!c) return Promise.reject(new Error('العميل غير موجود'));
+  const fields = { label: a.label, areaId: a.areaId, street: a.street, housingType: a.housingType || '', notes: a.notes || '' };
+  if (a.id) { const cur = c.addresses.find((x) => x.id === a.id); if (!cur) return Promise.reject(new Error('العنوان غير موجود لهذا العميل')); Object.assign(cur, fields); return resolve(a.id); }
+  const id = `${c.id}-a${Date.now()}`; c.addresses.push({ id, ...fields }); return resolve(id);
+}
+export function hideCustomerAddress(addressId) {
+  const c = customers.find((x) => x.addresses.some((a) => a.id === addressId));
+  if (!c) return resolve(false);
+  c.addresses = c.addresses.filter((a) => a.id !== addressId);
+  return resolve(true);
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
