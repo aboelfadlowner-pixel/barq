@@ -62,7 +62,7 @@ export function askReplace(order, it, lineNo) {
     let picked = null;
     const m = openModal({
       title: `${icon('repeat')} تبديل — ${esc(it.name)}`,
-      body: `<label class="adj-label" for="adjSearch">آخر 3 أرقام من باركود الصنف البديل</label>
+      body: `<label class="adj-label" for="adjSearch">آخر 3 لـ 5 أرقام من باركود الصنف البديل</label>
           <div class="adj-big-wrap"><input id="adjSearch" class="adj-big num" type="text" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="مثال: 104" data-q>
             <span class="adj-unit">باركود</span></div>
         <div class="adj-results" data-results></div>
@@ -84,7 +84,7 @@ export function askReplace(order, it, lineNo) {
       const digitsOnly = /^[0-9٠-٩]+$/.test(raw);
       const d = raw.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
       let list;
-      if (!raw) list = [];
+      if (!raw || (digitsOnly && d.length < 3)) list = [];
       else if (digitsOnly) {
         const ends = catalog.products.filter((p) => p.barcode && String(p.barcode).endsWith(d));
         const has = catalog.products.filter((p) => !ends.includes(p) && (String(p.barcode || '').includes(d) || String(p.code || '').includes(d)));
@@ -94,7 +94,7 @@ export function askReplace(order, it, lineNo) {
         const words = normalizeArabic(raw).split(/\s+/).filter(Boolean);
         list = catalog.products.filter((p) => words.every((w) => p.searchKey?.includes(w))).slice(0, 30);
       }
-      results.innerHTML = !raw ? '<p class="muted">اكتب آخر 3 أرقام من الباركود — الصنف يظهر على طول</p>'
+      results.innerHTML = !raw || (digitsOnly && d.length < 3) ? '<p class="muted">اكتب آخر 3 لـ 5 أرقام من الباركود — لو أكتر من صنف، كمّل رقم كمان</p>'
         : list.length ? `<p class="muted adj-count">${list.length >= 30 ? 'أول 30 صنف — كمّل كتابة' : `${list.length} صنف`}</p>` + list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
             <span class="grow">${esc(p.name)}${p.barcode ? `<span class="adj-bc ltr-inline num">…${esc(String(p.barcode).slice(-4))}</span>` : ''}</span>
             <span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
