@@ -2423,3 +2423,55 @@ do $$ begin
 end $$;
 reset role;
 rollback;
+
+-- T55 — the call center corrects a customer's name (38_customer_name.sql); prep cannot; empty refused;
+--        the next order carries the new name, a sent order keeps its own
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'c55@cc.test'), (gen_random_uuid(), 'p55@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'c55@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('c55@cc.test', 'p55@cc.test');
+insert into public.cc_agents (name) values ('موظف 55') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 55'), gen_random_uuid(),
+         jsonb_build_object('name', 'اية محمد', 'phone', '01055555501'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 55'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  perform set_config('cc.c55', o.customer_id::text, true);
+  perform set_config('cc.o55', o.id::text, true);
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p55@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_customer_name(current_setting('cc.c55')::uuid, 'آية محمد'); raise exception 'FAIL T55 prep';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c55@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_customer_name(current_setting('cc.c55')::uuid, '   '); raise exception 'FAIL T55 empty';
+  exception when invalid_parameter_value then null; end;
+  if public.cc_set_customer_name(current_setting('cc.c55')::uuid, '  آية محمد  ') <> 'آية محمد' then raise exception 'FAIL T55 trim'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 55'), gen_random_uuid(),
+         jsonb_build_object('id', current_setting('cc.c55')),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 55'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  if o.customer_name <> 'آية محمد' then raise exception 'FAIL T55 next order %', o.customer_name; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select customer_name from public.cc_orders where id::text = current_setting('cc.o55')) <> 'اية محمد' then raise exception 'FAIL T55 old order changed'; end if;
+  raise notice 'PASS T55 تعديل اسم العميل: الكول سنتر بس، مش فاضي، الطلب الجاي بالاسم الجديد، القديم زي ما هو';
+end $$;
+rollback;

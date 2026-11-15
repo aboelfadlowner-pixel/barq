@@ -358,6 +358,11 @@ export async function prepAdjustments(orderId = null) {
   return (res.data || []).map((r) => ({ id: r.id, orderId: r.order_id, orderNo: r.order_no, at: r.at, by: r.by || '',
     change: { ...(r.change || {}), toName: r.change?.to_name || '' }, oldTotal: Number(r.old_total), newTotal: Number(r.new_total) }));
 }
+/* The call center corrects a saved customer's name (38_customer_name.sql) → the saved name. */
+export async function setCustomerName(customerId, name) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_customer_name', { p_customer_id: customerId, p_name: name }));
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {

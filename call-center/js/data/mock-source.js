@@ -488,6 +488,14 @@ export function prepAdjust(id, lineNo, name, action, { grams = null, sku = null,
 }
 export const prepAdjustments = (orderId = null) => resolve(adjustments
   .filter((a) => (orderId ? a.orderId === orderId : isSameWorkDay(a.at, new Date()))).map((a) => ({ ...a })));
+export function setCustomerName(id, name) {
+  const v = String(name || '').trim();
+  if (!v || v.length > 120) return Promise.reject(new Error('اكتب اسم العميل (لحد 120 حرف)'));
+  const c = customers.find((x) => x.id === id);
+  if (!c) return Promise.reject(new Error('العميل غير موجود'));
+  c.name = v;
+  return resolve(v);
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));

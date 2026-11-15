@@ -13,7 +13,7 @@ import {
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, statusChip } from './chips.js';
-import { openModal } from './modal.js';
+import { openModal, showToast } from './modal.js';
 import { openAddressDialog } from './address-dialog.js';
 import { clearErrorsOnEdit } from './address-form.js';
 
@@ -144,7 +144,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
         </div>
         <div class="input-row">
           <input id="no-name" class="input" name="name" value="${esc(st.name)}" maxlength="${CUSTOMER_NAME_MAX}" autocomplete="off"
-            ${existing ? 'readonly' : 'placeholder="اسم العميل"'}>
+            placeholder="اسم العميل">
           <span class="tag ${existing ? 'tag-green' : 'tag-info'}">${existing ? 'عميل مسجل' : 'عميل جديد'}</span>
         </div>
         <div class="field-error" data-err="name"></div>
@@ -272,7 +272,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   }
 
   /* ---------- Save ---------- */
-  function save() {
+  async function save() {
     const errors = {};
     const phone = normalizePhone(st.phone);
     const phone2 = st.showPhone2 && st.phone2.trim() ? normalizePhone(st.phone2) : '';
@@ -281,7 +281,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     if (phone2 && phone2 === phone) errors.phone2 = 'الرقم الإضافي مطابق للرقم الأساسي';
     if (st.status === 'choose') errors.phone = 'اختر العميل الصحيح من القائمة';
     if (st.blocked.length) errors.phone = 'هذا الرقم في القائمة السوداء — ممنوع من الطلب';
-    if (st.status === 'new' && !st.name.trim()) errors.name = 'أدخل اسم العميل';
+    if ((st.status === 'new' || st.status === 'found') && !st.name.trim()) errors.name = 'أدخل اسم العميل';
     const address = st.addresses.find((a) => a.id === st.addressId);
     if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختر عنوانًا أو أضف عنوانًا جديدًا';
 
@@ -293,8 +293,23 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     }
 
     const existing = st.status === 'found';
+    // 38_customer_name.sql: a corrected name of a saved customer is saved on the customer
+    let name = existing ? st.customer.name : st.name.trim();
+    if (existing && st.name.trim() && st.name.trim() !== st.customer.name) {
+      const btn = m.foot.querySelector('[data-save]');
+      btn.disabled = true;
+      try {
+        name = await ds.setCustomerName(st.customer.id, st.name.trim());
+        st.customer.name = name;
+        showToast('اتعدّل اسم العميل ✓');
+      } catch (ex) {
+        btn.disabled = false;
+        m.el.querySelector('[data-err="name"]').textContent = ex.message;
+        return;
+      }
+    }
     const customer = existing
-      ? { id: st.customer.id, name: st.customer.name, phone, phone2, isNew: false, todayOrders: st.todayOrders }
+      ? { id: st.customer.id, name, phone, phone2, isNew: false, todayOrders: st.todayOrders }
       : { id: null, name: st.name.trim(), phone, phone2, isNew: true, todayOrders: st.todayOrders };
     const { id, isNew, edited, ...fields } = address;
     const addr = { ...fields, id: isNew ? null : id, isNew: !!isNew, edited: !!edited };
@@ -332,7 +347,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
 
   m.el.addEventListener('input', (e) => {
     if (e.target.name === 'phone2') { st.phone2 = e.target.value; clearTimeout(timer2); timer2 = setTimeout(checkBlocked, 250); }
-    if (e.target.name === 'name' && st.status === 'new') st.name = e.target.value;
+    if (e.target.name === 'name' && (st.status === 'new' || st.status === 'found')) st.name = e.target.value;   // a saved customer's name can be corrected (38)
   });
   m.el.addEventListener('change', (e) => { if (e.target.name === 'addr') st.addressId = e.target.value; });
 

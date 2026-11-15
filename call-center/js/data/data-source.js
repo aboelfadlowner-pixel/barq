@@ -57,6 +57,7 @@ export const setPickup        = (id) => impl.setPickup(id);
 export const pickupDone       = (id) => impl.pickupDone(id);
 export const prepAdjust       = (id, lineNo, name, action, opts) => impl.prepAdjust(id, lineNo, name, action, opts);
 export const prepAdjustments  = (orderId = null) => impl.prepAdjustments(orderId);
+export const setCustomerName  = (id, name) => impl.setCustomerName(id, name);
 export const linkLogin        = (token) => impl.linkLogin(token);
 export const prepDeliveries   = () => impl.prepDeliveries();
 export const driverPing       = (pos) => impl.driverPing(pos);
