@@ -128,16 +128,3 @@ export async function reloadProducts() {
   setCategories(categories);
 }
 
-/* The prep screen loads no products at startup (light on the branch's devices). «تبديل» needs them:
-   the list saved on this device if any, else from the database once. */
-let productsLoading = null;
-export function ensureProducts() {
-  if (catalog.products.length) return Promise.resolve();
-  if (!productsLoading) {
-    productsLoading = (async () => {
-      const cached = readCache();
-      setProducts(cached ? cached.products : await ds.getProducts());
-    })().catch((err) => { productsLoading = null; throw err; });
-  }
-  return productsLoading;
-}

@@ -5,7 +5,7 @@
      «❌ مش موجود» to take a product off (not the last one).
    The total follows at once; the call center is told (ring + a line on the card). No reprint. */
 import * as ds from '../data/data-source.js';
-import { catalog, ensureProducts } from '../catalog.js';
+import { catalog } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney, formatWeight, normalizeArabic } from '../utils/format.js';
 import { icon } from './icons.js';
@@ -77,42 +77,59 @@ export function askReplace(order, it, lineNo) {
     const box = m.body.querySelector('[data-picked]');
     const ok = m.foot.querySelector('[data-ok]');
     const err = m.body.querySelector('[data-err]');
-    /* CONFIRMED: the list narrows with every letter typed. Digits = the barcode: the last 3 digits are
-       enough (a product whose barcode ends with them comes first); one exact match is picked at once. */
+    /* CONFIRMED: the barcode's last 3 to 5 digits. One product → picked at once; several → a short list.
+       The prep account cannot read the whole products list: it asks the database for the matches
+       (40_prep_find_product.sql). Accounts that have the list (admin, call center) search it here. */
+    const found = new Map();   // id → product, of the last search (to pick from the list)
+    let seq = 0;
+    let timer = null;
+    const show = (list, d, digitsOnly) => {
+      list.forEach((p) => found.set(p.id, p));
+      results.innerHTML = list.length ? `<p class="muted adj-count">${list.length >= 30 ? 'أول 30 صنف — كمّل رقم كمان' : `${list.length} صنف`}</p>` + list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
+            <span class="grow">${esc(p.name)}${p.barcode ? `<span class="adj-bc ltr-inline num">…${esc(String(p.barcode).slice(-5))}</span>` : ''}</span>
+            <span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
+            <strong class="num">${money(p.price)}</strong></button>`).join('')
+        : `<p class="muted">${digitsOnly ? `مفيش صنف باركوده بينتهي بـ ${esc(d)}` : 'مفيش صنف بالاسم ده'}</p>`;
+    };
     const search = () => {
       const raw = q.value.trim();
       const digitsOnly = /^[0-9٠-٩]+$/.test(raw);
       const d = raw.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+      clearTimeout(timer);
+      const mine = ++seq;
+      if (!raw || (digitsOnly && d.length < 3)) {
+        results.innerHTML = '<p class="muted">اكتب آخر 3 لـ 5 أرقام من الباركود — لو أكتر من صنف، كمّل رقم كمان</p>';
+        return;
+      }
+      if (!catalog.products.length) {             // the prep account: ask the database
+        if (!digitsOnly) { results.innerHTML = '<p class="muted">اكتب أرقام الباركود بس</p>'; return; }
+        results.innerHTML = '<p class="muted">جارٍ البحث…</p>';
+        timer = setTimeout(async () => {
+          let list;
+          try { list = await ds.prepFindProduct(d); } catch { if (mine === seq) results.innerHTML = '<p class="field-error">تعذر البحث — اتأكد من النت وجرّب تاني</p>'; return; }
+          if (mine !== seq) return;                // a newer search is on its way
+          if (list.length === 1) { found.set(list[0].id, list[0]); pick(list[0]); return; }
+          show(list, d, true);
+        }, 250);
+        return;
+      }
       let list;
-      if (!raw || (digitsOnly && d.length < 3)) list = [];
-      else if (digitsOnly) {
+      if (digitsOnly) {
         const ends = catalog.products.filter((p) => p.barcode && String(p.barcode).endsWith(d));
-        const has = catalog.products.filter((p) => !ends.includes(p) && (String(p.barcode || '').includes(d) || String(p.code || '').includes(d)));
-        list = [...ends, ...has].slice(0, 30);
-        if (d.length >= 3 && ends.length === 1) { pick(ends[0]); return; }   // one product with that ending: chosen at once
+        if (ends.length === 1) { pick(ends[0]); return; }   // one product with that ending: chosen at once
+        list = ends.slice(0, 30);
       } else {
         const words = normalizeArabic(raw).split(/\s+/).filter(Boolean);
         list = catalog.products.filter((p) => words.every((w) => p.searchKey?.includes(w))).slice(0, 30);
       }
-      results.innerHTML = !raw || (digitsOnly && d.length < 3) ? '<p class="muted">اكتب آخر 3 لـ 5 أرقام من الباركود — لو أكتر من صنف، كمّل رقم كمان</p>'
-        : list.length ? `<p class="muted adj-count">${list.length >= 30 ? 'أول 30 صنف — كمّل كتابة' : `${list.length} صنف`}</p>` + list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
-            <span class="grow">${esc(p.name)}${p.barcode ? `<span class="adj-bc ltr-inline num">…${esc(String(p.barcode).slice(-4))}</span>` : ''}</span>
-            <span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
-            <strong class="num">${money(p.price)}</strong></button>`).join('')
-          : `<p class="muted">${digitsOnly ? 'مفيش صنف بالباركود ده' : 'مفيش صنف بالاسم ده'}</p>`;
+      show(list, d, digitsOnly);
     };
     q.addEventListener('input', () => { results.hidden = false; search(); });   // typing again: search again
-    // the prep account has no product list until now: load it once (from this device if saved)
-    if (!catalog.products.length) {
-      results.innerHTML = '<p class="muted">جارٍ تحميل الأصناف…</p>';
-      q.disabled = true;
-      ensureProducts().then(() => { q.disabled = false; q.focus(); search(); })
-        .catch(() => { results.innerHTML = '<p class="field-error">تعذر تحميل الأصناف — اتأكد من النت واقفل الشاشة وافتحها تاني</p>'; });
-    } else search();
+    search();
     q.focus();
     results.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pid]');
-      if (b) pick(catalog.productsById.get(b.dataset.pid));
+      if (b) pick(found.get(b.dataset.pid) || catalog.productsById.get(b.dataset.pid));
     });
     function pick(product) {
       picked = product;

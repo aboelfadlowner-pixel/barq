@@ -2551,3 +2551,27 @@ do $$ declare o public.cc_orders; begin
   raise notice 'PASS T56 «نوع الطلب»: استلام من غير عنوان ولا رسوم، تعديل توصيل⇄استلام بالرسوم الصح، الكاشير مستني العميل، مفيش طيار، العميل استلم، التوصيل زي ما هو';
 end $$;
 rollback;
+
+-- T57 — «تبديل» by the barcode's last digits (40_prep_find_product.sql): the prep account finds the product
+--        (it still cannot read the whole list); fewer than 3 digits → nothing; anon / drivers refused
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'p57@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'prep' from auth.users where email = 'p57@cc.test';
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p57@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; begin
+  r := public.cc_prep_find_product('0201');
+  if jsonb_array_length(r) <> 1 or r->0->>'sku' <> 'T-201' or (r->0->>'price')::numeric <> 42 or r->0->>'sold_by' <> 'unit' then raise exception 'FAIL T57 4 digits %', r; end if;
+  r := public.cc_prep_find_product('101');
+  if jsonb_array_length(r) <> 1 or r->0->>'sold_by' <> 'weight' then raise exception 'FAIL T57 weighed %', r; end if;
+  if jsonb_array_length(public.cc_prep_find_product('01')) <> 0 then raise exception 'FAIL T57 two digits'; end if;
+  if jsonb_array_length(public.cc_prep_find_product('999')) <> 0 then raise exception 'FAIL T57 no match'; end if;
+  begin perform public.cc_list_products(null, 10); raise exception 'FAIL T57 prep reads the whole list';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T57 تبديل بالباركود: التجهيز يلاقي الصنف بآخر الأرقام، من غير ما يقرا القايمة كلها';
+end $$;
+reset role;
+rollback;
