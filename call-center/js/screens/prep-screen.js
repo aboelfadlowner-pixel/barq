@@ -354,7 +354,7 @@ export function mountPrep(view) {
         const pk = ev.target.closest('[data-set-pickup]');
         if (pk) {
           pk.disabled = true;
-          try { await ds.setPickup(id); m.close(); showToast('العميل هيستلم من الفرع'); load(); }
+          try { await ds.setPickup(id); m.close(); showToast('العميل هيستلم من الفرع — رسوم التوصيل اتشالت من الإجمالي'); load(); }
           catch (err) { pk.disabled = false; showToast(err.message); }
           return;
         }

@@ -406,6 +406,12 @@ export function assignDriver(id, driverId) {
   if (o.stage !== 'at_cashier') return Promise.reject(new Error('الطلب لازم يكون على الكاشير'));
   if (driverId && !staff.some((x) => x.id === driverId && x.role === 'driver' && x.active)) return Promise.reject(new Error('اختار طيار من القائمة'));
   if (driverId && o.type === 'pickup' && !o.address?.areaId) return Promise.reject(new Error('الطلب ده «استلام من الفرع» ومن غير عنوان — الكول سنتر يغيّره لـ «توصيل» الأول'));
+  if (driverId && o.pickupFeeWas && o.deliveryFee === 0) {   // 41: the fee comes back
+    const before = orderTotal(o);
+    o.deliveryFee = o.pickupFeeWas; o.pickupFeeWas = 0;
+    adjustments.push({ id: ++adjSeq, orderId: o.id, orderNo: o.number, at: new Date().toISOString(), by: myPrepName(),
+      change: { kind: 'pickup_fee', name: 'رسوم التوصيل', from: 0, to: o.deliveryFee }, oldTotal: before, newTotal: orderTotal(o) });
+  }
   Object.assign(o, { driverUserId: driverId || null, driver: driverId ? driverLabel(driverId) : '', assignedAt: driverId ? new Date().toISOString() : null });
   return resolve(o.driver || null);
 }
@@ -439,6 +445,12 @@ export function setPickup(id) {
   if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
   if (o.stage !== 'at_cashier') return Promise.reject(new Error('الطلب لازم يكون على الكاشير'));
   Object.assign(o, { driverUserId: null, driver: 'استلام من الفرع', assignedAt: new Date().toISOString() });
+  if (o.deliveryFee > 0) {   // 41_pickup_fee.sql: no delivery → no fee (comes back if a driver is picked)
+    const before = orderTotal(o);
+    o.pickupFeeWas = o.deliveryFee; o.deliveryFee = 0;
+    adjustments.push({ id: ++adjSeq, orderId: o.id, orderNo: o.number, at: new Date().toISOString(), by: myPrepName(),
+      change: { kind: 'pickup_fee', name: 'رسوم التوصيل', from: o.pickupFeeWas, to: 0 }, oldTotal: before, newTotal: orderTotal(o) });
+  }
   return resolve('استلام من الفرع');
 }
 export function pickupDone(id) {

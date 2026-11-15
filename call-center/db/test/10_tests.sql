@@ -2299,10 +2299,11 @@ do $$ declare o public.cc_orders; d public.cc_order_delivery; begin
   if o.stage <> 'out' or o.out_at is null or o.driver <> 'استلام من الفرع' or o.driver_user_id is not null or d.delivered_at is null then
     raise exception 'FAIL T53 pickup done % %', o.stage, o.driver;
   end if;
-  if o.delivery_fee::text || '|' || o.total::text <> current_setting('cc.fee') then raise exception 'FAIL T53 fee changed'; end if;
+  -- 41: the branch's pickup takes the delivery fee off (total = what the customer pays at the branch)
+  if o.delivery_fee <> 0 or o.total <> split_part(current_setting('cc.fee'), '|', 2)::numeric - split_part(current_setting('cc.fee'), '|', 1)::numeric then raise exception 'FAIL T53 fee off % %', o.delivery_fee, o.total; end if;
   if exists (select 1 from public.cc_chat_messages where order_id = o.id) then raise exception 'FAIL T53 chat line for a pickup'; end if;
   if (select driver_user_id from public.cc_orders where id::text = current_setting('cc.k2')) is null then raise exception 'FAIL T53 driver after pickup'; end if;
-  raise notice 'PASS T53 «استلام من الفرع»: branch only, at the cashier, «العميل استلم» ends it with no driver, driver can still be picked, fee unchanged';
+  raise notice 'PASS T53 «استلام من الفرع»: branch only, at the cashier, «العميل استلم» ends it with no driver, driver can still be picked, fee off';
 end $$;
 rollback;
 
@@ -2572,6 +2573,64 @@ do $$ declare r jsonb; begin
   begin perform public.cc_list_products(null, 10); raise exception 'FAIL T57 prep reads the whole list';
   exception when insufficient_privilege then null; end;
   raise notice 'PASS T57 تبديل بالباركود: التجهيز يلاقي الصنف بآخر الأرقام، من غير ما يقرا القايمة كلها';
+end $$;
+reset role;
+rollback;
+
+-- T58 — the branch's «العميل هيستلم من الفرع» takes the delivery fee off (41_pickup_fee.sql); a driver picked
+--        after all brings the same fee back; the call center sees both; a call-center pickup order is unchanged
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'p58@cc.test'), (gen_random_uuid(), 'd58@cc.test'), (gen_random_uuid(), 'c58@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'تجهيز 58', 'prep' from auth.users where email = 'p58@cc.test';
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'c58@cc.test';
+select public.cc_driver_setup((select id from auth.users where email = 'd58@cc.test'), 'طيار 58', '01058585858');
+select set_config('cc.d58', (select id::text from auth.users where email = 'd58@cc.test'), true);
+insert into public.cc_agents (name) values ('موظف 58') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 58'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 58', 'phone', '01058580001'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active and fee > 0 order by name limit 1), 'street', 'ش 58'),
+         '[{"sku": "T-201", "qty": 2}]', null);
+  perform set_config('cc.o58', o.id::text, true);
+  perform set_config('cc.fee58', o.delivery_fee::text, true);
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p58@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  perform public.cc_set_stage(current_setting('cc.o58')::uuid, 'preparing');
+  perform public.cc_set_stage(current_setting('cc.o58')::uuid, 'at_cashier');
+  perform public.cc_set_pickup(current_setting('cc.o58')::uuid);
+  perform public.cc_set_pickup(current_setting('cc.o58')::uuid);   -- twice: the fee goes once
+end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  select * into o from public.cc_orders where id::text = current_setting('cc.o58');
+  if o.delivery_fee <> 0 or o.total <> 84 then raise exception 'FAIL T58 fee off % %', o.delivery_fee, o.total; end if;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p58@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_assign_driver(current_setting('cc.o58')::uuid, current_setting('cc.d58')::uuid); end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  select * into o from public.cc_orders where id::text = current_setting('cc.o58');
+  if o.delivery_fee <> current_setting('cc.fee58')::numeric or o.total <> 84 + current_setting('cc.fee58')::numeric then
+    raise exception 'FAIL T58 fee back % %', o.delivery_fee, o.total;
+  end if;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c58@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare a jsonb := public.cc_prep_adjustments(current_setting('cc.o58')::uuid); begin
+  if jsonb_array_length(a) <> 2 or a->0->'change'->>'kind' <> 'pickup_fee' or (a->0->>'new_total')::numeric <> 84
+     or (a->1->>'new_total')::numeric <> 84 + current_setting('cc.fee58')::numeric then
+    raise exception 'FAIL T58 call center sees it %', a;
+  end if;
+  raise notice 'PASS T58 استلام من الفرع من التجهيز: رسوم التوصيل اتشالت، رجعت لما اتختار طيار، والكول سنتر شايف الاتنين';
 end $$;
 reset role;
 rollback;
