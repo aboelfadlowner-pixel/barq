@@ -2707,3 +2707,46 @@ do $$ declare o public.cc_orders; begin
   raise notice 'PASS T59 تعديل العميل: الاسم والأرقام (رقم عميل تاني مرفوض باسمه)، العناوين إضافة/تعديل/إخفاء، الطلبات القديمة زي ما هي';
 end $$;
 rollback;
+
+-- T60 — «الطلبات المغلقة» (43_board_closed.sql): a delivered order (driver «سلّمت») and a pickup the customer took
+--        are listed for the call center; an order still out is not; prep cannot read it
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'c60@cc.test'), (gen_random_uuid(), 'p60@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'c60@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('c60@cc.test', 'p60@cc.test');
+insert into public.cc_agents (name) values ('موظف 60') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; i int; begin
+  for i in 1..2 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 60'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 60-' || i, 'phone', '0106060600' || i),
+           jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 60'),
+           '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.x' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+update public.cc_orders set stage = 'out', out_at = now() where id::text in (current_setting('cc.x1'), current_setting('cc.x2'));
+insert into public.cc_order_delivery (order_id, delivered_at) values (current_setting('cc.x1')::uuid, now());
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c60@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb := public.cc_closed_orders(); begin
+  if not exists (select 1 from jsonb_array_elements(r) x where x->>'order_id' = current_setting('cc.x1'))
+     or exists (select 1 from jsonb_array_elements(r) x where x->>'order_id' = current_setting('cc.x2')) then
+    raise exception 'FAIL T60 closed list %', r;
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p60@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_closed_orders(); raise exception 'FAIL T60 prep';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T60 الطلبات المغلقة: اللي اتسلّم بيظهر للكول سنتر، اللي لسه مع الطيار لأ';
+end $$;
+reset role;
+rollback;

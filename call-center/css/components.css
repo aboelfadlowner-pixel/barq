@@ -1085,3 +1085,6 @@ tr[hidden] { display: none; }
 /* «العملاء»: edit the customer (42_customer_edit.sql) */
 .section-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .addr-acts { white-space: nowrap; text-align: end; }
+/* «الطلبات المغلقة» (43_board_closed.sql) */
+.o-closed { display: flex; align-items: center; gap: 6px; border-radius: 8px; background: #e3f4ea; color: var(--green-700); font-size: 13px; padding: 6px 10px; }
+.o-closed .svg-icon { width: 16px; height: 16px; }

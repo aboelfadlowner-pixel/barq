@@ -383,6 +383,13 @@ export async function hideCustomerAddress(addressId) {
   const c = await sb();
   return ok(await c.rpc('cc_customer_address_hide', { p_address_id: addressId }));
 }
+/* «الطلبات المغلقة» (43_board_closed.sql): today's delivered orders → Map(order id → delivered at); empty before 43. */
+export async function closedOrders() {
+  const c = await sb();
+  const res = await c.rpc('cc_closed_orders');
+  if (res.error) return new Map();
+  return new Map((res.data || []).map((r) => [r.order_id, r.at]));
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {

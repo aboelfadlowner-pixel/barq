@@ -544,6 +544,9 @@ export function hideCustomerAddress(addressId) {
   c.addresses = c.addresses.filter((a) => a.id !== addressId);
   return resolve(true);
 }
+export const closedOrders = () => resolve(new Map(orders
+  .filter((o) => o.stage === 'out' && o.status !== 'cancelled' && deliveries.get(o.id)?.deliveredAt)
+  .map((o) => [o.id, deliveries.get(o.id).deliveredAt])));
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
