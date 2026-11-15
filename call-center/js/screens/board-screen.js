@@ -18,7 +18,7 @@ import { formatMoney, formatTime } from '../utils/format.js';
 import { quantityLabel } from '../utils/pricing.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
-import { openPrintPreview } from '../components/print-ticket.js';
+import { openPrintPreview, printedAt } from '../components/print-ticket.js';
 import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
 import { adjustText } from '../components/prep-adjust.js';
 import { ring } from '../components/chat-box.js';
@@ -76,7 +76,8 @@ function orderCard(o) {
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
         <span class="o-head-end">${closed.has(o.id) ? `<span class="status tone-green">${icon('check')}اتسلّم</span>` : orderStateChip(o)}
           ${o.status !== 'cancelled' ? `<button type="button" class="btn btn-ghost btn-icon btn-sm o-wa" data-wa-order="${esc(o.id)}" title="واتساب للعميل" aria-label="واتساب للعميل — طلب ${esc(o.number)}">${icon('whatsapp')}</button>` : ''}
-          <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm o-print ${printedAt(o.id) ? 'is-printed' : ''}" data-print-order="${esc(o.id)}"
+            title="${printedAt(o.id) ? `اتطبع ${esc(formatTime(printedAt(o.id)))} — اضغط للطباعة تاني` : 'طباعة الطلب'}" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}${printedAt(o.id) ? `<span class="o-printed" aria-label="اتطبع">${icon('check')}</span>` : ''}</button></span>
       </div>
       ${o.prepName && o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage) ? `<div class="o-prep">${icon('clipboard')}${o.stage === 'preparing' ? 'بيجهزه' : 'جهّزه'}: <strong>${esc(o.prepName)}</strong></div>` : ''}
       ${refused.has(o.id) && o.status !== 'cancelled' ? `<div class="o-refused">${icon('x')}<span><strong>متسلّمش</strong> — ${esc(refused.get(o.id).reason)} · ${esc(formatTime(refused.get(o.id).at))}</span></div>` : ''}
@@ -297,5 +298,8 @@ export function mountBoard(view) {
     }).catch(() => {});
   const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
   load().then(schedule);
-  return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };
+  // a ticket printed (from this screen or the order page): show its ✓ at once
+  const onPrinted = () => render();
+  window.addEventListener('cc-printed', onPrinted);
+  return () => { stopped = true; clearTimeout(timer); window.removeEventListener('cc-printed', onPrinted); offs.forEach((f) => f()); };
 }

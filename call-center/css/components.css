@@ -1088,3 +1088,9 @@ tr[hidden] { display: none; }
 /* «الطلبات المغلقة» (43_board_closed.sql) */
 .o-closed { display: flex; align-items: center; gap: 6px; border-radius: 8px; background: #e3f4ea; color: var(--green-700); font-size: 13px; padding: 6px 10px; }
 .o-closed .svg-icon { width: 16px; height: 16px; }
+/* the ticket was printed on this device: ✓ next to the print icon */
+.o-print { position: relative; }
+.o-print.is-printed { color: var(--green-700); }
+.o-printed { position: absolute; top: -4px; inset-inline-start: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--green-700, #2f7a52);
+  color: #fff; display: grid; place-items: center; box-shadow: 0 0 0 2px #fff; }
+.o-printed .svg-icon { width: 11px; height: 11px; stroke-width: 3; }

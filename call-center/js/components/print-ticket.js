@@ -68,6 +68,21 @@ export function printOrder(order) {
   window.print();
 }
 
+/* CONFIRMED: a ✓ next to the print icon on the board card once the ticket was printed — kept on THIS
+   device only (each employee sees what they printed), for two days. */
+const PRINTED_KEY = 'cc-printed';
+const readPrinted = () => { try { return JSON.parse(localStorage.getItem(PRINTED_KEY) || '{}') || {}; } catch { return {}; } };
+export const printedAt = (orderId) => readPrinted()[orderId] || null;
+function markPrinted(orderId) {
+  if (!orderId) return;
+  const all = readPrinted();
+  const keepFrom = Date.now() - 2 * 86400000;
+  for (const [id, at] of Object.entries(all)) if (new Date(at).getTime() < keepFrom) delete all[id];
+  all[orderId] = new Date().toISOString();
+  try { localStorage.setItem(PRINTED_KEY, JSON.stringify(all)); } catch { /* full or blocked: fine */ }
+  window.dispatchEvent(new CustomEvent('cc-printed', { detail: orderId }));
+}
+
 /* «ورقة الطلب»: the preview, then «طباعة». After printing the preview closes by itself
    and a short «تم طباعة الطلب ✓» shows — the employee is back where they were. */
 export function openPrintPreview(order) {
@@ -83,6 +98,7 @@ export function openPrintPreview(order) {
   });
   m.foot.querySelector('[data-print]').addEventListener('click', () => {
     printOrder(order);                     // returns when the browser's print window is closed
+    markPrinted(order.id);
     m.close();
     showToast(order.number ? `تم طباعة الطلب ${order.number} ✓` : 'تم طباعة الطلب ✓');
   });
