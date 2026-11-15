@@ -30,8 +30,8 @@ export async function askWeight(order, it, lineNo) {
     title: `${icon('edit')} الوزن الفعلي — ${esc(it.name)}`,
     size: 'sm',
     body: `<div class="adj-asked">المطلوب: <strong class="num">${esc(formatWeight(it.grams))}</strong></div>
-      <label class="adj-label" for="adjGrams">اكتب الوزن اللي طلع معاك (بالجرام)</label>
-      <div class="adj-big-wrap"><input id="adjGrams" class="adj-big num" type="number" inputmode="numeric" min="10" max="20000" step="1" value="${esc(String(it.grams))}" data-grams>
+      <label class="adj-label" for="adjGrams">الوزن الجديد (بالجرام)</label>
+      <div class="adj-big-wrap"><input id="adjGrams" class="adj-big num" type="number" inputmode="numeric" min="10" max="20000" step="1" placeholder="${esc(String(it.grams))}" data-grams>
         <span class="adj-unit">جرام</span></div>
       <p class="field-error" data-err role="alert"></p>`,
     footer: `<button type="button" class="btn btn-secondary" data-close>إلغاء</button>
@@ -39,7 +39,7 @@ export async function askWeight(order, it, lineNo) {
   });
   m.el.classList.add('modal-adj');   // stays at the top on the phone, so the keyboard never squeezes it
   const input = m.body.querySelector('[data-grams]');
-  input.select?.();
+  input.focus();
   const save = async () => {
     const grams = Math.round(Number(input.value));
     const err = m.body.querySelector('[data-err]');
@@ -62,8 +62,9 @@ export function askReplace(order, it, lineNo) {
     let picked = null;
     const m = openModal({
       title: `${icon('repeat')} تبديل — ${esc(it.name)}`,
-      body: `<div class="field"><label for="adjSearch">الصنف البديل (من شيت المنتجات)</label>
-          <input id="adjSearch" class="input" type="search" inputmode="search" autocomplete="off" placeholder="اسم الصنف أو آخر 3 أرقام من الباركود" data-q></div>
+      body: `<label class="adj-label" for="adjSearch">آخر 3 أرقام من باركود الصنف البديل</label>
+          <div class="adj-big-wrap"><input id="adjSearch" class="adj-big num" type="text" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="مثال: 104" data-q>
+            <span class="adj-unit">باركود</span></div>
         <div class="adj-results" data-results></div>
         <div class="adj-picked" data-picked hidden></div>
         <p class="field-error" data-err role="alert"></p>`,
@@ -93,7 +94,7 @@ export function askReplace(order, it, lineNo) {
         const words = normalizeArabic(raw).split(/\s+/).filter(Boolean);
         list = catalog.products.filter((p) => words.every((w) => p.searchKey?.includes(w))).slice(0, 30);
       }
-      results.innerHTML = !raw ? '<p class="muted">اكتب اسم الصنف — أو آخر 3 أرقام من الباركود</p>'
+      results.innerHTML = !raw ? '<p class="muted">اكتب آخر 3 أرقام من الباركود — الصنف يظهر على طول</p>'
         : list.length ? `<p class="muted adj-count">${list.length >= 30 ? 'أول 30 صنف — كمّل كتابة' : `${list.length} صنف`}</p>` + list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
             <span class="grow">${esc(p.name)}${p.barcode ? `<span class="adj-bc ltr-inline num">…${esc(String(p.barcode).slice(-4))}</span>` : ''}</span>
             <span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
