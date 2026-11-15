@@ -19,6 +19,9 @@ export function adjustText(c) {
   if (c.kind === 'weight') return `⚖️ ${c.name}: ${amount(c.from)} ← ${amount(c.to)}`;
   if (c.kind === 'replaced') return `🔄 ${c.name} ← ${c.toName || c.to_name || ''} ${amount(c.to)}`;
   if (c.kind === 'removed') return `❌ ${c.name}: مش موجود — اتشال`;
+  if (c.kind === 'pickup_fee') return Number(c.to) === 0   // 41_pickup_fee.sql
+    ? `🏬 العميل هيستلم من الفرع — رسوم التوصيل اتشالت (${formatMoney(c.from)})`
+    : `🛵 رجع توصيل مع طيار — رسوم التوصيل رجعت (${formatMoney(c.to)})`;
   return c.name || '';
 }
 const totalText = (r) => `الإجمالي بقى ${formatMoney(r.newTotal)} (كان ${formatMoney(r.oldTotal)})`;
