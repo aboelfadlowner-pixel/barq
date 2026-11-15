@@ -63,7 +63,7 @@ export function askReplace(order, it, lineNo) {
     const m = openModal({
       title: `${icon('repeat')} تبديل — ${esc(it.name)}`,
       body: `<div class="field"><label for="adjSearch">الصنف البديل (من شيت المنتجات)</label>
-          <input id="adjSearch" class="input" type="search" autocomplete="off" placeholder="اكتب اسم الصنف أو الكود" data-q></div>
+          <input id="adjSearch" class="input" type="search" inputmode="search" autocomplete="off" placeholder="اسم الصنف أو آخر 3 أرقام من الباركود" data-q></div>
         <div class="adj-results" data-results></div>
         <div class="adj-picked" data-picked hidden></div>
         <p class="field-error" data-err role="alert"></p>`,
@@ -76,22 +76,39 @@ export function askReplace(order, it, lineNo) {
     const box = m.body.querySelector('[data-picked]');
     const ok = m.foot.querySelector('[data-ok]');
     const err = m.body.querySelector('[data-err]');
+    /* CONFIRMED: the list narrows with every letter typed. Digits = the barcode: the last 3 digits are
+       enough (a product whose barcode ends with them comes first); one exact match is picked at once. */
     const search = () => {
-      const t = normalizeArabic(q.value.trim());
-      const list = t.length < 2 ? [] : catalog.products.filter((p) => p.searchKey?.includes(t)).slice(0, 30);
-      results.innerHTML = t.length < 2 ? '<p class="muted">اكتب حرفين على الأقل</p>'
-        : list.length ? list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
-            <span class="grow">${esc(p.name)}</span><span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
+      const raw = q.value.trim();
+      const digitsOnly = /^[0-9٠-٩]+$/.test(raw);
+      const d = raw.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+      let list;
+      if (!raw) list = [];
+      else if (digitsOnly) {
+        const ends = catalog.products.filter((p) => p.barcode && String(p.barcode).endsWith(d));
+        const has = catalog.products.filter((p) => !ends.includes(p) && (String(p.barcode || '').includes(d) || String(p.code || '').includes(d)));
+        list = [...ends, ...has].slice(0, 30);
+        if (d.length >= 3 && ends.length === 1) { pick(ends[0]); return; }   // one product with that ending: chosen at once
+      } else {
+        const words = normalizeArabic(raw).split(/\s+/).filter(Boolean);
+        list = catalog.products.filter((p) => words.every((w) => p.searchKey?.includes(w))).slice(0, 30);
+      }
+      results.innerHTML = !raw ? '<p class="muted">اكتب اسم الصنف — أو آخر 3 أرقام من الباركود</p>'
+        : list.length ? `<p class="muted adj-count">${list.length >= 30 ? 'أول 30 صنف — كمّل كتابة' : `${list.length} صنف`}</p>` + list.map((p) => `<button type="button" class="adj-row" data-pid="${esc(p.id)}">
+            <span class="grow">${esc(p.name)}${p.barcode ? `<span class="adj-bc ltr-inline num">…${esc(String(p.barcode).slice(-4))}</span>` : ''}</span>
+            <span class="muted">${p.unitType === 'weight' ? 'بالكيلو' : 'بالوحدة'}</span>
             <strong class="num">${money(p.price)}</strong></button>`).join('')
-          : '<p class="muted">مفيش صنف بالاسم ده</p>';
+          : `<p class="muted">${digitsOnly ? 'مفيش صنف بالباركود ده' : 'مفيش صنف بالاسم ده'}</p>`;
     };
     q.addEventListener('input', () => { results.hidden = false; search(); });   // typing again: search again
     search();
     q.focus();
     results.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pid]');
-      if (!b) return;
-      picked = catalog.productsById.get(b.dataset.pid);
+      if (b) pick(catalog.productsById.get(b.dataset.pid));
+    });
+    function pick(product) {
+      picked = product;
       results.hidden = true;   // the list closes so the amount is right under the search (above the phone keyboard)
       const w = picked.unitType === 'weight';
       box.hidden = false;
@@ -100,8 +117,9 @@ export function askReplace(order, it, lineNo) {
         <div class="adj-big-wrap"><input id="adjAmt" class="adj-big num" type="number" inputmode="numeric" min="${w ? 10 : 1}" max="${w ? 20000 : 999}" step="1"
             value="${w ? (it.unitType === 'weight' ? it.grams : 500) : (it.unitType === 'weight' ? 1 : it.qty)}" data-amt><span class="adj-unit">${w ? 'جرام' : 'قطعة'}</span></div>`;
       ok.disabled = false;
+      box.querySelector('[data-amt]').select?.();
       box.querySelector('[data-amt]').focus();
-    });
+    }
     ok.addEventListener('click', async () => {
       if (!picked) return;
       const v = Math.round(Number(box.querySelector('[data-amt]').value));
