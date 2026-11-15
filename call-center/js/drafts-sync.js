@@ -11,7 +11,7 @@ let timer = null;
 let lastSaved = '';
 let pending = null;
 
-const content = (s) => ({ customer: s.customer, address: s.address, cart: s.cart, orderNote: s.orderNote });
+const content = (s) => ({ customer: s.customer, address: s.address, cart: s.cart, orderNote: s.orderNote, orderType: s.orderType || 'delivery' });
 const hasContent = (s) => !!(s.customer || s.cart.length);
 
 export const draftsOn = () => on === true;
@@ -49,7 +49,7 @@ export function startDraftSync() {
 export async function openDraft(d) {
   await flushDraft();
   setState({ requestId: d.id, customer: d.data.customer || null, address: d.data.address || null,
-    cart: d.data.cart || [], orderNote: d.data.orderNote || '', editing: null });
+    cart: d.data.cart || [], orderNote: d.data.orderNote || '', orderType: d.data.orderType === 'pickup' ? 'pickup' : 'delivery', editing: null });
   lastSaved = JSON.stringify([d.id, content(getState())]);
 }
 

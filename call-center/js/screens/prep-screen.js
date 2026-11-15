@@ -139,15 +139,17 @@ function prepCard(o, busy, checks = {}) {
       </div>` : ''}
       <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, canTick)).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
+      ${a.areaName === PICKUP && a.street === PICKUP ? `<div class="po-addr">${icon('home')}<div><strong>العميل هيستلم من الفرع</strong></div></div>` : `
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
-        ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>
+        ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>`}
       <div class="po-cust">${icon('user')}<span>${esc(o.customer.name)}</span>
         <span class="ltr-inline num">${esc(o.customer.phone)}</span></div>
       ${since ? `<div class="po-since muted">${stageOf(o.stage).label} ${formatRelative(since)}</div>` : ''}
       ${o.stage === 'at_cashier' && !cancelled && isPickup(o) ? `
         <div class="po-pickup">${icon('home')}<span><strong>العميل هيستلم من الفرع</strong> — مستني العميل</span></div>
         <button type="button" class="btn btn-primary po-next tone-btn-out" data-pickup-done ${busy ? 'disabled' : ''}>${icon('check')}العميل استلم</button>
-        <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير — هيتوصل مع طيار</button>`
+        ${o.address.areaName === PICKUP ? '<div class="muted po-pk-note">اتعمل «استلام من الفرع» من الكول سنتر — لو العميل عايزه توصيل، الكول سنتر يغيّره</div>'
+          : `<button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير — هيتوصل مع طيار</button>`}`
       : o.stage === 'at_cashier' && !cancelled ? (o.driver
         ? `<div class="po-wait">${icon('clock')}<span>مع <strong>${esc(o.driver)}</strong> — مستني يدوس «خرجت»</span></div>
            <button type="button" class="link-btn po-back" data-pick-driver ${busy ? 'disabled' : ''}>تغيير الطيار</button>`

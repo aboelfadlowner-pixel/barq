@@ -23,6 +23,13 @@ async function todayOrdersFor(phones) {
   return lists.flat().filter((o) => (seen.has(o.id) ? false : seen.add(o.id)));
 }
 
+/* «نوع الطلب» like Foodics: توصيل | استلام من الفرع (39_order_type.sql). */
+export const orderTypeToggle = (t) => `
+  <div class="otype" role="radiogroup" aria-label="نوع الطلب">
+    <button type="button" class="otype-btn ${t !== 'pickup' ? 'is-on' : ''}" data-order-type="delivery" role="radio" aria-checked="${t !== 'pickup'}">${icon('package')}توصيل</button>
+    <button type="button" class="otype-btn ${t === 'pickup' ? 'is-on' : ''}" data-order-type="pickup" role="radio" aria-checked="${t === 'pickup'}">${icon('home')}استلام من الفرع</button>
+  </div>`;
+
 export function todayWarning(todayOrders) {
   if (!todayOrders?.length) return '';
   const list = todayOrders.map((o) => `<span class="ltr-inline">${esc(o.number)}</span> (${formatTime(o.createdAt)})`).join('، ');
@@ -44,6 +51,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     addressId: null,
     todayOrders: [],
     blocked: [],             // [[phone, { source, by, at }]] — numbers on the black list
+    orderType: getState().orderType === 'pickup' ? 'pickup' : 'delivery',   // 39_order_type.sql
   };
 
   const m = openModal({
@@ -152,10 +160,12 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
       ${todayWarning(st.todayOrders)}
 
       <div class="field">
-        <label>نوع الطلب</label>
-        <div class="fixed-value">${icon('package')}توصيل <span class="muted">· الدفع كاش عند الاستلام</span></div>
+        <label>نوع الطلب <span class="muted">· الدفع كاش عند الاستلام</span></label>
+        ${orderTypeToggle(st.orderType)}
       </div>
 
+      ${st.orderType === 'pickup' ? `
+      <div class="pickup-note">${icon('home')}<span><strong>استلام من الفرع</strong> — من غير عنوان ومن غير رسوم توصيل</span></div>` : `
       <div class="field">
         <div class="label-row">
           <label>العنوان<span class="req">*</span></label>
@@ -163,7 +173,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
         </div>
         <div class="addr-cards">${addressCards()}</div>
         <div class="field-error" data-err="address"></div>
-      </div>`;
+      </div>`}`;
   }
 
   const render = () => { renderPhone2(); renderDetails(); };
@@ -283,7 +293,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     if (st.blocked.length) errors.phone = 'هذا الرقم في القائمة السوداء — ممنوع من الطلب';
     if ((st.status === 'new' || st.status === 'found') && !st.name.trim()) errors.name = 'أدخل اسم العميل';
     const address = st.addresses.find((a) => a.id === st.addressId);
-    if (st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختر عنوانًا أو أضف عنوانًا جديدًا';
+    if (st.orderType !== 'pickup' && st.status !== 'idle' && st.status !== 'choose' && !address) errors.address = 'اختر عنوانًا أو أضف عنوانًا جديدًا';
 
     m.el.querySelectorAll('[data-err]').forEach((el) => { el.textContent = errors[el.dataset.err] ?? ''; });
     if (Object.keys(errors).length) {
@@ -311,9 +321,12 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     const customer = existing
       ? { id: st.customer.id, name, phone, phone2, isNew: false, todayOrders: st.todayOrders }
       : { id: null, name: st.name.trim(), phone, phone2, isNew: true, todayOrders: st.todayOrders };
-    const { id, isNew, edited, ...fields } = address;
-    const addr = { ...fields, id: isNew ? null : id, isNew: !!isNew, edited: !!edited };
-    setState({ customer, address: addr });
+    let addr = null;
+    if (address) {
+      const { id, isNew, edited, ...fields } = address;
+      addr = { ...fields, id: isNew ? null : id, isNew: !!isNew, edited: !!edited };
+    }
+    setState({ customer, address: addr, orderType: st.orderType });
     m.close();
     if (location.hash !== '#/pos') location.hash = '#/pos';
     else document.getElementById('productSearch')?.focus();
@@ -356,6 +369,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));
+  on(m.el, 'click', '[data-order-type]', (e, b) => { st.orderType = b.dataset.orderType; renderDetails(); });
   on(m.el, 'click', '[data-add-addr]', () => openAddressDialog({
     onSave: (a) => {
       const id = `tmp-${++tempSeq}`;
