@@ -2399,6 +2399,17 @@ do $$ declare a jsonb := public.cc_prep_adjustments(); b jsonb := public.cc_prep
   end if;
 end $$;
 reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+-- at the cashier: no corrections; back to «قيد التجهيز» → allowed again
+do $$ begin
+  perform public.cc_set_stage(current_setting('cc.o54')::uuid, 'at_cashier');
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 600); raise exception 'FAIL T54 at the cashier';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_stage(current_setting('cc.o54')::uuid, 'preparing');
+  perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 560);
+end $$;
+reset role;
 -- after the driver left: no more corrections
 update public.cc_orders set stage = 'out', out_at = now() where id::text = current_setting('cc.o54');
 select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa54@cc.test'), 'role', 'authenticated')::text, true);
@@ -2408,7 +2419,7 @@ do $$ begin
   exception when invalid_parameter_value then null; end;
   begin perform public.cc_prep_adjustments(); raise exception 'FAIL T54 prep reads the list';
   exception when insufficient_privilege then null; end;
-  raise notice 'PASS T54 التجهيز بيعدّل: الوزن الفعلي، تبديل من الشيت، شيل صنف — من «ابدأ التجهيز» لحد ما يخرج، الإجمالي مظبوط، الكول سنتر شايف';
+  raise notice 'PASS T54 التجهيز بيعدّل: الوزن الفعلي، تبديل من الشيت، شيل صنف — وهو «قيد التجهيز» بس (الكاشير: يرجع الأول)، الإجمالي مظبوط، الكول سنتر شايف';
 end $$;
 reset role;
 rollback;

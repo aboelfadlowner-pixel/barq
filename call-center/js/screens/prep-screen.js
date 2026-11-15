@@ -64,8 +64,9 @@ function itemLine(it, i, o, checks, canTick) {
       <button type="button" class="pi-adj-btn" data-adj="replace" data-line="${i + 1}">🔄 تبديل</button>
       <button type="button" class="pi-adj-btn is-remove" data-adj="remove" data-line="${i + 1}">❌ مش موجود</button></div>` : ''}</li>`;
 }
-/* 37_prep_adjust.sql: from «ابدأ التجهيز» until the driver leaves, by the one preparing it (or the admin). */
-const canAdjust = (o) => inPrep(o) && !takenByOther(o);
+/* 37_prep_adjust.sql: only while «قيد التجهيز», by the one preparing it (or the admin). At the cashier the
+   buttons go — to correct something there, «رجوع لـ قيد التجهيز» first. */
+const canAdjust = (o) => inPrep(o) && o.stage === 'preparing' && !takenByOther(o);
 
 const amountText = (a) => (a?.grams ? formatWeight(a.grams) : a?.qty != null ? `${a.qty}` : '');
 function changeLine(c) {

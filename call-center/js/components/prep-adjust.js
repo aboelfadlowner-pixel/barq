@@ -1,5 +1,5 @@
 /* The branch corrects an order while preparing it (37_prep_adjust.sql).
-   CONFIRMED: from «ابدأ التجهيز» until the driver leaves —
+   CONFIRMED: only while «قيد التجهيز» (at the cashier: back to «قيد التجهيز» first) —
      «⚖️ الوزن الفعلي» on a weighed product (a warning when it differs by more than 20%),
      «🔄 تبديل» with another product from the products sheet (same names and prices),
      «❌ مش موجود» to take a product off (not the last one).

@@ -456,7 +456,7 @@ export function prepAdjust(id, lineNo, name, action, { grams = null, sku = null,
   const o = orders.find((x) => x.id === id);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
   if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
-  if (!['preparing', 'at_cashier'].includes(o.stage)) return Promise.reject(new Error('التعديل بيبدأ من «ابدأ التجهيز» لحد ما الطيار يخرج'));
+  if (o.stage !== 'preparing') return Promise.reject(new Error('التعديل وهو «قيد التجهيز» بس — لو على الكاشير رجّعه لـ «قيد التجهيز» الأول'));
   if (o.prepUserId && o.prepUserId !== demoAccount.id && demoAccount.role !== 'admin') return Promise.reject(new Error(`الطلب ده مع ${o.prepName || 'زميلك'} — دوس «خده مني» لو هتكمّله إنت`));
   const it = o.items[lineNo - 1];
   if (!it || it.name !== name) return Promise.reject(new Error('الطلب اتغيّر من جهاز تاني — اعمل تحديث'));

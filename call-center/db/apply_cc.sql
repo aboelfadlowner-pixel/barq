@@ -5999,7 +5999,8 @@ grant execute on function public.cc_pickup_done(uuid) to authenticated;
 -- =====================================================================
 --  37 — the branch corrects an order while preparing it.
 --
---  CONFIRMED: from «ابدأ التجهيز» until the driver leaves, the prep screen can:
+--  CONFIRMED: only while the order is «قيد التجهيز» (at the cashier the buttons go; to
+--  correct something there the branch moves it back to «قيد التجهيز» first), the prep screen can:
 --    • «⚖️ الوزن الفعلي» on a weighed product: the real weight (e.g. 500 → 540 g),
 --      priced from the order's own price per kg (a warning first when it differs
 --      by more than 20%);
@@ -6047,8 +6048,8 @@ begin
   if v_o.status = 'cancelled' then
     raise exception 'الطلب ده اتلغى' using errcode = '22023', hint = 'cancelled';
   end if;
-  if v_o.stage not in ('preparing', 'at_cashier') then
-    raise exception 'التعديل بيبدأ من «ابدأ التجهيز» لحد ما الطيار يخرج' using errcode = '22023', hint = 'stale';
+  if v_o.stage <> 'preparing' then
+    raise exception 'التعديل وهو «قيد التجهيز» بس — لو على الكاشير رجّعه لـ «قيد التجهيز» الأول' using errcode = '22023', hint = 'stale';
   end if;
   if v_o.prep_user_id is not null and v_o.prep_user_id <> auth.uid() and not v_admin then
     raise exception 'الطلب ده مع % — دوس «خده مني» لو هتكمّله إنت', coalesce(v_o.prep_name, 'زميلك')
