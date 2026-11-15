@@ -2750,3 +2750,49 @@ do $$ begin
 end $$;
 reset role;
 rollback;
+
+-- T61 — a new customer is saved before ordering (44_customer_early_save.sql): saved with his address; the same
+--        number again → the same customer; an order later uses him (no second customer); black list refused; prep cannot
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'c61@cc.test'), (gen_random_uuid(), 'p61@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'c61@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('c61@cc.test', 'p61@cc.test');
+insert into public.cc_agents (name) values ('موظف 61') on conflict do nothing;
+insert into public.cc_blocked_phones (phone, source) values ('01061610009', 'call_center');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p61@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_customer_create('x', '01061610001'); raise exception 'FAIL T61 prep';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c61@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare c jsonb; c2 jsonb; a uuid; begin
+  c := public.cc_customer_create(' عميل 61 ', '01061610001', null);
+  a := public.cc_customer_address_save((c->>'id')::uuid, null, 'البيت', (select id from public.cc_delivery_areas where active order by name limit 1), 'ش 61', null, null);
+  c2 := public.cc_customer_create('عميل 61', '01061610001', null);
+  if c2->>'id' <> c->>'id' or c->>'name' <> 'عميل 61' then raise exception 'FAIL T61 same number %', c2; end if;
+  begin perform public.cc_customer_create('محظور', '01061610009'); raise exception 'FAIL T61 black list';
+  exception when invalid_parameter_value then null; end;
+  perform set_config('cc.c61', c->>'id', true);
+  perform set_config('cc.a61', a::text, true);
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 61'), gen_random_uuid(),
+         jsonb_build_object('id', current_setting('cc.c61')), jsonb_build_object('id', current_setting('cc.a61')), '[{"sku": "T-201", "qty": 1}]', null);
+  if o.customer_id::text <> current_setting('cc.c61') or o.address_id::text <> current_setting('cc.a61') then raise exception 'FAIL T61 order links'; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select count(*) from public.cc_customers where phone = '01061610001') <> 1 then raise exception 'FAIL T61 two customers'; end if;
+  if exists (select 1 from public.cc_customers where phone = '01061610009') then raise exception 'FAIL T61 blocked saved'; end if;
+  raise notice 'PASS T61 العميل الجديد بيتسجل قبل الطلب: بعنوانه، نفس الرقم = نفس العميل، الطلب بعدها مربوط بيه، القائمة السوداء مرفوضة';
+end $$;
+rollback;

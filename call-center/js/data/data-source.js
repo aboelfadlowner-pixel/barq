@@ -63,6 +63,7 @@ export const updateCustomer   = (id, fields) => impl.updateCustomer(id, fields);
 export const saveCustomerAddress = (customerId, address) => impl.saveCustomerAddress(customerId, address);
 export const hideCustomerAddress = (addressId) => impl.hideCustomerAddress(addressId);
 export const closedOrders     = () => impl.closedOrders();
+export const createCustomer   = (fields) => impl.createCustomer(fields);
 export const linkLogin        = (token) => impl.linkLogin(token);
 export const prepDeliveries   = () => impl.prepDeliveries();
 export const driverPing       = (pos) => impl.driverPing(pos);
