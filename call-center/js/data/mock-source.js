@@ -499,6 +499,11 @@ export function setCustomerName(id, name) {
   c.name = v;
   return resolve(v);
 }
+export function prepFindProduct(digits) {
+  const d = String(digits || '').replace(/\D/g, '');
+  if (d.length < 3) return resolve([]);
+  return resolve(mock.products.filter((p) => p.barcode && p.barcode.endsWith(d)).slice(0, 30).map((p) => ({ ...p })));
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));

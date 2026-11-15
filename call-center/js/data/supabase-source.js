@@ -364,6 +364,11 @@ export async function setCustomerName(customerId, name) {
   const c = await sb();
   return ok(await c.rpc('cc_set_customer_name', { p_customer_id: customerId, p_name: name }));
 }
+/* «تبديل» on the prep screen (40_prep_find_product.sql): the products whose barcode ends with these digits. */
+export async function prepFindProduct(digits) {
+  const c = await sb();
+  return (ok(await c.rpc('cc_prep_find_product', { p_digits: String(digits || '') })) || []).map(toProduct);
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {
