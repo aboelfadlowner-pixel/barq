@@ -5,7 +5,7 @@
      «❌ مش موجود» to take a product off (not the last one).
    The total follows at once; the call center is told (ring + a line on the card). No reprint. */
 import * as ds from '../data/data-source.js';
-import { catalog } from '../catalog.js';
+import { catalog, ensureProducts } from '../catalog.js';
 import { esc } from '../utils/dom.js';
 import { formatMoney, formatWeight, normalizeArabic } from '../utils/format.js';
 import { icon } from './icons.js';
@@ -102,7 +102,13 @@ export function askReplace(order, it, lineNo) {
           : `<p class="muted">${digitsOnly ? 'مفيش صنف بالباركود ده' : 'مفيش صنف بالاسم ده'}</p>`;
     };
     q.addEventListener('input', () => { results.hidden = false; search(); });   // typing again: search again
-    search();
+    // the prep account has no product list until now: load it once (from this device if saved)
+    if (!catalog.products.length) {
+      results.innerHTML = '<p class="muted">جارٍ تحميل الأصناف…</p>';
+      q.disabled = true;
+      ensureProducts().then(() => { q.disabled = false; q.focus(); search(); })
+        .catch(() => { results.innerHTML = '<p class="field-error">تعذر تحميل الأصناف — اتأكد من النت واقفل الشاشة وافتحها تاني</p>'; });
+    } else search();
     q.focus();
     results.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pid]');
