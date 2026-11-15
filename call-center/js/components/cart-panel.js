@@ -15,6 +15,7 @@ import { confirmDialog, showToast } from './modal.js';
 import { openItemDialog } from './item-dialog.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openReviewDialog } from './review-dialog.js';
+import { openOrderTypeDialog } from './order-type-dialog.js';
 
 export function mountCartPanel(el) {
   el.innerHTML = `
@@ -35,7 +36,7 @@ export function mountCartPanel(el) {
   let noteOpen = false;
   const row = (label, value) => `<div class="sum-row"><span class="k">${label}</span><div class="v">${value}</div></div>`;
   const editBtn = (title) => `<button type="button" class="pen" data-action="edit-customer" title="${title}" aria-label="${title}">${icon('edit')}</button>`;
-  const renderSummary = ({ customer, address }) => {
+  const renderSummary = ({ customer, address, orderType }) => {
     const box = sec('summary');
     if (!customer) {
       box.innerHTML = `
@@ -51,8 +52,8 @@ export function mountCartPanel(el) {
       ${row('اسم العميل', `<span class="link-val">${esc(customer.name)}</span>${editBtn('تعديل العميل')}
         ${customer.isNew ? '<span class="tag tag-info">جديد</span>' : ''}`)}
       ${row('هاتف العميل', `<span class="ltr-inline num">${esc(customer.phone)}${customer.phone2 ? ` / ${esc(customer.phone2)}` : ''}</span>`)}
-      ${row('نوع الطلب', `<span class="link-val">توصيل</span><span class="muted"> · ${PAYMENT_METHOD.label}</span>`)}
-      ${row('العنوان', address ? `
+      ${row('نوع الطلب', `<button type="button" class="link-val link-btn-plain" data-action="order-type" title="تغيير نوع الطلب">${orderType === 'pickup' ? 'استلام من الفرع' : 'توصيل'}</button><span class="muted"> · ${PAYMENT_METHOD.label}</span>`)}
+      ${orderType === 'pickup' ? row('العنوان', `<span class="muted">${icon('home')} استلام من الفرع — من غير رسوم توصيل</span>`) : row('العنوان', address ? `
         <div class="addr-val">
           <div><span class="link-val">${esc(address.label || 'العنوان')}</span>${editBtn('تغيير العنوان')}
             ${address.isNew ? '<span class="tag tag-info">جديد</span>' : ''}${address.edited ? '<span class="tag tag-info">معدّل</span>' : ''}</div>
@@ -136,9 +137,9 @@ export function mountCartPanel(el) {
   };
 
   const unbinds = [
-    bind((s) => ({ customer: s.customer, address: s.address }), renderSummary),
+    bind((s) => ({ customer: s.customer, address: s.address, orderType: s.orderType }), renderSummary),
     bind((s) => s.cart, renderItems),
-    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address, editing: !!s.editing }), renderFooter),
+    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address, editing: !!s.editing, orderType: s.orderType }), renderFooter),
   ];
 
   /* ---------- Events ---------- */
@@ -172,6 +173,7 @@ export function mountCartPanel(el) {
             openAddressDialog({ address: getState().address, onSave: (address) => setCustomer(getState().customer, { ...address, edited: true }) });
           } else openNewOrderDialog({ edit: !!getState().customer });
           break;
+        case 'order-type': openOrderTypeDialog(); break;   // «تغيير نوع الطلب» (39_order_type.sql)
         case 'edit-note': noteOpen = true; renderSummary(getState()); break;
         case 'save-draft':
           location.hash = '#/board';

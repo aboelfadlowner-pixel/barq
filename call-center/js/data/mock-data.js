@@ -38,7 +38,8 @@ export const agents = [
  *    this flag will come from is still open.
  * image:    optional URL; cards fall back to an icon when null.          */
 const p = (code, name, unitType, unitLabel, price, image = null) =>
-  ({ id: code.toLowerCase(), code, name, unitType, unitLabel, price, image });
+  ({ id: code.toLowerCase(), code, name, unitType, unitLabel, price, image,
+     barcode: `6220000${String(code.replace(/\D/g, '')).padStart(6, '0')}` });   // DEMO barcode
 
 export const products = [
   p('M-101', 'جبنة رومي قديمة',      'weight', 'بالكيلو', 420),

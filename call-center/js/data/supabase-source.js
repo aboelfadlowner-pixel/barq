@@ -157,7 +157,7 @@ export function toOrder(r) {
     id: r.id,
     number: r.order_no,
     createdAt: r.created_at,
-    type: 'delivery',
+    type: r.order_type === 'pickup' ? 'pickup' : 'delivery',
     paymentMethod: r.payment_method,
     customer: { id: r.customer_id, name: r.customer_name, phone: r.customer_phone, phone2: r.customer_phone2 || '' },
     address: {
@@ -190,17 +190,18 @@ export function toOrder(r) {
 }
 
 /* Draft (store) → cc_create_order arguments. The app never sends prices or fees. */
-export function toCreateOrderArgs({ requestId, cart, customer, address, orderNote }) {
+export function toCreateOrderArgs({ requestId, cart, customer, address, orderNote, orderType = 'delivery' }) {
   const phone2 = customer.phone2 || null;
   const p_customer = customer.id
     ? { id: customer.id, order_phone: customer.phone, ...(phone2 ? { phone2 } : {}) }
     : { name: customer.name, phone: customer.phone, ...(phone2 ? { phone2 } : {}) };
-  const fields = {
+  const fields = address ? {
     label: address.label, area_id: address.areaId, street: address.street,
     housing_type: address.housingType || null, notes: address.notes || null,
-  };
+  } : null;
   let p_address;
-  if (address.isNew || !address.id) p_address = fields;                 // new address
+  if (orderType === 'pickup') p_address = { pickup: true };              // استلام من الفرع (39): no address
+  else if (address.isNew || !address.id) p_address = fields;             // new address
   else if (address.edited) p_address = { id: address.id, ...fields };  // saved address, edited
   else p_address = { id: address.id };                                  // saved address as is
   const p_items = cart.map((l) => {
@@ -357,6 +358,11 @@ export async function prepAdjustments(orderId = null) {
   if (res.error) return [];
   return (res.data || []).map((r) => ({ id: r.id, orderId: r.order_id, orderNo: r.order_no, at: r.at, by: r.by || '',
     change: { ...(r.change || {}), toName: r.change?.to_name || '' }, oldTotal: Number(r.old_total), newTotal: Number(r.new_total) }));
+}
+/* The call center corrects a saved customer's name (38_customer_name.sql) → the saved name. */
+export async function setCustomerName(customerId, name) {
+  const c = await sb();
+  return ok(await c.rpc('cc_set_customer_name', { p_customer_id: customerId, p_name: name }));
 }
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
@@ -543,10 +549,11 @@ export async function ackEdit(orderId) {
 }
 
 /* Edit an order (until «على الكاشير»). The database recomputes prices and totals. */
-export async function editOrder({ orderId, cart, address, orderNote, agent }) {
+export async function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery' }) {
   const c = await sb();
-  const { p_items } = toCreateOrderArgs({ requestId: null, cart, customer: { id: 'x' }, address, orderNote });
-  const p_address = { area_id: address.areaId, street: address.street, housing_type: address.housingType || null, notes: address.notes || null };
+  const { p_items } = toCreateOrderArgs({ requestId: null, cart, customer: { id: 'x' }, address, orderNote, orderType });
+  const p_address = orderType === 'pickup' ? { pickup: true }
+    : { label: address.label || null, area_id: address.areaId, street: address.street, housing_type: address.housingType || null, notes: address.notes || null };
   const res = await c.rpc('cc_edit_order', { p_agent_id: agent?.id ?? null, p_order_id: orderId, p_address, p_items, p_note: orderNote || null });
   if (res.error?.code === NOT_INSTALLED) throw new Error('تعديل الطلبات غير مفعّل على قاعدة البيانات بعد');
   ok(res);

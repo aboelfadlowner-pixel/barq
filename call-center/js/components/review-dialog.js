@@ -16,7 +16,8 @@ import { requireAgent } from './agent-select.js';
 export function missingFields(s) {
   const missing = [];
   if (!s.customer) missing.push('حدد العميل');
-  if (!s.address) missing.push('حدد عنوان التوصيل');
+  if (s.orderType === 'pickup') { /* استلام من الفرع: no address (39_order_type.sql) */ }
+  else if (!s.address) missing.push('حدد عنوان التوصيل');
   else if (!catalog.areasById.get(s.address.areaId)?.active) missing.push('منطقة التوصيل موقوفة أو غير معروفة — اختر عنواناً آخر');
   if (!s.cart.length) missing.push('أضف صنفاً واحداً على الأقل');
   return missing;
@@ -55,9 +56,9 @@ export function openReviewDialog() {
               : '<p class="muted">لم يتم تحديد العميل</p>'}
           </div>
           <div class="info-card">
-            <h4><span>${icon('pin')}عنوان التوصيل</span>
+            <h4><span>${icon('pin')}${s.orderType === 'pickup' ? 'نوع الطلب' : 'عنوان التوصيل'}</span>
               ${s.customer ? `<button type="button" class="btn btn-ghost btn-sm" data-edit-customer>${icon('edit')}تغيير</button>` : ''}</h4>
-            ${s.address ? `
+            ${s.orderType === 'pickup' ? `<div class="big">${icon('home')} استلام من الفرع</div><div class="muted">من غير رسوم توصيل</div>` : s.address ? `
               ${s.address.label ? `<div class="addr-label">${esc(s.address.label)}</div>` : ''}
               <div class="big">${esc(area?.name ?? 'منطقة غير معروفة')} ${area ? `<span class="fee-chip">${money(area.fee)}</span>` : ''}</div>
               <div class="addr-text">${esc(formatAddress(s.address))}</div>
@@ -108,7 +109,7 @@ export function openReviewDialog() {
   };
 
   // orderNote is excluded so typing in the textarea never re-renders it.
-  const unbind = bind((s) => ({ cart: s.cart, customer: s.customer, address: s.address }), render);
+  const unbind = bind((s) => ({ cart: s.cart, customer: s.customer, address: s.address, orderType: s.orderType }), render);
   m.onClose(unbind);
 
   on(m.el, 'click', '[data-edit-customer]', () => openNewOrderDialog({ edit: !!getState().customer }));
@@ -122,10 +123,10 @@ export function openReviewDialog() {
     btn.innerHTML = `${icon('check')}جارٍ الحفظ…`;
     try {
       const order = s.editing
-        ? await ds.editOrder({ orderId: s.editing.orderId, cart: s.cart, address: s.address, orderNote: s.orderNote.trim(), agent: s.agent })
+        ? await ds.editOrder({ orderId: s.editing.orderId, cart: s.cart, address: s.address, orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType })
         : await ds.createOrder({
           requestId: s.requestId, cart: s.cart, customer: s.customer, address: s.address,
-          orderNote: s.orderNote.trim(), agent: s.agent,
+          orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType,
         });
       m.close();
       resetDraft();

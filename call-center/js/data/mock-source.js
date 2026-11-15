@@ -319,6 +319,8 @@ export function setStage(orderId, stage) {
   else o[['', 'preparingAt', 'atCashierAt', 'outAt'][from]] = null;
   if (to < 4) Object.assign(o, { tripId: null, tripSeq: null, tripSize: null, outByAdmin: false });
   if (to < 3) Object.assign(o, { driver: '', driverUserId: null, assignedAt: null });
+  // 39_order_type.sql: at the cashier a pickup order waits for the customer by itself
+  if (o.type === 'pickup' && stage === 'at_cashier' && !o.driverUserId) Object.assign(o, { driver: 'استلام من الفرع', assignedAt: now });
   return resolve({ id: o.id, stage: o.stage });
 }
 
@@ -403,6 +405,7 @@ export function assignDriver(id, driverId) {
   if (o.stage === 'out') return Promise.reject(new Error('الطيار خرج بالطلب خلاص'));
   if (o.stage !== 'at_cashier') return Promise.reject(new Error('الطلب لازم يكون على الكاشير'));
   if (driverId && !staff.some((x) => x.id === driverId && x.role === 'driver' && x.active)) return Promise.reject(new Error('اختار طيار من القائمة'));
+  if (driverId && o.type === 'pickup' && !o.address?.areaId) return Promise.reject(new Error('الطلب ده «استلام من الفرع» ومن غير عنوان — الكول سنتر يغيّره لـ «توصيل» الأول'));
   Object.assign(o, { driverUserId: driverId || null, driver: driverId ? driverLabel(driverId) : '', assignedAt: driverId ? new Date().toISOString() : null });
   return resolve(o.driver || null);
 }
@@ -488,6 +491,14 @@ export function prepAdjust(id, lineNo, name, action, { grams = null, sku = null,
 }
 export const prepAdjustments = (orderId = null) => resolve(adjustments
   .filter((a) => (orderId ? a.orderId === orderId : isSameWorkDay(a.at, new Date()))).map((a) => ({ ...a })));
+export function setCustomerName(id, name) {
+  const v = String(name || '').trim();
+  if (!v || v.length > 120) return Promise.reject(new Error('اكتب اسم العميل (لحد 120 حرف)'));
+  const c = customers.find((x) => x.id === id);
+  if (!c) return Promise.reject(new Error('العميل غير موجود'));
+  c.name = v;
+  return resolve(v);
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));
@@ -663,7 +674,7 @@ export function ackEdit(orderId) {
 }
 
 /* Edit (demo): same rules as the database — until «على الكاشير»; kept lines keep their price. */
-export function editOrder({ orderId, cart, address, orderNote, agent }) {
+export function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery' }) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
   if (o.status === 'cancelled') return Promise.reject(new Error('هذا الطلب ملغي ولا يمكن تعديله'));
@@ -684,17 +695,23 @@ export function editOrder({ orderId, cart, address, orderNote, agent }) {
     else if ((old.note || '') !== (n.note || '')) changes.push({ kind: 'note', name: n.name, to: n.note || '' });
   }
   for (const [id, old] of oldBy) if (!newBy.has(id)) changes.push({ kind: 'removed', name: old.name, from: amount(old) });
-  const area = areas.find((a) => a.id === address.areaId);
-  const addrChanged = address.areaId !== o.address.areaId || address.street !== o.address.street
-    || (address.housingType || '') !== (o.address.housingType || '') || (address.notes || '') !== (o.address.notes || '');
-  if (addrChanged) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
+  const pickup = orderType === 'pickup';   // 39_order_type.sql
+  const wasPickup = o.type === 'pickup';
+  if (!pickup && !address) return Promise.reject(new Error('اختر منطقة التوصيل'));
+  if (pickup !== wasPickup) changes.push({ kind: 'order_type', name: 'نوع الطلب', to: pickup ? 'استلام من الفرع' : 'توصيل' });
+  const area = pickup ? null : areas.find((a) => a.id === address.areaId);
+  const addrChanged = !pickup && (wasPickup || address.areaId !== o.address.areaId || address.street !== o.address.street
+    || (address.housingType || '') !== (o.address.housingType || '') || (address.notes || '') !== (o.address.notes || ''));
+  if (addrChanged && !wasPickup) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
   if ((orderNote || '') !== (o.note || '')) changes.push({ kind: 'order_note', name: 'ملاحظات الطلب', to: orderNote || '' });
   if (!changes.length) return Promise.reject(new Error('لا يوجد أي تغيير في الطلب'));
   o.items = priced.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
-  if (addrChanged) {
-    if (address.areaId !== o.address.areaId) o.deliveryFee = area?.fee ?? o.deliveryFee;
-    o.address = { ...o.address, areaId: address.areaId, areaName: area?.name ?? o.address.areaName, street: address.street,
-      housingType: address.housingType || '', notes: address.notes || '' };
+  if (pickup) Object.assign(o, { type: 'pickup', deliveryFee: 0, address: { id: null, label: 'استلام من الفرع', areaId: null, areaName: 'استلام من الفرع', street: 'استلام من الفرع', housingType: '', notes: '' } });
+  else if (addrChanged) {
+    if (wasPickup || address.areaId !== o.address.areaId) o.deliveryFee = area?.fee ?? o.deliveryFee;
+    o.address = { ...o.address, label: wasPickup ? (address.label || 'العنوان') : o.address.label, areaId: address.areaId,
+      areaName: area?.name ?? o.address.areaName, street: address.street, housingType: address.housingType || '', notes: address.notes || '' };
+    o.type = 'delivery';
   }
   o.note = orderNote || '';
   Object.assign(o, { editCount: (o.editCount || 0) + 1, editedAt: new Date().toISOString(), editedBy: agent?.name || '', editChanges: changes, editSeenAt: null });
@@ -706,11 +723,12 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
 export function createOrder(draft) {
   const { cart, customer, address, orderNote, agent } = draft;
+  const pickup = draft.orderType === 'pickup';   // 39_order_type.sql: no address, no fee
   if (!agent || !agents.some((a) => a.id === agent.id && a.active)) {
     return Promise.reject(new Error('اختر اسمك من قائمة الموظفين أولًا'));
   }
-  const area = areas.find((a) => a.id === address.areaId);
-  if (!area || !area.active) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
+  const area = pickup ? null : areas.find((a) => a.id === address?.areaId);
+  if (!pickup && (!area || !area.active)) return Promise.reject(new Error('منطقة التوصيل غير متاحة'));
   let items;
   try { items = cart.map(({ lineId, ...item }) => ({ ...item, modifiers: priceModifiers(item) })); } catch (e) { return Promise.reject(e); }
 
@@ -725,9 +743,10 @@ export function createOrder(draft) {
   // DEMO: an extra number typed in the dialog is added to the customer.
   if (customer.phone2 && !cust.phones.includes(customer.phone2)) cust.phones.push(customer.phone2);
 
-  const { isNew, edited, ...addrFields } = address;
-  let addrId = address.id;
-  if (isNew || !addrId) {
+  const { isNew, edited, ...addrFields } = address || {};
+  let addrId = address?.id;
+  if (pickup) addrId = null;
+  else if (isNew || !addrId) {
     addrId = `${cust.id}-a${Date.now()}`;
     cust.addresses.push({ ...addrFields, id: addrId });
   } else if (edited) {
@@ -741,11 +760,11 @@ export function createOrder(draft) {
     id: `o-${no}`,
     number: `DEMO-${no}`,
     createdAt: now,
-    type: 'delivery',
+    type: pickup ? 'pickup' : 'delivery',
     paymentMethod: 'cash',
     customer: { id: cust.id, name: cust.name, phone: customer.phone, phone2: customer.phone2 || '' },
-    address: { ...addrFields, id: addrId, areaName: area.name },
-    deliveryFee: area.fee,
+    address: pickup ? { id: null, label: 'استلام من الفرع', areaId: null, areaName: 'استلام من الفرع', street: 'استلام من الفرع', housingType: '', notes: '' } : { ...addrFields, id: addrId, areaName: area.name },
+    deliveryFee: pickup ? 0 : area.fee,
     items,
     note: orderNote || '',
     status: mock.orderStatuses[0].id,

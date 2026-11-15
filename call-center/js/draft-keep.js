@@ -6,7 +6,7 @@
 import { getState, setState, subscribe } from './store.js';
 
 const MAX_AGE_MS = 12 * 60 * 60 * 1000;
-const FIELDS = ['requestId', 'cart', 'customer', 'address', 'orderNote'];
+const FIELDS = ['requestId', 'cart', 'customer', 'address', 'orderNote', 'orderType'];
 const keyOf = (user) => `cc-draft-${user?.id || 'device'}`;
 const read = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
 const write = (key, v) => { try { if (v) localStorage.setItem(key, JSON.stringify(v)); else localStorage.removeItem(key); } catch { /* storage off: in memory only, as before */ } };

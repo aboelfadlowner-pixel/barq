@@ -17,6 +17,7 @@ const emptyDraft = () => ({
   customer: null,   // { id|null, name, phone, phone2, isNew, todayOrders: [] }
   address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
+  orderType: 'delivery',   // «توصيل» | «pickup» = استلام من الفرع (39_order_type.sql)
   editing: null,    // editing a sent order: { orderId, number } (until «على الكاشير»)
 });
 
@@ -64,6 +65,7 @@ export function bind(selector, render) {
 
 /* ---------- Derived ---------- */
 export function currentDeliveryFee(s = state) {
+  if (s.orderType === 'pickup') return 0;   // استلام من الفرع: no delivery fee
   if (!s.address?.areaId) return null;
   return catalog.areasById.get(s.address.areaId)?.fee ?? null;
 }
@@ -115,6 +117,7 @@ export const setAgent = (agent) => setState({ agent });
 export const setCustomer = (customer, address) => setState({ customer, address });
 export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });
+export const setOrderType = (orderType, address = undefined) => setState(address === undefined ? { orderType } : { orderType, address });
 
 export function resetDraft() {
   setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
@@ -135,7 +138,8 @@ export function loadDraftForEdit(order) {
     ...emptyDraft(),
     cart,
     customer: { id: order.customer.id, name: order.customer.name, phone: order.customer.phone, phone2: order.customer.phone2 || '', isNew: false, todayOrders: [] },
-    address: { ...address, isNew: false },
+    address: order.type === 'pickup' ? null : { ...address, isNew: false },
+    orderType: order.type === 'pickup' ? 'pickup' : 'delivery',
     orderNote: order.note || '',
     editing: { orderId: order.id, number: order.number },
   });
@@ -168,7 +172,8 @@ export function loadDraftFromOrder(order, todayOrders = []) {
     ...emptyDraft(),
     cart,
     customer: { id: order.customer.id, name: order.customer.name, phone: order.customer.phone, phone2: '', isNew: false, todayOrders },
-    address: { ...address, isNew: false },
+    address: order.type === 'pickup' ? null : { ...address, isNew: false },
+    orderType: order.type === 'pickup' ? 'pickup' : 'delivery',
   });
   return { skipped };
 }

@@ -2423,3 +2423,131 @@ do $$ begin
 end $$;
 reset role;
 rollback;
+
+-- T55 — the call center corrects a customer's name (38_customer_name.sql); prep cannot; empty refused;
+--        the next order carries the new name, a sent order keeps its own
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'c55@cc.test'), (gen_random_uuid(), 'p55@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'c55@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('c55@cc.test', 'p55@cc.test');
+insert into public.cc_agents (name) values ('موظف 55') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 55'), gen_random_uuid(),
+         jsonb_build_object('name', 'اية محمد', 'phone', '01055555501'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 55'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  perform set_config('cc.c55', o.customer_id::text, true);
+  perform set_config('cc.o55', o.id::text, true);
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p55@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_customer_name(current_setting('cc.c55')::uuid, 'آية محمد'); raise exception 'FAIL T55 prep';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c55@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_customer_name(current_setting('cc.c55')::uuid, '   '); raise exception 'FAIL T55 empty';
+  exception when invalid_parameter_value then null; end;
+  if public.cc_set_customer_name(current_setting('cc.c55')::uuid, '  آية محمد  ') <> 'آية محمد' then raise exception 'FAIL T55 trim'; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 55'), gen_random_uuid(),
+         jsonb_build_object('id', current_setting('cc.c55')),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 55'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  if o.customer_name <> 'آية محمد' then raise exception 'FAIL T55 next order %', o.customer_name; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select customer_name from public.cc_orders where id::text = current_setting('cc.o55')) <> 'اية محمد' then raise exception 'FAIL T55 old order changed'; end if;
+  raise notice 'PASS T55 تعديل اسم العميل: الكول سنتر بس، مش فاضي، الطلب الجاي بالاسم الجديد، القديم زي ما هو';
+end $$;
+rollback;
+
+-- T56 — «نوع الطلب» (39_order_type.sql): a pickup order needs no address and has no fee, adds nothing to the
+--        address book; edit switches pickup ⇄ delivery with the right fee; at the cashier it waits for the customer
+--        by itself, cannot go to a driver, «العميل استلم» ends it; delivery orders unchanged
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'p56@cc.test'), (gen_random_uuid(), 'd56@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'تجهيز 56', 'prep' from auth.users where email = 'p56@cc.test';
+select public.cc_driver_setup((select id from auth.users where email = 'd56@cc.test'), 'طيار 56', '01056565656');
+select set_config('cc.d56', (select id::text from auth.users where email = 'd56@cc.test'), true);
+insert into public.cc_agents (name) values ('موظف 56') on conflict do nothing;
+select set_config('cc.area56', (select id::text from public.cc_delivery_areas where active and fee > 0 order by name limit 1), true);
+select set_config('cc.fee56', (select fee::text from public.cc_delivery_areas where id::text = current_setting('cc.area56')), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; o2 public.cc_orders; rid uuid := gen_random_uuid(); fee numeric := current_setting('cc.fee56')::numeric; begin
+  -- a new customer, pickup, no address at all
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 56'), rid,
+         jsonb_build_object('name', 'عميل 56', 'phone', '01056560001'), '{"pickup": true}', '[{"sku": "T-201", "qty": 2}]', null);
+  if o.order_type <> 'pickup' or o.delivery_fee <> 0 or o.total <> 84 or o.area_id is not null or o.area_name <> 'استلام من الفرع' then
+    raise exception 'FAIL T56 pickup order % % %', o.order_type, o.delivery_fee, o.total;
+  end if;
+  if (select count(*) from public.cc_addresses where customer_id = o.customer_id) <> 0 then raise exception 'FAIL T56 address book'; end if;
+  -- same draft again → same order
+  o2 := public.cc_place_order((select id from public.cc_agents where name = 'موظف 56'), rid,
+         jsonb_build_object('name', 'عميل 56', 'phone', '01056560001'), '{"pickup": true}', '[{"sku": "T-201", "qty": 2}]', null);
+  if o2.id <> o.id then raise exception 'FAIL T56 retry'; end if;
+  perform set_config('cc.k56', o.id::text, true);
+  -- pickup → delivery while editing: the area's fee comes back
+  o := public.cc_edit_order((select id from public.cc_agents where name = 'موظف 56'), o.id,
+         jsonb_build_object('label', 'البيت', 'area_id', current_setting('cc.area56'), 'street', 'ش 56'), '[{"sku": "T-201", "qty": 2}]', null);
+  if o.order_type <> 'delivery' or o.delivery_fee <> fee or o.total <> 84 + fee or o.area_id::text <> current_setting('cc.area56')
+     or o.street <> 'ش 56' or o.address_label <> 'البيت' or not (o.edit_changes @> '[{"kind": "order_type"}]') then
+    raise exception 'FAIL T56 to delivery % % % %', o.order_type, o.delivery_fee, o.street, o.edit_changes;
+  end if;
+  -- delivery → pickup: fee 0
+  o := public.cc_edit_order((select id from public.cc_agents where name = 'موظف 56'), o.id, '{"pickup": true}', '[{"sku": "T-201", "qty": 3}]', null);
+  if o.order_type <> 'pickup' or o.delivery_fee <> 0 or o.total <> 126 or o.area_id is not null then raise exception 'FAIL T56 to pickup'; end if;
+  -- items only (no address): stays pickup
+  o := public.cc_edit_order((select id from public.cc_agents where name = 'موظف 56'), o.id, null, '[{"sku": "T-201", "qty": 1}]', null);
+  if o.order_type <> 'pickup' or o.total <> 42 then raise exception 'FAIL T56 stays pickup'; end if;
+  -- a delivery order is exactly as before
+  o2 := public.cc_place_order((select id from public.cc_agents where name = 'موظف 56'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 56ب', 'phone', '01056560002'),
+         jsonb_build_object('label', 'البيت', 'area_id', current_setting('cc.area56'), 'street', 'ش 56'), '[{"sku": "T-201", "qty": 1}]', null);
+  if o2.order_type <> 'delivery' or o2.delivery_fee <> fee or o2.total <> 42 + fee then raise exception 'FAIL T56 delivery unchanged'; end if;
+  -- delivery still needs an address
+  begin
+    perform public.cc_place_order((select id from public.cc_agents where name = 'موظف 56'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 56ج', 'phone', '01056560003'), '{}', '[{"sku": "T-201", "qty": 1}]', null);
+    raise exception 'FAIL T56 delivery without address';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+-- the branch: at the cashier it waits for the customer by itself; no driver; «العميل استلم»
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p56@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o jsonb; begin
+  perform public.cc_set_stage(current_setting('cc.k56')::uuid, 'preparing');
+  perform public.cc_set_stage(current_setting('cc.k56')::uuid, 'at_cashier');
+  select x into o from public.cc_prep_orders() x where x->>'id' = current_setting('cc.k56');
+  if o->>'driver' <> 'استلام من الفرع' then raise exception 'FAIL T56 waits for the customer %', o->>'driver'; end if;
+  begin perform public.cc_assign_driver(current_setting('cc.k56')::uuid, current_setting('cc.d56')::uuid); raise exception 'FAIL T56 driver for a pickup';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_pickup_done(current_setting('cc.k56')::uuid);
+end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  select * into o from public.cc_orders where id::text = current_setting('cc.k56');
+  if o.stage <> 'out' or (select delivered_at from public.cc_order_delivery where order_id = o.id) is null then raise exception 'FAIL T56 pickup done'; end if;
+  if (select count(*) from public.cc_orders where order_type is null) > 0 then raise exception 'FAIL T56 old orders type'; end if;
+  raise notice 'PASS T56 «نوع الطلب»: استلام من غير عنوان ولا رسوم، تعديل توصيل⇄استلام بالرسوم الصح، الكاشير مستني العميل، مفيش طيار، العميل استلم، التوصيل زي ما هو';
+end $$;
+rollback;
