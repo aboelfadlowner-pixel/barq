@@ -318,13 +318,31 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
         return;
       }
     }
-    const customer = existing
+    let customer = existing
       ? { id: st.customer.id, name, phone, phone2, isNew: false, todayOrders: st.todayOrders }
       : { id: null, name: st.name.trim(), phone, phone2, isNew: true, todayOrders: st.todayOrders };
     let addr = null;
     if (address) {
       const { id, isNew, edited, ...fields } = address;
       addr = { ...fields, id: isNew ? null : id, isNew: !!isNew, edited: !!edited };
+    }
+    // 44_customer_early_save.sql: a new customer (and a new address) is saved now — even if he doesn't order
+    const btn = m.foot.querySelector('[data-save]');
+    btn.disabled = true;
+    try {
+      if (customer.isNew) {
+        const saved = await ds.createCustomer({ name: customer.name, phone, phone2 });
+        if (saved) customer = { ...customer, id: saved.id, name: saved.name, isNew: false };
+      }
+      if (customer.id && addr?.isNew) {
+        const id = await ds.saveCustomerAddress(customer.id, addr);
+        if (id) addr = { ...addr, id, isNew: false };
+      }
+    } catch (ex) {
+      btn.disabled = false;
+      const errEl = m.el.querySelector(`[data-err="${customer.id ? 'address' : 'phone'}"]`) || m.el.querySelector('[data-err="phone"]');
+      if (errEl) errEl.textContent = ex.message; else showToast(ex.message);
+      return;
     }
     setState({ customer, address: addr, orderType: st.orderType });
     m.close();

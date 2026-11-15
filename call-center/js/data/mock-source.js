@@ -547,6 +547,14 @@ export function hideCustomerAddress(addressId) {
 export const closedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && o.status !== 'cancelled' && deliveries.get(o.id)?.deliveredAt)
   .map((o) => [o.id, deliveries.get(o.id).deliveredAt])));
+export function createCustomer({ name, phone, phone2 }) {
+  const p1 = normalizePhone(phone);
+  const hit = [p1, normalizePhone(phone2 || '')].find((ph) => ph && blocked.has(ph));
+  if (hit) return Promise.reject(new Error(`الرقم ${hit} في القائمة السوداء — ممنوع من الطلب`));
+  let c = customers.find((x) => normalizePhone(x.phones[0]) === p1);
+  if (!c) { c = { id: `c-demo-${Date.now()}`, name: String(name).trim(), phones: [p1, phone2].filter(Boolean), addresses: [] }; customers.push(c); }
+  return resolve({ id: c.id, name: c.name });
+}
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));

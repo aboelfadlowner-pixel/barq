@@ -390,6 +390,14 @@ export async function closedOrders() {
   if (res.error) return new Map();
   return new Map((res.data || []).map((r) => [r.order_id, r.at]));
 }
+/* A new customer saved before ordering (44_customer_early_save.sql) → { id, name }; null before 44 is applied. */
+export async function createCustomer({ name, phone, phone2 }) {
+  const c = await sb();
+  const res = await c.rpc('cc_customer_create', { p_name: name, p_phone: phone, p_phone2: phone2 || null });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  const r = ok(res);
+  return { id: r.id, name: r.name };
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {
