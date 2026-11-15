@@ -2634,3 +2634,76 @@ do $$ declare a jsonb := public.cc_prep_adjustments(current_setting('cc.o58')::u
 end $$;
 reset role;
 rollback;
+
+-- T59 — «العملاء» edit (42_customer_edit.sql): name and numbers, a number of another customer refused with
+--        his name; add / edit / hide an address (hidden, not deleted); prep cannot; old orders unchanged
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'c59@cc.test'), (gen_random_uuid(), 'p59@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, 'x', case email when 'c59@cc.test' then 'call_center' else 'prep' end from auth.users where email in ('c59@cc.test', 'p59@cc.test');
+insert into public.cc_agents (name) values ('موظف 59') on conflict do nothing;
+select set_config('cc.area59', (select id::text from public.cc_delivery_areas where active order by name limit 1), true);
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 59'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 59', 'phone', '01059590001'),
+         jsonb_build_object('label', 'البيت', 'area_id', current_setting('cc.area59'), 'street', 'ش 59'), '[{"sku": "T-201", "qty": 1}]', null);
+  perform set_config('cc.c59', o.customer_id::text, true);
+  perform set_config('cc.o59', o.id::text, true);
+  perform set_config('cc.a59', o.address_id::text, true);
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 59'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل تاني 59', 'phone', '01059590099'),
+         jsonb_build_object('label', 'البيت', 'area_id', current_setting('cc.area59'), 'street', 'ش 59ب'), '[{"sku": "T-201", "qty": 1}]', null);
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'p59@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_customer_update(current_setting('cc.c59')::uuid, 'x', '01059590001', null); raise exception 'FAIL T59 prep';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c59@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; a uuid; begin
+  -- another customer's number → refused, with his name
+  begin perform public.cc_customer_update(current_setting('cc.c59')::uuid, 'عميل 59', '01059590001', '01059590099'); raise exception 'FAIL T59 duplicate';
+  exception when unique_violation then
+    if sqlerrm not like '%عميل تاني 59%' then raise exception 'FAIL T59 duplicate message %', sqlerrm; end if;
+  end;
+  begin perform public.cc_customer_update(current_setting('cc.c59')::uuid, 'عميل 59', '01059590001', '01059590001'); raise exception 'FAIL T59 same number';
+  exception when invalid_parameter_value then null; end;
+  r := public.cc_customer_update(current_setting('cc.c59')::uuid, ' آية 59 ', '01159590001', '01059590002');
+  -- a number already shared with another customer from before does not block other changes
+  reset role;
+  update public.cc_customers set phone2 = '01059590002' where phone = '01059590099';
+  set local role authenticated;
+  perform public.cc_customer_update(current_setting('cc.c59')::uuid, 'آية 59 علي', '01159590001', '01059590002');
+  if r->>'name' <> 'آية 59' or r->>'phone' <> '01159590001' or r->>'phone2' <> '01059590002' then raise exception 'FAIL T59 update %', r; end if;
+  -- addresses: add, edit, hide
+  a := public.cc_customer_address_save(current_setting('cc.c59')::uuid, null, 'الشغل', current_setting('cc.area59')::uuid, 'ش الشغل', 'office', 'الدور 3');
+  perform public.cc_customer_address_save(current_setting('cc.c59')::uuid, a, 'الشغل', current_setting('cc.area59')::uuid, 'ش الشغل الجديد', null, null);
+  begin perform public.cc_customer_address_save(current_setting('cc.c59')::uuid, null, '', current_setting('cc.area59')::uuid, 'ش', null, null); raise exception 'FAIL T59 empty label';
+  exception when invalid_parameter_value then null; end;
+  if not public.cc_customer_address_hide(current_setting('cc.a59')::uuid) then raise exception 'FAIL T59 hide'; end if;
+  if public.cc_customer_address_hide(current_setting('cc.a59')::uuid) then raise exception 'FAIL T59 hide twice'; end if;
+  begin perform public.cc_customer_address_save(current_setting('cc.c59')::uuid, current_setting('cc.a59')::uuid, 'x', current_setting('cc.area59')::uuid, 'ش', null, null); raise exception 'FAIL T59 edit hidden';
+  exception when no_data_found then null; end;
+  perform set_config('cc.a59b', a::text, true);
+  -- the screens no longer read the hidden address
+  if exists (select 1 from public.cc_addresses where id::text = current_setting('cc.a59')) then raise exception 'FAIL T59 hidden still read'; end if;
+  if not exists (select 1 from public.cc_addresses where id = a) then raise exception 'FAIL T59 new address not read'; end if;
+end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  if (select street from public.cc_addresses where id::text = current_setting('cc.a59b')) <> 'ش الشغل الجديد' then raise exception 'FAIL T59 edited'; end if;
+  if (select hidden_at from public.cc_addresses where id::text = current_setting('cc.a59')) is null then raise exception 'FAIL T59 hidden'; end if;
+  select * into o from public.cc_orders where id::text = current_setting('cc.o59');
+  if o.customer_name <> 'عميل 59' or o.customer_phone <> '01059590001' or o.street <> 'ش 59' then raise exception 'FAIL T59 old order changed'; end if;
+  raise notice 'PASS T59 تعديل العميل: الاسم والأرقام (رقم عميل تاني مرفوض باسمه)، العناوين إضافة/تعديل/إخفاء، الطلبات القديمة زي ما هي';
+end $$;
+rollback;

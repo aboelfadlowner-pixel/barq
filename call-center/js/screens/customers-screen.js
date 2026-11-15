@@ -17,8 +17,12 @@ import {
 import { computeTotals } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
-import { confirmDialog, showToast } from '../components/modal.js';
+import { confirmDialog, openModal, showToast } from '../components/modal.js';
+import { openAddressDialog } from '../components/address-dialog.js';
 import { startNewOrder } from './board-screen.js';
+
+/* 42_customer_edit.sql: the call center and the admin edit the customer. */
+const canEdit = () => ['admin', 'call_center'].includes(getState().user?.role);
 
 const PAGE = 20;
 const SORTS = [
@@ -225,6 +229,7 @@ function mountProfile(view, customerId) {
               <div class="page-sub"><span class="ltr-inline">${c.phones.map(esc).join(' / ')}</span></div>
             </div>
             <div class="head-actions">
+              ${canEdit() ? `<button type="button" class="btn btn-secondary btn-lg" data-edit-cust>${icon('edit')}تعديل البيانات</button>` : ''}
               ${blocks.length ? '' : `<button type="button" class="btn btn-primary btn-lg" data-new>${icon('headset')}طلب جديد</button>
               ${orders.some((o) => o.status !== 'cancelled') ? `<button type="button" class="btn btn-soft btn-lg" data-repeat>${icon('repeat')}تكرار آخر طلب</button>` : ''}`}
               ${blockMap ? (blocks.length
@@ -273,16 +278,21 @@ function mountProfile(view, customerId) {
             </div>
           </div>` : ''}
 
-          <h2 class="section-title">${icon('pin')}العناوين</h2>
+          <div class="section-head-row">
+            <h2 class="section-title">${icon('pin')}العناوين</h2>
+            ${canEdit() ? `<button type="button" class="btn btn-soft" data-addr-add>${icon('plus')}إضافة عنوان</button>` : ''}
+          </div>
           <div class="card table-wrap">
             <table class="table">
-              <thead><tr><th>الاسم</th><th>المنطقة</th><th>العنوان</th><th class="col-opt">نوع السكن</th></tr></thead>
+              <thead><tr><th>الاسم</th><th>المنطقة</th><th>العنوان</th><th class="col-opt">نوع السكن</th>${canEdit() ? '<th></th>' : ''}</tr></thead>
               <tbody>${c.addresses.length ? c.addresses.map((a) => `
                 <tr><td><strong>${esc(a.label)}</strong></td>
                   <td>${esc(catalog.areasById.get(a.areaId)?.name ?? '—')}</td>
                   <td>${esc(formatAddress(a))}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</td>
-                  <td class="col-opt">${esc(housingLabel(a.housingType) || '—')}</td></tr>`).join('')
-                : '<tr><td colspan="4" class="table-empty">لا توجد عناوين</td></tr>'}</tbody>
+                  <td class="col-opt">${esc(housingLabel(a.housingType) || '—')}</td>
+                  ${canEdit() ? `<td class="addr-acts"><button type="button" class="btn btn-ghost btn-sm" data-addr-edit="${esc(a.id)}">${icon('edit')}تعديل</button>
+                    <button type="button" class="btn btn-danger-ghost btn-sm" data-addr-hide="${esc(a.id)}">${icon('trash')}شيل</button></td>` : ''}</tr>`).join('')
+                : `<tr><td colspan="${canEdit() ? 5 : 4}" class="table-empty">لا توجد عناوين</td></tr>`}</tbody>
             </table>
           </div>
 
@@ -322,6 +332,18 @@ function mountProfile(view, customerId) {
           showToast(skipped.length ? `تم نسخ الأصناف — ${skipped.length} صنف غير متاح حاليًا` : 'تم نسخ أصناف آخر طلب بالأسعار الحالية — راجع قبل الإرسال');
         }),
         on(view, 'click', 'tr[data-order]', (e, tr) => { location.hash = `#/orders/${encodeURIComponent(tr.dataset.order)}`; }),
+        // 42_customer_edit.sql: name / numbers, addresses (like Foodics)
+        on(view, 'click', '[data-edit-cust]', () => editCustomerDialog(c, reload)),
+        on(view, 'click', '[data-addr-add]', () => openAddressDialog({ onSave: (a) => saveAddr(c.id, a) })),
+        on(view, 'click', '[data-addr-edit]', (e, b) => {
+          const a = c.addresses.find((x) => x.id === b.dataset.addrEdit);
+          openAddressDialog({ address: a, onSave: (v) => saveAddr(c.id, { ...v, id: a.id }) });
+        }),
+        on(view, 'click', '[data-addr-hide]', async (e, b) => {
+          const a = c.addresses.find((x) => x.id === b.dataset.addrHide);
+          if (!(await confirmDialog({ title: 'شيل العنوان', message: `«${a.label}» مش هيظهر تاني وإنت بتعمل طلب. الطلبات القديمة اللي اتبعتت عليه زي ما هي.`, confirmLabel: 'شيله', danger: true }))) return;
+          try { await ds.hideCustomerAddress(a.id); showToast('اتشال العنوان'); reload(); } catch (err) { showToast(err.message); }
+        }),
         on(view, 'click', '[data-block]', async (e, btn) => {
           const on_ = btn.dataset.block === 'on';
           const phones = on_ ? c.phones : blocks.map(([ph]) => ph);
@@ -341,7 +363,39 @@ function mountProfile(view, customerId) {
       ];
     })
     .catch((err) => { if (!gone) view.innerHTML = `<div class="center-state"><div><h2>تعذر تحميل العميل</h2><p>${esc(err.message)}</p></div></div>`; });
+  const reload = () => { offs.forEach((f) => f()); offs = []; load(); };
+  const saveAddr = async (customerId, a) => {
+    try { await ds.saveCustomerAddress(customerId, a); showToast(a.id ? 'اتعدّل العنوان ✓' : 'اتضاف العنوان ✓'); reload(); }
+    catch (err) { showToast(err.message); }
+  };
   load();
 
   return () => { gone = true; offs.forEach((f) => f()); };
+}
+
+/* «تعديل البيانات»: name, main number, second number (42_customer_edit.sql). */
+function editCustomerDialog(c, done) {
+  const m = openModal({
+    title: `${icon('edit')} تعديل بيانات العميل`,
+    size: 'sm',
+    body: `<div class="field"><label for="ceName">اسم العميل</label>
+        <input id="ceName" class="input" name="name" maxlength="120" value="${esc(c.name)}" autocomplete="off"></div>
+      <div class="field"><label for="cePhone">رقم الموبايل</label>
+        <input id="cePhone" class="input ltr" name="phone" type="tel" inputmode="tel" value="${esc(c.phones[0] || '')}" autocomplete="off"></div>
+      <div class="field"><label for="cePhone2">رقم إضافي <span class="muted">(اختياري)</span></label>
+        <input id="cePhone2" class="input ltr" name="phone2" type="tel" inputmode="tel" value="${esc(c.phones[1] || '')}" autocomplete="off"></div>
+      <p class="field-error" data-err role="alert"></p>`,
+    footer: `<button type="button" class="btn btn-primary btn-lg" data-save>${icon('check')}حفظ</button>
+      <button type="button" class="btn btn-secondary btn-lg" data-close>إغلاق</button>`,
+  });
+  const f = (n) => m.body.querySelector(`[name="${n}"]`).value;
+  m.foot.querySelector('[data-save]').addEventListener('click', async (e) => {
+    const btn = e.currentTarget; const err = m.body.querySelector('[data-err]');
+    err.textContent = ''; btn.disabled = true;
+    try {
+      await ds.updateCustomer(c.id, { name: f('name'), phone: f('phone'), phone2: f('phone2') });
+      m.close(); showToast('اتحفظت بيانات العميل ✓'); done();
+    } catch (ex) { err.textContent = ex.message; btn.disabled = false; }
+  });
+  m.body.querySelector('[name="name"]').focus();
 }
