@@ -448,6 +448,46 @@ export function pickupDone(id) {
   deliveries.set(id, { ...(deliveries.get(id) ?? {}), deliveredAt: now, deliveredAdmin: false });
   return resolve(now);
 }
+/* 37_prep_adjust.sql in the demo: same rules as the database. */
+const adjustments = [];
+let adjSeq = 0;
+const lineAmount = (it) => (it.unitType === 'weight' ? { qty: null, grams: it.grams } : { qty: it.qty, grams: null });
+export function prepAdjust(id, lineNo, name, action, { grams = null, sku = null, qty = null } = {}) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
+  if (!['preparing', 'at_cashier'].includes(o.stage)) return Promise.reject(new Error('التعديل بيبدأ من «ابدأ التجهيز» لحد ما الطيار يخرج'));
+  if (o.prepUserId && o.prepUserId !== demoAccount.id && demoAccount.role !== 'admin') return Promise.reject(new Error(`الطلب ده مع ${o.prepName || 'زميلك'} — دوس «خده مني» لو هتكمّله إنت`));
+  const it = o.items[lineNo - 1];
+  if (!it || it.name !== name) return Promise.reject(new Error('الطلب اتغيّر من جهاز تاني — اعمل تحديث'));
+  const before = orderTotal(o);   // includes the delivery fee
+  let change;
+  if (action === 'weight') {
+    if (it.unitType !== 'weight') return Promise.reject(new Error('الصنف ده بالعدد مش بالوزن'));
+    if (!(grams >= 10 && grams <= 20000)) return Promise.reject(new Error('الوزن غير صحيح (من 10 جم لـ 20 كيلو)'));
+    if (grams === it.grams) return Promise.reject(new Error('ده نفس الوزن'));
+    change = { kind: 'weight', name: it.name, from: { grams: it.grams }, to: { grams } };
+    it.grams = grams;
+  } else if (action === 'remove') {
+    if (o.items.length <= 1) return Promise.reject(new Error('ده آخر صنف في الطلب — لو مفيش حاجة يبقى الطلب يتلغي من الكول سنتر'));
+    change = { kind: 'removed', name: it.name, from: lineAmount(it) };
+    o.items.splice(lineNo - 1, 1);
+  } else {
+    const p = mock.products.find((x) => x.id === sku);
+    if (!p) return Promise.reject(new Error('الصنف مش موجود في شيت المنتجات'));
+    if (p.unitType === 'weight' && !(grams >= 10 && grams <= 20000)) return Promise.reject(new Error(`الصنف «${p.name}» بيتباع بالوزن — اكتب الوزن`));
+    if (p.unitType !== 'weight' && !(qty >= 1 && qty <= 999)) return Promise.reject(new Error(`الصنف «${p.name}» بيتباع بالعدد — اكتب الكمية`));
+    const next = { productId: p.id, name: p.name, price: p.price, unitType: p.unitType === 'weight' ? 'weight' : 'piece',
+      unitLabel: p.unitLabel, note: it.note || '', modifiers: [], ...(p.unitType === 'weight' ? { grams } : { qty }) };
+    change = { kind: 'replaced', name: it.name, toName: p.name, from: lineAmount(it), to: lineAmount(next) };
+    o.items.splice(lineNo - 1, 1, next);
+  }
+  const after = orderTotal(o);
+  adjustments.push({ id: ++adjSeq, orderId: o.id, orderNo: o.number, at: new Date().toISOString(), by: myPrepName(), change, oldTotal: before, newTotal: after });
+  return resolve({ oldTotal: before, newTotal: after });
+}
+export const prepAdjustments = (orderId = null) => resolve(adjustments
+  .filter((a) => (orderId ? a.orderId === orderId : isSameWorkDay(a.at, new Date()))).map((a) => ({ ...a })));
 export const refusedOrders = () => resolve(new Map(orders
   .filter((o) => o.stage === 'out' && deliveries.get(o.id)?.refusedAt && !deliveries.get(o.id)?.deliveredAt && !deliveries.get(o.id)?.returnedAt)
   .map((o) => [o.id, { reason: deliveries.get(o.id).refusedReason, at: deliveries.get(o.id).refusedAt }])));

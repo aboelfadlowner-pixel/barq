@@ -16,6 +16,7 @@ import { icon } from '../components/icons.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { modifiersText } from '../utils/pricing.js';
 import { getState } from '../store.js';
+import { askRemove, askReplace, askWeight } from '../components/prep-adjust.js';
 
 const SOUND_KEY = 'cc-prep-sound';
 const stageOf = (id) => STAGES.find((s) => s.id === id) ?? STAGES[0];
@@ -57,8 +58,14 @@ function itemLine(it, i, o, checks, canTick) {
     ${canTick ? `<span class="pi-check" aria-hidden="true">${done ? icon('check') : ''}</span>` : ''}
     <span class="pi-amount">${amount}</span><span class="pi-name">${esc(it.name)}</span>
     ${it.modifiers?.length ? `<div class="pi-mods">+ ${esc(modifiersText(it.modifiers))}</div>` : ''}
-    ${it.note ? `<div class="pi-note">${icon('note')}${esc(it.note)}</div>` : ''}</li>`;
+    ${it.note ? `<div class="pi-note">${icon('note')}${esc(it.note)}</div>` : ''}
+    ${canAdjust(o) ? `<div class="pi-adj">
+      ${it.unitType === 'weight' ? `<button type="button" class="pi-adj-btn is-weight" data-adj="weight" data-line="${i + 1}">⚖️ الوزن الفعلي</button>` : ''}
+      <button type="button" class="pi-adj-btn" data-adj="replace" data-line="${i + 1}">🔄 تبديل</button>
+      <button type="button" class="pi-adj-btn is-remove" data-adj="remove" data-line="${i + 1}">❌ مش موجود</button></div>` : ''}</li>`;
 }
+/* 37_prep_adjust.sql: from «ابدأ التجهيز» until the driver leaves, by the one preparing it (or the admin). */
+const canAdjust = (o) => inPrep(o) && !takenByOther(o);
 
 const amountText = (a) => (a?.grams ? formatWeight(a.grams) : a?.qty != null ? `${a.qty}` : '');
 function changeLine(c) {
@@ -303,8 +310,16 @@ export function mountPrep(view) {
       }))) return;
       move(id, btn.dataset.next);
     }),
-    on(view, 'click', '[data-tick]', (e, li) => toggleTick(li)),
-    on(view, 'keydown', '[data-tick]', (e, li) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleTick(li); } }),
+    on(view, 'click', '[data-tick]', (e, li) => { if (!e.target.closest('[data-adj]')) toggleTick(li); }),
+    on(view, 'click', '[data-adj]', async (e, b) => {
+      const o = orders.find((x) => x.id === b.closest('[data-oid]').dataset.oid);
+      const line = Number(b.dataset.line);
+      const it = o?.items[line - 1];
+      if (!it) return;
+      const ask = { weight: askWeight, replace: askReplace, remove: askRemove }[b.dataset.adj];
+      if (await ask(o, it, line)) await load();
+    }),
+    on(view, 'keydown', '[data-tick]', (e, li) => { if (e.target.closest('[data-adj]')) return; if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleTick(li); } }),
     on(view, 'click', '[data-back]', async (e, btn) => {
       const st = stageOf(btn.dataset.back);
       if (!(await confirmDialog({ title: 'رجوع خطوة', message: `سيعود الطلب إلى «${st.label}». استخدم هذا فقط عند الضغط بالخطأ.`, confirmLabel: 'إرجاع' }))) return;

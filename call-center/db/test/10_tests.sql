@@ -2305,3 +2305,110 @@ do $$ declare o public.cc_orders; d public.cc_order_delivery; begin
   raise notice 'PASS T53 «استلام من الفرع»: branch only, at the cashier, «العميل استلم» ends it with no driver, driver can still be picked, fee unchanged';
 end $$;
 rollback;
+
+-- T54 — the branch corrects the order (37_prep_adjust.sql): real weight, replace from the products sheet, remove;
+--        only from «ابدأ التجهيز» until the driver leaves, the one preparing it; totals follow; the call center sees it
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'pa54@cc.test'), (gen_random_uuid(), 'pb54@cc.test'), (gen_random_uuid(), 'c54@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, case email when 'pa54@cc.test' then 'نادية' when 'pb54@cc.test' then 'كريم' else 'x' end,
+       case when email like 'c54%' then 'call_center' else 'prep' end
+  from auth.users where email in ('pa54@cc.test', 'pb54@cc.test', 'c54@cc.test');
+insert into public.cc_agents (name) values ('موظف 54') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 54'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 54', 'phone', '01054545401'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 54'),
+         '[{"sku": "T-101", "weight_grams": 500}, {"sku": "T-201", "qty": 2}, {"sku": "T-203", "qty": 1}]', null);
+  perform set_config('cc.o54', o.id::text, true);
+  perform set_config('cc.fee54', o.delivery_fee::text, true);
+  if o.total <> 210 + 84 + 9 + o.delivery_fee then raise exception 'FAIL T54 setup total %', o.total; end if;
+end $$;
+reset role;
+-- the call center cannot use it
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 540); raise exception 'FAIL T54 call center';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 540); raise exception 'FAIL T54 before «ابدأ التجهيز»';
+  exception when invalid_parameter_value then null; end;
+  perform public.cc_set_stage(current_setting('cc.o54')::uuid, 'preparing');
+end $$;
+reset role;
+-- the other prep person: «خده مني» first
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pb54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 540); raise exception 'FAIL T54 other prep';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; fee numeric := current_setting('cc.fee54')::numeric; begin
+  -- the screen was out of date (wrong product on that line) → refresh
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'صنف تاني', 'weight', 540); raise exception 'FAIL T54 stale';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 2, 'لبن كامل الدسم (تجريبي)', 'weight', 540); raise exception 'FAIL T54 weight on a piece';
+  exception when invalid_parameter_value then null; end;
+  -- 500 → 540 g at 420/kg: 210 → 226.80
+  r := public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 540);
+  if (r->>'new_total')::numeric <> 226.80 + 84 + 9 + fee then raise exception 'FAIL T54 weight total %', r; end if;
+  -- لبن ×2 → زبادي ×3 (9 each)
+  r := public.cc_prep_adjust(current_setting('cc.o54')::uuid, 2, 'لبن كامل الدسم (تجريبي)', 'replace', null, 'T-203', 3);
+  if (r->>'new_total')::numeric <> 226.80 + 27 + 9 + fee then raise exception 'FAIL T54 replace total %', r; end if;
+  -- a weighed product needs a weight
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 3, 'زبادي طبيعي (تجريبي)', 'replace', null, 'T-104', 2); raise exception 'FAIL T54 replace by weight without weight';
+  exception when invalid_parameter_value then null; end;
+  -- زبادي ×1 → إسطنبولي 250 g at 160/kg = 40
+  perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 3, 'زبادي طبيعي (تجريبي)', 'replace', 250, 'T-104');
+  -- remove line 2 → the إسطنبولي becomes line 2
+  r := public.cc_prep_adjust(current_setting('cc.o54')::uuid, 2, 'زبادي طبيعي (تجريبي)', 'remove');
+  if (r->>'new_total')::numeric <> 226.80 + 40 + fee then raise exception 'FAIL T54 remove total %', r; end if;
+  perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 2, 'جبنة إسطنبولي (تجريبي)', 'remove');
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'remove'); raise exception 'FAIL T54 removed the last product';
+  exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  select * into o from public.cc_orders where id::text = current_setting('cc.o54');
+  if o.total <> 226.80 + o.delivery_fee or o.subtotal <> 226.80
+     or (select count(*) from public.cc_order_items where order_id = o.id) <> 1
+     or (select line_no from public.cc_order_items where order_id = o.id) <> 1 then
+    raise exception 'FAIL T54 final order % %', o.subtotal, o.total;
+  end if;
+  if o.edit_count <> 0 then raise exception 'FAIL T54 shows as a call-center edit on the prep screen'; end if;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare a jsonb := public.cc_prep_adjustments(); b jsonb := public.cc_prep_adjustments(current_setting('cc.o54')::uuid); begin
+  if jsonb_array_length(a) <> 5 or jsonb_array_length(b) <> 5 or a->0->>'by' <> 'نادية' or a->0->'change'->>'kind' <> 'weight'
+     or a->1->'change'->>'to_name' <> 'زبادي طبيعي (تجريبي)' then
+    raise exception 'FAIL T54 call center list %', a;
+  end if;
+end $$;
+reset role;
+-- after the driver left: no more corrections
+update public.cc_orders set stage = 'out', out_at = now() where id::text = current_setting('cc.o54');
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa54@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_prep_adjust(current_setting('cc.o54')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 600); raise exception 'FAIL T54 after out';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_prep_adjustments(); raise exception 'FAIL T54 prep reads the list';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS T54 التجهيز بيعدّل: الوزن الفعلي، تبديل من الشيت، شيل صنف — من «ابدأ التجهيز» لحد ما يخرج، الإجمالي مظبوط، الكول سنتر شايف';
+end $$;
+reset role;
+rollback;

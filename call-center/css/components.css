@@ -1047,3 +1047,16 @@ tr[hidden] { display: none; }
 .po-pickup .svg-icon { width: 18px; height: 18px; flex: 0 0 auto; }
 .pk-card { width: 100%; margin-bottom: 10px; border: 1.5px dashed #7aa3d6; background: #f3f8fe; display: flex; align-items: center; gap: 10px; }
 .pk-card .svg-icon { width: 20px; height: 20px; color: #1d4f91; }
+/* التجهيز بيعدّل الطلب (37_prep_adjust.sql) */
+.pi-adj { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; width: 100%; }
+.pi-adj-btn { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; color: inherit; }
+.pi-adj-btn.is-weight { border-color: #7aa3d6; background: #f3f8fe; color: #1d4f91; }
+.pi-adj-btn.is-remove { color: var(--danger); }
+.pi-adj-btn:active { transform: scale(.97); }
+.adj-results { display: flex; flex-direction: column; gap: 6px; max-height: 45dvh; overflow-y: auto; margin: 8px 0; }
+.adj-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; text-align: start; cursor: pointer; color: inherit; }
+.adj-row:hover { background: #f3f8f5; }
+.adj-chosen { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: #e3f4ea; color: var(--green-700); margin-bottom: 8px; }
+.adj-chosen .svg-icon { width: 16px; height: 16px; }
+.o-adj { display: flex; align-items: flex-start; gap: 6px; border-radius: 8px; background: #e8f0fb; color: #1d4f91; font-size: 13px; padding: 7px 10px; line-height: 1.6; }
+.o-adj .svg-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 3px; }

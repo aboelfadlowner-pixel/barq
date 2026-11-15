@@ -15,6 +15,7 @@ import { can } from '../permissions.js';
 import { openPrintPreview } from '../components/print-ticket.js';
 import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
 import { PAYMENT_METHOD } from '../constants.js';
+import { adjustText } from '../components/prep-adjust.js';
 
 /* Created / cancelled (call center) and the preparation stages (branch), in time order. */
 function timeline(order) {
@@ -117,6 +118,7 @@ export function mountOrderDetails(view, orderId) {
                 <h4 class="block-title" style="margin:0 0 6px">${icon('note')}ملاحظات الطلب</h4>
                 <p>${esc(order.note)}</p>
               </div>` : ''}
+            <div class="card card-pad" data-adjusts hidden></div>
             <div class="card card-pad" data-delivery hidden></div>
             <div class="card card-pad">
               <h4 class="block-title" style="margin:0 0 10px">${icon('clock')}سجل الحالة</h4>
@@ -134,6 +136,16 @@ export function mountOrderDetails(view, orderId) {
       </div></div>`;
 
     const isAdmin = getState().user?.role === 'admin';
+    // The branch's corrections while preparing (37_prep_adjust.sql): what, who, when, total before → after.
+    if (['admin', 'call_center'].includes(getState().user?.role)) ds.prepAdjustments(order.id).then((list) => {
+      const el = view.querySelector('[data-adjusts]');
+      if (!alive || !el || !list.length) return;
+      el.hidden = false;
+      el.innerHTML = `<h4 class="block-title" style="margin:0 0 10px">${icon('edit')}تعديلات التجهيز</h4>
+        <ul class="timeline">${list.map((a) => `<li><div><strong>${esc(adjustText(a.change))}</strong>
+          <div class="muted">الإجمالي ${money(a.oldTotal)} ← <strong>${money(a.newTotal)}</strong>${a.by ? ` · ${esc(a.by)}` : ''}</div></div>
+          <span class="muted num">${dayLabel(a.at)} · ${formatTime(a.at)}</span></li>`).join('')}</ul>`;
+    }).catch(() => {});
     const box = view.querySelector('[data-delivery]');
     const paintDelivery = () => ds.getOrderDelivery(order.id).then(async (d) => {
       if (!alive || !d || order.status === 'cancelled') return;

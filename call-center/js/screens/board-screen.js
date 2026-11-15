@@ -14,15 +14,19 @@ import { money, orderStateChip } from '../components/chips.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
 import { draftsOn, flushDraft, listDrafts, openDraft, discardDraft } from '../drafts-sync.js';
-import { formatTime } from '../utils/format.js';
+import { formatMoney, formatTime } from '../utils/format.js';
 import { quantityLabel } from '../utils/pricing.js';
 import { openNewOrderDialog } from '../components/new-order-dialog.js';
 import { agentSelectHtml, initAgentSelect, requireAgent } from '../components/agent-select.js';
 import { openPrintPreview } from '../components/print-ticket.js';
 import { openWhatsAppDialog } from '../components/whatsapp-dialog.js';
+import { adjustText } from '../components/prep-adjust.js';
+import { ring } from '../components/chat-box.js';
 
 const filters = { q: '' };
 let refused = new Map();   // order id → { reason, at } — «متسلّمش» while the driver is still out (35_board_refused.sql)
+let adjusted = new Map();  // order id → the branch's corrections today (37_prep_adjust.sql), newest last
+let lastAdjId = null;       // the newest one already seen here: a newer one rings once
 let openNameListOnBoard = false;   // set when someone tries to start an order before picking a name
 
 /* Opens the new-order dialog; if a draft is in progress, asks before discarding it. */
@@ -75,6 +79,8 @@ function orderCard(o) {
       </div>
       ${o.prepName && o.status !== 'cancelled' && ['preparing', 'at_cashier'].includes(o.stage) ? `<div class="o-prep">${icon('clipboard')}${o.stage === 'preparing' ? 'بيجهزه' : 'جهّزه'}: <strong>${esc(o.prepName)}</strong></div>` : ''}
       ${refused.has(o.id) && o.status !== 'cancelled' ? `<div class="o-refused">${icon('x')}<span><strong>متسلّمش</strong> — ${esc(refused.get(o.id).reason)} · ${esc(formatTime(refused.get(o.id).at))}</span></div>` : ''}
+      ${adjusted.has(o.id) ? (() => { const l = adjusted.get(o.id); const last = l[l.length - 1]; return `<div class="o-adj">${icon('edit')}<div><strong>التجهيز عدّل${l.length > 1 ? ` (${l.length})` : ''}:</strong> ${esc(adjustText(last.change))}
+        <div>الإجمالي بقى <strong class="num">${money(last.newTotal)}</strong> (كان ${money(l[0].oldTotal)})</div></div></div>`; })() : ''}
       ${(getState().chatOrders || []).includes(o.id) ? `<button type="button" class="o-chat" data-chat-go>${icon('chat')}رسالة جديدة من الطيار عن الطلب ده</button>` : ''}
       ${o.editCount ? `<div class="o-edited">${icon('edit')}تم التعديل${o.editSeenAt && o.editSeenAt >= o.editedAt ? ' · اطّلع عليه الفرع' : ' · لم يطّلع عليه الفرع بعد'}</div>` : ''}
       <div class="o-row">${icon('user')}<div><div class="o-strong">${esc(o.customer.name)}</div>
@@ -268,8 +274,19 @@ export function mountBoard(view) {
   let stopped = false;
   let timer = null;
   // CONFIRMED: only this working day's orders are loaded (the board shows nothing older) — light on every check.
-  const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts(), ds.refusedOrders().catch(() => new Map())])
-    .then(([list, drafts, rf]) => { if (!stopped) { orders = list; dbDrafts = drafts; refused = rf; render(); } }).catch(() => {});
+  const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts(), ds.refusedOrders().catch(() => new Map()),
+    ds.prepAdjustments().catch(() => [])])
+    .then(([list, drafts, rf, adj]) => {
+      if (stopped) return;
+      orders = list; dbDrafts = drafts; refused = rf;
+      adjusted = new Map();
+      adj.forEach((a) => { if (!adjusted.has(a.orderId)) adjusted.set(a.orderId, []); adjusted.get(a.orderId).push(a); });
+      // a new correction from the branch: ring once and say which order (not on the first load)
+      const newest = adj.length ? adj[adj.length - 1] : null;
+      if (newest && lastAdjId != null && newest.id > lastAdjId) { ring(); showToast(`⚖️ التجهيز عدّل طلب ${newest.orderNo} — الإجمالي بقى ${formatMoney(newest.newTotal)}`); }
+      lastAdjId = newest ? newest.id : (lastAdjId ?? 0);
+      render();
+    }).catch(() => {});
   const schedule = () => { timer = setTimeout(async () => { if (!document.hidden) await load(); if (!stopped) schedule(); }, PREP_REFRESH_MS); };
   load().then(schedule);
   return () => { stopped = true; clearTimeout(timer); offs.forEach((f) => f()); };
