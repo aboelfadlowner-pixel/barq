@@ -1,6 +1,6 @@
 /* Call-center home (Foodics-style board): today's orders in columns — draft in progress,
    then the preparation stages set by the branch (جديد / بيتجهز / على الكاشير / خرج مع الطيار),
-   then cancelled — plus "طلب جديد لمركز الاتصال". Checks for changes every few seconds. */
+   then «الطلبات المغلقة» (delivered; 43_board_closed.sql) — cancelled orders are only in «الطلبات» — plus "طلب جديد لمركز الاتصال". Checks for changes every few seconds. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
 import { getState, resetDraft, currentDeliveryFee } from '../store.js';
@@ -24,6 +24,7 @@ import { adjustText } from '../components/prep-adjust.js';
 import { ring } from '../components/chat-box.js';
 
 const filters = { q: '' };
+let closed = new Map();    // order id → delivered at — «الطلبات المغلقة» (43_board_closed.sql)
 let refused = new Map();   // order id → { reason, at } — «متسلّمش» while the driver is still out (35_board_refused.sql)
 let adjusted = new Map();  // order id → the branch's corrections today (37_prep_adjust.sql), newest last
 let lastAdjId = null;       // the newest one already seen here: a newer one rings once
@@ -73,7 +74,7 @@ function orderCard(o) {
     <a class="o-card" href="#/orders/${encodeURIComponent(o.id)}" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
       <div class="o-head">
         <strong class="o-no ltr-inline">#${esc(o.number)}</strong>
-        <span class="o-head-end">${orderStateChip(o)}
+        <span class="o-head-end">${closed.has(o.id) ? `<span class="status tone-green">${icon('check')}اتسلّم</span>` : orderStateChip(o)}
           ${o.status !== 'cancelled' ? `<button type="button" class="btn btn-ghost btn-icon btn-sm o-wa" data-wa-order="${esc(o.id)}" title="واتساب للعميل" aria-label="واتساب للعميل — طلب ${esc(o.number)}">${icon('whatsapp')}</button>` : ''}
           <button type="button" class="btn btn-ghost btn-icon btn-sm o-print" data-print-order="${esc(o.id)}" title="إعادة طباعة الطلب" aria-label="طباعة الطلب ${esc(o.number)}">${icon('printer')}</button></span>
       </div>
@@ -87,7 +88,9 @@ function orderCard(o) {
         <div class="ltr-inline o-muted">${esc(o.customer.phone)}</div></div></div>
       <div class="o-row">${icon('clock')}<span>${formatRelative(o.createdAt)}${stageSince(o)}</span></div>
       <div class="o-row">${icon('pin')}<span>${esc(o.address.areaName)}</span></div>
-      ${o.stage === 'out' && o.driver === 'استلام من الفرع' ? `<div class="o-row o-driver">${icon('home')}<span><strong>العميل استلم من الفرع</strong></span></div>`
+      ${closed.has(o.id) ? `<div class="o-closed">${icon('check')}<span><strong>${o.driver === 'استلام من الفرع' ? 'العميل استلم من الفرع' : 'اتسلّم للعميل'}</strong> · ${esc(formatTime(closed.get(o.id)))}</span></div>` : ''}
+      ${closed.has(o.id) && o.driver === 'استلام من الفرع' ? ''
+        : o.stage === 'out' && o.driver === 'استلام من الفرع' ? `<div class="o-row o-driver">${icon('home')}<span><strong>العميل استلم من الفرع</strong></span></div>`
         : o.stage === 'out' && o.driver ? `<div class="o-row o-driver">${icon('user')}<span>الطيار: <strong>${esc(o.driver)}</strong></span></div>` : ''}
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
       <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
@@ -187,7 +190,7 @@ export function mountBoard(view) {
   const render = () => {
     const today = orders.filter((o) => inWorkDay(o.createdAt) && matches(o));   // until 2 AM
     const active = today.filter((o) => o.status !== 'cancelled');
-    const cancelled = today.filter((o) => o.status === 'cancelled');
+    // CONFIRMED: a cancelled order is not on the board any more — it stays in «الطلبات».
     // drafts from the database when installed; else the one on this screen (as before)
     const s = getState();
     let draftHtml; let draftCount;
@@ -205,10 +208,15 @@ export function mountBoard(view) {
     keepColumnScroll(cols, '.b-col-body', () => { cols.innerHTML =
       column('مسودة', draftCount, draftHtml, 'لا يوجد طلب قيد الإنشاء') +
       STAGES.map((st) => {
-        const list = active.filter((o) => (o.stage || 'new') === st.id);
+        // «خرج مع الطيار» = still on the way; delivered ones go to «الطلبات المغلقة»
+        const list = active.filter((o) => (o.stage || 'new') === st.id && !(st.id === 'out' && closed.has(o.id)));
         return column(st.label, list.length, list.map(orderCard).join(''), empty[st.id], `is-${st.id}`);
       }).join('') +
-      column('ملغي', cancelled.length, cancelled.map(orderCard).join(''), 'لا توجد طلبات ملغاة اليوم', 'is-cancelled'); });
+      (() => {
+        const done = active.filter((o) => o.stage === 'out' && closed.has(o.id))
+          .sort((a, b) => String(closed.get(b.id)).localeCompare(String(closed.get(a.id))));
+        return column('الطلبات المغلقة', done.length, done.map(orderCard).join(''), 'لسه مفيش طلبات اتسلّمت النهارده', 'is-closed');
+      })(); });
   };
 
   view.querySelector('#boardQ').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
@@ -275,10 +283,10 @@ export function mountBoard(view) {
   let timer = null;
   // CONFIRMED: only this working day's orders are loaded (the board shows nothing older) — light on every check.
   const load = () => Promise.all([ds.listOrders({ since: workDayStart() }), listDrafts(), ds.refusedOrders().catch(() => new Map()),
-    ds.prepAdjustments().catch(() => [])])
-    .then(([list, drafts, rf, adj]) => {
+    ds.prepAdjustments().catch(() => []), ds.closedOrders().catch(() => new Map())])
+    .then(([list, drafts, rf, adj, cl]) => {
       if (stopped) return;
-      orders = list; dbDrafts = drafts; refused = rf;
+      orders = list; dbDrafts = drafts; refused = rf; closed = cl;
       adjusted = new Map();
       adj.forEach((a) => { if (!adjusted.has(a.orderId)) adjusted.set(a.orderId, []); adjusted.get(a.orderId).push(a); });
       // a new correction from the branch: ring once and say which order (not on the first load)
