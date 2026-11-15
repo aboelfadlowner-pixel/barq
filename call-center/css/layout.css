@@ -69,7 +69,11 @@
 
 /* Top bar shrinks step by step so it never overflows. */
 @media (max-width: 1400px) { .brand-sub, .source-picker .label { display: none; } }
-@media (max-width: 1540px) { .topnav a span { display: none; } .topnav a { padding: 0 11px; } }
+@media (max-width: 1540px) {
+  .topnav a span:not(.nav-n) { display: none; } .topnav a { padding: 0 11px; }
+  /* icons only: the unread number sits on the icon (red bubble) */
+  .topnav .nav-n { position: absolute; top: 4px; inset-inline-end: 2px; min-width: 18px; height: 18px; font-size: 11px; padding: 0 4px; box-shadow: 0 0 0 2px #fff; }
+}
 .topnav a { white-space: nowrap; }
 
 /* Small desktop / tablet landscape: narrower cart */
