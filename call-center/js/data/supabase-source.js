@@ -342,6 +342,22 @@ export async function pickupDone(orderId) {
   const c = await sb();
   return ok(await c.rpc('cc_pickup_done', { p_order_id: orderId }));
 }
+/* The branch corrects the order while preparing it (37_prep_adjust.sql):
+   action 'weight' { grams } · 'replace' { sku, qty | grams } · 'remove'. lineNo = 1-based position, name = what the screen shows. */
+export async function prepAdjust(orderId, lineNo, name, action, { grams = null, sku = null, qty = null } = {}) {
+  const c = await sb();
+  const r = ok(await c.rpc('cc_prep_adjust', { p_order_id: orderId, p_line_no: lineNo, p_name: name, p_action: action,
+    p_grams: grams, p_sku: sku, p_qty: qty }));
+  return { oldTotal: Number(r.old_total), newTotal: Number(r.new_total) };
+}
+/* The call center: the branch's corrections of today (board) or of one order (its page); [] before 37 is applied. */
+export async function prepAdjustments(orderId = null) {
+  const c = await sb();
+  const res = await c.rpc('cc_prep_adjustments', { p_order_id: orderId });
+  if (res.error) return [];
+  return (res.data || []).map((r) => ({ id: r.id, orderId: r.order_id, orderNo: r.order_no, at: r.at, by: r.by || '',
+    change: { ...(r.change || {}), toName: r.change?.to_name || '' }, oldTotal: Number(r.old_total), newTotal: Number(r.new_total) }));
+}
 /* The board (35_board_refused.sql): orders the customer did not take, while the driver is still out with them.
    → Map(order id → { reason, at }); an empty Map before 35 is applied. */
 export async function refusedOrders() {
