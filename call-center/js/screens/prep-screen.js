@@ -222,11 +222,10 @@ export function mountPrep(view) {
   const shown = (o) => !onlyMine || !inPrep(o) || o.prepMine || !o.prepUserId;
 
   const render = () => {
-    // A cancelled order stays in its column (red, no button) for an hour, so nobody keeps preparing it.
-    const recent = (iso) => !iso || Date.now() - new Date(iso).getTime() < 60 * 60000;
+    // CONFIRMED: a cancelled order leaves the prep screen at once (the one preparing it gets one alert — see load).
     // CONFIRMED: the newest order is on top in every column.
     const by = (stage) => orders.filter((o) => (o.stage || 'new') === stage && stage !== 'out'
-      && (o.status !== 'cancelled' || recent(o.cancelledAt)) && shown(o))
+      && o.status !== 'cancelled' && shown(o))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     // CONFIRMED: the orders that left with the driver (this working day) stay in their own column, newest first,
     // so the branch knows what went out and can go back to an order.
@@ -237,6 +236,7 @@ export function mountPrep(view) {
     driversEl.innerHTML = driversBar(orders, dels);
   };
 
+  let liveStage = new Map();   // order id → stage, of the orders not cancelled at the last check
   const load = async () => {
     try {
       // CONFIRMED: only this working day's orders (it ends at 2 AM) — the screen starts empty after 2 AM,
@@ -246,6 +246,9 @@ export function mountPrep(view) {
       if (stopped) return;
       const fresh = list.filter((o) => o.status !== 'cancelled' && o.stage === 'new' && known && !known.has(o.id));
       const edited = list.filter((o) => editUnseen(o) && known && editsSeen.get(o.id) !== o.editedAt);
+      // cancelled while it was being prepared / at the cashier: one ring and a message, then it is gone
+      const stopped_ = list.filter((o) => o.status === 'cancelled' && liveStage.has(o.id) && ['preparing', 'at_cashier'].includes(liveStage.get(o.id)));
+      liveStage = new Map(list.filter((o) => o.status !== 'cancelled').map((o) => [o.id, o.stage]));
       known = new Set(list.map((o) => o.id));
       // Forget the ticks of orders that are no longer on this screen.
       const checks = readChecks();
@@ -261,7 +264,8 @@ export function mountPrep(view) {
       orders = list;
       render();
       view.querySelector('[data-updated]').textContent = `آخر تحديث ${formatTime(new Date().toISOString())}`;
-      if (fresh.length || edited.length || cameBack.length) {
+      if (stopped_.length) { if (soundOn()) ring(); showToast(`❌ اتلغى ${stopped_.map((o) => `#${o.number}`).join('، ')} — وقّف تجهيزه`); }
+      else if (fresh.length || edited.length || cameBack.length) {
         if (soundOn()) ring();
         showToast([fresh.length ? (fresh.length === 1 ? `طلب جديد #${fresh[0].number}` : `${fresh.length} طلبات جديدة`) : '',
           edited.length ? `تم التعديل: ${edited.map((o) => `#${o.number}`).join('، ')}` : '',
