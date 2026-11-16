@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نجم أبو الفضل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f4f5f8; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e3e6ee;
+  --brand:#0f5c4c; --brand2:#13806a; --brand-soft:#e3f3ee;
+  --gold:#f2a900; --gold-soft:#fff5d6; --red:#c8372d; --red-soft:#fde8e6;
+  --blue:#2f6fd6; --blue-soft:#e6efff; --star-off:#d9dce4;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Cairo',Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+button,input,select,textarea{font-family:inherit;font-size:14px}
+header{background:var(--brand);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:20}
+header h1{margin:0;font-size:19px;font-weight:900;flex:1;min-width:180px}
+header h1 small{display:block;font-size:11px;font-weight:600;opacity:.8}
+.hdr-ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hdr-ctrl input[type=date]{border:0;border-radius:8px;padding:6px 8px}
+.role-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:700}
+nav{display:flex;gap:4px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:6px 10px;position:sticky;top:56px;z-index:19}
+nav button{border:0;background:none;padding:8px 14px;border-radius:8px;cursor:pointer;white-space:nowrap;font-weight:700;color:var(--muted)}
+nav button.on{background:var(--brand-soft);color:var(--brand)}
+main{padding:16px;max-width:1300px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;gap:12px}
+.g-emp{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+h2{font-size:18px;margin:4px 0 12px;font-weight:900}
+h3{font-size:15px;margin:0 0 8px;font-weight:800}
+.muted{color:var(--muted)} .small{font-size:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;cursor:pointer;font-weight:700}
+.btn.pri{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.gold{background:var(--gold);color:#3a2a00;border-color:var(--gold)}
+.btn.red{background:var(--red-soft);color:var(--red);border-color:#f3c3be}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+input.inp,select.inp,textarea.inp{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;min-width:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:700;font-size:13px}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.badge{display:inline-block;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800}
+.b-gold{background:var(--gold-soft);color:#8a6000}
+.b-green{background:var(--brand-soft);color:var(--brand)}
+.b-red{background:var(--red-soft);color:var(--red)}
+.b-blue{background:var(--blue-soft);color:var(--blue)}
+.b-gray{background:#eef0f4;color:var(--muted)}
+/* stars */
+.stars{position:relative;display:inline-block;font-size:18px;line-height:1;letter-spacing:1px;direction:ltr}
+.stars .bg{color:var(--star-off)}
+.stars .fg{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:var(--gold)}
+.stars.lg{font-size:26px}
+/* employee card */
+.emp{display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s}
+.emp:hover{border-color:var(--brand2);box-shadow:0 4px 14px rgba(15,92,76,.08)}
+.emp-top{display:flex;gap:10px;align-items:center}
+.ava{width:54px;height:54px;border-radius:50%;object-fit:cover;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;flex:none;border:2px solid #fff;box-shadow:0 0 0 2px var(--line)}
+.ava.win{box-shadow:0 0 0 3px var(--gold)}
+.ava.xl{width:96px;height:96px;font-size:34px}
+.emp-name{font-weight:800;line-height:1.3}
+.bar{height:8px;background:#eceef3;border-radius:6px;overflow:hidden;position:relative}
+.bar>i{display:block;height:100%;background:var(--brand2);border-radius:6px}
+.bar>i.warn{background:var(--gold)} .bar>i.bad{background:var(--red)}
+.bar .pace{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}
+.kv{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin:3px 0}
+.kv b{color:var(--ink)}
+/* rating */
+.crit{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.crit:last-child{border:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:#fff;padding:3px 10px;cursor:pointer;font-weight:800;border-inline-start:1px solid var(--line)}
+.seg button:first-child{border-inline-start:0}
+.seg button.on{background:var(--brand);color:#fff}
+.seg.att button.on[data-v=abs]{background:var(--red)}
+.seg.att button.on[data-v=late],.seg.att button.on[data-v=vlate]{background:var(--gold);color:#3a2a00}
+.seg.att button.on[data-v=off]{background:#8a90a0}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:800;background:#fafbfc;position:sticky;top:0}
+.tbl-wrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+.winner-box{background:linear-gradient(135deg,#fff8e0,#fff);border:2px solid var(--gold);border-radius:16px;padding:14px;text-align:center}
+.crown{font-size:28px}
+.podium{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.podium .card{min-width:180px;text-align:center}
+.rank{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:13px}
+.rank.r1{background:var(--gold);color:#3a2a00}
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,30,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:20px 10px;overflow:auto}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:860px;width:100%;padding:18px;position:relative}
+.modal .x{position:absolute;left:12px;top:10px;border:0;background:none;font-size:22px;cursor:pointer}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:10px;z-index:60;display:none;font-weight:700}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.sec-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal div{border:1px solid var(--line);border-radius:6px;padding:3px;text-align:center;font-size:11px;min-height:40px}
+.cal div.w{background:var(--gold-soft);border-color:var(--gold)}
+.lock{font-size:12px;color:var(--muted);background:#fafbfc;border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
+@media(max-width:640px){main{padding:10px} header{position:static} nav{top:0} header h1{font-size:16px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>⭐ نجم أبو الفضل<small>التارجت · رجل اليوم · العامل المثالي · ملفات الموظفين</small></h1>
+  <div class="hdr-ctrl">
+    <input type="date" id="dayPick">
+    <button class="role-btn" id="roleBtn" onclick="openRole()">👤 موظف</button>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="filePick" style="display:none">
+
+<script>
+/* =========================================================
+   نجم أبو الفضل — KPI / رجل اليوم / العامل المثالي
+   التخزين: IndexedDB على الجهاز + نسخة احتياطية JSON
+   ========================================================= */
+
+// ---------- employees seed (from «حضور و انصراف يومي» — على راس العمل فقط) ----------
+const BR = {B:'البيطاش الرئيسي', A:'عين شمس', F:'المصنع'};
+const SH = {M:'Morning', N:'Night', W:'Between'};
+const SEED = `4|احمد محمود عبد الحي|B|قسم البقاله|شيف|W
+11|حسن خالد حسن|B|قسم البقاله|شيف|N
+14|ناديه ابراهيم احمد|B|دليفري|مٌعد اوردرات|W
+15|روان عثمان احمد|B|vip|ليدر قسم|W
+16|حسام محمد علي|A|قسم البقاله|شيف|M
+19|ياسين علاء الدين احمد|A|قسم البقاله|training|M
+20|يحيي محسن عبد الباسط|B|قسم الامن و المراقبه|مراقب كاميرا|M
+21|مهند محمد احمد|B|قسم الكاشير|هيد كاشير|M
+22|شهاب عماد|B|قسم الكاشير|كاشير|N
+23|خالد النبوي محمد|B|قسم الايس كريم|شيف باريستا|M
+24|محمد يسري|F|قسم التصنيع|Training|M
+25|سامح محمد كامل|A|قسم البقاله|شيف|M
+29|ابراهيم فتحي احمد|B|قسم الايس كريم|شيف باريستا|M
+30|ياسر ابراهيم محمد|F|قسم المعمل|training|M
+31|حازم عبد المنعم ابراهيم|B|قسم البقاله|مساعد شيف|W
+33|فرحه فتح الله|F|قسم التصنيع|training|M
+34|عصام علي عبد العال|B|قسم البقاله|شيف|M
+36|نجلاء كمال سيد|F|قسم التصنيع|training|M
+37|عبد الرحمن علي حسن عبد الرازق|B|قسم البقاله|شيف|N
+42|مصطفي حمدي احمد|A|قسم الكاشير|كاشير|W
+43|حمدنا الله محمد امير|A|قسم الامن و المراقبه|موظف امن|M
+44|فراس مرسي غريب|B|قسم التشغيل|مدير فريش فود|W
+46|ايهاب احمد ابراهيم|B|قسم البقاله|شيف اول|N
+48|محمود سعيد ابراهيم|B|قسم البقاله|ليدر قسم|M
+49|محمد جمال عبدالعال|F|قسم التركي|فني تجهيز جبن|M
+50|عبد الرحمن اشرف عبد الحميد الكومي|B|قسم الداتا انتري|مراقب مخزون|M
+51|ايمان عزالدين عبدالعزيز|B|vip|سيلز|M
+52|احمد محمد ابراهيم|B|دليفري|دليفري|W
+54|سيدة مرسي اسماعيل|F|قسم التصنيع|موظف فريق اعداد|M
+55|شهاب رشيد راشد|B|قسم البقاله|مساعد شيف|N
+57|ايه ممدوح محمد|F|قسم الداتا انتري|كوست كونترول|M
+58|خالد وليد عاطف|B|خدمه العملاء|موظف خدمة عملاء|N
+61|محمد جمال محمد البكري|B|قسم الكاشير|مراجع كاشير|M
+62|ياسر هاني عامر|B|قسم الجوده|مراقب جودة|W
+63|مهند احمد عبد الحكيم|B|قسم البقاله|head of fueling department|N
+64|وليد عادل عبد العال|B|قسم الايس كريم|مسؤول قسم الايس و المشروبات|W
+65|اسلام عبدالمنعم خميس|B|قسم التشغيل|نائب مدير فرع|N
+66|هيثم محمد عبد الغني|F|قسم البيض|موظف فرز و تعبئه بيض|M
+68|يوسف اشرف محمد محمد|B|قسم البقاله|شيف اول|M
+70|اسامه عيد يوسف|B|دليفري|دليفري|W
+71|احمد عثمان عبد الوهاب|B|قسم البقاله|شيف|N
+74|عبد الرحمن محمد عبد الرحيم|A|قسم التشغيل|مدير شيفت|N
+76|مؤمن علي فوزي|A|قسم الكاشير|كاشير|M
+77|حلمي محمد حلمي|A|قسم البقاله|شيف|M
+79|فضل امل ابو الفضل|B|خدمه العملاء|مسؤول تنسيق|M
+80|يوسف رمضان محمد|B|خدمه العملاء|مشرف خدمة عملاء|N
+81|محمد حمدي حامد|B|قسم الكاشير|كاشير|N
+85|ندى محمد سعيد|A|قسم الموارد البشريه|اخصائي موارد بشريه|W
+89|ابراهيم راضي ابو المجد|B|دليفري|دليفري|W
+100|حسن جعفر الصادق|F|قسم الداتا انتري|مسؤول قسم الداتا انتري|W
+101|احمد مصطفي احمد|A|خدمه العملاء|موظف خدمة عملاء|M
+102|علاء عبدالواحد محمد|B|قسم الامن و المراقبه|موظف امن|N
+103|احمد صلاح عبد الحكيم|F|قسم الحسابات|محاسب خزينه|M
+104|احمد السيد عبد اللطيف|A|قسم الداتا انتري|مسؤول استلامات|M
+105|محمد عماد علي مبروك|F|قسم التصنيع|شيف تجهيزات|M
+108|محمد احمد عثمان|F|قسم المخازن|مدير مخزن|M
+109|عماد علي مبروك مرزوق|F|قسم المعمل|مدير قسم المعمل|M
+110|يوسف محمد حسن|F|قسم الداتا انتري|داتا انتري|M
+111|احمد رمزي الجندي|F|قسم الامن و المراقبه|امين مخزن|N
+112|علاء عصام درغام|F|قسم التركي|شيف اول معمل|M
+113|عبد العزيز محمد حسن|B|دليفري|دليفري|W
+114|مازن اسماعيل فهمي|B|قسم الكاشير|مراجع كاشير|N
+118|مصطفي اشرف محمد|B|قسم الكاشير|كاشير|N
+119|ايه محمد احمد|B|تسعير|موظف تسعير|W
+120|عمر محمد حبشي|B|قسم الايس كريم|باريستا|W
+121|احمد اشرف احمد|A|قسم البقاله|مساعد شيف|M
+122|طارق محمد جاب الله|F|قسم الامن و المراقبه|فرد امن مصنع|N
+125|عبد الله ابراهيم عبد الستار|B|قسم البقاله|شيف|M
+127|منار مدحت احمد|B|خدمه العملاء|موظف اول خدمه عملاء|W
+129|محمد شعيب محمد حافظ|F|قسم المخازن|سائق|M
+133|سراج الدين محمد احمد|B|قسم الكاشير|مراجع كاشير|N
+135|عبدالرحمن محمد محمود|B|قسم الكاشير|مراجع كاشير|N
+137|هبه محمود نصر|F|قسم المعمل|Training|M
+139|عبد الرحمن ايهاب احمد|F|قسم المعمل|Training|M
+141|محمد عبد المنعم حامد|F|قسم التركي|شيف اول معمل|M
+144|عمار علاء الدين ابراهيم|B|قسم الايس كريم|شيف باريستا|N
+146|مصطفي علي عبد الخالق|F|قسم التصنيع|شيف|N
+147|ابراهيم عبدالسلام السيد|F|قسم التصنيع|شيف|M
+148|مهند وليد بكر|B|قسم الكاشير|كاشير|M
+150|ياقوت ياسر علام|B|قسم الامن و المراقبه|مراقب كاميرا|N
+151|منه الله محمد فاروق|B|خدمه العملاء|سيلز|W
+153|مصطفي السيد احمد|F|قسم الرنجه|شيف اول معمل|M
+155|محمود محمد رزق|F|قسم التصنيع|مساعد شيف تجهيزات|M
+156|محمد صلاح عيد محمد|B|خدمه العملاء|مسؤول استلامات|M
+157|محمد حسني سليمان احمد|F|قسم المعمل|مساعد شيف معمل|M
+158|علي ضاحي علي امام|B|قسم الفاكهه|سيلز|W
+161|محمد عمرو مطاوع|A|خدمه العملاء|موظف خدمة عملاء|M
+162|محمد عبده محمود|F|قسم المعمل|مساعد شيف معمل|M
+163|عبد الله محمد عبده|A|قسم الكاشير|كاشير|N
+164|محمود حمادة محمد فاخر|F|قسم المخازن|موظف مخزن|M
+165|مازن علي عبد الرحيم|B|قسم البقاله|training|W
+168|عيد السيد عيد|B|قسم الامن و المراقبه|موظف امن|M
+169|مريم شعبان عبد السلام|A|خدمه العملاء|سيلز|W
+171|مؤمن محمد شعيب|F|قسم التصنيع|training|M
+173|محمد يحيي محمد|A|خدمه العملاء|موظف خدمة عملاء|M
+180|عمر مصطفي عبده|B|كول سنتر|كول سنتر|W
+181|كريم اشرف محمود|B|كول سنتر|كول سنتر|W
+187|عبد الله طارق فتحي|A|خدمه العملاء|موظف خدمة عملاء|M
+189|محمود سعيد توفيق|B|قسم التشغيل|مدير شيفت|M
+190|مروان احمد عبد الحكيم|F|قسم المخازن|عامل|M
+191|يوسف احمد مرسي|B|قسم الكاشير|مراجع كاشير|M
+192|حازم محمد احمد|F|قسم المخازن|موظف مخزن|M
+193|مصطفي محمود محمد|B|bakery|شيف|W
+195|فاتن محمد داود السيد|A|خدمه العملاء|سيلز|M
+197|احمد السيد حجازي|F|قسم التصنيع|شيف|M
+201|اسامه اشرف علي|B|قسم الكاشير|كاشير|M
+202|عبد الرحمن محمود عبد الرحيم|F|انتاج معلبات|مٌشغل ماكينه|M
+204|فارس محمد اسماعيل|B|خدمه العملاء|موظف خدمة عملاء|M
+205|محمد عبد الرؤوف سيد|B|قسم الخدمات|عامل خدمات|N
+207|علي سعد علي|B|خدمه العملاء|موظف خدمة عملاء|M
+208|ايه السيد محروس|B|بيكب|موظف فريق اعداد|M
+210|شريف سعد علي|B|قسم البقاله|شيف|M
+211|محمد زكريا يحي|B|قسم البقاله|شيف|N
+212|محمود سعيد محمد|B|خدمه العملاء|موظف خدمة عملاء|N
+214|محمد السيد عبد العزيز|B|قسم البقاله|مساعد شيف|N
+215|ابراهيم حسن ابراهيم|A|خدمه العملاء|موظف اول خدمه عملاء|N
+216|حازم عبد العزيز شيث|B|قسم البقاله|مساعد شيف|N
+217|احمد سامي احمد|B|قسم الكاشير|مراجع كاشير|N
+219|مصطفي احمد مصطفي|B|قسم الامن و المراقبه|مراقب كاميرا|M
+220|محمد وليد خميس|B|قسم الفاكهه|سيلز|M
+222|احمد محمود يوسف|B|خدمه العملاء|موظف خدمة عملاء|N
+224|سندس علاء عيد|B|بيكب|موظف فريق اعداد|M
+225|مريم حنفي عويس|B|بيكب|موظف فريق اعداد|M
+226|بثينه محمود ابراهيم|F|قسم الجوده|مراقب جودة|M
+227|صلاح الدين وائل|B|قسم البقاله|مساعد شيف|M
+228|عمر عادل خيري|F|قسم المخازن|موظف مخزن|M
+229|احمد حسن محمد قاسم|B|bakery|شيف|M
+230|نورالدين امير حماد|B|قسم الكاشير|كاشير|N
+231|سيف الدين محمد محمد|B|قسم الكاشير|مراجع كاشير|W
+232|مسعود جابر مسعود|A|خدمه العملاء|مشرف خدمة عملاء|M
+233|عبدالرحمن محمود ابراهيم|B|قسم الايس كريم|سيلز|W
+235|كريم شعيب محمد|B|قسم المخازن|سائق|M
+236|عمرو احمد ضاحي|B|قسم الامن و المراقبه|مراقب كاميرا|M
+237|محمد هشام فرج|B|قسم البقاله|مساعد شيف|N
+240|ابراهيم السيد ابراهيم|B|bakery|شيف|M
+241|احمد محمد احمد الهواري|F|قسم المخازن|سائق|M
+243|ايمن خميس عبدالله|A|قسم الامن و المراقبه|موظف امن|N
+246|زياد فاضل صبحي|F|قسم التصنيع|مساعد شيف|N
+248|كريم اشرف حسن|B|قسم الامن و المراقبه|مراقب كاميرا|N
+249|محمد احمد محمد الهواري|B|قسم البقاله|شيف|M
+250|يوسف محمد عبد الرؤوف|B|خدمه العملاء|موظف خدمة عملاء|M
+252|عبد الله عصام عبد الله|F|قسم البيض|موظف فرز و تعبئه بيض|M
+253|كريم احمد رمضان|B|خدمه العملاء|موظف خدمة عملاء|M
+254|احمد مصطفي احمد شبل|B|bakery|شيف|M
+255|عبد الرحمن اشرف محمد|B|vip|سيلز|N
+256|ادهم محمد خميس|B|قسم البقاله|شيف|M
+257|محمد محمود ابراهيم محمد خليفه|B|vip|سيلز|M
+260|البراء عبد الفتاح فؤاد|B|قسم الكاشير|مراجع كاشير|M
+261|كريم محمود عبد الله|F|قسم الداتا انتري|مسؤول استلامات|M
+262|نورهان مجدي احمد|B|خدمه العملاء|سيلز|M
+263|عبد الله طارق فتحي خليل السيد|B|قسم الداتا انتري|مسؤول استلامات|M
+264|يمنى صفوت احمد|B|خدمه العملاء|سيلز|M
+265|يوسف احمد زيدان|B|خدمه العملاء|مسؤول تنسيق|M
+266|اسلام وليد صابر|B|قسم الموارد البشريه|freelance|W
+267|علي قاعود شحاته|B|قسم البقاله|شيف|N
+268|سهيله محمد عبد المقصود|B|خدمه العملاء|سيلز|M
+269|رمضان نعيم جمعه|F|قسم المخازن|امين مخزن|N
+270|شعبان محمد عبد المنعم|F|قسم الامن و المراقبه|امن|M
+271|احمد سعيد عبد السلام|A|خدمه العملاء|مشرف خدمة عملاء|N
+273|محمود ايهاب محمود|B|خدمه العملاء|موظف خدمة عملاء|M
+274|حازم محمد سليمان|A|قسم البقاله|شيف|N
+275|اسامه فتحي يونس|B|قسم البقاله|شيف|N
+278|هيثم ياسين فيصل|B|قسم التشغيل|مساعد مدير فرع|M
+286|عمار احمد رفعت|F|انتاج معلبات|مٌشغل ماكينه|M
+289|سامح محمود محمد|F|قسم المعمل|شيف معمل|M
+300|ابراهيم محمد رضا|A|||M
+307|جيهان حامد عبد الخالق|F|قسم الخدمات|عامل خدمات|M
+309|حازم محمد عطيه|A|قسم الكاشير|هيد كاشير|M
+316|عدوي السيد عدوي|F|قسم المشتريات|مدير مشتريات|M
+323|محمود احمد عرجاوي النجار|A|قسم البقاله|شيف اول|N
+326|مصطفي سعيد ابراهيم|F|قسم التركي|فني تجهيز جبن|M
+330|نبيل محمد داوود|B|قسم البقاله|شيف اول|N
+331|نعمه احمد محمد فرغلي|F|قسم التصنيع|موظف فريق اعداد|M
+344|سامح صابر فتوح|F|قسم البيض|موظف فرز و تعبئه بيض|M
+361|اسلام محمد ناجح|F|خدمه العملاء|مسؤول امن|W`;
+
+const CRITERIA = ['تنفيذ التعليمات','سرعة التنفيذ','المحافظة على الوقت','التطور','الإيجابية'];
+const ATT = {on:'في ميعاده', late:'تأخير بسيط', vlate:'تأخير كبير', abs:'غياب', off:'إجازة'};
+const KPI_KINDS = {score:'تقييم يومي من 10', count:'عدد (كل ما يزيد أحسن)', errors:'أخطاء (كل ما يقل أحسن)'};
+const PRESETS = {
+  'الجروسري': [{name:'النضافة',kind:'score',target:9,weight:1},{name:'التفويل',kind:'score',target:9,weight:1}],
+  'المخزن':   [{name:'النضافة',kind:'score',target:9,weight:1},{name:'عدد التحويلات',kind:'count',target:300,weight:1},{name:'حالة المخزن',kind:'score',target:9,weight:1}],
+  'الكاشير':  [{name:'أخطاء الكاشير',kind:'errors',target:5,weight:1},{name:'أخطاء عدّت من المراجعة',kind:'errors',target:2,weight:1}],
+};
+
+function defaultState(){
+  const employees = SEED.split('\n').map(l=>{
+    const [code,name,b,dept,job,s]=l.split('|');
+    return {code:String(code),name:name.trim(),branch:BR[b],dept:dept.trim(),job:job.trim(),shift:SH[s],active:true,photo:''};
+  });
+  return {
+    v:1,
+    settings:{
+      pins:{manager:'1234', ops:'0000'},
+      att:{on:2.5, late:1.5, vlate:0.5, abs:0},
+      shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'},
+      graceMin:10, lateMax:30,
+      finalists:4, winnersPerShift:2,
+      capPct:120, complaintPenalty:50,
+      bonusAt100:0, defaultMultiplier:2
+    },
+    branches:[{name:'البيطاش الرئيسي',kind:'branch'},{name:'عين شمس',kind:'branch'},{name:'المصنع',kind:'factory'}],
+    employees,
+    days:{},        // date -> {att:{code:st}, attTime:{code:'hh:mm'}, mgr:{code:[5]}, ops:{code:[5]}, bonus:{code:{v,note}}, winners:{'branch|shift':[codes]}}
+    targets:{},     // month -> {'branch|dept': {type:'sales', items:[{key,name,target}], } | {type:'manual', kpis:[{id,name,kind,target,weight}]}}
+    sales:{},       // date -> branch -> {key:{name,qty}}
+    baseSales:{},   // month -> branch -> {key:{name,qty}}   (monthly report used for planning)
+    kpiVals:{},     // date -> 'branch|dept' -> {kpiId:number}
+    complaints:[],  // {id,date,code,note}
+    notes:[]        // {id,date,code,text}
+  };
+}
+
+// ---------- storage (IndexedDB) ----------
+let S = null;
+const DBN='najm-kpi', ST='kv';
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function load(){
+  try{const db=await idb();S=await new Promise((res)=>{const t=db.transaction(ST).objectStore(ST).get('state');t.onsuccess=()=>res(t.result);t.onerror=()=>res(null);});}catch(e){S=null}
+  if(!S) S=defaultState();
+  const d=defaultState();
+  S.settings=Object.assign(d.settings,S.settings||{});
+  for(const k of Object.keys(d)) if(S[k]===undefined) S[k]=d[k];
+}
+let saveT=null;
+function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{try{const db=await idb();db.transaction(ST,'readwrite').objectStore(ST).put(S,'state');}catch(e){toast('⚠️ تعذّر الحفظ على الجهاز')}},250);}
+
+// ---------- helpers ----------
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const monthOf=d=>d.slice(0,7);
+const daysInMonth=m=>new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+const monthDays=(m,upto)=>{const n=daysInMonth(m);const out=[];for(let i=1;i<=n;i++){const d=`${m}-${pad(i)}`;if(upto&&d>upto)break;out.push(d);}return out;};
+const prevMonth=m=>{let y=+m.slice(0,4),mo=+m.slice(5,7)-1;if(mo<1){mo=12;y--;}return `${y}-${pad(mo)}`;};
+const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const monthName=m=>`${MONTHS[+m.slice(5,7)-1]} ${m.slice(0,4)}`;
+const norm=s=>String(s??'').replace(/[ً-ْـ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/\s+/g,' ').trim().toLowerCase();
+const fmt=(n,d=0)=>n==null||isNaN(n)?'—':Number(n).toLocaleString('ar-EG',{maximumFractionDigits:d});
+const uid=()=>Math.random().toString(36).slice(2,10);
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2200);}
+function starsHTML(v,cls=''){const p=Math.max(0,Math.min(5,v||0))/5*100;return `<span class="stars ${cls}" title="${fmt(v,2)} من 5"><span class="bg">★★★★★</span><span class="fg" style="width:${p}%">★★★★★</span></span>`;}
+function ava(e,cls=''){return e.photo?`<img class="ava ${cls}" src="${e.photo}" alt="">`:`<div class="ava ${cls}">${esc((e.name||'?').trim()[0])}</div>`;}
+const emp=code=>S.employees.find(e=>e.code===String(code));
+const activeEmps=()=>S.employees.filter(e=>e.active);
+const deptKey=(b,d)=>`${b}|${d}`;
+function barHTML(p,pace){const w=Math.max(0,Math.min(100,p||0));const c=p>=85?'':p>=50?'warn':'bad';return `<div class="bar"><i class="${c}" style="width:${w}%"></i>${pace!=null?`<span class="pace" style="right:${Math.min(100,pace)}%"></span>`:''}</div>`;}
+
+// ---------- role ----------
+let ROLE='emp'; // emp | manager | ops
+const ROLE_NAME={emp:'موظف',manager:'مدير مباشر',ops:'مدير التشغيل'};
+const can={rate:()=>ROLE!=='emp', ops:()=>ROLE==='ops'};
+
+// ---------- scoring ----------
+function day(d){return S.days[d]||(S.days[d]={att:{},attTime:{},mgr:{},ops:{},bonus:{},winners:{}});}
+function peekDay(d){return S.days[d]||{att:{},attTime:{},mgr:{},ops:{},bonus:{},winners:{}};}
+const q25=x=>Math.round(x*4)/4;
+function critStars(arr){if(!arr||arr.length<5||arr.some(v=>v==null))return null;return q25(arr.reduce((a,b)=>a+b,0)/10);}
+function score(d,code){
+  const D=peekDay(d);const st=D.att[code];
+  const att = st==null||st==='off'?null:(S.settings.att[st]??0);
+  const mgr=critStars(D.mgr[code]), ops=critStars(D.ops[code]);
+  const bonus=D.bonus[code]?.v||0;
+  const total=Math.min(5,(att||0)+(mgr||0)+(ops||0)+bonus);
+  const any = att!=null||mgr!=null||ops!=null||bonus>0;
+  return {st,att,mgr,ops,bonus,total:any?total:null,complete:att!=null&&mgr!=null&&ops!=null};
+}
+function rankGroup(d,list){
+  return list.map(e=>({e,s:score(d,e.code)}))
+    .filter(x=>x.s.total!=null&&x.s.st!=='abs'&&x.s.st!=='off')
+    .sort((a,b)=>b.s.total-a.s.total||(b.s.att||0)-(a.s.att||0)||(b.s.ops||0)-(a.s.ops||0)||(b.s.mgr||0)-(a.s.mgr||0));
+}
+function winnersOf(d,branch,shift){
+  const D=peekDay(d);const k=`${branch}|${shift}`;
+  if(D.winners[k]) return D.winners[k];
+  return null; // not confirmed
+}
+function isWinner(d,code){const D=peekDay(d);return Object.values(D.winners||{}).some(a=>a.includes(code));}
+
+// ---------- targets ----------
+function salesAgg(month,branch,upto){
+  const out={};
+  for(const d of monthDays(month,upto)){const b=S.sales[d]?.[branch];if(!b)continue;for(const[k,v]of Object.entries(b)){(out[k]||(out[k]={name:v.name,qty:0})).qty+=v.qty;}}
+  return out;
+}
+const pts=p=>p==null?null:p<50?0:p<85?50:Math.round(p);
+function deptProgress(month,branch,dept,upto){
+  const cfg=S.targets[month]?.[deptKey(branch,dept)];
+  if(!cfg) return null;
+  const cap=S.settings.capPct;
+  if(cfg.type==='sales'){
+    const agg=salesAgg(month,branch,upto);
+    const items=(cfg.items||[]).map(it=>{const sold=agg[it.key]?.qty||0;const p=it.target>0?Math.min(cap,sold/it.target*100):null;return {...it,sold,pct:p};});
+    const valid=items.filter(i=>i.pct!=null);
+    const pct=valid.length?valid.reduce((a,i)=>a+i.pct,0)/valid.length:null;
+    return {type:'sales',items,pct,points:pts(pct),pace:upto?(monthDays(month,upto).length/daysInMonth(month)*100):null};
+  }
+  // manual
+  const days=monthDays(month,upto);
+  const key=deptKey(branch,dept);
+  const kpis=(cfg.kpis||[]).map(k=>{
+    const vals=days.map(d=>S.kpiVals[d]?.[key]?.[k.id]).filter(v=>v!=null&&v!=='');
+    let pct=null, val=null;
+    if(vals.length){
+      if(k.kind==='score'){val=vals.reduce((a,b)=>a+ +b,0)/vals.length;pct=k.target>0?Math.min(cap,val/k.target*100):null;}
+      else if(k.kind==='count'){val=vals.reduce((a,b)=>a+ +b,0);pct=k.target>0?Math.min(cap,val/k.target*100):null;}
+      else {val=vals.reduce((a,b)=>a+ +b,0);const t=+k.target||0;pct=val<=t?100:Math.max(0,100*(1-(val-t)/Math.max(t,1)));}
+    }
+    return {...k,val,pct,n:vals.length};
+  });
+  const v=kpis.filter(k=>k.pct!=null);const w=v.reduce((a,k)=>a+(+k.weight||1),0);
+  const pct=v.length?v.reduce((a,k)=>a+k.pct*(+k.weight||1),0)/w:null;
+  return {type:'manual',kpis,pct,points:pts(pct),pace:null};
+}
+function complaintsOf(code,month){return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month));}
+function empTarget(e,month,upto){
+  const dp=deptProgress(month,e.branch,e.dept,upto);
+  if(!dp||dp.pct==null) return dp?{...dp,empPoints:null,complaints:complaintsOf(e.code,month).length}:null;
+  const cc=complaintsOf(e.code,month).length;
+  const empPoints=cc?Math.round(dp.points*(1-S.settings.complaintPenalty/100)):dp.points;
+  return {...dp,empPoints,complaints:cc};
+}
+const money=p=>p==null?null:Math.round(p/100*(+S.settings.bonusAt100||0));
+
+// ---------- month summary ----------
+function monthSummary(e,month,upto){
+  const days=monthDays(month,upto);let n=0,sum=0,wins=0,abs=0,late=0;
+  for(const d of days){const s=score(d,e.code);if(s.st==='abs')abs++;if(s.st==='late'||s.st==='vlate')late++;if(s.total!=null&&s.st!=='abs'){n++;sum+=s.total;}if(isWinner(d,e.code))wins++;}
+  const t=empTarget(e,month,upto);
+  return {n,avg:n?sum/n:null,wins,abs,late,target:t};
+}
+
+// =========================================================
+// UI
+// =========================================================
+let VIEW='dash', DATE=ymd(new Date()), F={branch:'', shift:'', dept:'', q:''}, RATE_AS='mgr';
+const TABS=[
+  ['dash','🏪 لوحة الفروع',()=>true],
+  ['rate','📝 تقييم اليوم',()=>can.rate()],
+  ['day','🏆 رجل اليوم',()=>true],
+  ['month','👑 العامل المثالي للشهر',()=>true],
+  ['target','🎯 التارجت',()=>true],
+  ['emps','🗂️ ملفات الموظفين',()=>true],
+  ['settings','⚙️ الإعدادات',()=>can.ops()],
+];
+function renderNav(){
+  $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}</button>`).join('');
+  $('#roleBtn').textContent=(ROLE==='emp'?'👤 ':ROLE==='manager'?'🧑‍💼 ':'🛡️ ')+ROLE_NAME[ROLE];
+}
+function go(v){VIEW=v;render();window.scrollTo(0,0);}
+function render(){
+  if(!TABS.find(t=>t[0]===VIEW&&t[2]()))VIEW='dash';
+  renderNav();
+  const fn={dash:vDash,rate:vRate,day:vDay,month:vMonth,target:vTarget,emps:vEmps,settings:vSettings}[VIEW];
+  $('#main').innerHTML=fn();
+}
+const branches=()=>S.branches.map(b=>b.name);
+const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.dept).filter(Boolean))].sort();
+function filterBar(opts={}){
+  const bs=branches();
+  return `<div class="row" style="margin-bottom:12px">
+    <div class="chips">${['',...bs].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';F.dept='';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
+    ${opts.shift!==false?`<select class="inp" onchange="F.shift=this.value;render()"><option value="">كل الشيفتات</option>${Object.values(SH).map(s=>`<option ${F.shift===s?'selected':''}>${s}</option>`).join('')}</select>`:''}
+    ${opts.dept!==false?`<select class="inp" onchange="F.dept=this.value;render()"><option value="">كل الأقسام</option>${deptsOf(F.branch).map(d=>`<option ${F.dept===d?'selected':''}>${esc(d)}</option>`).join('')}</select>`:''}
+    <input class="inp" placeholder="🔍 اسم أو كود" value="${esc(F.q)}" oninput="F.q=this.value;clearTimeout(window._qt);window._qt=setTimeout(()=>{render();const i=document.querySelector('input[placeholder^=\\'🔍\\']');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)">
+  </div>`;
+}
+function filtered(){
+  const q=norm(F.q);
+  return activeEmps().filter(e=>(!F.branch||e.branch===F.branch)&&(!F.shift||e.shift===F.shift)&&(!F.dept||e.dept===F.dept)&&(!q||norm(e.name).includes(q)||e.code===F.q.trim()));
+}
+
+// ---------- Dashboard ----------
+function empCard(e){
+  const m=monthOf(DATE);const s=score(DATE,e.code);const ms=monthSummary(e,m,DATE);const t=ms.target;
+  const winToday=isWinner(DATE,e.code);
+  return `<div class="card emp" onclick="openEmp('${e.code}')">
+    <div class="emp-top">${ava(e,winToday?'win':'')}
+      <div style="min-width:0"><div class="emp-name">${esc(e.name)} ${winToday?'<span title="رجل اليوم">🏆</span>':''}</div>
+      <div class="small muted">${esc(e.job||'—')} · ${esc(e.dept||'')}</div>
+      <div class="small muted">${esc(e.shift||'')} · كود ${esc(e.code)}</div></div></div>
+    <div class="kv"><span>النهارده</span>${s.total!=null?`<span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>`:'<span>لم يُقيَّم</span>'}</div>
+    <div class="kv"><span>متوسط الشهر</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b>`:'—'}</span></div>
+    <div class="kv"><span>التارجت</span><b>${t&&t.pct!=null?fmt(t.pct)+'% · '+fmt(t.empPoints)+' نقطة':'لم يُحدد'}</b></div>
+    ${t&&t.pct!=null?barHTML(t.pct,t.pace):''}
+    <div class="row small">${ms.wins?`<span class="badge b-gold">🏆 ${fmt(ms.wins)} مرة رجل اليوم</span>`:''}${ms.abs?`<span class="badge b-red">غياب ${fmt(ms.abs)}</span>`:''}${t?.complaints?`<span class="badge b-red">شكوى ${fmt(t.complaints)}</span>`:''}</div>
+  </div>`;
+}
+function vDash(){
+  const m=monthOf(DATE);
+  const list=filtered();
+  const bs=F.branch?[F.branch]:branches();
+  const top=bs.map(b=>{
+    const L=activeEmps().filter(e=>e.branch===b);
+    const winners=[];const D=peekDay(DATE);
+    for(const[k,codes]of Object.entries(D.winners||{})) if(k.startsWith(b+'|')) codes.forEach(c=>{const e=emp(c);if(e)winners.push(e);});
+    const rated=L.filter(e=>score(DATE,e.code).total!=null).length;
+    const pres=L.filter(e=>{const st=peekDay(DATE).att[e.code];return st&&st!=='abs'&&st!=='off';}).length;
+    const tg=[...new Set(L.map(e=>e.dept))].map(d=>deptProgress(m,b,d,DATE)).filter(x=>x&&x.pct!=null);
+    const tpct=tg.length?tg.reduce((a,x)=>a+x.pct,0)/tg.length:null;
+    const isF=S.branches.find(x=>x.name===b)?.kind==='factory';
+    return `<div class="card"><h3>${isF?'🏭':'🏪'} ${esc(b)}</h3>
+      <div class="kv"><span>الموظفين</span><b>${fmt(L.length)}</b></div>
+      <div class="kv"><span>حضور النهارده</span><b>${fmt(pres)}</b></div>
+      <div class="kv"><span>اتقيّموا</span><b>${fmt(rated)}</b></div>
+      <div class="kv"><span>متوسط تارجت الأقسام</span><b>${tpct!=null?fmt(tpct)+'%':'—'}</b></div>${tpct!=null?barHTML(tpct):''}
+      <div style="margin-top:8px" class="small"><b>🏆 رجل اليوم:</b> ${winners.length?winners.map(e=>esc(e.name)).join('، '):'<span class="muted">لم يُعلن بعد</span>'}</div>
+    </div>`;
+  }).join('');
+  return `<div class="sec-title"><h2>لوحة الفروع والمصنع — ${esc(DATE)}</h2></div>
+    <div class="grid g-2" style="margin-bottom:16px">${top}</div>
+    ${filterBar()}
+    <div class="small muted" style="margin-bottom:8px">${fmt(list.length)} موظف</div>
+    <div class="grid g-emp">${list.map(empCard).join('')||'<div class="empty">مفيش موظفين بالفلتر ده</div>'}</div>`;
+}
+
+// ---------- Rating ----------
+function vRate(){
+  const list=filtered();const D=peekDay(DATE);
+  const asOps=RATE_AS==='ops';
+  return `<div class="sec-title"><h2>تقييم يوم ${esc(DATE)}</h2>
+    <div class="row">
+      ${can.ops()?`<div class="chips"><button class="chip ${!asOps?'on':''}" onclick="RATE_AS='mgr';render()">أقيّم كمدير مباشر</button><button class="chip ${asOps?'on':''}" onclick="RATE_AS='ops';render()">أقيّم كمدير تشغيل</button></div>`:''}
+      <button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button>
+      <button class="btn" onclick="bulkAtt('on')">✔️ الكل في ميعاده</button>
+    </div></div>
+  <div class="lock" style="margin-bottom:10px">البصمة = ${S.settings.att.on} نجمة · المدير المباشر = 1 نجمة · مدير التشغيل = 1 نجمة · سلوك مثالي = ½ نجمة. كل بند من الـ5 من 0 لـ 2، والمجموع من 10 بيتحول لنجمة (بالربع).</div>
+  ${filterBar()}
+  <div class="grid g-emp">${list.map(e=>{
+    const s=score(DATE,e.code);const arr=(asOps?D.ops:D.mgr)[e.code]||[];
+    return `<div class="card" id="rc-${e.code}">
+      <div class="emp-top" style="margin-bottom:6px">${ava(e)}<div><div class="emp-name">${esc(e.name)}</div><div class="small muted">${esc(e.job)} · ${esc(e.shift)}</div></div></div>
+      <div class="seg att" style="margin-bottom:6px;width:100%;display:flex">${Object.entries(ATT).map(([k,v])=>`<button style="flex:1;padding:3px 2px;font-size:11px" data-v="${k}" class="${s.st===k?'on':''}" onclick="setAtt('${e.code}','${k}')">${v}</button>`).join('')}</div>
+      ${D.attTime?.[e.code]?`<div class="small muted">وقت البصمة: ${esc(D.attTime[e.code])}</div>`:''}
+      ${CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')}
+      <div class="row" style="justify-content:space-between;margin-top:6px">
+        <span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>
+        <button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ سلوك مثالي':'+ ½ سلوك مثالي'}</button>
+      </div>
+      <div class="small muted">بصمة ${s.att??'—'} · مباشر ${s.mgr??'—'} · تشغيل ${s.ops??'—'}${s.bonus?` · مثالي ${s.bonus}`:''}</div>
+      ${D.bonus?.[e.code]?.note?`<div class="small" style="color:#8a6000">💬 ${esc(D.bonus[e.code].note)}</div>`:''}
+    </div>`;}).join('')||'<div class="empty">مفيش موظفين</div>'}</div>`;
+}
+function refreshCard(code){render();}
+function setAtt(code,v){const D=day(DATE);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();refreshCard(code);}
+function bulkAtt(v){const D=day(DATE);filtered().forEach(e=>{if(!D.att[e.code])D.att[e.code]=v;});save();render();toast('اتسجل الحضور للي مالوش تسجيل');}
+function setCrit(code,i,v){const D=day(DATE);const bag=RATE_AS==='ops'&&can.ops()?D.ops:D.mgr;const a=bag[code]||(bag[code]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;save();refreshCard(code);}
+function toggleBonus(code){
+  const D=day(DATE);
+  if(D.bonus[code]){if(confirm('شيل نص النجمة؟')){delete D.bonus[code];save();render();}return;}
+  const note=prompt('إيه الفعل المثالي اللي عمله؟ (مساعدة زميل، موقف مع عميل…)');
+  if(note===null)return; if(!note.trim()){toast('لازم تكتب السبب');return;}
+  D.bonus[code]={v:.5,note:note.trim(),by:ROLE};save();render();
+}
+
+// attendance import: «حضور و انصراف يومي» style sheet (كود + حضور/غياب) or a fingerprint export with a time column
+function pickFile(accept,cb){const f=$('#filePick');f.value='';f.accept=accept;f.onchange=()=>f.files[0]&&cb(f.files[0]);f.click();}
+function readSheet(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{try{const wb=XLSX.read(r.result,{type:'array',cellDates:false});const ws=wb.Sheets[wb.SheetNames[0]];res(XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''}));}catch(e){rej(e)}};r.onerror=rej;r.readAsArrayBuffer(file);});}
+function findHeader(rows,tests){
+  for(let i=0;i<Math.min(rows.length,20);i++){const h=rows[i].map(norm);const idx={};for(const[k,re]of Object.entries(tests)){idx[k]=h.findIndex(c=>re.test(c));}if(Object.values(idx).filter(x=>x>=0).length>=2)return {row:i,idx};}
+  return null;
+}
+const toMin=t=>{const m=String(t).match(/(\d{1,2}):(\d{2})/);if(!m)return null;let h=+m[1];if(/pm|م/i.test(t)&&h<12)h+=12;return h*60+ +m[2];};
+function importAttendance(){
+  pickFile('.xlsx,.xls,.csv',async f=>{
+    let rows;try{rows=await readSheet(f);}catch(e){toast('الملف مش مقروء');return;}
+    const H=findHeader(rows,{code:/^(كود|الكود|code|رقم الموظف|id)/,att:/^(atte|حضور|الحاله|الحالة|status)/,time:/(وقت الحضور|الحضور|check ?in|in time|time|الدخول)/});
+    if(!H||H.idx.code<0){toast('مش لاقي عمود الكود في الشيت');return;}
+    const D=day(DATE);let n=0;
+    for(const r of rows.slice(H.row+1)){
+      const code=String(r[H.idx.code]||'').trim();const e=emp(code);if(!e)continue;
+      const a=H.idx.att>=0?norm(r[H.idx.att]):'';
+      const tm=H.idx.time>=0&&H.idx.time!==H.idx.att?String(r[H.idx.time]||'').trim():'';
+      let st=null;
+      if(tm&&toMin(tm)!=null){
+        const start=toMin(S.settings.shiftStart[e.shift]||'09:00');const diff=toMin(tm)-start;
+        st=diff<=S.settings.graceMin?'on':diff<=S.settings.lateMax?'late':'vlate';D.attTime[code]=tm;
+      } else if(a){ st=/غياب|absent/.test(a)?'abs':/حضور|present/.test(a)?'on':/اجاز|off/.test(a)?'off':null; }
+      if(st){D.att[code]=st;n++;}
+    }
+    save();render();toast(`اتسجل حضور ${n} موظف من الشيت`);
+  });
+}
+
+// ---------- Man of the day ----------
+function vDay(){
+  const D=peekDay(DATE);const bs=F.branch?[F.branch]:branches();const N=S.settings.finalists, W=S.settings.winnersPerShift;
+  let html=`<div class="sec-title"><h2>🏆 رجل اليوم — ${esc(DATE)}</h2></div>
+    <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>`;
+  for(const b of bs){
+    html+=`<h3 style="margin-top:14px">${esc(b)}</h3><div class="grid g-2">`;
+    for(const sh of Object.values(SH)){
+      const L=activeEmps().filter(e=>e.branch===b&&e.shift===sh);if(!L.length)continue;
+      const ranked=rankGroup(DATE,L);const fin=ranked.slice(0,N);const k=`${b}|${sh}`;const conf=D.winners[k];
+      html+=`<div class="card"><div class="sec-title" style="margin:0 0 6px"><b>شيفت ${sh}</b>${conf?'<span class="badge b-gold">✔ اتعلن</span>':'<span class="badge b-gray">لسه</span>'}</div>
+        ${conf?`<div class="podium" style="margin-bottom:8px">${conf.map(c=>{const e=emp(c);if(!e)return'';const s=score(DATE,c);return `<div class="winner-box" style="cursor:pointer" onclick="openEmp('${c}')"><div class="crown">👑</div>${ava(e,'win xl').replace('class="ava','style="margin:0 auto" class="ava')}<div class="emp-name">${esc(e.name)}</div><div class="small muted">${esc(e.job)}</div>${starsHTML(s.total,'lg')}</div>`;}).join('')}</div>`:''}
+        <div class="small muted">التصفيات (أعلى ${N}):</div>
+        ${fin.length?`<table><tbody>${fin.map((x,i)=>`<tr><td><span class="rank ${i===0?'r1':''}">${i+1}</span></td><td style="cursor:pointer" onclick="openEmp('${x.e.code}')"><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.dept)}</div></td><td>${starsHTML(x.s.total)}<div class="small"><b>${fmt(x.s.total,2)}</b>${x.s.complete?'':' <span class="badge b-gray">تقييم ناقص</span>'}</div></td>
+          ${can.ops()?`<td><input type="checkbox" class="wchk" data-k="${esc(k)}" value="${x.e.code}" ${(conf||fin.slice(0,W).map(y=>y.e.code)).includes(x.e.code)?'checked':''}></td>`:''}</tr>`).join('')}</tbody></table>
+          ${can.ops()?`<div class="row" style="margin-top:8px"><button class="btn gold sm" onclick="confirmWinners('${esc(k)}')">👑 اعتماد رجل اليوم (حتى ${W})</button>${conf?`<button class="btn sm red" onclick="clearWinners('${esc(k)}')">إلغاء الإعلان</button>`:''}</div>`:''}`
+          :'<div class="empty small">مفيش تقييمات لسه</div>'}
+      </div>`;
+    }
+    html+='</div>';
+  }
+  return html;
+}
+function confirmWinners(k){
+  const codes=[...document.querySelectorAll('.wchk')].filter(c=>c.dataset.k===k&&c.checked).map(c=>c.value);
+  if(!codes.length){toast('اختار موظف واحد على الأقل');return;}
+  if(codes.length>S.settings.winnersPerShift){toast(`الحد الأقصى ${S.settings.winnersPerShift} في الشيفت`);return;}
+  day(DATE).winners[k]=codes;save();render();toast('🎉 اتعلن رجل اليوم');
+}
+function clearWinners(k){if(!confirm('إلغاء إعلان الفايز؟'))return;delete day(DATE).winners[k];save();render();}
+
+// ---------- Employee of the month ----------
+function vMonth(){
+  const m=monthOf(DATE);const upto=DATE;
+  const rows=activeEmps().filter(e=>!F.branch||e.branch===F.branch).map(e=>({e,ms:monthSummary(e,m,upto)})).filter(x=>x.ms.n>0||x.ms.wins>0);
+  rows.sort((a,b)=>b.ms.wins-a.ms.wins||(b.ms.avg||0)-(a.ms.avg||0)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
+  const top3=rows.slice(0,3);
+  return `<div class="sec-title"><h2>👑 العامل المثالي — ${monthName(m)}</h2><span class="small muted">حتى ${esc(DATE)}</span></div>
+    <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
+    <div class="lock" style="margin-bottom:12px">الترتيب المؤقت: عدد مرات «رجل اليوم» ← متوسط النجوم ← نقاط التارجت. (نظام التصفيات النهائي هيتظبط حسب تفاصيلك الجاية)</div>
+    ${top3.length?`<div class="podium" style="margin-bottom:16px">${top3.map((x,i)=>`<div class="card" style="cursor:pointer;${i===0?'border:2px solid var(--gold)':''}" onclick="openEmp('${x.e.code}')"><div style="font-size:26px">${['🥇','🥈','🥉'][i]}</div>${ava(x.e,'xl'+(i===0?' win':'')).replace('class="ava','style="margin:6px auto" class="ava')}<div class="emp-name">${esc(x.e.name)}</div><div class="small muted">${esc(x.e.branch)} · ${esc(x.e.dept)}</div>${starsHTML(x.ms.avg,'lg')}<div class="small">🏆 ${fmt(x.ms.wins)} · تارجت ${x.ms.target?.empPoints!=null?fmt(x.ms.target.empPoints)+' نقطة':'—'}</div></div>`).join('')}</div>`:''}
+    <div class="card"><h3>المتأهلين</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>الموظف</th><th>الفرع</th><th>🏆 رجل اليوم</th><th>متوسط النجوم</th><th>أيام متقيّمة</th><th>غياب/تأخير</th><th>التارجت</th>${can.ops()?'<th>المكافأة</th>':''}</tr></thead><tbody>
+    ${rows.map((x,i)=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td><span class="rank ${i<3?'r1':''}">${i+1}</span></td><td><div class="row" style="flex-wrap:nowrap">${ava(x.e).replace('class="ava','style="width:34px;height:34px;font-size:14px" class="ava')}<div><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.job)}</div></div></div></td><td class="small">${esc(x.e.branch)}</td><td><b>${fmt(x.ms.wins)}</b></td><td>${starsHTML(x.ms.avg)} ${fmt(x.ms.avg,2)}</td><td>${fmt(x.ms.n)}</td><td class="small">${fmt(x.ms.abs)} / ${fmt(x.ms.late)}</td><td>${x.ms.target?.pct!=null?fmt(x.ms.target.pct)+'% · '+fmt(x.ms.target.empPoints)+' ن':'—'}</td>${can.ops()?`<td>${x.ms.target?.empPoints!=null&&S.settings.bonusAt100?fmt(money(x.ms.target.empPoints))+' ج':'—'}</td>`:''}</tr>`).join('')||`<tr><td colspan="9" class="empty">مفيش تقييمات في الشهر ده لسه</td></tr>`}
+    </tbody></table></div></div>`;
+}
+
+// ---------- Targets ----------
+let TG={branch:'', dept:'', mode:'view'};
+function vTarget(){
+  const m=monthOf(DATE);
+  if(!TG.branch)TG.branch=branches()[0];
+  const depts=deptsOf(TG.branch);
+  const cards=depts.map(d=>{
+    const p=deptProgress(m,TG.branch,d,DATE);
+    return `<div class="card" style="cursor:pointer" onclick="TG.dept='${esc(d)}';TG.mode='${can.ops()?'edit':'view'}';render()">
+      <div class="sec-title" style="margin:0 0 6px"><b>${esc(d)}</b>${p?`<span class="badge ${p.type==='sales'?'b-blue':'b-green'}">${p.type==='sales'?'تارجت مبيعات (كميات)':'تارجت تشغيلي'}</span>`:'<span class="badge b-gray">لم يُحدد</span>'}</div>
+      ${p&&p.pct!=null?`${barHTML(p.pct,p.pace)}<div class="kv" style="margin-top:4px"><span>الإنجاز ${p.pace!=null?`(المفروض لحد النهارده ${fmt(p.pace)}%)`:''}</span><b>${fmt(p.pct)}% · ${fmt(p.points)} نقطة</b></div>`:p?'<div class="small muted">مفيش بيانات لسه</div>':''}
+    </div>`;}).join('');
+  let detail='';
+  if(TG.dept){detail=TG.mode==='edit'&&can.ops()?targetEditor(m):targetDetail(m);}
+  return `<div class="sec-title"><h2>🎯 التارجت — ${monthName(m)}</h2>
+    <div class="row">${can.rate()?`<button class="btn pri" onclick="importSales()">📥 رفع تقرير المبيعات اليومي</button>`:''}${can.ops()?`<button class="btn" onclick="importSales(true)">📊 رفع مبيعات شهر كامل (للتخطيط)</button>`:''}</div></div>
+    <div class="lock" style="margin-bottom:10px">التارجت بالكميات بس. أقل من 50% = صفر · من 50% لـ 85% = 50 نقطة · 85% وأكتر = بالنسبة نفسها (حد أقصى ${S.settings.capPct}%). شكوى عميل من الضغط في البيع = خصم ${S.settings.complaintPenalty}% من نقاط الموظف.</div>
+    <div class="chips" style="margin-bottom:12px">${branches().map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
+    ${salesStatus(m)}
+    ${detail}
+    <div class="grid g-2" style="margin-top:12px">${cards||'<div class="empty">مفيش أقسام</div>'}</div>`;
+}
+function salesStatus(m){
+  const days=monthDays(m,DATE).filter(d=>S.sales[d]?.[TG.branch]);
+  return `<div class="small muted" style="margin-bottom:8px">تقارير مبيعات ${esc(TG.branch)} المرفوعة الشهر ده: <b>${fmt(days.length)}</b> يوم${days.length?` (آخر يوم ${days[days.length-1]})`:''}</div>`;
+}
+function targetDetail(m){
+  const p=deptProgress(m,TG.branch,TG.dept,DATE);
+  const head=`<div class="sec-title"><h3>${esc(TG.branch)} — ${esc(TG.dept)}</h3><div class="row">${can.ops()?`<button class="btn sm" onclick="TG.mode='edit';render()">✏️ تعديل التارجت</button>`:''}<button class="btn sm" onclick="TG.dept='';render()">✕</button></div></div>`;
+  if(!p) return `<div class="card">${head}<div class="empty">التارجت لسه متحددش للقسم ده${can.ops()?'':' — مدير التشغيل هيحدده'}</div></div>`;
+  if(p.type==='sales') return `<div class="card">${head}<div class="tbl-wrap"><table><thead><tr><th>الصنف</th><th>التارجت</th><th>المتباع</th><th>الإنجاز</th></tr></thead><tbody>
+    ${p.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${fmt(i.target,1)}</td><td>${fmt(i.sold,1)}</td><td style="min-width:140px">${barHTML(i.pct,p.pace)}<span class="small">${fmt(i.pct)}%</span></td></tr>`).join('')}</tbody></table></div></div>`;
+  return `<div class="card">${head}
+    ${can.rate()?`<div class="row" style="margin-bottom:8px"><b class="small">تسجيل يوم ${esc(DATE)}:</b>${p.kpis.map(k=>`<label class="small">${esc(k.name)} <input class="inp" type="number" style="width:80px" value="${S.kpiVals[DATE]?.[deptKey(TG.branch,TG.dept)]?.[k.id]??''}" onchange="setKpi('${k.id}',this.value)"></label>`).join('')}</div>`:''}
+    <table><thead><tr><th>المؤشر</th><th>النوع</th><th>التارجت</th><th>المحقق</th><th>الإنجاز</th></tr></thead><tbody>
+    ${p.kpis.map(k=>`<tr><td>${esc(k.name)}</td><td class="small">${KPI_KINDS[k.kind]}</td><td>${fmt(k.target,1)}${k.kind==='errors'?' حد أقصى':k.kind==='score'?' متوسط':''}</td><td>${k.val!=null?fmt(k.val,1):'—'} <span class="small muted">(${fmt(k.n)} يوم)</span></td><td style="min-width:140px">${barHTML(k.pct)}<span class="small">${fmt(k.pct)}%</span></td></tr>`).join('')}</tbody></table></div>`;
+}
+function setKpi(id,v){const k=deptKey(TG.branch,TG.dept);const D=S.kpiVals[DATE]||(S.kpiVals[DATE]={});const b=D[k]||(D[k]={});if(v===''){delete b[id];}else b[id]=+v;save();render();}
+
+// target editor (ops)
+let DRAFT=null;
+function targetEditor(m){
+  const key=deptKey(TG.branch,TG.dept);
+  if(!DRAFT||DRAFT._key!==key+m){
+    const cur=S.targets[m]?.[key];
+    DRAFT=cur?JSON.parse(JSON.stringify(cur)):{type:'sales',items:[],kpis:[]};
+    DRAFT._key=key+m;DRAFT.mult=S.settings.defaultMultiplier;DRAFT.q='';
+  }
+  const head=`<div class="sec-title"><h3>✏️ تارجت ${esc(TG.branch)} — ${esc(TG.dept)} — ${monthName(m)}</h3><div class="row"><button class="btn pri sm" onclick="saveTarget()">💾 حفظ</button><button class="btn sm" onclick="DRAFT=null;TG.mode='view';render()">إلغاء</button></div></div>
+    <div class="chips" style="margin-bottom:10px"><button class="chip ${DRAFT.type==='sales'?'on':''}" onclick="DRAFT.type='sales';render()">🛒 تارجت مبيعات (كميات أصناف)</button><button class="chip ${DRAFT.type==='manual'?'on':''}" onclick="DRAFT.type='manual';render()">🧹 تارجت تشغيلي (نضافة، تفويل، أخطاء…)</button></div>`;
+  if(DRAFT.type==='manual'){
+    return `<div class="card">${head}
+      <div class="row small" style="margin-bottom:8px">قوالب جاهزة: ${Object.keys(PRESETS).map(p=>`<button class="btn sm" onclick="applyPreset('${p}')">${p}</button>`).join('')}</div>
+      <table><thead><tr><th>المؤشر</th><th>النوع</th><th>التارجت</th><th>الوزن</th><th></th></tr></thead><tbody>
+      ${(DRAFT.kpis||[]).map((k,i)=>`<tr><td><input class="inp" value="${esc(k.name)}" onchange="DRAFT.kpis[${i}].name=this.value"></td><td><select class="inp" onchange="DRAFT.kpis[${i}].kind=this.value;render()">${Object.entries(KPI_KINDS).map(([v,t])=>`<option value="${v}" ${k.kind===v?'selected':''}>${t}</option>`).join('')}</select></td><td><input class="inp" type="number" style="width:90px" value="${k.target}" onchange="DRAFT.kpis[${i}].target=+this.value"><div class="small muted">${k.kind==='score'?'متوسط الشهر المطلوب':k.kind==='count'?'إجمالي الشهر':'أقصى عدد مسموح في الشهر'}</div></td><td><input class="inp" type="number" style="width:60px" value="${k.weight}" onchange="DRAFT.kpis[${i}].weight=+this.value"></td><td><button class="btn sm red" onclick="DRAFT.kpis.splice(${i},1);render()">حذف</button></td></tr>`).join('')}
+      </tbody></table><button class="btn sm" style="margin-top:8px" onclick="DRAFT.kpis.push({id:uid(),name:'',kind:'score',target:9,weight:1});render()">+ مؤشر</button></div>`;
+  }
+  // sales planning: base = last month's sales
+  const pm=prevMonth(m);
+  const base=Object.keys(S.baseSales[pm]?.[TG.branch]||{}).length?S.baseSales[pm][TG.branch]:salesAgg(pm,TG.branch);
+  const chosen=new Map((DRAFT.items||[]).map(i=>[i.key,i]));
+  const q=norm(DRAFT.q);
+  const baseList=Object.entries(base).map(([k,v])=>({key:k,name:v.name,qty:v.qty})).filter(x=>!q||norm(x.name).includes(q)||x.key.includes(q)).sort((a,b)=>b.qty-a.qty).slice(0,300);
+  return `<div class="card">${head}
+    <div class="lock" style="margin-bottom:8px">الخطوات: 1) ارفع مبيعات الشهر اللي فات (زرار «رفع مبيعات شهر كامل») 2) اختار أصناف القسم 3) التارجت = مبيعات الشهر اللي فات × المُضاعِف (وتقدر تعدّل أي رقم بإيدك).</div>
+    <div class="grid g-2">
+      <div><h3>أصناف القسم (${fmt(chosen.size)})</h3>
+        <div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>الصنف</th><th>الشهر اللي فات</th><th>التارجت</th><th></th></tr></thead><tbody>
+        ${(DRAFT.items||[]).map((it,i)=>`<tr><td class="small">${esc(it.name)}</td><td class="small">${fmt(base[it.key]?.qty,1)}</td><td><input class="inp" type="number" style="width:90px" value="${it.target}" onchange="DRAFT.items[${i}].target=+this.value"></td><td><button class="btn sm red" onclick="DRAFT.items.splice(${i},1);render()">✕</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty small">اختار أصناف من القايمة</td></tr>'}
+        </tbody></table></div></div>
+      <div><h3>مبيعات ${monthName(pm)} — ${esc(TG.branch)}</h3>
+        <div class="row" style="margin-bottom:6px"><input class="inp" placeholder="بحث عن صنف" value="${esc(DRAFT.q)}" onchange="DRAFT.q=this.value;render()"><label class="small">المُضاعِف × <input class="inp" type="number" step="0.1" style="width:70px" value="${DRAFT.mult}" onchange="DRAFT.mult=+this.value"></label></div>
+        ${baseList.length?`<div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>الصنف</th><th>الكمية</th><th></th></tr></thead><tbody>
+        ${baseList.map(x=>`<tr><td class="small">${esc(x.name)}</td><td>${fmt(x.qty,1)}</td><td>${chosen.has(x.key)?'<span class="badge b-green">مضاف</span>':`<button class="btn sm" onclick="addItem('${esc(x.key)}')">+ إضافة</button>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty small">مفيش مبيعات للشهر اللي فات — ارفع تقرير شهر كامل الأول</div>'}
+      </div></div></div>`;
+}
+function addItem(key){
+  const m=monthOf(DATE);const pm=prevMonth(m);
+  const base=Object.keys(S.baseSales[pm]?.[TG.branch]||{}).length?S.baseSales[pm][TG.branch]:salesAgg(pm,TG.branch);
+  const b=base[key];if(!b)return;
+  DRAFT.items.push({key,name:b.name,target:Math.round(b.qty*(DRAFT.mult||1)*10)/10});render();
+}
+function applyPreset(p){DRAFT.kpis=PRESETS[p].map(k=>({...k,id:uid()}));render();}
+function saveTarget(){
+  const m=monthOf(DATE);const key=deptKey(TG.branch,TG.dept);
+  const t=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.filter(i=>i.target>0)}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
+  (S.targets[m]||(S.targets[m]={}))[key]=t;save();DRAFT=null;TG.mode='view';render();toast('💾 اتحفظ التارجت');
+}
+
+// sales import
+function importSales(monthly=false){
+  pickFile('.xlsx,.xls,.csv',async f=>{
+    let rows;try{rows=await readSheet(f);}catch(e){toast('الملف مش مقروء');return;}
+    const H=findHeader(rows,{
+      code:/^(كود|الكود|كود الصنف|باركود|الباركود|sku|code|item code|barcode)/,
+      name:/(اسم الصنف|الصنف|اسم المنتج|المنتج|الاسم|product|item|name)/,
+      qty:/(الكميه|كميه|الكمية المباعه|quantity|qty|العدد|الوزن)/,
+      branch:/(الفرع|فرع|branch)/
+    });
+    if(!H){toast('مش قادر ألاقي عناوين الأعمدة في الملف');return;}
+    const guessBranch=branches().find(b=>norm(f.name).includes(norm(b)))||TG.branch||branches()[0];
+    openModal(salesMapUI(rows,H,f.name,guessBranch,monthly));
+  });
+}
+let IMP=null;
+function salesMapUI(rows,H,fname,branch,monthly){
+  IMP={rows,H,fname,branch,monthly,month:prevMonth(monthOf(DATE)),date:DATE};
+  const hdr=rows[H.row];
+  const sel=(k,label)=>`<label class="small">${label}<br><select class="inp" onchange="IMP.H.idx.${k}=+this.value;previewImp()"><option value="-1">— مش موجود —</option>${hdr.map((h,i)=>`<option value="${i}" ${H.idx[k]===i?'selected':''}>${esc(h)||'عمود '+(i+1)}</option>`).join('')}</select></label>`;
+  return `<h2>${monthly?'📊 مبيعات شهر كامل (للتخطيط)':'📥 تقرير المبيعات اليومي'}</h2><div class="small muted" style="margin-bottom:8px">${esc(fname)}</div>
+    <div class="row" style="margin-bottom:10px">
+      ${monthly?`<label class="small">الشهر<br><input class="inp" type="month" value="${IMP.month}" onchange="IMP.month=this.value"></label>`:`<label class="small">اليوم<br><input class="inp" type="date" value="${IMP.date}" onchange="IMP.date=this.value"></label>`}
+      <label class="small">الفرع<br><select class="inp" onchange="IMP.branch=this.value">${branches().map(b=>`<option ${b===branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+      ${sel('code','كود الصنف')}${sel('name','اسم الصنف')}${sel('qty','الكمية المباعة')}${sel('branch','عمود الفرع (لو موجود)')}
+    </div>
+    <div class="lock" style="margin-bottom:8px">بناخد <b>الكمية بس</b> — قيمة المبيعات مش بتدخل في الحساب. لو الملف فيه عمود فرع، كل سطر بيتسجل على فرعه.</div>
+    <div id="impPrev"></div>
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="commitImp()">✔ تأكيد الرفع</button><button class="btn" onclick="closeModal()">إلغاء</button></div>`;
+}
+function parseImp(){
+  const {rows,H}=IMP;const out={};const bi=H.idx.branch;
+  for(const r of rows.slice(H.row+1)){
+    const code=H.idx.code>=0?String(r[H.idx.code]||'').trim():'';const name=H.idx.name>=0?String(r[H.idx.name]||'').trim():'';
+    const qty=parseFloat(String(r[H.idx.qty]??'').replace(/,/g,''));
+    if((!code&&!name)||isNaN(qty)||/اجمالي|إجمالي|total/i.test(name)||norm(name)==='محذوف')continue;
+    let b=IMP.branch; if(bi>=0&&r[bi]){const m=branches().find(x=>norm(x)===norm(r[bi])||norm(r[bi]).includes(norm(x)));if(m)b=m;}
+    const key=code||norm(name);
+    const B=out[b]||(out[b]={});(B[key]||(B[key]={name:name||code,qty:0})).qty+=qty;
+  }
+  return out;
+}
+function previewImp(){
+  const el=$('#impPrev');if(!el)return;
+  if(IMP.H.idx.qty<0||(IMP.H.idx.code<0&&IMP.H.idx.name<0)){el.innerHTML='<div class="empty">اختار عمود الكمية وعمود الكود أو الاسم</div>';return;}
+  const out=parseImp();
+  el.innerHTML=Object.entries(out).map(([b,items])=>{const L=Object.values(items);return `<div class="small"><b>${esc(b)}</b>: ${fmt(L.length)} صنف · إجمالي كميات ${fmt(L.reduce((a,x)=>a+x.qty,0),1)}</div>`;}).join('')+
+   `<div class="tbl-wrap" style="max-height:35vh;margin-top:6px"><table><thead><tr><th>الصنف</th><th>الكمية</th></tr></thead><tbody>${Object.values(out).flatMap(o=>Object.values(o)).slice(0,40).map(x=>`<tr><td class="small">${esc(x.name)}</td><td>${fmt(x.qty,2)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function commitImp(){
+  const out=parseImp();if(!Object.keys(out).length){toast('مفيش بيانات اتقرت');return;}
+  if(IMP.monthly){const M=S.baseSales[IMP.month]||(S.baseSales[IMP.month]={});Object.assign(M,out);}
+  else{const D=S.sales[IMP.date]||(S.sales[IMP.date]={});for(const[b,v]of Object.entries(out)){if(D[b]&&!confirm(`فيه تقرير مرفوع لـ ${b} يوم ${IMP.date}. استبداله؟`))continue;D[b]=v;}}
+  save();closeModal();render();toast('✔ اتسجل تقرير المبيعات');
+}
+
+// ---------- Employees ----------
+function vEmps(){
+  const list=filtered();
+  return `<div class="sec-title"><h2>🗂️ ملفات الموظفين</h2>${can.ops()?`<div class="row"><button class="btn" onclick="editEmp()">+ موظف جديد</button><button class="btn" onclick="importEmps()">📥 تحديث من شيت الموظفين</button></div>`:''}</div>
+    ${filterBar()}
+    <div class="tbl-wrap"><table><thead><tr><th></th><th>الكود</th><th>الاسم</th><th>الفرع</th><th>القسم</th><th>الوظيفة</th><th>الشيفت</th></tr></thead><tbody>
+    ${list.map(e=>`<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e).replace('class="ava','style="width:34px;height:34px;font-size:14px" class="ava')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b></td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+function openEmp(code){
+  const e=emp(code);if(!e)return;const m=monthOf(DATE);const ms=monthSummary(e,m,DATE);const t=ms.target;
+  const days=monthDays(m);const first=new Date(days[0]).getDay(); // 0=Sun
+  const off=(first+1)%7; // week starts Saturday
+  const cal=Array(off).fill('<div style="border:0"></div>').concat(days.map(d=>{const s=score(d,code);const w=isWinner(d,code);return `<div class="${w?'w':''}" title="${d}"><div class="muted">${+d.slice(8)}</div>${s.st==='abs'?'<span style="color:var(--red)">غ</span>':s.total!=null?`<b>${fmt(s.total,2)}</b>`:''}${w?'🏆':''}</div>`;})).join('');
+  // criteria averages (managers only)
+  let crit='';
+  if(can.rate()){
+    const sums=[0,0,0,0,0],cnt=[0,0,0,0,0];
+    for(const d of days){const D=peekDay(d);for(const a of [D.mgr[code],D.ops[code]]){if(!a)continue;a.forEach((v,i)=>{if(v!=null){sums[i]+=v;cnt[i]++;}});}}
+    crit=`<div class="card"><h3>تفاصيل التقييم (للمديرين فقط)</h3>${CRITERIA.map((c,i)=>`<div class="kv" style="margin:4px 0"><span>${c}</span><b>${cnt[i]?fmt(sums[i]/cnt[i],2)+' / 2':'—'}</b></div>${cnt[i]?barHTML(sums[i]/cnt[i]/2*100):''}`).join('')}</div>`;
+  }
+  const bonuses=days.map(d=>({d,b:peekDay(d).bonus[code]})).filter(x=>x.b);
+  const comps=S.complaints.filter(c=>c.code===code).sort((a,b)=>b.date.localeCompare(a.date));
+  const notes=S.notes.filter(n=>n.code===code).sort((a,b)=>b.date.localeCompare(a.date));
+  const allWins=Object.entries(S.days).filter(([d,D])=>Object.values(D.winners||{}).some(a=>a.includes(code))).length;
+  openModal(`<button class="x" onclick="closeModal()">✕</button>
+   <div class="row" style="gap:16px;margin-bottom:14px">
+     <div style="position:relative">${ava(e,'xl'+(isWinner(DATE,code)?' win':''))}${can.ops()?`<button class="btn sm" style="position:absolute;bottom:-6px;left:-6px" onclick="setPhoto('${code}')">📷</button>`:''}</div>
+     <div style="flex:1"><h2 style="margin:0">${esc(e.name)}</h2>
+       <div class="muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)} · كود ${esc(e.code)}</div>
+       <div class="row" style="margin-top:6px"><span class="badge b-gold">🏆 رجل اليوم ${fmt(allWins)} مرة (إجمالي)</span>${e.active?'':'<span class="badge b-red">غير نشط</span>'}</div></div>
+     ${can.ops()?`<button class="btn sm" onclick="editEmp('${code}')">✏️ تعديل</button>`:''}
+   </div>
+   <div class="grid g-2" style="margin-bottom:12px">
+     <div class="card"><h3>${monthName(m)}</h3>
+       <div class="kv"><span>متوسط النجوم</span><span>${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b></span></div>
+       <div class="kv"><span>أيام متقيّمة</span><b>${fmt(ms.n)}</b></div>
+       <div class="kv"><span>رجل اليوم</span><b>${fmt(ms.wins)}</b></div>
+       <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>
+       <div class="kv"><span>تارجت القسم</span><b>${t&&t.pct!=null?fmt(t.pct)+'%':'—'}</b></div>${t&&t.pct!=null?barHTML(t.pct,t.pace):''}
+       <div class="kv"><span>نقاطه</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}${t?.complaints?` <span class="badge b-red">−${S.settings.complaintPenalty}% شكوى</span>`:''}</b></div>
+       ${can.ops()&&t?.empPoints!=null&&S.settings.bonusAt100?`<div class="kv"><span>المكافأة (مدير التشغيل فقط)</span><b>${fmt(money(t.empPoints))} ج</b></div>`:''}
+     </div>${crit}
+   </div>
+   <div class="card" style="margin-bottom:12px"><h3>نجوم الشهر يوم بيوم</h3><div class="cal">${['سبت','أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة'].map(d=>`<div style="border:0;min-height:0" class="muted">${d}</div>`).join('')}${cal}</div></div>
+   <div class="grid g-2">
+     <div class="card"><h3>⭐ مواقف مثالية</h3>${bonuses.length?bonuses.map(x=>`<div class="small" style="margin:4px 0"><b>${x.d}</b> — ${esc(x.b.note)}</div>`).join(''):'<div class="small muted">مفيش</div>'}</div>
+     <div class="card"><h3>⚠️ شكاوى العملاء (ضغط في البيع)</h3>${comps.map(c=>`<div class="small row" style="justify-content:space-between;margin:4px 0"><span><b>${c.date}</b> — ${esc(c.note)}</span>${can.ops()?`<button class="btn sm red" onclick="delComplaint('${c.id}','${code}')">حذف</button>`:''}</div>`).join('')||'<div class="small muted">مفيش</div>'}
+       ${can.ops()?`<button class="btn sm red" style="margin-top:6px" onclick="addComplaint('${code}')">+ تسجيل شكوى</button>`:''}</div>
+   </div>
+   ${can.rate()?`<div class="card" style="margin-top:12px"><h3>📝 ملاحظات الإدارة</h3>${notes.map(n=>`<div class="small" style="margin:4px 0"><b>${n.date}</b> (${ROLE_NAME[n.by]||''}) — ${esc(n.text)}</div>`).join('')||'<div class="small muted">مفيش</div>'}<button class="btn sm" style="margin-top:6px" onclick="addNote('${code}')">+ ملاحظة</button></div>`:''}
+  `);
+}
+function addComplaint(code){const n=prompt('تفاصيل الشكوى:');if(n===null)return;S.complaints.push({id:uid(),date:DATE,code,note:n.trim()||'شكوى ضغط في البيع'});save();openEmp(code);render();}
+function delComplaint(id,code){if(!confirm('حذف الشكوى؟'))return;S.complaints=S.complaints.filter(c=>c.id!==id);save();openEmp(code);render();}
+function addNote(code){const n=prompt('الملاحظة:');if(!n||!n.trim())return;S.notes.push({id:uid(),date:DATE,code,text:n.trim(),by:ROLE});save();openEmp(code);}
+function setPhoto(code){
+  pickFile('image/*',f=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const s=200;c.width=c.height=s;const x=c.getContext('2d');const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,s,s);emp(code).photo=c.toDataURL('image/jpeg',.8);save();openEmp(code);render();};img.src=r.result;};r.readAsDataURL(f);});
+}
+function editEmp(code){
+  const e=code?emp(code):{code:'',name:'',branch:branches()[0],dept:'',job:'',shift:'Morning',active:true,photo:''};
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${code?'تعديل موظف':'موظف جديد'}</h2>
+   <div class="grid g-2">
+    <label>الكود<br><input class="inp" id="f_code" value="${esc(e.code)}" ${code?'disabled':''}></label>
+    <label>الاسم<br><input class="inp" id="f_name" value="${esc(e.name)}"></label>
+    <label>الفرع<br><select class="inp" id="f_branch">${branches().map(b=>`<option ${b===e.branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+    <label>القسم<br><input class="inp" id="f_dept" list="dl_dept" value="${esc(e.dept)}"><datalist id="dl_dept">${deptsOf('').map(d=>`<option>${esc(d)}</option>`).join('')}</datalist></label>
+    <label>الوظيفة<br><input class="inp" id="f_job" value="${esc(e.job)}"></label>
+    <label>الشيفت<br><select class="inp" id="f_shift">${Object.values(SH).map(s=>`<option ${s===e.shift?'selected':''}>${s}</option>`).join('')}</select></label>
+    <label><input type="checkbox" id="f_active" ${e.active?'checked':''}> على راس العمل</label>
+   </div><div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveEmp('${esc(code||'')}')">💾 حفظ</button></div>`);
+}
+function saveEmp(code){
+  const v=id=>$('#'+id).value.trim();
+  const c=code||v('f_code');if(!c||!v('f_name')){toast('الكود والاسم مطلوبين');return;}
+  if(!code&&emp(c)){toast('الكود ده موجود');return;}
+  const e=code?emp(code):{code:c,photo:''};
+  Object.assign(e,{name:v('f_name'),branch:v('f_branch'),dept:v('f_dept'),job:v('f_job'),shift:v('f_shift'),active:$('#f_active').checked});
+  if(!code)S.employees.push(e);save();closeModal();render();toast('💾 اتحفظ');
+}
+function importEmps(){
+  pickFile('.xlsx,.xls,.csv',async f=>{
+    let rows;try{rows=await readSheet(f);}catch(e){toast('الملف مش مقروء');return;}
+    const H=findHeader(rows,{code:/^(كود|الكود)$/,name:/اسم الموظف/,shift:/الشيفت/,branch:/^الفرع/,status:/حاله الموظف|حالة الموظف/,dept:/^القسم/,job:/الوظيف/});
+    if(!H||H.idx.code<0||H.idx.name<0){toast('الشيت لازم يكون فيه «كود» و«اسم الموظف»');return;}
+    let add=0,upd=0;
+    for(const r of rows.slice(H.row+1)){
+      const code=String(r[H.idx.code]||'').trim(),name=String(r[H.idx.name]||'').trim();
+      if(!code||!name||name==='#N/A')continue;
+      const g=k=>H.idx[k]>=0?String(r[H.idx[k]]||'').trim():'';
+      const active=H.idx.status>=0?/راس العمل/.test(g('status')):true;
+      const sh=g('shift');const br=branches().find(b=>norm(b)===norm(g('branch')))||g('branch');
+      let e=emp(code);
+      if(e){Object.assign(e,{name,branch:br||e.branch,dept:g('dept')||e.dept,job:g('job')||e.job,shift:Object.values(SH).includes(sh)?sh:e.shift,active});upd++;}
+      else if(active){S.employees.push({code,name,branch:br,dept:g('dept'),job:g('job'),shift:Object.values(SH).includes(sh)?sh:'Morning',active,photo:''});add++;}
+    }
+    save();render();toast(`جديد ${add} · اتحدّث ${upd}`);
+  });
+}
+
+// ---------- Settings ----------
+function vSettings(){
+  const s=S.settings;
+  const num=(path,label,step=1)=>`<label class="small">${label}<br><input class="inp" type="number" step="${step}" value="${path.split('.').reduce((o,k)=>o[k],s)}" onchange="setS('${path}',+this.value)"></label>`;
+  const txt=(path,label,type='text')=>`<label class="small">${label}<br><input class="inp" type="${type}" value="${esc(path.split('.').reduce((o,k)=>o[k],s))}" onchange="setS('${path}',this.value)"></label>`;
+  return `<h2>⚙️ الإعدادات</h2>
+  <div class="grid g-2">
+   <div class="card"><h3>🔐 أرقام الدخول (PIN)</h3><div class="row">${txt('pins.manager','المدير المباشر')}${txt('pins.ops','مدير التشغيل')}</div><div class="small muted" style="margin-top:6px">⚠️ غيّر الأرقام الافتراضية (1234 / 0000) قبل ما توزّع التطبيق.</div></div>
+   <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.abs','غياب',.25)}</div>
+     <div class="row" style="margin-top:8px">${txt('shiftStart.Morning','بداية Morning','time')}${txt('shiftStart.Between','بداية Between','time')}${txt('shiftStart.Night','بداية Night','time')}</div>
+     <div class="row" style="margin-top:8px">${num('graceMin','سماح (دقيقة)')}${num('lateMax','تأخير بسيط لحد (دقيقة)')}</div></div>
+   <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد التصفيات')}${num('winnersPerShift','أقصى فايزين في الشيفت')}</div></div>
+   <div class="card"><h3>🎯 التارجت</h3><div class="row">${num('defaultMultiplier','المُضاعِف الافتراضي',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}</div></div>
+   <div class="card"><h3>💰 المكافأة (مخفية عن الموظفين)</h3><div class="row">${num('bonusAt100','المكافأة عند 100 نقطة (جنيه)')}</div><div class="small muted">المكافأة = النقاط ÷ 100 × المبلغ ده. بتظهر لمدير التشغيل بس.</div></div>
+   <div class="card"><h3>💾 البيانات</h3><div class="small muted" style="margin-bottom:8px">البيانات محفوظة على الجهاز ده. خُد نسخة احتياطية بانتظام.</div>
+     <div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button><button class="btn" onclick="importJSON()">⬆️ استرجاع نسخة</button><button class="btn" onclick="exportXLSX()">📊 تصدير Excel للشهر</button><button class="btn red" onclick="resetAll()">مسح الكل</button></div></div>
+  </div>`;
+}
+function setS(path,v){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();toast('اتحفظ');}
+function exportJSON(){const b=new Blob([JSON.stringify(S)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`najm-backup-${DATE}.json`;a.click();}
+function importJSON(){pickFile('.json',f=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.employees)throw 0;if(!confirm('هيستبدل كل البيانات الحالية. متأكد؟'))return;S=d;load2();}catch(e){toast('ملف غير صالح')}};r.readAsText(f);});}
+function load2(){const d=defaultState();S.settings=Object.assign(d.settings,S.settings||{});for(const k of Object.keys(d))if(S[k]===undefined)S[k]=d[k];save();render();toast('اتسترجعت النسخة');}
+function resetAll(){if(prompt('اكتب «مسح» للتأكيد')!=='مسح')return;S=defaultState();save();render();}
+function exportXLSX(){
+  const m=monthOf(DATE);
+  const sum=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);return {'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'القسم':e.dept,'الوظيفة':e.job,'الشيفت':e.shift,'أيام متقيمة':ms.n,'متوسط النجوم':ms.avg!=null?+ms.avg.toFixed(2):'','رجل اليوم':ms.wins,'غياب':ms.abs,'تأخير':ms.late,'تارجت %':ms.target?.pct!=null?Math.round(ms.target.pct):'','نقاط':ms.target?.empPoints??'','شكاوى':ms.target?.complaints||0,'مكافأة':ms.target?.empPoints!=null?money(ms.target.empPoints):''};});
+  const daily=[];for(const d of monthDays(m,DATE))for(const e of activeEmps()){const s=score(d,e.code);if(s.total==null&&!s.st)continue;const D=peekDay(d);daily.push({'التاريخ':d,'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'البصمة':ATT[s.st]||'','نجوم البصمة':s.att??'','المدير المباشر':s.mgr??'','مدير التشغيل':s.ops??'','سلوك مثالي':s.bonus||'','الإجمالي':s.total??'','رجل اليوم':isWinner(d,e.code)?'✔':'',...Object.fromEntries(CRITERIA.map((c,i)=>['مباشر: '+c,D.mgr[e.code]?.[i]??''])),...Object.fromEntries(CRITERIA.map((c,i)=>['تشغيل: '+c,D.ops[e.code]?.[i]??'']))});}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sum),'ملخص الشهر');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(daily),'التقييم اليومي');
+  XLSX.writeFile(wb,`najm-${m}.xlsx`);
+}
+
+// ---------- role switch / modal ----------
+function openRole(){
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>الدخول كـ</h2>
+   <div class="row">${Object.entries(ROLE_NAME).map(([k,v])=>`<button class="btn ${ROLE===k?'pri':''}" onclick="setRole('${k}')">${v}</button>`).join('')}</div>
+   <div class="small muted" style="margin-top:10px">الموظف بيتابع · المدير المباشر بيقيّم · مدير التشغيل بيقيّم ويحدد التارجت ويعتمد رجل اليوم.</div>`);
+}
+function setRole(r){
+  if(r!=='emp'){const p=prompt('أدخل الرقم السري');if(p===null)return;if(p!==S.settings.pins[r]){toast('رقم غلط');return;}}
+  ROLE=r;RATE_AS=r==='ops'?'ops':'mgr';try{sessionStorage.setItem('najm-role',r)}catch(e){}closeModal();render();
+}
+function openModal(h){$('#modal').innerHTML=h;$('#modalBg').classList.add('open');if(IMP&&$('#impPrev'))previewImp();}
+function closeModal(){$('#modalBg').classList.remove('open');IMP=null;}
+
+// ---------- boot ----------
+(async()=>{
+  await load();
+  try{const r=sessionStorage.getItem('najm-role');if(r&&ROLE_NAME[r]){ROLE=r;RATE_AS=r==='ops'?'ops':'mgr';}}catch(e){}
+  const dp=$('#dayPick');dp.value=DATE;dp.onchange=()=>{if(dp.value){DATE=dp.value;render();}};
+  render();
+})();
+</script>
+</body>
+</html>
