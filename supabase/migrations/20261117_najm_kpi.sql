@@ -431,3 +431,15 @@ from (select md5('najm-ops' || random()::text) s) x
 on conflict (username) do nothing;
 insert into public.najm_private(id, data) values (1, '{"bonusAt100":0}') on conflict (id) do nothing;
 insert into public.najm_settings(id, data) values (1, '{"freshDepts":["قسم البقاله"],"cards":{"yellow":-5,"red":-20,"green":5,"yellowsToRed":2},"captainMult":3}') on conflict (id) do nothing;
+
+-- month-to-date sales per branch in one call (summing the daily Foodics sheets); returns {branch:{sku:{name,qty}}}
+create or replace function public.najm_sales_sum(p_from date, p_to date)
+returns jsonb language sql stable set search_path = public as $$
+  select coalesce(jsonb_object_agg(branch, items), '{}'::jsonb) from (
+    select branch, jsonb_object_agg(sku, jsonb_build_object('name', name, 'qty', qty)) items from (
+      select s.branch, i.key sku, max(i.value->>'name') name, sum((i.value->>'qty')::numeric) qty
+      from najm_sales s cross join lateral jsonb_each(s.items) i
+      where s.day between p_from and p_to group by 1, 2) a
+    group by branch) b;
+$$;
+grant execute on function public.najm_sales_sum(date, date) to anon, authenticated;
