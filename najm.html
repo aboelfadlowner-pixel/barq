@@ -276,6 +276,33 @@ body.tvmode>header,body.tvmode>nav,body.tvmode>main,body.tvmode #demoFlag{displa
 @keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1.35);opacity:1}}
 .tv-celebrate .hd{position:absolute;top:110px;width:100%;text-align:center;font-size:64px;font-weight:900;color:var(--g2);text-shadow:0 6px 30px rgba(0,0,0,.6)}
 .tv-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;font-size:34px;color:var(--muted);font-weight:800;gap:20px;text-align:center}
+
+/* ===== كارت اللاعب (FIFA) ===== */
+.fut{--a:#fbecb4;--b:#e6bd4f;--c:#b07c14;--t:#3a2600;width:280px;aspect-ratio:3/4.35;position:relative;filter:drop-shadow(0 14px 24px rgba(0,0,0,.35));font-size:16px;flex:none}
+.fut.silver{--a:#f7f9fa;--b:#cdd4da;--c:#8a95a0;--t:#1c2329}
+.fut.bronze{--a:#f6d6b4;--b:#d0915c;--c:#8c4c1d;--t:#2a1304}
+.fut-in{position:absolute;inset:0;clip-path:polygon(50% 0,90% 3.5%,100% 11%,100% 86%,50% 100%,0 86%,0 11%,10% 3.5%);background:radial-gradient(120% 60% at 50% 0,rgba(255,255,255,.55),transparent 60%),linear-gradient(160deg,var(--a),var(--b) 48%,var(--c));color:var(--t);display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.fut-in:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(118deg,rgba(255,255,255,.16) 0 2px,transparent 2px 16px);pointer-events:none}
+.fut-in:after{content:'';position:absolute;inset:3.5%;clip-path:polygon(50% 0,90% 3.5%,100% 11%,100% 86%,50% 100%,0 86%,0 11%,10% 3.5%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);pointer-events:none}
+.fut-top{position:relative;width:100%;height:50%}
+.fut-ovr{position:absolute;top:13%;left:11%;z-index:2;text-align:center;line-height:1;display:flex;flex-direction:column;align-items:center}
+.fut-ovr b{font-size:3.3em;font-weight:900;letter-spacing:-1px}
+.fut-ovr span{font-size:.8em;font-weight:900;max-width:5.5em;margin-top:.15em}
+.fut-logo{width:2.4em;margin-top:.45em;opacity:.9}
+.fut-ph{position:absolute;top:7%;right:4%;width:72%;height:93%;display:flex;align-items:flex-end;justify-content:center}
+.fut-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 15%;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent 98%);mask-image:linear-gradient(to bottom,#000 70%,transparent 98%);border-radius:46% 46% 0 0}
+.fut-ini{width:78%;aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;font-size:4.2em;font-weight:900;margin-bottom:8%}
+.fut-name{position:relative;font-size:1.32em;font-weight:900;width:84%;text-align:center;padding-bottom:.12em;border-bottom:2px solid rgba(0,0,0,.22);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.fut-sub{position:relative;font-size:.68em;font-weight:800;opacity:.75;margin:.15em 0 .25em}
+.fut-stats{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:.05em 1em;width:80%;font-weight:900}
+.fut-stats div{display:flex;gap:.35em;align-items:baseline;white-space:nowrap}
+.fut-stats div:last-child{grid-column:1/-1;justify-content:center}
+.fut-stats b{font-size:1.2em;min-width:1.5em;text-align:center}
+.fut-stats span{font-size:.78em;opacity:.85}
+.fut.sm{width:190px;font-size:11px} .fut.lg{width:420px;font-size:24px} .fut.xl{width:500px;font-size:28.5px}
+.ovr-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;padding:0 6px;border-radius:8px;font-weight:900;font-size:13px;background:linear-gradient(160deg,#fbecb4,#e6bd4f 48%,#b07c14);color:#3a2600}
+.ovr-pill.silver{background:linear-gradient(160deg,#f7f9fa,#cdd4da 48%,#8a95a0);color:#1c2329} .ovr-pill.bronze{background:linear-gradient(160deg,#f6d6b4,#d0915c 48%,#8c4c1d);color:#2a1304}
+.fut-grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
 </style>
 </head>
 <body>
@@ -504,7 +531,7 @@ function defaultState(){
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:5, yellowsToRed:2},
       captainMult:3,
-      prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:0},
+      prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:1000},
       mgrPoints:{rating:1,winner:20,gold:100,silver:60,bronze:40,top10:20,red:-10,bonus:50}
     },
     users:[{username:'ops',name:'مدير التشغيل',role:'ops',branch:'',shift:'',depts:[],pin:'0000',active:true}],
@@ -588,7 +615,7 @@ async function uploadMedia(code,blob,ext){
 }
 async function pull(){
   const m=monthOf(DATE),pm=prevMonth(m),from=m+'-01',to=m+'-'+pad(daysInMonth(m));
-  const [st,emps,tg,caps,salesSum,salesDays,base,kpi,win,pub,cardsPub]=await Promise.all([
+  const [st,emps,tg,caps,salesSum,salesDays,base,kpi,win,pub,cardsPub,cstats]=await Promise.all([
     sbGet('najm_settings?id=eq.1&select=data'),
     sbAll('najm_employees','select=*&order=code'),
     sbGet(`najm_targets?month=eq.${m}&select=dkey,cfg`),
@@ -600,6 +627,7 @@ async function pull(){
     sbGet(`najm_winners?day=gte.${from}&day=lte.${to}&select=day,gkey,codes`),
     sbRpcAll('najm_public_scores',{p_from:from,p_to:to},'day,code'),
     sbRpc('najm_public_cards',{p_from:from,p_to:DATE<to?DATE:to}),
+    sbRpcAll('najm_card_stats',{p_from:from,p_to:DATE<to?DATE:to},'code'),
   ]);
   const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull]=await Promise.all([
     sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
@@ -621,6 +649,7 @@ async function pull(){
   for(const r of pub){const x=D(r.day);x.pub[r.code]={att:r.att,total:r.total==null?null:+r.total,complete:r.complete,bonus:r.has_bonus};if(r.att)x.att[r.code]=r.att;}
   for(const r of full){const x=D(r.day);x.full[r.code]=1;if(r.att)x.att[r.code]=r.att;else delete x.att[r.code];if(r.att_time)x.attTime[r.code]=r.att_time;
     for(const f of ['br','sh','fr','ops'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};}
+  N.cardStats={};for(const r of cstats||[])N.cardStats[r.code]=Object.fromEntries(Object.entries(r).map(([k,v])=>[k,k==='code'?v:v==null?null:+v]));
   N.cardCounts={};for(const c of cardsPub||[])N.cardCounts[c.code]={y:c.yellow,r:c.red,g:c.green};
   if(files){
     N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved}));
@@ -800,6 +829,7 @@ const TABS=[
   ['rate','📝 تقييم اليوم',()=>isMgr()],
   ['day','🏆 رجل اليوم',()=>true],
   ['month','👑 العامل المثالي',()=>true],
+  ['players','🃏 كروت اللاعبين',()=>true],
   ['league','🏟️ المديرين والسوق',()=>true],
   ['target','🎯 التارجت والكابتن',()=>true],
   ['cards','🟨 الكروت',()=>isMgr()],
@@ -817,7 +847,7 @@ function render(){
   if(TVB){tvUpdate();return;}
   if(!TABS.find(t=>t[0]===VIEW&&t[2]()))VIEW='dash';
   renderNav();
-  $('#main').innerHTML={screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,league:vLeague,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
+  $('#main').innerHTML={screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,league:vLeague,players:()=>{const L=filtered(false).map(e=>({e,f:futStats(e)})).sort((a,b)=>(b.f.ovr??0)-(a.f.ovr??0));return `<div class="sec-title"><h2>🃏 كروت اللاعبين — ${monthName(monthOf(DATE))}</h2>${isOps()?'<button class="btn gold" onclick="bulkPhotos()">📷 رفع صور بالجملة</button>':''}</div><div class="lock" style="margin-bottom:10px">السيلز (تارجت القسم والكابتن) · الانضباط (البصمة) · السلوك (تنفيذ التعليمات والإيجابية − الكروت) · القدرة الخاصة (السرعة والتطور) · المثالية (الكروت الخضرا والمواقف المثالية) → التقييم المجمّع. دهبي من 85 · فضي من 70.</div>${filterBar()}<div class="fut-grid">${L.slice(0,60).map(x=>`<div style="cursor:pointer" onclick="openEmp('${x.e.code}')">${futCard(x.e)}</div>`).join('')||'<div class="empty">مفيش لاعبين</div>'}</div>`;},rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
 }
 const branches=()=>S.branches.map(b=>b.name);
 const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.dept).filter(Boolean))].sort();
@@ -859,7 +889,7 @@ function empCard(e){
     <div class="kv"><span>تقييم الشهر</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.monthScore)}/100</b>`:'—'}</span></div>
     <div class="kv"><span>التارجت</span><b>${t&&t.pct!=null?fmt(t.pct)+'%':'—'}${t?.empPoints!=null?' · '+fmt(t.empPoints)+' نقطة':''}</b></div>
     ${t&&t.pct!=null?barHTML(t.pct,t.pace):''}
-    <div class="row small" style="gap:6px">${rb?`<span class="badge b-blue">#${fmt(rb)} في الفرع</span>`:''}${ms.wins?`<span class="badge b-gold">🏆 ${fmt(ms.wins)}</span>`:''}${t?.capPts?`<span class="badge b-purple">C +${fmt(t.capPts)}</span>`:''}${cardsHTML(ms.cards)}</div>
+    <div class="row small" style="gap:6px">${(f=>f.ovr!=null?`<span class="ovr-pill ${f.tier}" title="التقييم المجمّع">${f.ovr}</span>`:'')(futStats(e))}${rb?`<span class="badge b-blue">#${fmt(rb)} في الفرع</span>`:''}${ms.wins?`<span class="badge b-gold">🏆 ${fmt(ms.wins)}</span>`:''}${t?.capPts?`<span class="badge b-purple">C +${fmt(t.capPts)}</span>`:''}${cardsHTML(ms.cards)}</div>
   </div>`;
 }
 function honorBoard(bs){
@@ -1154,7 +1184,8 @@ async function delCard(id){if(!await askConfirm('حذف الكارت؟'))return;
 // ---------- Employee files (managers) ----------
 function vEmps(){
   const list=filtered(true);
-  return `<div class="sec-title"><h2>🗂️ ملفات الموظفين</h2>${isOps()?`<div class="row"><button class="btn" onclick="editEmp()">+ موظف</button><button class="btn" onclick="importEmps()">📥 تحديث من شيت الموظفين</button></div>`:''}</div>
+  return `<div class="sec-title"><h2>🗂️ ملفات الموظفين</h2>${isOps()?`<div class="row"><button class="btn" onclick="editEmp()">+ موظف</button><button class="btn" onclick="importEmps()">📥 تحديث من شيت الموظفين</button><button class="btn gold" onclick="bulkPhotos()">📷 رفع صور بالجملة</button></div>`:''}</div>
+    ${isOps()?'<div class="lock" style="margin-bottom:10px">رفع الصور بالجملة: اختار كل الصور مرة واحدة، وكل صورة اسمها كود الموظف (زي 125.jpg) — بتتقص طولي زي كارت اللاعب وتترفع لوحدها.</div>':''}
     ${filterBar({scoped:true})}
     <div class="tbl-wrap"><table><thead><tr><th></th><th>الكود</th><th>الاسم</th><th>الفرع</th><th>القسم</th><th>الوظيفة</th><th>الشيفت</th><th>الشهر</th></tr></thead><tbody>
     ${list.map(e=>{const ms=msOf(e);return `<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e,'sm')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b> ${e.video?'🎬':''}</td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td><td class="small">${ms.monthScore!=null?fmt(ms.monthScore)+'/100':'—'} ${cardsHTML(ms.cards)}</td></tr>`;}).join('')}
@@ -1175,11 +1206,11 @@ function openEmp(code){
   const caps=t?.caps||[];
   openModal(`<button class="x" onclick="closeModal()">✕</button>
    <div class="row" style="gap:16px;margin-bottom:14px">
-     <div>${ava(e,'xl'+(isWinner(DATE,code)?' win':''))}</div>
+     ${futCard(e,'sm')}
      <div style="flex:1;min-width:200px"><h2 style="margin:0">${esc(e.name)}</h2>
        <div class="muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
        <div class="row" style="margin-top:6px;gap:6px">${R.company[code]?`<span class="badge b-blue">#${fmt(R.branch[code])} في الفرع</span><span class="badge b-blue">#${fmt(R.company[code])} في المؤسسة من ${fmt(R.total)}</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins)} مرة رجل اليوم</span>${(t=>t?`<span class="badge b-gold">${CUP_NAME[t]} · ${fmt(prizes()[t])} ج</span>`:'')(cupOf(R.company[code]))}${cardsHTML(ms.cards)}</div></div>
-     ${isOps()?`<div class="row" style="gap:6px"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button></div>`:''}
+     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button></div>`:''}
    </div>
    ${media}
    <div class="grid g-2" style="margin-bottom:12px">
@@ -1204,7 +1235,7 @@ function openEmp(code){
 async function addComplaint(code){const n=await askText('تفاصيل الشكوى:');if(n===null)return;const id=uid(),note=n.trim()||'شكوى ضغط في البيع';S.complaints.push({id,date:DATE,code,note});save();openEmp(code);render();push('complaint',{id},{date:DATE,code,note});}
 async function delComplaint(id,code){if(!await askConfirm('حذف؟'))return;S.complaints=S.complaints.filter(c=>c.id!==id);save();openEmp(code);render();push('complaint',{id},null);}
 async function addNote(code){const n=await askText('الملاحظة:');if(!n||!n.trim())return;const id=uid();S.notes.push({id,date:DATE,code,text:n.trim(),by:USER.username});save();openEmp(code);push('note',{id,code},{date:DATE,text:n.trim()});}
-function setPhoto(code){pickFile('image/*',f=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const s=320;c.width=c.height=s;const x=c.getContext('2d');const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,s,s);if(LIVE){c.toBlob(async b=>{try{toast('⏳ بنرفع الصورة…');const url=await uploadMedia(code,b,'jpg');emp(code).photo=url;await push('media',{code},{photo:url});openEmp(code);render();toast('📷 اترفعت الصورة');}catch(e){toast('⚠️ الصورة ماترفعتش');}},'image/jpeg',.85);return;}emp(code).photo=c.toDataURL('image/jpeg',.85);save();openEmp(code);render();};img.src=r.result;};r.readAsDataURL(f);});}
+function setPhoto(code){pickFile('image/*',async f=>{try{toast('⏳ بنرفع الصورة…');await savePhoto(code,f);openEmp(code);render();toast('📷 اترفعت الصورة');}catch(e){toast('⚠️ الصورة ماترفعتش');}});}
 function setVideo(code){pickFile('video/*',f=>{if(f.size>30*1024*1024){toast('الفيديو أكبر من 30 ميجا');return;}if(LIVE){(async()=>{try{toast('⏳ بنرفع الفيديو…');const ext=(f.name.split('.').pop()||'mp4').toLowerCase();const url=await uploadMedia(code,f,ext);emp(code).video=url;await push('media',{code},{video:url});openEmp(code);render();toast('🎬 اترفع الفيديو');}catch(e){toast('⚠️ الفيديو ماترفعش');}})();return;}const r=new FileReader();r.onload=()=>{emp(code).video=r.result;save();openEmp(code);render();toast('🎬 اترفع الفيديو');};r.readAsDataURL(f);});}
 function editEmp(code){
   const e=code?emp(code):{code:'',name:'',branch:branches()[0],dept:'',job:'',shift:'Morning',active:true};
@@ -1471,10 +1502,7 @@ function scenePlayer(){
   const R=ranks();const pool=R.rows.filter(x=>x.e.branch===TVB).slice(0,10);const L=pool.length?pool:R.rows.slice(0,10);if(!L.length)return sceneDay();
   const x=L[TV_SPOT%L.length];const e=x.e,ms=x.ms,t=ms.target;const rank=R.company[e.code];const tier=cupOf(rank);
   const cap=t?.caps?.[0];
-  return `<div class="tv-player"><div class="tv-fut">${medalSVG('fm')}<div class="lvl"><b>${fmt(ms.monthScore)}</b><span>تقييم الشهر</span></div>
-    <div class="ph" style="display:flex;justify-content:center">${tvPh(e,300,true)}</div><div class="nm">${esc(e.name)}</div>
-    <div class="sub">${esc(e.job||e.dept)} · كود ${esc(e.code)}</div><div class="line"></div>
-    <div class="st"><div><b>${fmt(ms.avg,1)}</b><span>نجوم</span></div><div><b>${fmt(ms.wins)}</b><span>رجل اليوم</span></div><div><b>#${fmt(rank)}</b><span>في أبو الفضل</span></div></div></div>
+  return `<div class="tv-player"><div style="display:flex;justify-content:center">${futCard(e,'xl')}</div>
    <div><div class="tv-h" style="font-size:48px">⭐ نجم من نجوم ${esc(TVB)}</div>
     <div class="tv-facts">
      <div class="tv-glass tv-fact"><b style="color:var(--g2)">${tvStars(ms.avg)}</b><span>متوسط نجوم الشهر ${fmt(ms.avg,2)}</span></div>
@@ -1665,6 +1693,71 @@ function sceneMarket(){
    <div>${mk.status==='approved'?`<div class="tv-h" style="font-size:52px;color:var(--g2)">✍️ ${chosen?`انضم لشيفت ${esc(chosen.shift||'')} — ${esc(mgrName(chosen.username))}`:'قرر يفضل مكانه'}</div>`
      :`<div class="tv-h" style="font-size:44px">${mk.wish?`🎯 عايز: ${esc([mk.wish.branch,mk.wish.shift&&('شيفت '+mk.wish.shift)].filter(Boolean).join(' · ')||'أي عرض')}`:'🎯 بيحدد رغبته'}</div>`}
     <div class="tv-glass tv-top10" style="margin-top:10px">${offers.slice(0,5).map((o,i)=>`<div class="tv-row"><div class="pos ${i===0?'p1':''}">${i+1}</div><div class="who"><b>${esc(mgrName(o.username))}</b><span>${esc(o.branch||'')} · ${esc(o.shift||'')}${o.note?' — «'+esc(o.note)+'»':''}</span></div><div class="tv-amt" style="color:#b9a6ff">${fmt(o.points)} نقطة</div></div>`).join('')||'<div class="tv-empty" style="font-size:28px">مستني عروض المديرين…</div>'}</div></div></div>`;
+}
+// =========================================================
+// كارت اللاعب (زي FIFA): السيلز · الانضباط · السلوك · القدرة الخاصة · المثالية → التقييم المجمّع
+// =========================================================
+const FUT_W={sales:.30,disc:.20,beh:.20,skill:.15,ideal:.15};
+const clamp99=v=>Math.max(30,Math.min(99,Math.round(v)));
+// raw inputs for the month: attendance counts, criteria averages (0..2), exemplary-behavior count
+function cardRaw(code,month,upto){
+  if(LIVE&&S.cardStats)return S.cardStats[code]||null;
+  let on=0,late=0,vlate=0,abs=0,bonus=0;const sum=[0,0,0,0,0],cnt=[0,0,0,0,0];
+  for(const d of monthDays(month,upto)){const D=peekDay(d);const st=D.att[code];if(st==='on')on++;else if(st==='late')late++;else if(st==='vlate')vlate++;else if(st==='abs')abs++;
+    if(D.bonus[code])bonus++;for(const f of ['br','sh','fr','ops']){const a=D[f][code];if(a&&a.length===5&&a.every(x=>x!=null))a.forEach((x,i)=>{sum[i]+=x;cnt[i]++;});}}
+  const c=sum.map((s,i)=>cnt[i]?s/cnt[i]:null);
+  if(!on&&!late&&!vlate&&!abs&&c.every(x=>x==null))return null;
+  return {on_n:on,late_n:late,vlate_n:vlate,abs_n:abs,c1:c[0],c2:c[1],c3:c[2],c4:c[3],c5:c[4],bonus_n:bonus};
+}
+function futStats(e){
+  const m=monthOf(DATE);const R=cardRaw(e.code,m,DATE);const ms=msOf(e);const t=ms.target;const k=ms.cards||{y:0,r:0,g:0};
+  const avg=(...v)=>{v=v.filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  // السيلز: تارجت القسم + الكابتن الشخصي (للأقسام التشغيلية: النضافة وتقييم المدير)
+  const pcts=[t?.pct,...(t?.caps||[]).map(c=>c.pct)].filter(x=>x!=null);
+  const sales=pcts.length?clamp99(35+avg(...pcts)*0.6):null;
+  // الانضباط: البصمة
+  const days=R?(R.on_n+R.late_n+R.vlate_n+R.abs_n):0;
+  const disc=days?clamp99(35+((R.on_n*100+R.late_n*60+R.vlate_n*30)/days)*0.64):null;
+  // السلوك: تنفيذ التعليمات + الإيجابية − الكروت
+  const b=R?avg(R.c1,R.c5):null;
+  const beh=b!=null?clamp99(35+(b/2*100)*0.64-8*k.y-25*k.r):null;
+  // القدرة الخاصة: سرعة التنفيذ + التطور + السلوك المثالي
+  const s=R?avg(R.c2,R.c4):null;
+  const skill=s!=null?clamp99(35+(s/2*100)*0.64+3*(R.bonus_n||0)):null;
+  // المثالية: الكروت الخضرا + السلوك المثالي + رجل اليوم
+  const ideal=(R||k.g||ms.wins)?clamp99(55+9*k.g+6*(R?.bonus_n||0)+3*ms.wins-5*k.y-15*k.r):null;
+  const st={sales,disc,beh,skill,ideal};
+  let w=0,sum=0;for(const[kk,v]of Object.entries(st))if(v!=null){w+=FUT_W[kk];sum+=v*FUT_W[kk];}
+  const ovr=w?clamp99(sum/w+Math.min(5,ms.wins)):null;
+  return {...st,ovr,tier:ovr==null?'bronze':ovr>=85?'gold':ovr>=70?'silver':'bronze'};
+}
+const FUT_LBL=[['sales','السيلز'],['disc','الانضباط'],['beh','السلوك'],['skill','القدرة الخاصة'],['ideal','المثالية']];
+const posOf=e=>(e.job||e.dept||'').replace(/^قسم /,'').split(' ').slice(0,2).join(' ');
+function futCard(e,cls=''){
+  const f=futStats(e);
+  const ph=e.photo?`<img src="${e.photo}" alt="">`:`<div class="fut-ini">${esc((e.name||'?').trim()[0])}</div>`;
+  return `<div class="fut ${f.tier} ${cls}"><div class="fut-in">
+    <div class="fut-top"><div class="fut-ovr"><b>${f.ovr??'—'}</b><span>${esc(posOf(e))}</span><img class="fut-logo" src="${LOGO_HEAD}" alt=""></div><div class="fut-ph">${ph}</div></div>
+    <div class="fut-name">${esc(e.name.split(' ').slice(0,2).join(' '))}</div>
+    <div class="fut-sub">كود ${esc(e.code)} · ${esc(e.branch)}</div>
+    <div class="fut-stats">${FUT_LBL.map(([k,l])=>`<div><b>${f[k]??'—'}</b><span>${l}</span></div>`).join('')}</div>
+  </div></div>`;
+}
+// photos: portrait crop (3:4) — one at a time from the profile, or many at once named by employee code (e.g. 125.jpg)
+function cropPortrait(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const W=600,H=800;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const sc=Math.max(W/img.width,H/img.height);const w=img.width*sc,h=img.height*sc;x.drawImage(img,(W-w)/2,(H-h)/2.6,w,h);c.toBlob(b=>res({blob:b,url:c.toDataURL('image/jpeg',.88)}),'image/jpeg',.88);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+async function savePhoto(code,file){
+  const {blob,url}=await cropPortrait(file);
+  if(LIVE){const u=await uploadMedia(code,blob,'jpg');emp(code).photo=u;await push('media',{code},{photo:u});}
+  else{emp(code).photo=url;save();}
+}
+function bulkPhotos(){
+  const f=$('#filePick');f.value='';f.accept='image/*';f.multiple=true;
+  f.onchange=async()=>{const files=[...f.files];f.multiple=false;let ok=0,miss=[];
+    for(const file of files){const code=(file.name.match(/\d+/)||[])[0];const e=code&&emp(code);if(!e){miss.push(file.name);continue;}
+      try{toast(`⏳ ${ok+1}/${files.length} — ${e.name}`);await savePhoto(code,file);ok++;}catch(err){miss.push(file.name);}}
+    render();openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📷 رفع الصور</h2><div>اترفع <b>${fmt(ok)}</b> صورة.</div>${miss.length?`<div class="lock" style="margin-top:8px">ماتربطوش بموظف (اسم الملف لازم يكون كود الموظف، زي 125.jpg):<br>${miss.map(esc).join('، ')}</div>`:''}`);};
+  f.click();
 }
 
 // ---------- login / modal ----------

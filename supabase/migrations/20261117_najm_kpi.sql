@@ -608,3 +608,22 @@ grant execute on function public.najm_balance(text) to anon, authenticated;
 grant execute on function public.najm_market_player(text, text, text, jsonb) to anon, authenticated;
 grant execute on function public.najm_market_save(text, text, text, jsonb, jsonb) to anon, authenticated;
 grant execute on function public.najm_mgr_ratings_full(text, text, date, date) to anon, authenticated;
+
+-- player card (FIFA-style) inputs per employee for a period — aggregates only, no per-manager detail
+create or replace function public.najm_card_stats(p_from date, p_to date)
+returns table(code text, on_n int, late_n int, vlate_n int, abs_n int, c1 numeric, c2 numeric, c3 numeric, c4 numeric, c5 numeric, bonus_n int)
+language sql stable security definer set search_path = public as $$
+  with r as (select * from najm_ratings where day between p_from and p_to),
+  crit as (
+    select r.code, a.arr from r cross join lateral (values (r.br), (r.sh), (r.fr), (r.ops)) a(arr)
+    where a.arr is not null and array_position(a.arr, null) is null and array_length(a.arr, 1) = 5)
+  select r.code,
+    count(*) filter (where att = 'on')::int, count(*) filter (where att = 'late')::int,
+    count(*) filter (where att = 'vlate')::int, count(*) filter (where att = 'abs')::int,
+    (select avg(arr[1]) from crit where crit.code = r.code), (select avg(arr[2]) from crit where crit.code = r.code),
+    (select avg(arr[3]) from crit where crit.code = r.code), (select avg(arr[4]) from crit where crit.code = r.code),
+    (select avg(arr[5]) from crit where crit.code = r.code),
+    count(*) filter (where coalesce(bonus, 0) > 0)::int
+  from r group by r.code;
+$$;
+grant execute on function public.najm_card_stats(date, date) to anon, authenticated;
