@@ -1509,7 +1509,7 @@ function awardCard(x,size='',dayLabel){const e=x.e;const s=score(x.day||DATE,e.c
   <div class="nm">${esc(e.name)}</div>
   <div class="meta">${esc(e.dept)} · كود <b style="color:#fff">${esc(e.code)}</b>${x.sh?` · شيفت ${esc(x.sh)}`:''}</div>
   ${s.total!=null?`<div style="margin-top:6px">${tvStars(s.total)}</div>`:''}
-  <div class="prize">🏆 جايزة ${money$(prizes().daily)}</div>${dayLabel?`<div class="meta">${dayLabel}</div>`:''}</div>`;}
+  <div class="prize">🏆 رجل اليوم</div>${dayLabel?`<div class="meta">${dayLabel}</div>`:''}</div>`;}
 function sceneDay(){
   const W=tvWinnerDay();
   const dayName=W?(W.day===DATE?'النهارده':new Date(W.day).toLocaleDateString('ar-EG',{weekday:'long',day:'numeric',month:'long'})):'';
@@ -1549,12 +1549,12 @@ function sceneCups(){
   const R=ranks();const top=R.qualified.slice(0,10);const P=prizes();
   const pod=[top[1],top[0],top[2]].map((x,i)=>{if(!x)return '<div class="tv-pod"></div>';const r=[2,1,3][i];const tier=['silver','gold','bronze'][i];
     return `<div class="tv-pod p${r}">${cupSVG(tier,'cg'+r)}${tvPh(x.e,r===1?130:104,r===1)}<div class="nm">${esc(x.e.name)}</div>
-      <div class="meta">كود ${esc(x.e.code)} · ${esc(x.e.branch)}</div><div class="amt">${money$(P[tier])}</div>
+      <div class="meta">كود ${esc(x.e.code)} · ${esc(x.e.branch)}</div><div class="amt">${{gold:'🥇 الكأس الدهبي',silver:'🥈 الكأس الفضي',bronze:'🥉 الكأس البرونزي'}[tier]}</div>
       <div class="step">${r}</div></div>`;}).join('');
   return `<div class="tv-h">🏆 كؤوس ${monthName(monthOf(DATE))} <small>— الترتيب لحد النهارده على مستوى أبو الفضل</small></div>
   <div class="tv-cups" style="height:calc(100% - 78px)"><div class="tv-glass tv-podium">${pod}</div>
-   <div class="tv-glass tv-top10"><div class="tv-h" style="font-size:30px;margin:0 0 6px">🎖️ من المركز 4 لـ 10 — ${money$(P.top10)} لكل واحد</div>
-   ${top.slice(3,10).map((x,i)=>`<div class="tv-row ${x.e.branch===TVB?'tv-mine':''}"><div class="pos">${i+4}</div>${tvPh(x.e,56)}<div class="who"><b>${esc(x.e.name)}<span class="tv-code">${esc(x.e.code)}</span></b><span>${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100</span></div><div class="tv-amt">${money$(P.top10)}</div></div>`).join('')||'<div class="tv-empty" style="font-size:26px">لسه بدري</div>'}
+   <div class="tv-glass tv-top10"><div class="tv-h" style="font-size:30px;margin:0 0 6px">🎖️ من المركز 4 لـ 10 — وسام العشرة الأوائل</div>
+   ${top.slice(3,10).map((x,i)=>`<div class="tv-row ${x.e.branch===TVB?'tv-mine':''}"><div class="pos">${i+4}</div>${tvPh(x.e,56)}<div class="who"><b>${esc(x.e.name)}<span class="tv-code">${esc(x.e.code)}</span></b><span>${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100</span></div><div class="tv-amt">🎖️</div></div>`).join('')||'<div class="tv-empty" style="font-size:26px">لسه بدري</div>'}
    </div></div>`;
 }
 function scenePlayer(){
@@ -1567,14 +1567,14 @@ function scenePlayer(){
      <div class="tv-glass tv-fact"><b style="color:var(--g2)">${tvStars(ms.avg)}</b><span>متوسط نجوم الشهر ${fmt(ms.avg,2)}</span></div>
      <div class="tv-glass tv-fact"><b>🏆 ${fmt(ms.wins)}</b><span>مرة رجل اليوم الشهر ده</span></div>
      <div class="tv-glass tv-fact"><b>#${fmt(R.branch[e.code])}</b><span>ترتيبه في الفرع</span></div>
-     <div class="tv-glass tv-fact"><b>${tier?CUP_NAME[tier].replace('جايزة ',''):'—'}</b><span>${tier?'لو الترتيب فضل كده: '+money$(prizes()[tier]):'قرّب على العشرة الأوائل'}</span></div>
+     <div class="tv-glass tv-fact"><b>${tier?CUP_NAME[tier].replace('جايزة ',''):'—'}</b><span>${tier?'لو الترتيب فضل كده هياخدها 🏆':'قرّب على العشرة الأوائل'}</span></div>
      ${cap?`<div class="tv-glass tv-fact" style="grid-column:1/-1;background:linear-gradient(150deg,#3b2a9b,#5b3fd1)"><b>C ${esc(cap.name)} · ${fmt(cap.pct)}%</b><span>كابتن المنتج — ${fmt(cap.points)} نقطة</span></div>`:''}
     </div></div></div>`;
 }
 function tvTicker(){
   const m=monthOf(DATE);const items=[];const W=tvWinnerDay();
-  if(W)W.list.forEach(x=>items.push(`👑 ${x.e.name} رجل اليوم — شيفت ${x.sh} — جايزة ${money$(prizes().daily)}`));
-  const top=ranks().rows[0];if(top)items.push(`🥇 متصدر ${monthName(m)}: ${top.e.name} (${top.e.branch}) — في طريقه للكأس الدهبي ${money$(prizes().gold)}`);
+  if(W)W.list.forEach(x=>items.push(`👑 ${x.e.name} رجل اليوم — شيفت ${x.sh} 👏`));
+  const top=ranks().rows[0];if(top)items.push(`🥇 متصدر ${monthName(m)}: ${top.e.name} (${top.e.branch}) — في طريقه للكأس الدهبي 🏆`);
   activeEmps().filter(e=>e.branch===TVB).map(e=>({e,g:cardCount(e.code,m,DATE).g||0})).filter(x=>x.g).sort((a,b)=>b.g-a.g).slice(0,5).forEach(x=>items.push(`🟩 ${x.e.name}: ${fmt(x.g)} كارت أخضر الشهر ده`));
   captainsIn(m,DATE,e=>e.branch===TVB).sort((a,b)=>(b.pct||0)-(a.pct||0)).slice(0,4).forEach(c=>items.push(`🎗️ ${c.name} وصل ${fmt(c.pct)}% من تارجت الكابتن`));
   const best=deptsOf(TVB).map(d=>({d,p:deptProgress(m,TVB,d,DATE)})).filter(x=>x.p?.pct!=null).sort((a,b)=>b.p.pct-a.p.pct)[0];
@@ -1746,7 +1746,7 @@ function sceneManagers(){
   <div class="tv-cups" style="height:calc(100% - 78px)">
    <div class="tv-glass" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px">
     ${top?`${mgrEmp(top.u)?tvPh(mgrEmp(top.u),170,true):cupSVG('gold','cgm').replace('class="cup"','class="cup" style="width:200px"')}<div style="font-size:26px;color:var(--muted);font-weight:800">المدير المثالي — لحد النهارده · ${fmt(top.score)}/100</div><div class="tv-award" style="width:560px"><div class="nm">${esc(top.u.name)}</div><div class="meta">${ROLES[top.u.role]} · ${esc(top.u.branch||'كل الفروع')}${top.u.shift?' · شيفت '+esc(top.u.shift):''}</div>
-      <div class="prize">🏆 كاس + ${fmt(P.bonus)} نقطة${pz.manager?` + ${money$(pz.manager)}`:''}</div></div>`:'<div class="tv-empty">لسه مفيش مديرين</div>'}
+      <div class="prize">🏆 كاس + ${fmt(P.bonus)} نقطة</div></div>`:'<div class="tv-empty">لسه مفيش مديرين</div>'}
    </div>
    <div class="tv-glass tv-top10"><div class="tv-h" style="font-size:30px;margin:0 0 6px">⚔️ الترتيب</div>
     ${L.map((x,i)=>`<div class="tv-row ${x.u.branch===TVB?'tv-mine':''}"><div class="pos ${i<3?'p'+(i+1):''}">${i+1}</div>${mgrEmp(x.u)?tvPh(mgrEmp(x.u),56):''}<div class="who"><b>${esc(x.u.name)}</b><span>${ROLES[x.u.role]}${x.u.shift?' · '+esc(x.u.shift):''} · 🗳️ ${fmt(x.votes)} صوت · 👑 ${fmt(x.wins)}</span></div><div class="tv-amt" style="color:var(--g2)">${fmt(x.score)}/100</div></div>`).join('')}
