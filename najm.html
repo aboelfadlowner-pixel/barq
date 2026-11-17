@@ -571,7 +571,7 @@ function defaultState(){
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:5, yellowsToRed:2},
       captainMult:3,
-      goal:85, checkpoints:[10,20],
+      goal:85, targetGoal:85, checkpoints:[10,20],
       prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:1000},
       marketDays:5,
       mgrWeights:{ops:50,team:25,votes:25},
@@ -856,18 +856,32 @@ function monthSummary(e,month,upto){
   const monthScore=avg!=null?Math.max(0,Math.round(avg/5*100+cp)):null;
   return {n,avg,wins,abs,late,cards,cardPts:cp,monthScore,target:empTarget(e,month,upto)};
 }
+// المسار التاني: التارجت (القسم + الكابتن) — نسبة "على المسار" (مبيعات نص الشهر بتتقارن باللي المفروض لحد النهارده)
+function tgtOf(t,month,upto){
+  if(!t)return null;const cap=S.settings.capPct||120;
+  const pace=upto&&upto<monthOf(upto)+'-'+pad(daysInMonth(month))?monthDays(month,upto).length/daysInMonth(month)*100:100;
+  const adj=p=>p==null?null:Math.min(cap,pace>0?p/pace*100:p);
+  const dept=t.type==='sales'?adj(t.pct):t.pct==null?null:Math.min(cap,t.pct);
+  const cps=(t.caps||[]).map(c=>adj(c.pct)).filter(v=>v!=null);const capv=cps.length?cps.reduce((a,b)=>a+b,0)/cps.length:null;
+  const v=dept!=null&&capv!=null?(dept+capv)/2:dept??capv;
+  return {v:v==null?null:Math.round(v),dept,capv,pace,type:t.type,t};
+}
+const KPI_G=()=>+S.settings.goal||85, TGT_G=()=>+S.settings.targetGoal||85;
+function qualify(ms,tg){const k=ms.monthScore,t=tg?.v;return {kOk:k!=null&&k>=KPI_G(),tOk:t!=null&&t>=TGT_G(),ok:k!=null&&k>=KPI_G()&&t!=null&&t>=TGT_G()};}
 let RANK_CACHE=null;
 function ranks(){
   const key=DATE;
   if(RANK_CACHE&&RANK_CACHE.key===key)return RANK_CACHE;
   const m=monthOf(DATE);
-  const rows=activeEmps().map(e=>({e,ms:monthSummary(e,m,DATE)})).filter(x=>x.ms.n>0||x.ms.wins>0);
-  rows.sort((a,b)=>b.ms.wins-a.ms.wins||(b.ms.monthScore||0)-(a.ms.monthScore||0)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
+  const rows=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);const tg=tgtOf(ms.target,m,DATE);return {e,ms,tg,q:qualify(ms,tg)};}).filter(x=>x.ms.n>0||x.ms.wins>0);
+  const both=x=>(x.ms.monthScore||0)+Math.min(100,x.tg?.v||0);
+  rows.sort((a,b)=>(b.q.ok-a.q.ok)||b.ms.wins-a.ms.wins||both(b)-both(a)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
   const company={},branch={},bc={};
   rows.forEach((x,i)=>{company[x.e.code]=i+1;bc[x.e.branch]=(bc[x.e.branch]||0)+1;branch[x.e.code]=bc[x.e.branch];});
-  const sum={};rows.forEach(x=>sum[x.e.code]=x.ms);
-  RANK_CACHE={key,rows,company,branch,bc,sum,total:rows.length};return RANK_CACHE;
+  const sum={},ok={},tg={};rows.forEach(x=>{sum[x.e.code]=x.ms;ok[x.e.code]=x.q.ok;tg[x.e.code]=x.tg;});
+  RANK_CACHE={key,rows,company,branch,bc,sum,ok,tg,total:rows.length,qualified:rows.filter(x=>x.q.ok)};return RANK_CACHE;
 }
+const prizeRank=code=>{const R=ranks();return R.ok[code]?R.company[code]:null;};
 const msOf=e=>ranks().sum[e.code]||monthSummary(e,monthOf(DATE),DATE);
 
 // =========================================================
@@ -1083,13 +1097,13 @@ async function clearWinners(k){if(!await askConfirm('إلغاء الإعلان؟
 // ---------- Employee of the month ----------
 function vMonth(){
   const m=monthOf(DATE);const R=ranks();const k=S.settings.cards;
-  const rows=R.rows.filter(x=>!F.branch||x.e.branch===F.branch);const top3=rows.slice(0,3);
+  const rows=R.rows.filter(x=>!F.branch||x.e.branch===F.branch);const top3=rows.filter(x=>x.q.ok).slice(0,3);
   return `<div class="sec-title"><h2>👑 العامل المثالي — ${monthName(m)}</h2><div class="row"><span class="small muted">حتى ${esc(DATE)}</span>${isOps()?'<button class="btn gold" onclick="showPayouts()">💵 صرف الجوايز</button>':''}</div></div>
     <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
-    <div class="lock" style="margin-bottom:12px">🏆 الجوايز: الكأس الدهبي ${fmt(prizes().gold)} ج · الفضي ${fmt(prizes().silver)} ج · البرونزي ${fmt(prizes().bronze)} ج · من 4 لـ 10 ${fmt(prizes().top10)} ج · رجل اليوم ${fmt(prizes().daily)} ج.<br>الترتيب: عدد مرات «رجل اليوم» ← تقييم الشهر من 100 (النجوم + الكروت: <i class="fcard yellow"></i> ${k.yellow} · <i class="fcard red"></i> ${k.red} · <i class="fcard green"></i> +${k.green} · كل ${k.yellowsToRed} أصفر = أحمر) ← نقاط التارجت والكابتن.</div>
+    <div class="lock" style="margin-bottom:12px">🏆 الجوايز: الكأس الدهبي ${fmt(prizes().gold)} ج · الفضي ${fmt(prizes().silver)} ج · البرونزي ${fmt(prizes().bronze)} ج · من 4 لـ 10 ${fmt(prizes().top10)} ج · رجل اليوم ${fmt(prizes().daily)} ج.<br><b>شرط الجايزة: لازم الاتنين مع بعض — الـ KPI ${fmt(KPI_G())} أو أكتر، والتارجت ${fmt(TGT_G())}% أو أكتر.</b> اللي ناقصه واحدة منهم بيتحط بعد المؤهلين ومالوش جايزة.<br>الترتيب: عدد مرات «رجل اليوم» ← الـ KPI من 100 (النجوم + الكروت: <i class="fcard yellow"></i> ${k.yellow} · <i class="fcard red"></i> ${k.red} · <i class="fcard green"></i> +${k.green} · كل ${k.yellowsToRed} أصفر = أحمر) ← نقاط التارجت والكابتن.</div>
     ${top3.length?`<div class="podium" style="margin-bottom:16px">${top3.map((x,i)=>`<div class="card" style="cursor:pointer;${i===0?'border:2px solid var(--gold)':''}" onclick="openEmp('${x.e.code}')"><div style="font-size:26px">${['🥇','🥈','🥉'][i]}</div>${ava(x.e,'xl'+(i===0?' win':'')).replace('class="ava','style="margin:6px auto" class="ava')}<div class="emp-name">${esc(x.e.name)}</div><div class="small muted">${esc(x.e.branch)} · ${esc(x.e.dept)}</div>${starsHTML(x.ms.avg,'lg')}<div class="small">🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100 ${cardsHTML(x.ms.cards)}</div><div class="badge b-gold" style="margin-top:6px;font-size:13px">${['الكأس الدهبي','الكأس الفضي','الكأس البرونزي'][i]} · ${fmt(prizes()[['gold','silver','bronze'][i]])} ج</div></div>`).join('')}</div>`:''}
-    <div class="card"><h3>المتأهلين</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>الموظف</th><th>الفرع</th><th>🏆</th><th>تقييم الشهر</th><th>الكروت</th><th>التارجت</th><th>الكابتن</th><th>الجايزة</th>${isOps()?'<th>مكافأة التارجت</th>':''}</tr></thead><tbody>
-    ${rows.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td><span class="rank ${R.company[x.e.code]<=3?'r1':''}">${R.company[x.e.code]}</span></td><td><div class="row" style="flex-wrap:nowrap">${ava(x.e,'sm')}<div><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.job)}</div></div></div></td><td class="small">${esc(x.e.branch)}<div class="muted">#${R.branch[x.e.code]} في الفرع</div></td><td><b>${fmt(x.ms.wins)}</b></td><td>${starsHTML(x.ms.avg)} <b>${fmt(x.ms.monthScore)}</b></td><td>${cardsHTML(x.ms.cards)||'—'}</td><td>${x.ms.target?.pct!=null?fmt(x.ms.target.pct)+'%':'—'}</td><td>${x.ms.target?.capPts?'+'+fmt(x.ms.target.capPts):'—'}</td><td>${(t=>t?`<span class="badge ${t==='gold'?'b-gold':t==='top10'?'b-green':'b-gray'}">${t==='gold'?'🥇':t==='silver'?'🥈':t==='bronze'?'🥉':'🎖️'} ${fmt(prizes()[t])} ج</span>`:'—')(cupOf(R.company[x.e.code]))}</td>${isOps()?`<td>${x.ms.target?.empPoints!=null&&S.settings.bonusAt100?fmt(money(x.ms.target.empPoints))+' ج':'—'}</td>`:''}</tr>`).join('')||`<tr><td colspan="9" class="empty">مفيش تقييمات في الشهر ده لسه</td></tr>`}
+    <div class="card"><h3>المتأهلين</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>الموظف</th><th>الفرع</th><th>🏆</th><th>🧑‍💼 الـ KPI</th><th>الكروت</th><th>🎯 التارجت</th><th>الكابتن</th><th>الجايزة</th>${isOps()?'<th>مكافأة التارجت</th>':''}</tr></thead><tbody>
+    ${rows.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td><span class="rank ${R.company[x.e.code]<=3?'r1':''}">${R.company[x.e.code]}</span></td><td><div class="row" style="flex-wrap:nowrap">${ava(x.e,'sm')}<div><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.job)}</div></div></div></td><td class="small">${esc(x.e.branch)}<div class="muted">#${R.branch[x.e.code]} في الفرع</div></td><td><b>${fmt(x.ms.wins)}</b></td><td>${starsHTML(x.ms.avg)} <b style="color:${x.q.kOk?'var(--green)':'var(--red)'}">${fmt(x.ms.monthScore)} ${x.q.kOk?'✔':'✖'}</b></td><td>${cardsHTML(x.ms.cards)||'—'}</td><td><b style="color:${x.q.tOk?'var(--green)':'var(--red)'}">${x.tg?.v!=null?fmt(x.tg.v)+'% '+(x.q.tOk?'✔':'✖'):'لسه مفيش تارجت ✖'}</b></td><td>${x.ms.target?.capPts?'+'+fmt(x.ms.target.capPts):'—'}</td><td>${(t=>t?`<span class="badge ${t==='gold'?'b-gold':t==='top10'?'b-green':'b-gray'}">${t==='gold'?'🥇':t==='silver'?'🥈':t==='bronze'?'🥉':'🎖️'} ${fmt(prizes()[t])} ج</span>`:'—')(cupOf(prizeRank(x.e.code)))}</td>${isOps()?`<td>${x.ms.target?.empPoints!=null&&S.settings.bonusAt100?fmt(money(x.ms.target.empPoints))+' ج':'—'}</td>`:''}</tr>`).join('')||`<tr><td colspan="10" class="empty">مفيش تقييمات في الشهر ده لسه</td></tr>`}
     </tbody></table></div></div>`;
 }
 
@@ -1350,7 +1364,7 @@ function vSettings(){
    <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر = أحمر')}</div></div>
    <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد التصفيات')}${num('winnersPerShift','أقصى فايزين بالشيفت')}</div>
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
-   <div class="card"><h3>📈 تقرير التقدّم (كل 10 أيام)</h3><div class="row">${num('goal','هدف العشرة الأوائل (0 = تلقائي)')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">تلقائي = نقط المركز العاشر وقت التقرير. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
+   <div class="card"><h3>📈 شرط العشرة الأوائل + تقرير الـ10 أيام</h3><div class="row">${num('goal','حد الـ KPI للعشرة الأوائل')}${num('targetGoal','حد التارجت % للعشرة الأوائل')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">الموظف لازم يعدّي الحدّين مع بعض عشان يدخل العشرة الأوائل وياخد جايزة. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
    <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}${num('marketDays','أيام فتح السوق للعروض')}${num('mgrWeights.ops','وزن تقييم التشغيل %')}${num('mgrWeights.team','وزن أداء الفريق %')}${num('mgrWeights.votes','وزن تصويت الموظفين %')}</div></div>
@@ -1532,7 +1546,7 @@ function sceneCaptain(){
     <div class="pts">⭐ ${fmt(c.points)} نقطة لكل كابتن</div></div>`;}).join('')}</div>`;
 }
 function sceneCups(){
-  const R=ranks();const top=R.rows.slice(0,10);const P=prizes();
+  const R=ranks();const top=R.qualified.slice(0,10);const P=prizes();
   const pod=[top[1],top[0],top[2]].map((x,i)=>{if(!x)return '<div class="tv-pod"></div>';const r=[2,1,3][i];const tier=['silver','gold','bronze'][i];
     return `<div class="tv-pod p${r}">${cupSVG(tier,'cg'+r)}${tvPh(x.e,r===1?130:104,r===1)}<div class="nm">${esc(x.e.name)}</div>
       <div class="meta">كود ${esc(x.e.code)} · ${esc(x.e.branch)}</div><div class="amt">${money$(P[tier])}</div>
@@ -1545,7 +1559,7 @@ function sceneCups(){
 }
 function scenePlayer(){
   const R=ranks();const pool=R.rows.filter(x=>x.e.branch===TVB).slice(0,10);const L=pool.length?pool:R.rows.slice(0,10);if(!L.length)return sceneDay();
-  const x=L[TV_SPOT%L.length];const e=x.e,ms=x.ms,t=ms.target;const rank=R.company[e.code];const tier=cupOf(rank);
+  const x=L[TV_SPOT%L.length];const e=x.e,ms=x.ms,t=ms.target;const rank=R.company[e.code];const tier=cupOf(prizeRank(e.code));
   const cap=t?.caps?.[0];
   return `<div class="tv-player"><div style="display:flex;justify-content:center">${futCard(e,'xl')}</div>
    <div><div class="tv-h" style="font-size:48px">⭐ نجم من نجوم ${esc(TVB)}</div>
@@ -1603,7 +1617,7 @@ function mgrMonth(u,month,upto){
   const P=mgrPts();const days=monthDays(month,upto);let rating=0,wins=0,reds=0,cups=0;
   for(const d of days){rating+=mgrDayPts(d,u.username);for(const codes of Object.values(peekDay(d).winners||{}))for(const c of codes)if(inScopeOf(u,emp(c)))wins++;}
   const R=ranks();const team=activeEmps().filter(e=>inScopeOf(u,e));
-  for(const e of team){const t=cupOf(R.company[e.code]);if(t)cups+=P[t];reds+=cardCount(e.code,month,upto).r||0;}
+  for(const e of team){const t=cupOf(prizeRank(e.code));if(t)cups+=P[t];reds+=cardCount(e.code,month,upto).r||0;}
   return {rating,wins,cups,reds,team:team.length,total:Math.round(rating*P.rating+wins*P.winner+cups+reds*P.red)};
 }
 const balanceOf=un=>(S.ledger||[]).filter(l=>l.username===un).reduce((a,l)=>a+(+l.points||0),0);
@@ -1795,7 +1809,7 @@ function futForm(e){
 }
 // الأوسمة على الكارت
 function futBadges(e){
-  const ms=msOf(e),f=futStats(e),R=ranks(),cup=cupOf(R.company[e.code]),t=ms.target,k=ms.cards||{};const B=[];
+  const ms=msOf(e),f=futStats(e),R=ranks(),cup=cupOf(prizeRank(e.code)),t=ms.target,k=ms.cards||{};const B=[];
   if(cup)B.push({i:cup==='gold'?'🥇':cup==='silver'?'🥈':cup==='bronze'?'🥉':'🎖️',t:CUP_NAME[cup]});
   if(ms.wins)B.push({i:'👑',n:ms.wins,t:'رجل اليوم'});
   if(k.g)B.push({i:'🟩',n:k.g,t:'كروت خضرا'});
@@ -1870,7 +1884,7 @@ function bulkPhotos(){
 function duePrizes(){
   const m=monthOf(DATE);const P=prizes();const out=[];
   for(const d of monthDays(m,DATE))for(const[g,codes]of Object.entries(peekDay(d).winners||{}))for(const c of codes){const e=emp(c);if(e)out.push({id:`daily|${d}|${c}`,code:c,name:e.name,branch:e.branch,kind:'daily',ref:d,label:`رجل اليوم ${d.slice(5)} · ${g.split('|')[1]}`,amount:P.daily});}
-  const R=ranks();R.rows.slice(0,10).forEach((x,i)=>{const t=cupOf(i+1);out.push({id:`cup|${m}|${x.e.code}`,code:x.e.code,name:x.e.name,branch:x.e.branch,kind:'cup',ref:m,label:`${CUP_NAME[t]} (المركز ${i+1})`,amount:P[t]});});
+  const R=ranks();R.qualified.slice(0,10).forEach((x,i)=>{const t=cupOf(i+1);out.push({id:`cup|${m}|${x.e.code}`,code:x.e.code,name:x.e.name,branch:x.e.branch,kind:'cup',ref:m,label:`${CUP_NAME[t]} (المركز ${i+1})`,amount:P[t]});});
   const mg=(S.ledger||[]).find(l=>l.id===`bonus|${m}|${l.username}`);if(mg&&P.manager)out.push({id:`manager|${m}|${mg.username}`,code:mg.username,name:mgrName(mg.username),branch:'مدير',kind:'manager',ref:m,label:'المدير المثالي',amount:P.manager});
   return out;
 }
@@ -1907,11 +1921,7 @@ function checkpointOf(date){ // latest report day (10, 20, end of month) on or b
   if(!L.length)return {m,day:null,next:CHECKS()[0]||last};
   const d=L[L.length-1];return {m,day:d,date:`${m}-${pad(d)}`,next:[...CHECKS(),last].find(n=>n>dd)||null,last};
 }
-function goalAt(upto){ // points needed for the top 10: set by operations, or the 10th best score right now
-  const g=+S.settings.goal||0;if(g>0)return {v:g,auto:false};
-  const L=activeEmps().map(e=>monthSummary(e,monthOf(upto),upto).monthScore).filter(v=>v!=null).sort((a,b)=>b-a);
-  return {v:L.length?L[Math.min(9,L.length-1)]:null,auto:true};
-}
+function goalAt(){return {v:KPI_G(),t:TGT_G(),auto:false};}
 function progressOf(e,cp,goal){
   const m=cp.m,upto=cp.date;const ms=monthSummary(e,m,upto);const max=S.settings.att.on||2;
   let n=0,sumT=0,att=0,attLate=0,mgr=0,mgrMiss=0,ops=0,opsMiss=0,hy=0,hyMiss=0,bon=0;const tech=[0,0,0,0,0],techN=[0,0,0,0,0],hyc=[0,0,0,0,0],hyN=[0,0,0,0,0];let detail=false;
@@ -1934,9 +1944,21 @@ function progressOf(e,cp,goal){
   const gv=goal?.v;const score100=ms.monthScore;
   let need=null;const last=daysInMonth(m);
   if(gv!=null&&n&&cp.day<last){const r=Math.max(1,Math.round(n/cp.day*(last-cp.day)));const g=(gv-cardP)/20;need=(g*(n+r)-sumT)/r;}
-  const st=score100==null||gv==null?'none':score100>=gv?'green':score100>=gv-5?'near':'red';
-  return {e,cp,goal,ms,n,score:score100,st,parts,techA,hyA,cardP,cards:ms.cards,bonusDays:bon/0.5,need,abs:ms.abs,detail};
+  const tg=tgtOf(ms.target,m,LIVE&&upto<DATE?DATE:upto);const q=qualify(ms,tg);const tv=tg?.v; // live sales are month-to-date, so compare them with today's pace
+  const st=score100==null?'none':q.ok?'green':(score100>=gv-5&&tv!=null&&tv>=TGT_G()-5)?'near':'red';
+  return {e,cp,goal,ms,n,score:score100,st,tg,q,parts,techA,hyA,cardP,cards:ms.cards,bonusDays:bon/0.5,need,abs:ms.abs,detail};
 }
+function tgtDetailHTML(R){const t=R.tg?.t;if(!t)return `<div class="lock" style="margin-top:8px">🎯 لسه مفيش تارجت متحدد لقسمك — كلّم مديرك.</div>`;
+  const rows=[];
+  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);rows.push(`<tr><td>🛒 تارجت القسم</td><td>باع ${fmt(Sd,1)} من ${fmt(T,1)} (${fmt(t.pct)}%)</td><td>${t.pace!=null?`المفروض لحد النهارده ${fmt(t.pace)}%`:''}</td></tr>`);}
+  else if(t.kpis)for(const k of t.kpis)rows.push(`<tr><td>📋 ${esc(k.name)}</td><td>${k.val!=null?fmt(k.val,1):'—'}</td><td>${k.pct!=null?fmt(k.pct)+'%':'—'}</td></tr>`);
+  for(const c of t.caps||[])rows.push(`<tr><td><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن ${esc(c.name)}</td><td>باع ${fmt(c.sold,1)} من ${fmt(c.target,1)} (${fmt(c.pct)}%)</td><td>${c.target>c.sold?`فاضل ${fmt(c.target-c.sold,1)}`:'✔ قفل'}</td></tr>`);
+  return `<h3 style="margin:10px 0 4px">🎯 التارجت بالتفصيل</h3><table><tbody>${rows.join('')}</tbody></table>`;}
+function tgtTip(R){const t=R.tg?.t;if(!t)return 'لسه مفيش تارجت متحدد لقسمك.';const L=[];
+  for(const c of t.caps||[])if(c.target>c.sold)L.push(`فاضل ${fmt(c.target-c.sold,1)} من ${esc(c.name)}`);
+  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);if(T>Sd)L.push(`القسم فاضله ${fmt(T-Sd,1)} عشان يقفل الشهر — ركّز على البيع والعرض`);}
+  else if(t.kpis){const w=t.kpis.filter(k=>k.pct!=null).sort((a,b)=>a.pct-b.pct)[0];if(w)L.push(`أضعف مؤشر في قسمك: ${esc(w.name)} (${fmt(w.pct)}%)`);}
+  return L.join(' · ')||'كمّل على نفس المستوى.';}
 const ST_TXT={green:['🟢','مرشح للعشرة الأوائل','b-green'],near:['🟡','قريب من العشرة الأوائل','b-gold'],red:['🔴','متأخر عن العشرة الأوائل','b-red'],none:['⚪','لسه مفيش تقييمات كفاية','b-gray']};
 const TIPS={att:'تعالى في ميعادك كل يوم — البصمة لوحدها ${max} نجمة يومياً',mgr:'ركّز في البنود اللي مديرك بيقيّمها، واسأله إيه اللي ناقصك',ops:'مدير التشغيل بيقيّمك على نفس البنود — الالتزام قدامه بيفرق',hy:'اهتم بالنضافة الشخصية واليونيفورم ونضافة قسمك كل يوم'};
 function reportHTML(R,forEmp){
@@ -1946,8 +1968,12 @@ function reportHTML(R,forEmp){
   return `<div class="card" style="border-width:2px;border-color:${R.st==='green'?'var(--green)':R.st==='red'?'#e7a59e':R.st==='near'?'var(--gold)':'var(--line)'}">
     <div class="row" style="gap:12px;margin-bottom:10px">${ava(e,'xl')}<div style="flex:1;min-width:180px"><h2 style="margin:0">${esc(e.name)}</h2><div class="muted small">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)}</div>
       <div style="margin-top:6px"><span class="badge ${cls}" style="font-size:15px">${ic} ${tx}</span></div></div>
-      <div style="text-align:center"><div class="small muted">تقرير يوم ${fmt(R.cp.day)} ${monthName(R.cp.m)}</div><div style="font-size:34px;font-weight:900">${fmt(R.score)}<span class="small muted">/100</span></div><div class="small">الهدف: <b>${fmt(gv)}</b>${R.goal?.auto?' <span class="muted">(حد العشرة الأوائل دلوقتي)</span>':''}</div></div></div>
-    ${gv!=null&&R.score!=null?barHTML(R.score/gv*100,null,R.st==='green'?'':R.st==='near'?'warn':'bad'):''}
+      <div class="small muted">تقرير يوم ${fmt(R.cp.day)} ${monthName(R.cp.m)}</div></div>
+    <div class="grid g-2" style="margin-bottom:8px">
+      <div class="card" style="text-align:center;border-color:${R.q.kOk?'var(--green)':'#e7a59e'}"><div class="small muted">🧑‍💼 الـ KPI بتاعك</div><div style="font-size:32px;font-weight:900">${fmt(R.score)}<span class="small muted">/100</span> ${R.q.kOk?'✔':'✖'}</div><div class="small">المطلوب ${fmt(KPI_G())}</div>${R.score!=null?barHTML(R.score/KPI_G()*100,null,R.q.kOk?'':'bad'):''}</div>
+      <div class="card" style="text-align:center;border-color:${R.q.tOk?'var(--green)':'#e7a59e'}"><div class="small muted">🎯 التارجت (القسم${R.tg?.capv!=null?' + الكابتن':''})</div><div style="font-size:32px;font-weight:900">${R.tg?.v!=null?fmt(R.tg.v)+'%':'—'} ${R.q.tOk?'✔':'✖'}</div><div class="small">المطلوب ${fmt(TGT_G())}%${R.tg&&R.tg.pace<100?' <span class="muted">(على المسار — مقارنة باللي المفروض لحد يوم '+fmt(R.cp.day)+')</span>':''}</div>${R.tg?.v!=null?barHTML(R.tg.v/TGT_G()*100,null,R.q.tOk?'':'bad'):''}</div>
+    </div>
+    <div class="small" style="margin-bottom:6px">⚖️ عشان تدخل العشرة الأوائل لازم <b>الاتنين مع بعض</b>.</div>
     <div class="small muted" style="margin:6px 0 10px">${fmt(R.n)} يوم متقيّم · ${R.abs?`غياب ${fmt(R.abs)} يوم · `:''}${cardsHTML(R.cards)||'مفيش كروت'}${R.cardP?` (${R.cardP>0?'+':''}${fmt(R.cardP)} نقطة)`:''}</div>
     ${R.detail?`<h3 style="margin:8px 0">📊 ${R.st==='green'?'إنت كسبت نقطك منين':'النقط اللي ضاعت منك'}</h3>
       <table><tbody>${R.parts.map(p=>`<tr><td>${p.t}</td><td style="min-width:120px">${barHTML(100-p.lost/20*100,null,p.lost<=1?'':p.lost<=5?'warn':'bad')}</td><td><b style="color:${p.lost<=1?'var(--green)':'var(--red)'}">${p.lost<=0.5?'✔ كامل':'−'+fmt(p.lost,1)+' نقطة'}</b>${p.note?` <span class="small muted">${p.note}</span>`:''}${p.miss?` <span class="small muted">(${fmt(p.miss)} يوم لسه مااتقيّمش)</span>`:''}</td></tr>`).join('')}
@@ -1957,11 +1983,13 @@ function reportHTML(R,forEmp){
         ${R.techA.length?`<div class="lock"><b>🛠️ التقييم الفني</b><br>أقوى بند: <b>${esc(R.techA[R.techA.length-1].t)}</b> (${fmt(R.techA[R.techA.length-1].v,1)} من 2)<br>أضعف بند: <b style="color:var(--red)">${esc(R.techA[0].t)}</b> (${fmt(R.techA[0].v,1)} من 2)</div>`:''}
         ${R.hyA.length?`<div class="lock"><b>🧼 الهايجين</b><br>أقوى بند: <b>${esc(R.hyA[R.hyA.length-1].t)}</b> (${fmt(R.hyA[R.hyA.length-1].v,1)} من 2)<br>أضعف بند: <b style="color:var(--red)">${esc(R.hyA[0].t)}</b> (${fmt(R.hyA[0].v,1)} من 2)</div>`:''}
       </div>`:`<div class="lock">التفاصيل بتظهر للموظف نفسه (بكوده) وللمديرين.</div>`}
+    ${tgtDetailHTML(R)}
     <div class="card" style="margin-top:10px;background:${R.st==='green'?'var(--green-soft)':'var(--red-soft)'};border:0">
       ${R.st==='green'?`<b>🏆 كمّل كده!</b> إنت في طريقك للعشرة الأوائل.${keep.length?` حافظ على: ${keep.map(p=>p.t.replace(/^\S+ /,'')).join('، ')}.`:''}${top.length?`<br>ولو عايز تضمن مكانك: ${top.slice(0,2).map(p=>TIPS[p.k].replace('${max}',fmt(S.settings.att.on))).join(' · ')}.`:''}`
       :R.st==='none'?'لسه بدري — التقرير بيتحسب من تقييماتك اليومية.'
-      :`<b>${R.st==='near'?'⚡ قربت جداً!':'💪 لسه تقدر تلحق!'}</b> ${top.length?`أكتر حاجة مأخّراك: <b>${top.slice(0,2).map(p=>p.t.replace(/^\S+ /,'')+` (−${fmt(p.lost,1)})`).join(' و ')}</b>.<br>${top.slice(0,2).map(p=>'• '+TIPS[p.k].replace('${max}',fmt(S.settings.att.on))).join('<br>')}`:''}
-        ${R.need!=null?`<br>🎯 عشان توصل ${fmt(gv)} نقطة آخر الشهر محتاج متوسط <b>${R.need>5?'أكتر من 5':fmt(Math.max(0,R.need),2)}</b> نجمة في اليوم من النهارده${R.need>5?' — صعب بالنجوم بس، محتاج كمان كروت خضرا ومواقف مثالية':''}.`:''}`}
+      :`<b>${R.st==='near'?'⚡ قربت جداً!':'💪 لسه تقدر تلحق!'}</b> ${R.q.kOk&&!R.q.tOk?`الـ KPI بتاعك تمام ✔ — <b>اللي ناقصك التارجت</b>. ${tgtTip(R)}<br>`:''}${!R.q.kOk&&R.q.tOk?'التارجت تمام ✔ — <b>اللي ناقصك الـ KPI</b>. ':''}${!R.q.kOk&&top.length?`أكتر حاجة مأخّراك: <b>${top.slice(0,2).map(p=>p.t.replace(/^\S+ /,'')+` (−${fmt(p.lost,1)})`).join(' و ')}</b>.<br>${top.slice(0,2).map(p=>'• '+TIPS[p.k].replace('${max}',fmt(S.settings.att.on))).join('<br>')}`:''}
+        ${!R.q.kOk&&!R.q.tOk?`<br>🎯 والتارجت كمان: ${tgtTip(R)}`:''}
+        ${!R.q.kOk&&R.need!=null?`<br>🎯 عشان الـ KPI يوصل ${fmt(gv)} نقطة آخر الشهر محتاج متوسط <b>${R.need>5?'أكتر من 5':fmt(Math.max(0,R.need),2)}</b> نجمة في اليوم من النهارده${R.need>5?' — صعب بالنجوم بس، محتاج كمان كروت خضرا ومواقف مثالية':''}.`:''}`}
     </div>
     ${R.cp.next?`<div class="small muted" style="margin-top:8px">التقرير الجاي يوم ${fmt(R.cp.next)}.</div>`:''}
   </div>`;
@@ -1980,12 +2008,12 @@ function vProgress(){
   const goal=goalAt(cp.date);const list=filtered(true);
   const R=list.map(e=>progressOf(e,cp,goal)).filter(r=>r.st!=='none').sort((a,b)=>(b.score||0)-(a.score||0));
   const cnt=k=>R.filter(r=>r.st===k).length;
-  return `<div class="sec-title"><h2>📈 تقارير التقدّم — يوم ${fmt(cp.day)} ${monthName(cp.m)}</h2><div class="small">الهدف: <b>${fmt(goal.v)}</b> نقطة ${goal.auto?'<span class="muted">(حد العشرة الأوائل دلوقتي — تقدر تثبّته من الإعدادات)</span>':''}</div></div>
+  return `<div class="sec-title"><h2>📈 تقارير التقدّم — يوم ${fmt(cp.day)} ${monthName(cp.m)}</h2><div class="small">الشرط: KPI <b>${fmt(KPI_G())}</b> أو أكتر، والتارجت <b>${fmt(TGT_G())}%</b> أو أكتر — الاتنين مع بعض</div></div>
     <div class="row" style="margin-bottom:10px;gap:8px"><span class="badge b-green">🟢 مرشحين ${fmt(cnt('green'))}</span><span class="badge b-gold">🟡 قريبين ${fmt(cnt('near'))}</span><span class="badge b-red">🔴 متأخرين ${fmt(cnt('red'))}</span></div>
     ${filterBar({scoped:true})}
-    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>الموظف</th><th>الحالة</th><th>النقط</th><th>الفرق عن الهدف</th><th>أكتر حاجة مأخّراه</th><th>أضعف بند فني</th><th>أضعف بند هايجين</th></tr></thead><tbody>
+    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>الموظف</th><th>الحالة</th><th>🧑‍💼 KPI</th><th>🎯 التارجت</th><th>أكتر حاجة مأخّراه</th><th>أضعف بند فني</th><th>أضعف بند هايجين</th></tr></thead><tbody>
     ${R.map(r=>{const w=r.parts.filter(p=>p.lost>0.5).sort((a,b)=>b.lost-a.lost)[0];return `<tr style="cursor:pointer" onclick="openReport('${r.e.code}')"><td><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(r.e,'sm')}<div><b>${esc(r.e.name)}</b><div class="small muted">${esc(r.e.dept)} · ${esc(r.e.shift)}</div></div></div></td>
-      <td><span class="badge ${ST_TXT[r.st][2]}">${ST_TXT[r.st][0]} ${ST_TXT[r.st][1].split(' ')[0]}</span></td><td><b>${fmt(r.score)}</b></td><td>${goal.v!=null?(r.score-goal.v>=0?'+':'')+fmt(r.score-goal.v):'—'}</td>
+      <td><span class="badge ${ST_TXT[r.st][2]}">${ST_TXT[r.st][0]} ${ST_TXT[r.st][1].split(' ')[0]}</span></td><td><b style="color:${r.q.kOk?'var(--green)':'var(--red)'}">${fmt(r.score)} ${r.q.kOk?'✔':'✖'}</b></td><td><b style="color:${r.q.tOk?'var(--green)':'var(--red)'}">${r.tg?.v!=null?fmt(r.tg.v)+'%':'—'} ${r.q.tOk?'✔':'✖'}</b></td>
       <td class="small">${w?`${w.t} (−${fmt(w.lost,1)})`:'—'}</td><td class="small">${r.techA[0]?esc(r.techA[0].t):'—'}</td><td class="small">${r.hyA[0]?esc(r.hyA[0].t):'—'}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">مفيش تقييمات لسه</td></tr>'}
     </tbody></table></div></div>`;
 }
