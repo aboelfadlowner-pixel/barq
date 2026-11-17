@@ -4,7 +4,7 @@ import { requireAgent } from '../components/agent-select.js';
 import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder, loadDraftForEdit } from '../store.js';
 import { esc, on, copyText } from '../utils/dom.js';
-import { formatAddress, formatDateTime, formatTime, dayLabel } from '../utils/format.js';
+import { formatAddress, formatDateTime, formatTime, dayLabel, isSameWorkDay } from '../utils/format.js';
 import { computeTotals, lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
@@ -159,6 +159,13 @@ export function mountOrderDetails(view, orderId) {
         photo = url ? `<button type="button" class="dl-photo" data-photo="${esc(url)}"><img src="${esc(url)}" alt="صورة التسليم"></button>`
           : '<p class="muted">الصورة اتمسحت (بتتشال بعد 30 يوم)</p>';
       }
+      const changes = await ds.driverChanges(order.id).catch(() => []);   // 46
+      // 46: the admin changes a wrong driver — on the cashier, or out (also delivered) the same work day
+      const canChange = isAdmin && order.driver && order.driver !== 'استلام من الفرع'
+        && (order.stage === 'at_cashier' || (order.stage === 'out' && isSameWorkDay(order.outAt, new Date())));
+      const changeRows = changes.map((c) => `<li class="dl-changed"><div><strong>${icon('edit')}اتغيّر الطيار</strong>
+          <div class="muted">من ${esc(c.from || '—')} ← <strong>${esc(c.to)}</strong>${c.by ? ` · ${esc(c.by)}` : ''}</div></div>
+          <span class="muted num">${dayLabel(c.at)} · ${formatTime(c.at)}</span></li>`).join('');
       if (!alive) return;
       box.hidden = false;
       box.innerHTML = `
@@ -166,11 +173,12 @@ export function mountOrderDetails(view, orderId) {
         ${order.outAt ? `<ul class="timeline">
           ${d.assignedAt ? row('اتحدد الطيار', d.assignedAt, d.assignedAt && order.outAt ? `خرج بعدها بـ ${mins(d.assignedAt, order.outAt)}` : '') : ''}
           ${row('خرج', order.outAt, `${esc(order.driver || '')}${d.tripSize > 1 ? ` · طلب ${d.tripSeq} من ${d.tripSize} في المشوار` : ''}`, d.outByAdmin)}
+          ${changeRows}
           ${d.refusedAt ? `<li class="dl-refused"><div><strong>${icon('x')}متسلّمش</strong><div class="muted">${esc(d.refusedReason)}</div></div><span class="muted num">${dayLabel(d.refusedAt)} · ${formatTime(d.refusedAt)}</span></li>` : ''}
           ${row('اتسلّم للعميل', d.deliveredAt, d.deliveredAt ? `بعد ${mins(order.outAt, d.deliveredAt)} من الخروج` : 'لسه', d.deliveredAdmin)}
           ${row('رجع الفرع', d.returnedAt, d.returnedAt && d.deliveredAt ? `بعد ${mins(d.deliveredAt, d.returnedAt)} من التسليم` : '', d.returnedAdmin)}
           ${isAdmin && d.returnedFar ? `<li><span class="tag tag-far">${icon('alert')}بعيد عن الفرع${d.returnedDistance != null ? ` — حوالي ${d.returnedDistance >= 1000 ? `${(d.returnedDistance / 1000).toFixed(1)} كم` : `${d.returnedDistance} متر`}` : ''}</span></li>` : ''}
-        </ul>` : '<p class="muted">الطلب على الكاشير — مستني الطيار</p>'}
+        </ul>` : `<p class="muted">الطلب على الكاشير — ${order.driver ? `الطيار: <strong>${esc(order.driver)}</strong>` : 'مستني الطيار'}</p>${changeRows ? `<ul class="timeline">${changeRows}</ul>` : ''}`}
         ${photo}
         ${isAdmin && d.lat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank" rel="noopener">${icon('pin')}مكان الطيار وقت التسليم على الخريطة</a>` : ''}
         ${isAdmin && d.deliveredAt && d.lat == null && !d.deliveredAdmin ? `<p class="muted">${icon('alert')}اتسلّم من غير مكان</p>` : ''}
@@ -178,6 +186,7 @@ export function mountOrderDetails(view, orderId) {
         ${isAdmin && d.returnedLat != null ? `<a class="link-btn" href="https://www.google.com/maps?q=${d.returnedLat},${d.returnedLng}" target="_blank" rel="noopener">${icon('pin')}مكانه لما داس «رجعت الفرع»</a>` : ''}
         ${isAdmin && d.returnedAt && d.returnedLat == null && !d.returnedAdmin ? `<p class="muted">${icon('alert')}رجوع من غير مكان</p>` : ''}
         ${isAdmin ? `<div class="dl-admin">
+          ${canChange ? `<button type="button" class="btn btn-soft btn-sm" data-change-driver>🔄 تغيير الطيار</button>` : ''}
           ${order.stage === 'at_cashier' ? `<button type="button" class="btn btn-soft btn-sm" data-admin-out>تسجيل «خرج» لطيار</button>` : ''}
           ${order.outAt && !d.deliveredAt ? `<button type="button" class="btn btn-soft btn-sm" data-admin="delivered">تسجيل «اتسلّم» (الطيار نسي)</button>` : ''}
           ${order.outAt && !d.returnedAt ? `<button type="button" class="btn btn-soft btn-sm" data-admin="returned">تسجيل «رجع الفرع»</button>` : ''}
@@ -197,6 +206,25 @@ export function mountOrderDetails(view, orderId) {
           message: 'هيتسجل بالوقت الحالي، ومكتوب جنبه «اتسجلت من الأدمن».', confirmLabel: 'تسجيل' }))) return;
         try { await ds.adminDelivery(order.id, what); showToast('اتسجل'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
         catch (err) { showToast(err.message); }
+      }),
+      on(view, 'click', '[data-change-driver]', async () => {
+        const drivers = (await ds.listDrivers().catch(() => [])).filter((d) => d.label !== order.driver);
+        if (!drivers.length) { showToast('مفيش طيار تاني'); return; }
+        const m = openModal({
+          title: `${icon('package')} تغيير الطيار — <span class="ltr-inline">${esc(order.number)}</span>`,
+          size: 'sm',
+          body: `<p class="muted">الطيار دلوقتي: <strong>${esc(order.driver)}</strong>. اختار الطيار الصح —
+            ${order.stage === 'out' ? 'الطلب هيتشال من عند الطيار ده ويروح للطيار الصح.' : 'الطيار الصح هو اللي يدوس «استلمت».'}</p>
+            <div class="returned-list">${drivers.map((d) => `<button type="button" class="result-card" data-pick-driver="${esc(d.userId)}"><div class="grow cust-name">${esc(d.label)}</div></button>`).join('')}</div>`,
+          footer: '<button type="button" class="btn btn-secondary" data-close>إلغاء</button>',
+        });
+        m.body.addEventListener('click', async (ev) => {
+          const pick = ev.target.closest('[data-pick-driver]');
+          if (!pick || pick.disabled) return;
+          pick.disabled = true;
+          try { const label = await ds.changeDriver(order.id, pick.dataset.pickDriver); m.close(); showToast(`الطيار بقى: ${label}`); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+          catch (err) { pick.disabled = false; showToast(err.message); }
+        });
       }),
       on(view, 'click', '[data-admin-out]', async () => {
         const drivers = await ds.listDrivers();

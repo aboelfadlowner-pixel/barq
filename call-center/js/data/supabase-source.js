@@ -527,6 +527,17 @@ export async function adminDelivery(orderId, what, driverId = null) {
   const c = await sb();
   return ok(await c.rpc('cc_admin_delivery', { p_order_id: orderId, p_what: what, p_driver: driverId }));
 }
+/* «تغيير الطيار» (46_admin_change_driver.sql): admin only; the order's changes for its page. */
+export async function changeDriver(orderId, driverId) {
+  const c = await sb();
+  return ok(await c.rpc('cc_admin_change_driver', { p_order_id: orderId, p_driver: driverId }));
+}
+export async function driverChanges(orderId) {
+  const c = await sb();
+  const res = await c.rpc('cc_order_driver_changes', { p_order_id: orderId });
+  if (res.error?.code === NOT_INSTALLED) return [];
+  return (ok(res) || []).map((x) => ({ at: x.at, stage: x.stage, from: x.from || '', to: x.to || '', by: x.by || '' }));
+}
 const toDelivery = (r) => ({
   outByAdmin: !!r.out_by_admin, tripSeq: r.trip_seq ?? null, tripSize: r.trip_size ?? null, assignedAt: r.assigned_at || null,
   deliveredAt: r.delivered_at || null, deliveredAdmin: !!r.delivered_admin,

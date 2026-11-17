@@ -2833,3 +2833,113 @@ do $$ declare r jsonb; begin
 end $$;
 reset role;
 rollback;
+
+-- T63 — the admin changes the driver (46_admin_change_driver.sql): admin only; on the cashier the name changes;
+--        out → it leaves the wrong driver's lists and joins the right one's open trip (also when delivered;
+--        his «رجع الفرع» on it goes); trips numbered again; same work day only; every change kept
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'drv63a@cc.test'), (gen_random_uuid(), 'drv63b@cc.test'), (gen_random_uuid(), 'cc63@cc.test');
+select set_config('cc.da', (select id::text from auth.users where email = 'drv63a@cc.test'), true);
+select set_config('cc.db', (select id::text from auth.users where email = 'drv63b@cc.test'), true);
+select set_config('cc.c63', (select id::text from auth.users where email = 'cc63@cc.test'), true);
+select public.cc_driver_setup(current_setting('cc.da')::uuid, 'طيار 63 غلط', '01063636361');
+select public.cc_driver_setup(current_setting('cc.db')::uuid, 'طيار 63 صح', '01063636362');
+insert into public.cc_staff (user_id, display_name, role) select id, 'x', 'call_center' from auth.users where email = 'cc63@cc.test';
+insert into public.cc_agents (name) values ('موظف 63') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare addr jsonb := jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 63');
+  o public.cc_orders; i int; begin
+  for i in 1..5 loop
+    o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 63'), gen_random_uuid(),
+           jsonb_build_object('name', 'عميل 63-' || i, 'phone', '0106363630' || i), addr, '[{"sku": "T-201", "qty": 1}]', null);
+    perform set_config('cc.o' || i, o.id::text, true);
+  end loop;
+end $$;
+reset role;
+select set_config('cc.ta', gen_random_uuid()::text, true);
+select set_config('cc.tb', gen_random_uuid()::text, true);
+update public.cc_orders set stage = 'out', driver_user_id = current_setting('cc.da')::uuid, driver = 'طيار 63 غلط', out_at = now(),
+       trip_id = current_setting('cc.ta')::uuid, trip_seq = case when id::text = current_setting('cc.o1') then 1 else 2 end, trip_size = 2
+ where id::text in (current_setting('cc.o1'), current_setting('cc.o2'));
+update public.cc_orders set stage = 'out', driver_user_id = current_setting('cc.db')::uuid, driver = 'طيار 63 صح', out_at = now(),
+       trip_id = current_setting('cc.tb')::uuid, trip_seq = 1, trip_size = 1 where id::text = current_setting('cc.o3');
+update public.cc_orders set stage = 'at_cashier', driver_user_id = current_setting('cc.da')::uuid, driver = 'طيار 63 غلط', assigned_at = now()
+ where id::text = current_setting('cc.o4');
+update public.cc_orders set stage = 'out', driver_user_id = current_setting('cc.da')::uuid, driver = 'طيار 63 غلط', out_at = now() - interval '2 days',
+       trip_id = gen_random_uuid(), trip_seq = 1, trip_size = 1 where id::text = current_setting('cc.o5');
+-- the wrong driver delivered o2 and came back
+insert into public.cc_order_delivery (order_id, delivered_at, returned_at, returned_by_name) values (current_setting('cc.o2')::uuid, now(), now(), 'طيار 63 غلط');
+-- the call center cannot
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'cc63@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_admin_change_driver(current_setting('cc.o1')::uuid, current_setting('cc.db')::uuid); raise exception 'FAIL T63 call center';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  -- on the cashier: only the name
+  if public.cc_admin_change_driver(current_setting('cc.o4')::uuid, current_setting('cc.db')::uuid) is null then raise exception 'FAIL T63 label'; end if;
+  select * into o from public.cc_orders where id = current_setting('cc.o4')::uuid;
+  if o.stage <> 'at_cashier' or o.driver_user_id::text <> current_setting('cc.db') or o.trip_id is not null then raise exception 'FAIL T63 cashier %', o; end if;
+  begin perform public.cc_admin_change_driver(current_setting('cc.o4')::uuid, current_setting('cc.db')::uuid); raise exception 'FAIL T63 same driver';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_admin_change_driver(current_setting('cc.o5')::uuid, current_setting('cc.db')::uuid); raise exception 'FAIL T63 old day';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_admin_change_driver(current_setting('cc.o1')::uuid, current_setting('cc.c63')::uuid); raise exception 'FAIL T63 not a driver';
+  exception when invalid_parameter_value then null; end;
+  -- out: joins the right driver's open trip
+  perform public.cc_admin_change_driver(current_setting('cc.o1')::uuid, current_setting('cc.db')::uuid);
+  select * into o from public.cc_orders where id = current_setting('cc.o1')::uuid;
+  if o.driver_user_id::text <> current_setting('cc.db') or o.trip_id::text <> current_setting('cc.tb') or o.trip_seq <> 2 or o.trip_size <> 2 or o.stage <> 'out' then
+    raise exception 'FAIL T63 out %', o;
+  end if;
+  if (select trip_size from public.cc_orders where id = current_setting('cc.o3')::uuid) <> 2
+     or (select array[trip_seq, trip_size] from public.cc_orders where id = current_setting('cc.o2')::uuid) <> array[1, 1] then
+    raise exception 'FAIL T63 trips numbered again';
+  end if;
+  -- delivered: moves too, and the wrong driver's «رجع الفرع» on it goes (the right one is still out)
+  perform public.cc_admin_change_driver(current_setting('cc.o2')::uuid, current_setting('cc.db')::uuid);
+  if public.cc_order_driver_changes(current_setting('cc.o2')::uuid)->0->>'stage' <> 'delivered' then raise exception 'FAIL T63 stage'; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select returned_at from public.cc_order_delivery where order_id = current_setting('cc.o2')::uuid) is not null
+     or (select delivered_at from public.cc_order_delivery where order_id = current_setting('cc.o2')::uuid) is null
+     or (select count(*) from public.cc_orders where trip_id = current_setting('cc.tb')::uuid and trip_size = 3) <> 3 then
+    raise exception 'FAIL T63 delivered';
+  end if;
+end $$;
+set local role authenticated;
+do $$ begin
+  if jsonb_array_length(public.cc_order_driver_changes(current_setting('cc.o1')::uuid)) <> 1
+     or public.cc_order_driver_changes(current_setting('cc.o1')::uuid)->0->>'from' <> 'طيار 63 غلط' then
+    raise exception 'FAIL T63 kept %', public.cc_order_driver_changes(current_setting('cc.o1')::uuid);
+  end if;
+end $$;
+reset role;
+-- the drivers' screens
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.da'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb := public.cc_driver_orders(); begin
+  if jsonb_array_length(r->'mine') <> 0 or jsonb_array_length(r->'today') <> 0 or jsonb_array_length(r->'ready') <> 0 then
+    raise exception 'FAIL T63 wrong driver still sees %', r;
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.db'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb := public.cc_driver_orders(); begin
+  if jsonb_array_length(r->'mine') <> 3 or jsonb_array_length(r->'today') <> 3 or jsonb_array_length(r->'ready') <> 1 then
+    raise exception 'FAIL T63 right driver sees %', r;
+  end if;
+  raise notice 'PASS T63 تغيير الطيار: الأدمن بس، على الكاشير الاسم بس، اللي خرج يروح للطيار الصح في مشواره (حتى لو اتسلّم)، نفس يوم الشغل، والتغيير متسجل';
+end $$;
+reset role;
+rollback;
