@@ -501,10 +501,12 @@ drop policy if exists najm_read on public.najm_offers;
 create policy najm_read on public.najm_offers for select to anon, authenticated using (true);
 
 -- public: managers (no PINs), daily manager points (sum only), market without the secret
-create or replace function public.najm_public_users()
-returns table(username text, name text, role text, branch text, shift text, depts text[])
+alter table public.najm_users add column if not exists emp_code text;   -- the employee this manager account belongs to (name/photo)
+drop function if exists public.najm_public_users();
+create function public.najm_public_users()
+returns table(username text, name text, role text, branch text, shift text, depts text[], emp_code text)
 language sql stable security definer set search_path = public as $$
-  select username, name, role, branch, shift, depts from najm_users where active order by role, username;
+  select username, name, role, branch, shift, depts, emp_code from najm_users where active order by role, username;
 $$;
 create or replace function public.najm_mgr_points(p_from date, p_to date)
 returns table(day date, username text, pts int)
@@ -554,10 +556,12 @@ declare u najm_users; m najm_market; o najm_offers; s text; bal numeric; del boo
 begin
   select * into u from public.najm_auth(p_user, p_pin);
   if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
-  if p_kind in ('mgr_rate','ledger','market_open','market_approve','market_close') and u.role <> 'ops' then
+  if p_kind in ('mgr_rate','ledger','market_open','market_approve','market_close','user_emp') and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
-  if p_kind = 'mgr_rate' then
+  if p_kind = 'user_emp' then
+    update najm_users set emp_code = nullif(p_data->>'emp_code',''), updated_at = now() where username = lower(trim(p_key->>'username'));
+  elsif p_kind = 'mgr_rate' then
     if del then delete from najm_mgr_ratings where day = (p_key->>'day')::date and username = p_key->>'username';
     else insert into najm_mgr_ratings(day, username, crit)
       values ((p_key->>'day')::date, p_key->>'username', array(select (case when v = 'null'::jsonb then 0 else v::text::smallint end) from jsonb_array_elements(p_data) v))
@@ -725,3 +729,39 @@ begin
 end $$;
 grant execute on function public.najm_payouts_list(text, text, text) to anon, authenticated;
 grant execute on function public.najm_payout_save(text, text, text, jsonb) to anon, authenticated;
+
+
+-- =========================================================================================
+-- Employees vote for the best manager (25% of the manager-of-the-month score)
+--   one vote per employee code per month AND one vote per device per month; IP kept for review
+-- =========================================================================================
+create table if not exists public.najm_votes (
+  month text not null, voter_code text not null, device_id text not null, ip text,
+  manager text not null, created_at timestamptz not null default now(),
+  primary key (month, voter_code)
+);
+create unique index if not exists najm_votes_device on public.najm_votes (month, device_id);
+alter table public.najm_votes enable row level security;
+create or replace function public.najm_vote(p_code text, p_device text, p_manager text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare e najm_employees; u najm_users; m text := to_char(now() at time zone 'Africa/Cairo', 'YYYY-MM');
+  ip text := split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1);
+begin
+  select * into e from najm_employees where code = trim(p_code) and active;
+  if e.code is null then return jsonb_build_object('ok', false, 'error', 'code'); end if;
+  if coalesce(length(p_device),0) < 16 then return jsonb_build_object('ok', false, 'error', 'device'); end if;
+  select * into u from najm_users where username = p_manager and active and role <> 'ops' and (branch is null or branch = e.branch);
+  if u.username is null then return jsonb_build_object('ok', false, 'error', 'manager'); end if;
+  if u.emp_code = e.code then return jsonb_build_object('ok', false, 'error', 'self'); end if;
+  if exists (select 1 from najm_votes where month = m and voter_code = e.code) then return jsonb_build_object('ok', false, 'error', 'voted'); end if;
+  if exists (select 1 from najm_votes where month = m and device_id = p_device) then return jsonb_build_object('ok', false, 'error', 'device_used'); end if;
+  insert into najm_votes(month, voter_code, device_id, ip, manager) values (m, e.code, p_device, nullif(ip,''), u.username);
+  return jsonb_build_object('ok', true, 'month', m);
+end $$;
+create or replace function public.najm_vote_counts(p_month text)
+returns table(username text, votes int, ips int)
+language sql stable security definer set search_path = public as $$
+  select manager, count(*)::int, count(distinct ip)::int from najm_votes where month = p_month group by manager;
+$$;
+grant execute on function public.najm_vote(text, text, text) to anon, authenticated;
+grant execute on function public.najm_vote_counts(text) to anon, authenticated;
