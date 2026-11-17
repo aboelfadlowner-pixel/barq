@@ -134,6 +134,7 @@ video{max-width:100%;border-radius:12px;background:#000}
 <nav id="nav"></nav>
 <main id="main"></main>
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+<div class="modal-bg" id="askBg" style="z-index:70"><div class="modal" id="ask" style="max-width:420px"></div></div>
 <div class="toast" id="toast"></div>
 <input type="file" id="filePick" style="display:none">
 
@@ -393,6 +394,15 @@ const activeEmps=()=>S.employees.filter(e=>e.active);
 const deptKey=(b,d)=>`${b}|${d}`;
 function barHTML(p,pace,cls){const w=Math.max(0,Math.min(100,p||0));const c=cls||(p>=85?'':p>=50?'warn':'bad');return `<div class="bar"><i class="${c}" style="width:${w}%"></i>${pace!=null?`<span class="pace" style="right:${Math.min(100,pace)}%"></span>`:''}</div>`;}
 
+// in-page dialogs (the published page can't use the browser's confirm/prompt)
+function askDialog(msg,withInput){return new Promise(res=>{
+  const bg=$('#askBg');
+  $('#ask').innerHTML=`<h3 style="margin-bottom:10px">${esc(msg)}</h3>${withInput?'<textarea class="inp" id="askIn" rows="3" style="width:100%"></textarea>':''}<div class="row" style="margin-top:12px"><button class="btn pri" id="askOk">${withInput?'حفظ':'تأكيد'}</button><button class="btn" id="askNo">إلغاء</button></div>`;
+  bg.classList.add('open');const done=v=>{bg.classList.remove('open');res(v);};
+  $('#askOk').onclick=()=>done(withInput?$('#askIn').value:true);$('#askNo').onclick=()=>done(withInput?null:false);
+  if(withInput)setTimeout(()=>$('#askIn')?.focus(),30);
+});}
+const askConfirm=m=>askDialog(m,false), askText=m=>askDialog(m,true);
 // ---------- session ----------
 let USER=null; // null = employee (no login)
 const isMgr=()=>!!USER, isOps=()=>USER?.role==='ops';
@@ -651,14 +661,14 @@ function vRate(){
 function setAtt(code,v){const D=day(DATE);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();render();}
 function bulkAtt(v){const D=day(DATE);filtered(true).forEach(e=>{if(!D.att[e.code])D.att[e.code]=v;});save();render();toast('اتسجل الحضور للي مالوش تسجيل');}
 function setCrit(code,i,v){const D=day(DATE);const bag=D[RATE_FIELD[USER.role]];const a=bag[code]||(bag[code]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;save();render();}
-function toggleBonus(code){
+async function toggleBonus(code){
   const D=day(DATE);
-  if(D.bonus[code]){if(confirm('شيل نص النجمة؟')){delete D.bonus[code];save();render();}return;}
-  const note=prompt('إيه الفعل المثالي اللي عمله؟');if(note===null)return;if(!note.trim()){toast('لازم تكتب السبب');return;}
+  if(D.bonus[code]){if(await askConfirm('شيل نص النجمة؟')){delete D.bonus[code];save();render();}return;}
+  const note=await askText('إيه الفعل المثالي اللي عمله؟');if(note===null)return;if(!note.trim()){toast('لازم تكتب السبب');return;}
   D.bonus[code]={v:.5,note:note.trim(),by:USER.username};save();render();
 }
-function giveCard(code,color){
-  const r=prompt(`${CARD[color].t} — السبب؟ (${CARD[color].d})`);if(r===null)return;if(!r.trim()){toast('لازم تكتب السبب');return;}
+async function giveCard(code,color){
+  const r=await askText(`${CARD[color].t} — السبب؟ (${CARD[color].d})`);if(r===null)return;if(!r.trim()){toast('لازم تكتب السبب');return;}
   const approved=color!=='red'||isOps();
   S.cards.push({id:uid(),date:DATE,code,color,reason:r.trim(),by:USER.username,approved});save();render();
   toast(approved?'اتسجل الكارت':'🟥 الكارت الأحمر مستني موافقة مدير التشغيل');
@@ -719,7 +729,7 @@ function confirmWinners(k){
   if(codes.length>S.settings.winnersPerShift){toast(`الحد الأقصى ${S.settings.winnersPerShift}`);return;}
   day(DATE).winners[k]=codes;save();render();toast('🎉 اتعلن رجل اليوم');
 }
-function clearWinners(k){if(!confirm('إلغاء الإعلان؟'))return;delete day(DATE).winners[k];save();render();}
+async function clearWinners(k){if(!await askConfirm('إلغاء الإعلان؟'))return;delete day(DATE).winners[k];save();render();}
 
 // ---------- Employee of the month ----------
 function vMonth(){
@@ -785,7 +795,7 @@ function addCap(){
   save();render();toast('🎗️ اتفعّل الكابتن لـ '+e.name);
 }
 function toggleCap(code,sku){const c=(S.captains[monthOf(DATE)]?.[code]||[]).find(x=>x.sku===sku);if(!c)return;c.active=c.active===false;save();render();}
-function delCap(code,sku){if(!confirm('حذف الكابتن؟'))return;const M=S.captains[monthOf(DATE)];M[code]=(M[code]||[]).filter(x=>x.sku!==sku);save();render();}
+async function delCap(code,sku){if(!await askConfirm('حذف الكابتن؟'))return;const M=S.captains[monthOf(DATE)];M[code]=(M[code]||[]).filter(x=>x.sku!==sku);save();render();}
 function targetDetail(m){
   const p=deptProgress(m,TG.branch,TG.dept,DATE);
   const head=`<div class="sec-title"><h3>${esc(TG.branch)} — ${esc(TG.dept)}</h3><div class="row">${isOps()?`<button class="btn sm" onclick="TG.mode='edit';render()">✏️ تعديل التارجت</button>`:''}<button class="btn sm" onclick="TG.dept='';render()">✕</button></div></div>`;
@@ -857,10 +867,10 @@ function parseImp(){
   return out;
 }
 function previewImp(){const el=$('#impPrev');if(!el)return;const o=parseImp();const L=Object.values(o);el.innerHTML=`<div class="small"><b>${esc(IMP.branch)}</b>: ${fmt(L.length)} صنف · إجمالي كميات ${fmt(L.reduce((a,x)=>a+x.qty,0),1)}</div>`;}
-function commitImp(){
+async function commitImp(){
   const o=parseImp();if(!Object.keys(o).length){toast('مفيش بيانات');return;}
   if(IMP.monthly){(S.baseSales[IMP.month]||(S.baseSales[IMP.month]={}))[IMP.branch]=o;}
-  else{const D=S.sales[IMP.date]||(S.sales[IMP.date]={});if(D[IMP.branch]&&!confirm('فيه تقرير مرفوع لنفس اليوم. استبداله؟'))return;D[IMP.branch]=o;}
+  else{const D=S.sales[IMP.date]||(S.sales[IMP.date]={});if(D[IMP.branch]&&!await askConfirm('فيه تقرير مرفوع لنفس اليوم. استبداله؟'))return;D[IMP.branch]=o;}
   save();closeModal();render();toast('✔ اتسجل تقرير المبيعات');
 }
 
@@ -876,7 +886,7 @@ function vCards(){
     <div class="card"><h3>كل كروت الشهر</h3><div class="tbl-wrap"><table><thead><tr><th>اليوم</th><th>الموظف</th><th>الكارت</th><th>السبب</th><th>من</th><th>الحالة</th><th></th></tr></thead><tbody>${L.map(row).join('')||'<tr><td colspan="7" class="empty">مفيش كروت</td></tr>'}</tbody></table></div></div>`;
 }
 function approveCard(id,ok){const i=S.cards.findIndex(c=>c.id===id);if(i<0)return;if(ok){S.cards[i].approved=true;}else S.cards.splice(i,1);save();render();}
-function delCard(id){if(!confirm('حذف الكارت؟'))return;S.cards=S.cards.filter(c=>c.id!==id);save();render();}
+async function delCard(id){if(!await askConfirm('حذف الكارت؟'))return;S.cards=S.cards.filter(c=>c.id!==id);save();render();}
 
 // ---------- Employee files (managers) ----------
 function vEmps(){
@@ -928,9 +938,9 @@ function openEmp(code){
      <div class="card"><h3>📝 ملاحظات الإدارة</h3>${S.notes.filter(n=>n.code===code).map(n=>`<div class="small" style="margin:4px 0"><b>${n.date}</b> (${esc(n.by)}) — ${esc(n.text)}</div>`).join('')||'<div class="small muted">مفيش</div>'}<button class="btn sm" style="margin-top:6px" onclick="addNote('${code}')">+ ملاحظة</button></div>
    </div>`:''}`);
 }
-function addComplaint(code){const n=prompt('تفاصيل الشكوى:');if(n===null)return;S.complaints.push({id:uid(),date:DATE,code,note:n.trim()||'شكوى ضغط في البيع'});save();openEmp(code);render();}
-function delComplaint(id,code){if(!confirm('حذف؟'))return;S.complaints=S.complaints.filter(c=>c.id!==id);save();openEmp(code);render();}
-function addNote(code){const n=prompt('الملاحظة:');if(!n||!n.trim())return;S.notes.push({id:uid(),date:DATE,code,text:n.trim(),by:USER.username});save();openEmp(code);}
+async function addComplaint(code){const n=await askText('تفاصيل الشكوى:');if(n===null)return;S.complaints.push({id:uid(),date:DATE,code,note:n.trim()||'شكوى ضغط في البيع'});save();openEmp(code);render();}
+async function delComplaint(id,code){if(!await askConfirm('حذف؟'))return;S.complaints=S.complaints.filter(c=>c.id!==id);save();openEmp(code);render();}
+async function addNote(code){const n=await askText('الملاحظة:');if(!n||!n.trim())return;S.notes.push({id:uid(),date:DATE,code,text:n.trim(),by:USER.username});save();openEmp(code);}
 function setPhoto(code){pickFile('image/*',f=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const s=320;c.width=c.height=s;const x=c.getContext('2d');const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,s,s);emp(code).photo=c.toDataURL('image/jpeg',.85);save();openEmp(code);render();};img.src=r.result;};r.readAsDataURL(f);});}
 function setVideo(code){pickFile('video/*',f=>{if(f.size>30*1024*1024){toast('الفيديو أكبر من 30 ميجا');return;}const r=new FileReader();r.onload=()=>{emp(code).video=r.result;save();openEmp(code);render();toast('🎬 اترفع الفيديو');};r.readAsDataURL(f);});}
 function editEmp(code){
@@ -989,7 +999,7 @@ function vSettings(){
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>💰 المكافأة (مخفية)</h3>${num('bonusAt100','المكافأة عند 100 نقطة (ج)')}</div>
-   <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button><button class="btn" onclick="importJSON()">⬆️ استرجاع</button><button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button></div></div>
+   <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button><button class="btn" onclick="importJSON()">⬆️ استرجاع</button><button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button><button class="btn gold" onclick="loadDemo()">🧪 بيانات تجريبية</button></div><div class="small muted" style="margin-top:6px">البيانات التجريبية بتملا تقييمات وكروت ورجل اليوم للشهر الحالي، وحسابات تجريبية: br1/1111 · shm/2222 · fr/3333.</div></div>
   </div>`;
 }
 function setS(path,v){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;toast('اتحفظ');}
@@ -1018,9 +1028,32 @@ function saveUser(name){
   if(g('u_pin'))u.pin=g('u_pin');
   save();closeModal();render();toast('💾 اتحفظ الحساب');
 }
-function delUser(n){if(!confirm('حذف الحساب؟'))return;S.users=S.users.filter(u=>u.username!==n);save();closeModal();render();}
+async function delUser(n){if(!await askConfirm('حذف الحساب؟'))return;S.users=S.users.filter(u=>u.username!==n);save();closeModal();render();}
+async function loadDemo(){
+  if(!await askConfirm('هيتملى الشهر الحالي ببيانات تجريبية (تقييمات، كروت، رجل اليوم، كابتن). تكمل؟'))return;
+  let n=11;const rnd=()=>{n=(n*16807)%2147483647;return n/2147483647;};
+  const addU=u=>{if(!S.users.some(x=>x.username===u.username))S.users.push({...u,active:true});};
+  addU({username:'br1',name:'مدير البيطاش',role:'branch',branch:'البيطاش الرئيسي',shift:'',depts:[],pin:'1111'});
+  addU({username:'shm',name:'مدير شيفت الصبح - البيطاش',role:'shift',branch:'البيطاش الرئيسي',shift:'Morning',depts:[],pin:'2222'});
+  addU({username:'fr',name:'مدير الفريش فود - البيطاش',role:'fresh',branch:'البيطاش الرئيسي',shift:'',depts:['قسم البقاله'],pin:'3333'});
+  const m=monthOf(DATE);const days=monthDays(m,DATE);const staff=activeEmps();
+  const hi=()=>Array.from({length:5},()=>rnd()<.72?2:rnd()<.8?1:0);
+  for(const d of days){const D=(S.days[d]={att:{},attTime:{},br:{},sh:{},fr:{},ops:{},bonus:{},winners:{}});
+    for(const e of staff){const r=rnd();D.att[e.code]=r<.06?'abs':r<.16?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
+      D.br[e.code]=hi();D.sh[e.code]=hi();D.ops[e.code]=hi();if(isFresh(e))D.fr[e.code]=hi();if(rnd()<.03)D.bonus[e.code]={v:.5,note:'ساعد زميله وقت الزحمة',by:'br1'};}
+    if(d<DATE){for(const b of branches())for(const sh of Object.values(SH)){const L=activeEmps().filter(e=>e.branch===b&&e.shift===sh);const R=rankGroup(d,L);if(R.length)D.winners[`${b}|${sh}`]=R.slice(0,R.length>6?2:1).map(x=>x.e.code);}}}
+  S.cards=S.cards.filter(c=>!c.date.startsWith(m));const any=()=>staff[Math.floor(rnd()*staff.length)].code;const dd=()=>days[Math.floor(rnd()*days.length)];
+  for(let i=0;i<14;i++)S.cards.push({id:uid(),date:dd(),code:any(),color:'yellow',reason:'كسر البريك',by:'shm',approved:true});
+  for(let i=0;i<10;i++)S.cards.push({id:uid(),date:dd(),code:any(),color:'green',reason:'ساعد في قسم تاني وقت الزحمة',by:'br1',approved:true});
+  S.cards.push({id:uid(),date:dd(),code:any(),color:'red',reason:'رفع صوته على عميل',by:'br1',approved:true});
+  S.cards.push({id:uid(),date:DATE,code:any(),color:'red',reason:'خناقة مع زميل',by:'shm',approved:false});
+  const T=S.targets[m]||(S.targets[m]={});
+  for(const d of ['قسم الخدمات','قسم الامن و المراقبه'])for(const b of ['البيطاش الرئيسي','عين شمس']){T[deptKey(b,d)]={type:'manual',kpis:PRESETS['نضافة + تقييم المدير'].map((k,i)=>({...k,id:'d'+i}))};for(const day of days){const V=S.kpiVals[day]||(S.kpiVals[day]={});V[deptKey(b,d)]={d0:8+Math.round(rnd()*2)};}}
+  for(const b of ['البيطاش الرئيسي','عين شمس']){T[deptKey(b,'قسم الكاشير')]={type:'manual',kpis:PRESETS['الكاشير'].map((k,i)=>({...k,id:'c'+i}))};for(const day of days){const V=S.kpiVals[day]||(S.kpiVals[day]={});V[deptKey(b,'قسم الكاشير')]={c0:rnd()<.8?0:1,c1:1+Math.round(rnd()*2),c2:8+Math.round(rnd()*2),c3:8+Math.round(rnd()*2),c4:9,c5:rnd()<.7?0:1};}}
+  save();RANK_CACHE=null;render();toast('🧪 اتحمّلت البيانات التجريبية — ارفع مبيعات أكتوبر من «التارجت» عشان تجرب التارجت والكابتن');
+}
 function exportJSON(){const b=new Blob([JSON.stringify(S)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`najm-backup-${DATE}.json`;a.click();}
-function importJSON(){pickFile('.json',f=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.employees)throw 0;if(!confirm('هيستبدل كل البيانات. متأكد؟'))return;S=d;normalize();save();render();}catch(e){toast('ملف غير صالح')}};r.readAsText(f);});}
+function importJSON(){pickFile('.json',f=>{const r=new FileReader();r.onload=async()=>{try{const d=JSON.parse(r.result);if(!d.employees)throw 0;if(!await askConfirm('هيستبدل كل البيانات. متأكد؟'))return;S=d;normalize();save();render();}catch(e){toast('ملف غير صالح')}};r.readAsText(f);});}
 function exportXLSX(){
   const m=monthOf(DATE);
   const sum=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);return {'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'القسم':e.dept,'الوظيفة':e.job,'الشيفت':e.shift,'أيام':ms.n,'متوسط النجوم':ms.avg!=null?+ms.avg.toFixed(2):'','تقييم الشهر':ms.monthScore??'','رجل اليوم':ms.wins,'أصفر':ms.cards.y,'أحمر':ms.cards.r,'أخضر':ms.cards.g,'غياب':ms.abs,'تأخير':ms.late,'تارجت %':ms.target?.pct!=null?Math.round(ms.target.pct):'','نقاط الكابتن':ms.target?.capPts||0,'إجمالي النقاط':ms.target?.empPoints??'','مكافأة':ms.target?.empPoints!=null?money(ms.target.empPoints):''};});
@@ -1029,8 +1062,8 @@ function exportXLSX(){
 }
 
 // ---------- login / modal ----------
-function openLogin(){
-  if(USER){if(confirm('تسجيل خروج؟')){USER=null;try{sessionStorage.removeItem('najm-user')}catch(e){}render();}return;}
+async function openLogin(){
+  if(USER){if(await askConfirm('تسجيل خروج؟')){USER=null;try{sessionStorage.removeItem('najm-user')}catch(e){}render();}return;}
   openModal(`<button class="x" onclick="closeModal()">✕</button><div class="login"><h2>🔐 دخول المديرين</h2>
     <label>اسم الدخول<br><input class="inp" id="l_user" style="width:100%" autocomplete="username"></label><br><br>
     <label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()"></label>
