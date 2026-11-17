@@ -19,6 +19,7 @@ create table if not exists public.najm_employees (
   video text,           -- public URL (storage bucket najm-media)
   updated_at timestamptz not null default now()
 );
+alter table public.najm_employees add column if not exists title text;  -- manual title (لقب) set by operations
 create table if not exists public.najm_users (
   username text primary key,
   name text not null,
@@ -337,6 +338,7 @@ begin
     update najm_employees set
       photo = case when p_data ? 'photo' then nullif(p_data->>'photo','') else photo end,
       video = case when p_data ? 'video' then nullif(p_data->>'video','') else video end,
+      title = case when p_data ? 'title' then nullif(p_data->>'title','') else title end,
       updated_at = now()
     where code = k_code;
   elsif p_kind = 'card' then

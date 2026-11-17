@@ -303,6 +303,21 @@ body.tvmode>header,body.tvmode>nav,body.tvmode>main,body.tvmode #demoFlag{displa
 .ovr-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;padding:0 6px;border-radius:8px;font-weight:900;font-size:13px;background:linear-gradient(160deg,#fbecb4,#e6bd4f 48%,#b07c14);color:#3a2600}
 .ovr-pill.silver{background:linear-gradient(160deg,#f7f9fa,#cdd4da 48%,#8a95a0);color:#1c2329} .ovr-pill.bronze{background:linear-gradient(160deg,#f6d6b4,#d0915c 48%,#8c4c1d);color:#2a1304}
 .fut-grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
+
+/* card editions, glow, badges, titles */
+.fut.potm{--a:#2a2a2a;--b:#111;--c:#000;--t:#f6cf55}
+.fut.potm .fut-in{background:radial-gradient(120% 60% at 50% 0,rgba(246,207,85,.35),transparent 60%),linear-gradient(160deg,#30302c,#121212 50%,#050505)}
+.fut.potm .fut-in:after{box-shadow:inset 0 0 0 2px #f6cf55}
+.fut.potm .fut-name{border-color:rgba(246,207,85,.5)} .fut.potm .fut-sub,.fut.potm .fut-stats span{color:#e8d9a8}
+.fut.form{filter:drop-shadow(0 0 10px rgba(255,170,40,.9)) drop-shadow(0 14px 24px rgba(0,0,0,.35))}
+@media (prefers-reduced-motion:no-preference){.fut.form{animation:futGlow 2.2s ease-in-out infinite}}
+@keyframes futGlow{50%{filter:drop-shadow(0 0 22px rgba(255,190,60,1)) drop-shadow(0 0 6px rgba(255,120,0,.8)) drop-shadow(0 14px 24px rgba(0,0,0,.35))}}
+.fut-flame{position:absolute;top:-.9em;left:50%;transform:translateX(-50%);z-index:3;white-space:nowrap;font-size:.72em;font-weight:900;color:#fff;padding:.15em .8em;border-radius:1em;background:linear-gradient(180deg,#ff9a2e,#e5530c);box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.fut-bdg{display:flex;flex-direction:column;gap:.2em;margin-top:.35em}
+.fut-bdg i{font-style:normal;font-size:1.05em;line-height:1.2;position:relative}
+.fut-bdg sub{font-size:.55em;font-weight:900;position:absolute;bottom:-.1em;left:100%;margin-left:.05em}
+.fut-title{position:relative;margin:-.2em 0 .1em;padding:.05em .9em;border-radius:.4em;font-size:.78em;font-weight:900;color:#fff;background:linear-gradient(90deg,#0f6b45,#16915c);box-shadow:0 2px 6px rgba(0,0,0,.25);white-space:nowrap}
+.fut.potm .fut-title{background:linear-gradient(90deg,#b8861c,#f6cf55);color:#2a1d00}
 </style>
 </head>
 <body>
@@ -638,7 +653,7 @@ async function pull(){
   const N=defaultState();
   N.settings=Object.assign(N.settings,st?.[0]?.data||{});
   if(files?.private?.bonusAt100!=null)N.settings.bonusAt100=files.private.bonusAt100;
-  N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||''}));
+  N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||'',title:e.title||''}));
   N.targets={[m]:Object.fromEntries(tg.map(r=>[r.dkey,r.cfg]))};
   N.captains={[m]:{}};for(const c of caps)(N.captains[m][c.code]||(N.captains[m][c.code]=[])).push({sku:c.sku,name:c.name,target:+c.target,active:c.active,by:c.by_user});
   N.salesSum={month:m,upto:DATE,data:salesSum||{}};N.salesDays={};for(const r of salesDays)(N.salesDays[r.branch]||(N.salesDays[r.branch]=[])).push(r.day);
@@ -1210,7 +1225,7 @@ function openEmp(code){
      <div style="flex:1;min-width:200px"><h2 style="margin:0">${esc(e.name)}</h2>
        <div class="muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
        <div class="row" style="margin-top:6px;gap:6px">${R.company[code]?`<span class="badge b-blue">#${fmt(R.branch[code])} في الفرع</span><span class="badge b-blue">#${fmt(R.company[code])} في المؤسسة من ${fmt(R.total)}</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins)} مرة رجل اليوم</span>${(t=>t?`<span class="badge b-gold">${CUP_NAME[t]} · ${fmt(prizes()[t])} ج</span>`:'')(cupOf(R.company[code]))}${cardsHTML(ms.cards)}</div></div>
-     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button></div>`:''}
+     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="setTitle('${code}')">🏷️ لقب</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button></div>`:''}
    </div>
    ${media}
    <div class="grid g-2" style="margin-bottom:12px">
@@ -1733,16 +1748,51 @@ function futStats(e){
 }
 const FUT_LBL=[['sales','السيلز'],['disc','الانضباط'],['beh','السلوك'],['skill','القدرة الخاصة'],['ideal','المثالية']];
 const posOf=e=>(e.job||e.dept||'').replace(/^قسم /,'').split(' ').slice(0,2).join(' ');
+// الحالة: «في الفورمة» = رجل اليوم في آخر 3 أيام أو متوسط آخر 5 أيام متقيّمة 4.5 نجمة وأكتر
+function futForm(e){
+  let w=false,vals=[];for(let i=0;i<10;i++){const d=new Date(DATE);d.setDate(d.getDate()-i);const k=ymd(d);if(i<3&&isWinner(k,e.code))w=true;const t=score(k,e.code).total;if(t!=null&&vals.length<5)vals.push(t);}
+  const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+  return w||(vals.length>=3&&avg>=4.5);
+}
+// الأوسمة على الكارت
+function futBadges(e){
+  const ms=msOf(e),f=futStats(e),R=ranks(),cup=cupOf(R.company[e.code]),t=ms.target,k=ms.cards||{};const B=[];
+  if(cup)B.push({i:cup==='gold'?'🥇':cup==='silver'?'🥈':cup==='bronze'?'🥉':'🎖️',t:CUP_NAME[cup]});
+  if(ms.wins)B.push({i:'👑',n:ms.wins,t:'رجل اليوم'});
+  if(k.g)B.push({i:'🟩',n:k.g,t:'كروت خضرا'});
+  if((t?.caps||[]).some(c=>c.pct>=100))B.push({i:'🎗️',t:'كابتن حقق التارجت'});
+  const R0=cardRaw(e.code,monthOf(DATE),DATE);if(R0&&(R0.on_n>=10)&&!R0.late_n&&!R0.vlate_n&&!R0.abs_n)B.push({i:'⏱️',t:'التزام كامل'});
+  if((R0?.bonus_n||0)>=2)B.push({i:'⭐',n:R0.bonus_n,t:'مواقف مثالية'});
+  return B;
+}
+// الألقاب: لقب يدوي من مدير التشغيل، وإلا أول لقب يستحقه بالترتيب
+function futTitle(e){
+  if(e.title)return e.title;
+  const R=ranks(),ms=msOf(e),f=futStats(e),k=ms.cards||{};
+  if(R.company[e.code]===1)return 'نجم الشهر';
+  const shiftMates=activeEmps().filter(x=>x.branch===e.branch&&x.shift===e.shift);
+  if(ms.wins>=2&&shiftMates.every(x=>x.code===e.code||msOf(x).wins<ms.wins))return 'ملك الشيفت';
+  if((ms.target?.caps||[]).some(c=>c.pct>=100))return 'الكابتن الدهبي';
+  if(k.g>=3)return 'صاحب الأخلاق';
+  if(f.disc>=95)return 'الماكينة';
+  if(f.skill>=92)return 'الصاروخ';
+  if(f.beh>=95)return 'القائد';
+  if(f.ideal>=90)return 'قلب الفريق';
+  return '';
+}
 function futCard(e,cls=''){
-  const f=futStats(e);
+  const f=futStats(e);const rank=ranks().company[e.code];const potm=rank===1;const form=futForm(e);const title=futTitle(e);const B=futBadges(e).slice(0,4);
   const ph=e.photo?`<img src="${e.photo}" alt="">`:`<div class="fut-ini">${esc((e.name||'?').trim()[0])}</div>`;
-  return `<div class="fut ${f.tier} ${cls}"><div class="fut-in">
-    <div class="fut-top"><div class="fut-ovr"><b>${f.ovr??'—'}</b><span>${esc(posOf(e))}</span><img class="fut-logo" src="${LOGO_HEAD}" alt=""></div><div class="fut-ph">${ph}</div></div>
+  return `<div class="fut ${potm?'potm':f.tier} ${form?'form':''} ${cls}">${form?'<div class="fut-flame">🔥 في الفورمة</div>':''}<div class="fut-in">
+    <div class="fut-top"><div class="fut-ovr"><b>${f.ovr??'—'}</b><span>${esc(posOf(e))}</span><img class="fut-logo" src="${LOGO_HEAD}" alt="">
+      <div class="fut-bdg">${B.map(x=>`<i title="${esc(x.t)}">${x.i}${x.n?`<sub>${x.n}</sub>`:''}</i>`).join('')}</div></div><div class="fut-ph">${ph}</div></div>
+    ${title?`<div class="fut-title">${esc(title)}</div>`:''}
     <div class="fut-name">${esc(e.name.split(' ').slice(0,2).join(' '))}</div>
     <div class="fut-sub">كود ${esc(e.code)} · ${esc(e.branch)}</div>
     <div class="fut-stats">${FUT_LBL.map(([k,l])=>`<div><b>${f[k]??'—'}</b><span>${l}</span></div>`).join('')}</div>
   </div></div>`;
 }
+async function setTitle(code){const e=emp(code);const t=await askText(`لقب ${e.name} (سيبه فاضي يرجع للألقاب التلقائية)`);if(t===null)return;e.title=t.trim();save();openEmp(code);render();push('media',{code},{title:t.trim()});}
 // photos: portrait crop (3:4) — one at a time from the profile, or many at once named by employee code (e.g. 125.jpg)
 function cropPortrait(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const W=600,H=800;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
   const sc=Math.max(W/img.width,H/img.height);const w=img.width*sc,h=img.height*sc;x.drawImage(img,(W-w)/2,(H-h)/2.6,w,h);c.toBlob(b=>res({blob:b,url:c.toDataURL('image/jpeg',.88)}),'image/jpeg',.88);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
