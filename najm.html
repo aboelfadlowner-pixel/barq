@@ -504,12 +504,14 @@ function defaultState(){
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:5, yellowsToRed:2},
       captainMult:3,
-      prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100}
+      prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:0},
+      mgrPoints:{rating:1,winner:20,gold:100,silver:60,bronze:40,top10:20,red:-10,bonus:50}
     },
     users:[{username:'ops',name:'مدير التشغيل',role:'ops',branch:'',shift:'',depts:[],pin:'0000',active:true}],
     branches:[{name:'البيطاش الرئيسي',kind:'branch'},{name:'عين شمس',kind:'branch'},{name:'المصنع',kind:'factory'}],
     employees,
-    days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[]
+    days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
+    mgrCrit:{}, ledger:[], market:[], offers:[]
   };
 }
 
@@ -599,6 +601,10 @@ async function pull(){
     sbRpcAll('najm_public_scores',{p_from:from,p_to:to},'day,code'),
     sbRpc('najm_public_cards',{p_from:from,p_to:DATE<to?DATE:to}),
   ]);
+  const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull]=await Promise.all([
+    sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
+    sbRpc('najm_market_list',{}),sbAll('najm_offers','select=*'),
+    USER?sbRpc('najm_mgr_ratings_full',{p_user:USER.username,p_pin:PIN,p_from:from,p_to:to}):Promise.resolve([])]);
   let full=[],files=null;
   if(USER){[full,files]=await Promise.all([sbRpcAll('najm_full_scores',{p_user:USER.username,p_pin:PIN,p_from:from,p_to:to},'day,code'),sbRpc('najm_files',{p_user:USER.username,p_pin:PIN})]);}
   const N=defaultState();
@@ -622,6 +628,10 @@ async function pull(){
     N.notes=(files.notes||[]).map(n=>({id:n.id,date:n.day,code:n.code,text:n.body,by:n.by_user}));
     if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]}));
   } else N.users=[];
+  N.mgrs=(mgrs||[]).map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],active:true}));
+  N.mgrDaily={};for(const r of mgrPtsRows||[])(N.mgrDaily[r.day]||(N.mgrDaily[r.day]={}))[r.username]=r.pts;
+  N.mgrCrit={};for(const r of mgrFull||[])(N.mgrCrit[r.day]||(N.mgrCrit[r.day]={}))[r.username]=r.crit;
+  N.ledger=(ledger||[]).map(l=>({...l,points:+l.points}));N.market=market||[];N.offers=(offers||[]).map(o=>({...o,points:+o.points}));
   S=N;RANK_CACHE=null;SALES_CACHE={};LAST_PULL=new Date();
 }
 async function refresh(silent){
@@ -790,6 +800,7 @@ const TABS=[
   ['rate','📝 تقييم اليوم',()=>isMgr()],
   ['day','🏆 رجل اليوم',()=>true],
   ['month','👑 العامل المثالي',()=>true],
+  ['league','🏟️ المديرين والسوق',()=>true],
   ['target','🎯 التارجت والكابتن',()=>true],
   ['cards','🟨 الكروت',()=>isMgr()],
   ['emps','🗂️ ملفات الموظفين',()=>isMgr()],
@@ -806,7 +817,7 @@ function render(){
   if(TVB){tvUpdate();return;}
   if(!TABS.find(t=>t[0]===VIEW&&t[2]()))VIEW='dash';
   renderNav();
-  $('#main').innerHTML={screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
+  $('#main').innerHTML={screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,league:vLeague,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
 }
 const branches=()=>S.branches.map(b=>b.name);
 const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.dept).filter(Boolean))].sort();
@@ -1251,6 +1262,7 @@ function vSettings(){
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
+   <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}</div></div>
    <div class="card"><h3>📺 شاشات الفروع</h3><div class="small muted" style="margin-bottom:6px">افتح الرابط على تلفزيون الفرع وسيبه — بيتقلب ويتحدث لوحده.</div>${tvLinks()}</div>
    <div class="card"><h3>💰 مكافأة التارجت (مخفية)</h3>${num('bonusAt100','المكافأة عند 100 نقطة (ج)')}</div>
    <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button>${LIVE?'':'<button class="btn" onclick="importJSON()">⬆️ استرجاع</button>'}<button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button>${LIVE?'':'<button class="btn gold" onclick="loadDemo()">🧪 بيانات تجريبية</button>'}</div><div class="small muted" style="margin-top:6px;${LIVE?'display:none':''}">البيانات التجريبية بتملا تقييمات وكروت ورجل اليوم للشهر الحالي، وحسابات تجريبية: br1/1111 · shm/2222 · fr/3333.</div></div>
@@ -1350,7 +1362,7 @@ return `<svg viewBox="0 0 220 260" class="cup" aria-hidden="true"><defs><linearG
 function tvPh(e,size,ring){const inner=e.photo?`<img class="tv-ph" src="${e.photo}" style="width:${size}px;height:${size}px" alt="">`:`<div class="tv-ph" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px">${esc((e.name||'?').trim()[0])}</div>`;return ring?`<div class="tv-ring">${inner}</div>`:inner;}
 function tvStars(v){const p=Math.max(0,Math.min(5,v||0))/5*100;return `<span class="tv-stars"><span class="bg">★★★★★</span><span class="fg" style="width:${p}%">★★★★★</span></span>`;}
 
-let TVB=null, TV_I=0, TV_TIMER=null, TV_SEEN=null, TV_SPOT=0;
+let TVB=null, TV_I=0, TV_TIMER=null, TV_SEEN=null, TV_SPOT=0, TV_READY=false;
 const TV_SEC=15;
 function tvInit(branch){
   TVB=branches().includes(branch)?branch:branches()[0];
@@ -1376,6 +1388,8 @@ function tvScenes(){
   if(deptsOf(TVB).some(d=>deptProgress(m,TVB,d,DATE)?.pct!=null))L.push(sceneLeague);
   if(captainsIn(m,DATE,e=>e.branch===TVB).length)L.push(sceneCaptain);
   if(ranks().rows.length)L.push(sceneCups,scenePlayer);
+  if(managers().length)L.push(sceneManagers);
+  if((S.market||[]).some(x=>['listed','decided','approved'].includes(x.status)))L.push(sceneMarket);
   return L;
 }
 function tvUpdate(){
@@ -1485,6 +1499,7 @@ function tvTicker(){
 // celebration when a new man of the day appears on this screen
 function tvCelebrateCheck(){
   const W=tvWinnerDay();const keys=W?W.list.map(x=>W.day+'|'+x.e.code):[];
+  if(!TV_READY)return;
   if(TV_SEEN===null){TV_SEEN=new Set(keys);return;}
   const fresh=W?W.list.filter(x=>!TV_SEEN.has(W.day+'|'+x.e.code)):[];keys.forEach(k=>TV_SEEN.add(k));
   if(fresh.length)tvCelebrate(fresh.map(x=>({...x,day:W.day})));
@@ -1500,6 +1515,157 @@ function tvCelebrate(list){
   setTimeout(()=>ov.remove(),12000);
 }
 function tvLinks(){return branches().map(b=>`<div class="kv"><span>📺 ${esc(b)}</span><a class="btn sm" target="_blank" rel="noopener" href="?tv=${encodeURIComponent(b)}">فتح الشاشة</a></div>`).join('');}
+// =========================================================
+// دوري المديرين + سوق الانتقالات
+//   نقاط المدير = تقييم مدير التشغيل اليومي (لحد 10) + رجل اليوم من فريقه + كؤوس فريقه − الكروت الحمرا
+//   الرصيد (المحفظة) = نقاط الشهور المقفولة + مكافأة المدير المثالي − اللي اتصرف في السوق
+// =========================================================
+const MGR_DEF={rating:1,winner:20,gold:100,silver:60,bronze:40,top10:20,red:-10,bonus:50};
+const mgrPts=()=>Object.assign({},MGR_DEF,S.settings.mgrPoints||{});
+function inScopeOf(u,e){if(!u||!e||u.role==='ops')return false;if(u.branch&&e.branch!==u.branch)return false;if(u.role==='shift'&&e.shift!==u.shift)return false;if(u.role==='fresh'&&!(u.depts||[]).includes(e.dept))return false;return true;}
+function managers(){return (S.mgrs||S.users||[]).filter(u=>u.role!=='ops'&&u.active!==false);}
+const mgrName=un=>(S.mgrs||S.users||[]).find(u=>u.username===un)?.name||un;
+function mgrDayPts(d,un){if(S.mgrDaily?.[d]?.[un]!=null)return S.mgrDaily[d][un];const a=S.mgrCrit?.[d]?.[un];return a?a.reduce((x,y)=>x+(y||0),0):0;}
+function mgrMonth(u,month,upto){
+  const P=mgrPts();const days=monthDays(month,upto);let rating=0,wins=0,reds=0,cups=0;
+  for(const d of days){rating+=mgrDayPts(d,u.username);for(const codes of Object.values(peekDay(d).winners||{}))for(const c of codes)if(inScopeOf(u,emp(c)))wins++;}
+  const R=ranks();const team=activeEmps().filter(e=>inScopeOf(u,e));
+  for(const e of team){const t=cupOf(R.company[e.code]);if(t)cups+=P[t];reds+=cardCount(e.code,month,upto).r||0;}
+  return {rating,wins,cups,reds,team:team.length,total:Math.round(rating*P.rating+wins*P.winner+cups+reds*P.red)};
+}
+const balanceOf=un=>(S.ledger||[]).filter(l=>l.username===un).reduce((a,l)=>a+(+l.points||0),0);
+function mgrRanks(){const m=monthOf(DATE);return managers().map(u=>({u,...mgrMonth(u,m,DATE),bal:balanceOf(u.username)})).sort((a,b)=>b.total-a.total||b.rating-a.rating);}
+const mgrOfMonth=m=>(S.ledger||[]).find(l=>l.id===`bonus|${m}|${l.username}`);
+async function pushM(kind,key,data){
+  if(!LIVE)return true;
+  try{const r=await sbRpc('najm_market_save',{p_user:USER.username,p_pin:PIN,p_kind:kind,p_key:key,p_data:data===undefined?null:data});return r??true;}
+  catch(e){const m=e.message;toast(/not enough points/.test(m)?'⚠️ النقاط مش كفاية — '+m.replace(/.*balance/,'رصيدك'):/not taking offers/.test(m)?'السوق مش مفتوح للعروض دلوقتي':errMsg(m));setTimeout(()=>refresh(),400);return false;}
+}
+const MK_STATUS={open:['مستني اللاعب يحدد رغبته','b-gray'],listed:['🟢 مفتوح للعروض','b-green'],decided:['✋ اللاعب اختار — مستني اعتماد التشغيل','b-gold'],approved:['✔ اتنفذ الانتقال','b-blue'],closed:['اتقفل','b-gray']};
+
+function vLeague(){
+  const m=monthOf(DATE);const L=mgrRanks();const P=mgrPts();const pz=prizes();
+  const prev=mgrOfMonth(prevMonth(m));
+  const rateBox=isOps()?`<div class="card" style="margin-bottom:14px"><div class="sec-title" style="margin:0 0 6px"><h3>📝 تقييم المديرين — ${esc(DATE)}</h3><span class="small muted">كل بند من 0 لـ 2 · المجموع نقاط للمدير</span></div>
+    <div class="grid g-emp">${managers().map(u=>{const a=S.mgrCrit?.[DATE]?.[u.username]||[];return `<div class="card"><b>${esc(u.name)}</b><div class="small muted" style="margin-bottom:6px">${ROLES[u.role]} · ${esc(u.branch||'كل الفروع')}${u.shift?' · '+esc(u.shift):''}</div>
+      ${CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${a[i]===v?'on':''}" onclick="setMgrCrit('${esc(u.username)}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')}
+      <div class="small" style="margin-top:4px">النهارده: <b>${fmt(mgrDayPts(DATE,u.username))}</b> / 10</div></div>`;}).join('')||'<div class="empty">مفيش حسابات مديرين لسه — اعملها من الإعدادات</div>'}</div></div>`:'';
+  return `<div class="sec-title"><h2>🏟️ دوري المديرين وسوق الانتقالات — ${monthName(m)}</h2>${isOps()?`<button class="btn gold" onclick="closeMonth()">🔒 إقفال ${monthName(m)} وفتح السوق</button>`:''}</div>
+  <div class="lock" style="margin-bottom:12px">نقاط المدير: تقييم التشغيل اليومي (لحد 10) · رجل اليوم من فريقه +${P.winner} · كؤوس فريقه (دهبي +${P.gold} · فضي +${P.silver} · برونزي +${P.bronze} · من 4 لـ 10 +${P.top10}) · كارت أحمر في فريقه ${P.red}. المدير المثالي: كاس + ${fmt(P.bonus)} نقطة${pz.manager?` + ${fmt(pz.manager)} جنيه`:''}. النقاط بتتحول لرصيد يشتري بيه لاعبين من السوق بعد إقفال الشهر.</div>
+  ${prev?`<div class="card honor" style="margin-bottom:12px"><b>👑 المدير المثالي لـ ${monthName(prevMonth(m))}: ${esc(mgrName(prev.username))}</b></div>`:''}
+  ${rateBox}
+  <div class="card" style="margin-bottom:14px"><h3>🏆 ترتيب المديرين (لحد النهارده)</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>المدير</th><th>تقييم التشغيل</th><th>رجالة اليوم</th><th>كؤوس الفريق</th><th>كروت حمرا</th><th>نقاط الشهر</th><th>الرصيد للسوق</th></tr></thead><tbody>
+  ${L.map((x,i)=>`<tr style="${i===0?'background:var(--gold-soft)':''}"><td><span class="rank ${i===0?'r1':''}">${i+1}</span></td><td><b>${esc(x.u.name)}</b> ${i===0?'👑':''}<div class="small muted">${ROLES[x.u.role]} · ${esc(x.u.branch||'كل الفروع')}${x.u.shift?' · '+esc(x.u.shift):''} · فريقه ${fmt(x.team)}</div></td><td>${fmt(x.rating)}</td><td>${fmt(x.wins)}</td><td>${fmt(x.cups)}</td><td>${x.reds?`<i class="fcard red"></i> ${fmt(x.reds)}`:'—'}</td><td><b>${fmt(x.total)}</b></td><td><b style="color:var(--purple)">${fmt(x.bal)}</b></td></tr>`).join('')||'<tr><td colspan="8" class="empty">مفيش مديرين لسه</td></tr>'}
+  </tbody></table></div></div>
+  ${vMarket()}`;
+}
+function vMarket(){
+  const list=(S.market||[]).filter(x=>x.status!=='closed');
+  return `<div class="card"><div class="sec-title" style="margin:0 0 8px"><h3>🔁 سوق الانتقالات</h3><button class="btn sm" onclick="playerLogin()">🔑 أنا اللاعب — ادخل بالكود</button></div>
+   <div class="small muted" style="margin-bottom:10px">العامل المثالي الأول في الشهر بياخد كود سري: يحدد الشيفت أو الفرع اللي عايزه، والمديرين يقدموا عروض بالنقاط، وهو يختار. مدير التشغيل يعتمد الانتقال.</div>
+   ${list.map(mk=>{const e=emp(mk.code);if(!e)return'';const offers=(S.offers||[]).filter(o=>o.market_id===mk.id).sort((a,b)=>b.points-a.points);const st=MK_STATUS[mk.status]||['',''];
+     const mine=USER&&!isOps()?offers.find(o=>o.username===USER.username):null;
+     return `<div class="card" style="margin-bottom:10px;border-color:#cfc4ff"><div class="row" style="justify-content:space-between">
+       <div class="row" style="flex-wrap:nowrap">${ava(e,'win')}<div><b style="font-size:17px">${esc(e.name)}</b> <span class="badge b-gray">كود ${esc(e.code)}</span><div class="small muted">العامل المثالي لـ ${monthName(mk.month)} · دلوقتي: ${esc(e.branch)} · ${esc(e.shift)}</div></div></div>
+       <span class="badge ${st[1]}">${st[0]}</span></div>
+       ${mk.wish?`<div class="lock" style="margin-top:8px">🎯 رغبته: ${esc([mk.wish.branch,mk.wish.shift&&('شيفت '+mk.wish.shift)].filter(Boolean).join(' · ')||'مفتوح لأي عرض')}${mk.wish.note?` — «${esc(mk.wish.note)}»`:''}</div>`:''}
+       <table style="margin-top:8px"><tbody>${offers.map(o=>`<tr style="${mk.chosen===o.id?'background:var(--green-soft)':''}"><td><b>${esc(mgrName(o.username))}</b><div class="small muted">${esc(o.branch||'')} · ${esc(o.shift||'')}</div></td><td><b style="color:var(--purple)">${fmt(o.points)} نقطة</b></td><td class="small">${esc(o.note||'')}</td><td>${mk.chosen===o.id?'<span class="badge b-green">✔ اختاره</span>':''}</td></tr>`).join('')||'<tr><td class="small muted">مفيش عروض لسه</td></tr>'}</tbody></table>
+       ${mk.chosen==='stay'?'<div class="small" style="margin-top:6px">✋ اللاعب اختار يفضل مكانه</div>':''}
+       ${mk.status==='listed'&&USER&&!isOps()?`<div class="row" style="margin-top:8px"><span class="small">رصيدك: <b>${fmt(balanceOf(USER.username))}</b> نقطة</span><input class="inp" id="of_${mk.id}" type="number" min="1" placeholder="نقاط العرض" value="${mine?mine.points:''}" style="width:120px"><input class="inp" id="on_${mk.id}" placeholder="رسالة للاعب (اختياري)" value="${esc(mine?.note||'')}"><button class="btn pri sm" onclick="makeOffer('${mk.id}')">${mine?'تعديل العرض':'قدّم عرض'}</button>${mine?`<button class="btn sm red" onclick="withdrawOffer('${mk.id}')">سحب</button>`:''}</div>`:''}
+       ${isOps()&&mk.status==='decided'?`<div class="row" style="margin-top:8px"><button class="btn gold sm" onclick="approveMarket('${mk.id}',true)">✔ اعتماد الانتقال</button><button class="btn sm red" onclick="approveMarket('${mk.id}',false)">رجّعه للسوق</button></div>`:''}
+       ${isOps()&&['approved','open','listed'].includes(mk.status)?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="closeMarket('${mk.id}')">قفل السوق ده</button></div>`:''}
+     </div>`;}).join('')||'<div class="empty small">السوق بيفتح بعد إقفال الشهر</div>'}
+  </div>`;
+}
+function setMgrCrit(un,i,v){const D=S.mgrCrit||(S.mgrCrit={});const d=D[DATE]||(D[DATE]={});const a=d[un]||(d[un]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;
+  const full=a.map(x=>x??0);if(S.mgrDaily?.[DATE])delete S.mgrDaily[DATE][un];save();render();pushM('mgr_rate',{day:DATE,username:un},a.every(x=>x==null)?null:full);}
+async function closeMonth(){
+  const m=monthOf(DATE);const last=`${m}-${pad(daysInMonth(m))}`;
+  if(DATE<last&&!await askConfirm(`إنت واقف على ${DATE} مش آخر يوم في ${monthName(m)}. الأفضل تختار ${last} من التاريخ فوق قبل الإقفال. تكمّل برضه؟`))return;
+  const L=mgrRanks();const top=ranks().rows[0];
+  if(!top){toast('مفيش ترتيب للشهر ده');return;}
+  if(!await askConfirm(`إقفال ${monthName(m)}: هيتسجل لكل مدير نقاط الشهر في رصيده، و«${L[0]?.u.name||'—'}» المدير المثالي (+${mgrPts().bonus} نقطة)، ويتفتح السوق لـ «${top.e.name}». تأكيد؟`))return;
+  const P=mgrPts();S.ledger=S.ledger||[];
+  const add=(id,un,pts,reason)=>{S.ledger=S.ledger.filter(l=>l.id!==id);S.ledger.push({id,username:un,month:m,points:pts,reason});return pushM('ledger',{id},{username:un,month:m,points:pts,reason});};
+  for(const x of L)await add(`close|${m}|${x.u.username}`,x.u.username,x.total,`نقاط ${monthName(m)}`);
+  if(L[0])await add(`bonus|${m}|${L[0].u.username}`,L[0].u.username,P.bonus,`المدير المثالي — ${monthName(m)}`);
+  let secret;
+  if(LIVE){const r=await pushM('market_open',{id:m},{month:m,code:top.e.code});if(!r)return;secret=r.secret;}
+  else{secret=String(Math.floor(Math.random()*1e6)).padStart(6,'0');S.market=(S.market||[]).filter(x=>x.id!==m);S.market.unshift({id:m,month:m,code:top.e.code,status:'open',wish:null,chosen:null,secret});}
+  save();await refresh(true);render();
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>🔑 الكود السري لـ ${esc(top.e.name)}</h2><div style="font-size:54px;font-weight:900;letter-spacing:10px;text-align:center;margin:18px 0;direction:ltr">${secret}</div>
+    <div class="lock">اكتبه واديه للاعب بنفسك — مش هيظهر تاني. بيه يدخل «سوق الانتقالات» ويحدد رغبته ويختار العرض.</div>`);
+}
+let PLAYER=null; // {id, secret}
+async function playerLogin(){
+  const mk=(S.market||[]).find(x=>['open','listed'].includes(x.status));if(!mk){toast('مفيش سوق مفتوح دلوقتي');return;}
+  const s=await askText('اكتب الكود السري اللي خدته من مدير التشغيل');if(!s)return;
+  let ok;if(LIVE){try{ok=(await sbRpc('najm_market_player',{p_id:mk.id,p_secret:s.trim(),p_action:'view',p_data:null}))?.ok;}catch(e){toast(/locked/.test(e.message)?'الكود اتقفل من كتر المحاولات — كلم مدير التشغيل':'⚠️ '+e.message);return;}}
+  else ok=mk.secret===s.trim();
+  if(!ok){toast('الكود غلط');return;}
+  PLAYER={id:mk.id,secret:s.trim()};playerPanel();
+}
+function playerPanel(){
+  const mk=(S.market||[]).find(x=>x.id===PLAYER?.id);if(!mk)return;const e=emp(mk.code);const offers=(S.offers||[]).filter(o=>o.market_id===mk.id).sort((a,b)=>b.points-a.points);
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>🔁 أهلاً ${esc(e?.name)} — سوق الانتقالات</h2>
+   ${['open','listed'].includes(mk.status)?`<h3>1) رغبتك للشهر الجاي</h3><div class="row">
+     <label class="small">الفرع<br><select class="inp" id="pw_b"><option value="">أي فرع</option>${branches().map(b=>`<option ${mk.wish?.branch===b?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+     <label class="small">الشيفت<br><select class="inp" id="pw_s"><option value="">أي شيفت</option>${Object.values(SH).map(s=>`<option ${mk.wish?.shift===s?'selected':''}>${s}</option>`).join('')}</select></label>
+     <label class="small" style="flex:1">كلمة للمديرين<br><input class="inp" id="pw_n" style="width:100%" value="${esc(mk.wish?.note||'')}"></label>
+     <button class="btn pri" onclick="playerWish()">${mk.status==='listed'?'تحديث الرغبة':'اعرض نفسي في السوق'}</button></div>`:''}
+   ${mk.status==='listed'?`<h3 style="margin-top:14px">2) العروض (${fmt(offers.length)})</h3>${offers.map(o=>`<div class="row" style="justify-content:space-between;border-bottom:1px dashed var(--line);padding:6px 0"><div><b>${esc(mgrName(o.username))}</b> · ${esc(o.branch||'')} · ${esc(o.shift||'')}<div class="small muted">${esc(o.note||'')}</div></div><div class="row"><b style="color:var(--purple)">${fmt(o.points)} نقطة</b><button class="btn gold sm" onclick="playerChoose('${esc(o.id)}')">أختار العرض ده</button></div></div>`).join('')||'<div class="small muted">لسه مفيش عروض — ارجع بعدين</div>'}
+     <button class="btn sm" style="margin-top:10px" onclick="playerChoose('stay')">أفضل مكاني</button>`:''}
+   ${mk.status==='decided'?'<div class="lock">اختيارك اتسجل — مستني اعتماد مدير التشغيل.</div>':''}`);
+}
+async function playerAct(action,data){
+  const mk=(S.market||[]).find(x=>x.id===PLAYER.id);
+  if(LIVE){try{const r=await sbRpc('najm_market_player',{p_id:PLAYER.id,p_secret:PLAYER.secret,p_action:action,p_data:data});if(!r?.ok){toast('الكود غلط');return false;}}catch(e){toast('⚠️ '+e.message);return false;}}
+  else{if(action==='wish'){mk.wish=data;mk.status='listed';}else{mk.chosen=data.offer;mk.status='decided';}save();}
+  await refresh(true);render();return true;
+}
+async function playerWish(){if(await playerAct('wish',{branch:$('#pw_b').value||null,shift:$('#pw_s').value||null,note:$('#pw_n').value.trim()||null})){toast('✔ اتعرضت في السوق');playerPanel();}}
+async function playerChoose(id){if(!await askConfirm(id==='stay'?'متأكد إنك عايز تفضل مكانك؟':'متأكد من اختيار العرض ده؟'))return;if(await playerAct('choose',{offer:id})){toast('✔ اتسجل اختيارك');closeModal();}}
+async function makeOffer(mid){
+  const pts=+$('#of_'+mid).value;const note=$('#on_'+mid).value.trim();
+  if(!(pts>0)){toast('اكتب عدد النقاط');return;}if(pts>balanceOf(USER.username)){toast('النقاط أكبر من رصيدك');return;}
+  const id=mid+'|'+USER.username;S.offers=(S.offers||[]).filter(o=>o.id!==id);S.offers.push({id,market_id:mid,username:USER.username,points:pts,branch:USER.branch,shift:USER.shift,note});save();render();
+  if(await pushM('offer',{market_id:mid},{points:pts,note,branch:USER.branch||null,shift:USER.shift||null})!==false){toast('✔ اتقدم العرض');refresh(true);}
+}
+async function withdrawOffer(mid){if(!await askConfirm('سحب العرض؟'))return;S.offers=(S.offers||[]).filter(o=>o.id!==mid+'|'+USER.username);save();render();await pushM('offer',{market_id:mid},null);refresh(true);}
+async function approveMarket(id,ok){
+  const mk=(S.market||[]).find(x=>x.id===id);if(!mk)return;
+  if(!await askConfirm(ok?'اعتماد الانتقال؟ هيتخصم النقاط من المدير ويتغيّر شيفت/فرع اللاعب.':'ترجيعه للسوق؟'))return;
+  if(LIVE){if(await pushM('market_approve',{id},{approve:ok})===false)return;}
+  else{if(ok){if(mk.chosen!=='stay'){const o=S.offers.find(x=>x.id===mk.chosen);S.ledger.push({id:'transfer|'+id,username:o.username,month:mk.month,points:-o.points,reason:'ضم '+mk.code});const e=emp(mk.code);if(o.branch)e.branch=o.branch;if(o.shift)e.shift=o.shift;}mk.status='approved';}else{mk.status='listed';mk.chosen=null;}save();}
+  await refresh(true);render();toast(ok?'✔ اتنفذ الانتقال':'رجع للسوق');
+}
+async function closeMarket(id){if(!await askConfirm('قفل السوق ده؟'))return;const mk=(S.market||[]).find(x=>x.id===id);if(mk)mk.status='closed';save();await pushM('market_close',{id},{});await refresh(true);render();}
+
+// TV scenes
+function sceneManagers(){
+  const L=mgrRanks().slice(0,6);const m=monthOf(DATE);const pz=prizes();const P=mgrPts();
+  const top=L[0];
+  return `<div class="tv-h">🎖️ دوري المديرين <small>— ${monthName(m)} لحد النهارده</small></div>
+  <div class="tv-cups" style="height:calc(100% - 78px)">
+   <div class="tv-glass" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px">
+    ${top?`${cupSVG('gold','cgm').replace('class="cup"','class="cup" style="width:230px"')}<div style="font-size:26px;color:var(--muted);font-weight:800">المدير المثالي — لحد النهارده</div><div class="tv-award" style="width:520px"><div class="nm">${esc(top.u.name)}</div><div class="meta">${ROLES[top.u.role]} · ${esc(top.u.branch||'كل الفروع')}${top.u.shift?' · شيفت '+esc(top.u.shift):''}</div>
+      <div class="prize">🏆 كاس + ${fmt(P.bonus)} نقطة${pz.manager?` + ${money$(pz.manager)}`:''}</div></div>`:'<div class="tv-empty">لسه مفيش مديرين</div>'}
+   </div>
+   <div class="tv-glass tv-top10"><div class="tv-h" style="font-size:30px;margin:0 0 6px">⚔️ الترتيب</div>
+    ${L.map((x,i)=>`<div class="tv-row ${x.u.branch===TVB?'tv-mine':''}"><div class="pos ${i<3?'p'+(i+1):''}">${i+1}</div><div class="who"><b>${esc(x.u.name)}</b><span>${ROLES[x.u.role]}${x.u.shift?' · '+esc(x.u.shift):''} · 👑 ${fmt(x.wins)} رجل يوم من فريقه</span></div><div class="tv-amt" style="color:var(--g2)">${fmt(x.total)} نقطة</div></div>`).join('')}
+   </div></div>`;
+}
+function sceneMarket(){
+  const mk=(S.market||[]).find(x=>['listed','decided','approved'].includes(x.status));const e=mk&&emp(mk.code);if(!e)return sceneDay();
+  const offers=(S.offers||[]).filter(o=>o.market_id===mk.id).sort((a,b)=>b.points-a.points);
+  const chosen=offers.find(o=>o.id===mk.chosen);
+  return `<div class="tv-h">🔁 سوق الانتقالات <small>— العامل المثالي لـ ${monthName(mk.month)}</small></div>
+  <div class="tv-player" style="height:calc(100% - 78px)"><div class="tv-fut" style="height:640px">${medalSVG('mkm')}<div class="lvl"><b>#1</b><span>${monthName(mk.month)}</span></div>
+    <div class="ph" style="display:flex;justify-content:center;margin-top:60px">${tvPh(e,260,true)}</div><div class="nm">${esc(e.name)}</div><div class="sub">كود ${esc(e.code)} · ${esc(e.branch)} · ${esc(e.shift)}</div></div>
+   <div>${mk.status==='approved'?`<div class="tv-h" style="font-size:52px;color:var(--g2)">✍️ ${chosen?`انضم لشيفت ${esc(chosen.shift||'')} — ${esc(mgrName(chosen.username))}`:'قرر يفضل مكانه'}</div>`
+     :`<div class="tv-h" style="font-size:44px">${mk.wish?`🎯 عايز: ${esc([mk.wish.branch,mk.wish.shift&&('شيفت '+mk.wish.shift)].filter(Boolean).join(' · ')||'أي عرض')}`:'🎯 بيحدد رغبته'}</div>`}
+    <div class="tv-glass tv-top10" style="margin-top:10px">${offers.slice(0,5).map((o,i)=>`<div class="tv-row"><div class="pos ${i===0?'p1':''}">${i+1}</div><div class="who"><b>${esc(mgrName(o.username))}</b><span>${esc(o.branch||'')} · ${esc(o.shift||'')}${o.note?' — «'+esc(o.note)+'»':''}</span></div><div class="tv-amt" style="color:#b9a6ff">${fmt(o.points)} نقطة</div></div>`).join('')||'<div class="tv-empty" style="font-size:28px">مستني عروض المديرين…</div>'}</div></div></div>`;
+}
 
 // ---------- login / modal ----------
 async function openLogin(){
@@ -1538,6 +1704,7 @@ function closeModal(){$('#modalBg').classList.remove('open');IMP=null;}
     await pull();LIVE=true;
   }catch(e){LIVE=false;if(saved&&!saved.pin&&S.users.some(x=>x.username===saved.username))USER=saved;}
   liveFlag();render();
+  if(TVB){TV_READY=true;tvCelebrateCheck();}
   setInterval(()=>{if(document.visibilityState==='visible')refresh(true);},60000);
 })();
 </script>
