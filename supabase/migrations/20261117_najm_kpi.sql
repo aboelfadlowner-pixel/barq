@@ -270,6 +270,13 @@ begin
   if p_kind in ('att','rate','bonus','note','card','captain') and not public.najm_in_scope(u, k_code) then
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
+  if p_kind in ('att','rate','bonus') and u.role <> 'ops' and (
+       k_day < (now() at time zone 'Africa/Cairo')::date - 1
+    or k_day > (now() at time zone 'Africa/Cairo')::date
+    or exists (select 1 from najm_winners w join najm_employees e on e.code = k_code
+               where w.day = k_day and w.gkey = e.branch || '|' || e.shift)) then
+    raise exception 'najm: day locked' using errcode = '42501';
+  end if;
   if p_kind = 'att' and u.role = 'fresh' then
     raise exception 'najm: attendance is entered by branch/shift managers' using errcode = '42501';
   end if;
@@ -416,6 +423,17 @@ grant execute on function public.najm_save(text, text, text, jsonb, jsonb) to an
 grant execute on function public.najm_public_cards(date, date) to anon, authenticated;
 
 -- ---------------------------------------------------------------- storage for photos / videos
+-- uploads: a manager asks for a one-time token (PIN-checked), then uploads to <token>/<file>
+create table if not exists public.najm_upload_tokens (
+  token text primary key, username text not null, expires_at timestamptz not null
+);
+alter table public.najm_upload_tokens enable row level security;
+create or replace function public.najm_upload_ok(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from najm_upload_tokens where token = split_part(p_name, '/', 1) and expires_at > now());
+$$;
+grant execute on function public.najm_upload_ok(text) to anon, authenticated;
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('najm-media', 'najm-media', true, 31457280,
         array['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime'])
@@ -423,7 +441,7 @@ on conflict (id) do nothing;
 drop policy if exists najm_media_read on storage.objects;
 create policy najm_media_read on storage.objects for select to anon, authenticated using (bucket_id = 'najm-media');
 drop policy if exists najm_media_upload on storage.objects;
-create policy najm_media_upload on storage.objects for insert to anon, authenticated with check (bucket_id = 'najm-media');
+create policy najm_media_upload on storage.objects for insert to anon, authenticated with check (bucket_id = 'najm-media' and public.najm_upload_ok(name));
 
 -- ---------------------------------------------------------------- defaults
 -- first login: username «ops», PIN «0000» → change it from the app (الإعدادات → الحسابات)
@@ -560,6 +578,8 @@ begin
     if u.role = 'ops' then raise exception 'najm: operations manager does not bid'; end if;
     select * into m from najm_market where id = p_key->>'market_id';
     if m.status <> 'listed' then raise exception 'najm: market is not taking offers'; end if;
+    if now() > m.created_at + make_interval(days => coalesce(((select data from najm_settings where id = 1)->>'marketDays')::int, 5)) then
+      raise exception 'najm: market deadline passed' using errcode = '42501'; end if;
     if del then delete from najm_offers where id = p_key->>'market_id' || '|' || u.username;
     else
       bal := public.najm_balance(u.username);
@@ -629,3 +649,79 @@ language sql stable security definer set search_path = public as $$
   from r group by r.code;
 $$;
 grant execute on function public.najm_card_stats(date, date) to anon, authenticated;
+
+
+-- =========================================================================================
+-- Security & operations hardening
+-- =========================================================================================
+-- 1) lockout: 5 wrong PINs in a row lock the username for 15 minutes
+create table if not exists public.najm_login_fails (
+  username text primary key, fails int not null default 0, locked_until timestamptz
+);
+alter table public.najm_login_fails enable row level security;
+create or replace function public.najm_auth(p_user text, p_pin text)
+returns public.najm_users language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users; f najm_login_fails; un text := lower(trim(p_user));
+begin
+  select * into f from najm_login_fails where username = un;
+  if f.locked_until is not null and f.locked_until > now() then return null; end if;
+  select * into u from najm_users x where x.username = un and x.active
+    and x.pin_hash = encode(sha256(convert_to(x.salt || coalesce(p_pin,''), 'UTF8')), 'hex');
+  if u.username is null then
+    insert into najm_login_fails(username, fails) values (un, 1)
+      on conflict (username) do update set fails = najm_login_fails.fails + 1,
+        locked_until = case when najm_login_fails.fails + 1 >= 5 then now() + interval '15 minutes' end;
+    update najm_login_fails set fails = 0 where username = un and locked_until is not null and fails >= 5;
+    return null;
+  end if;
+  delete from najm_login_fails where username = un;
+  return u;
+end $$;
+revoke all on function public.najm_auth(text, text) from public, anon, authenticated;
+alter function public.najm_login(text, text) volatile;
+alter function public.najm_full_scores(text, text, date, date) volatile;
+alter function public.najm_files(text, text) volatile;
+alter function public.najm_mgr_ratings_full(text, text, date, date) volatile;
+alter function public.najm_in_scope(public.najm_users, text) volatile;
+
+-- 2) upload token (managers; operations for photos/videos)
+create or replace function public.najm_upload_token(p_user text, p_pin text)
+returns text language plpgsql security definer set search_path = public as $$
+declare u najm_users; t text := md5(random()::text || clock_timestamp()::text);
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
+  if u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
+  delete from najm_upload_tokens where expires_at < now();
+  insert into najm_upload_tokens(token, username, expires_at) values (t, u.username, now() + interval '30 minutes');
+  return t;
+end $$;
+grant execute on function public.najm_upload_token(text, text) to anon, authenticated;
+
+-- 3) prize payouts: operations marks what was actually paid
+create table if not exists public.najm_payouts (
+  id text primary key, month text not null, code text not null, kind text not null, ref text, amount numeric not null,
+  paid_at timestamptz not null default now(), by_user text
+);
+alter table public.najm_payouts enable row level security;
+create or replace function public.najm_payouts_list(p_user text, p_pin text, p_month text)
+returns setof public.najm_payouts language plpgsql security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null or u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
+  return query select * from najm_payouts where month = p_month order by paid_at;
+end $$;
+create or replace function public.najm_payout_save(p_user text, p_pin text, p_id text, p_data jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null or u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
+  if p_data is null or p_data = 'null'::jsonb then delete from najm_payouts where id = p_id; return; end if;
+  insert into najm_payouts(id, month, code, kind, ref, amount, by_user)
+    values (p_id, p_data->>'month', p_data->>'code', p_data->>'kind', p_data->>'ref', (p_data->>'amount')::numeric, u.username)
+    on conflict (id) do nothing;
+end $$;
+grant execute on function public.najm_payouts_list(text, text, text) to anon, authenticated;
+grant execute on function public.najm_payout_save(text, text, text, jsonb) to anon, authenticated;

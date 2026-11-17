@@ -570,6 +570,7 @@ function defaultState(){
       cards:{yellow:-5, red:-20, green:5, yellowsToRed:2},
       captainMult:3,
       prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:1000},
+      marketDays:5,
       mgrPoints:{rating:1,winner:20,gold:100,silver:60,bronze:40,top10:20,red:-10,bonus:50}
     },
     users:[{username:'ops',name:'مدير التشغيل',role:'ops',branch:'',shift:'',depts:[],pin:'0000',active:true}],
@@ -639,14 +640,16 @@ async function sbGet(path){const r=await fetch(`${SB_URL}/rest/v1/${path}`,{head
 async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/${fn}${qs}`,{method:'POST',headers:SBH,body:JSON.stringify(args)});const t=await r.text();if(!r.ok){let m=t;try{m=JSON.parse(t).message||t}catch(e){}throw new Error(m);}return t?JSON.parse(t):null;}
 async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=await sbRpc(fn,args,`?order=${order}&limit=1000&offset=${off}`);out=out.concat(d||[]);if(!d||d.length<1000)break;off+=1000;}return out;}
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
-const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري اتغيّر — ادخل تاني':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
+const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
 async function push(kind,key,data){
   if(!LIVE) return true;
   try{const r=await sbRpc('najm_save',{p_user:USER.username,p_pin:PIN,p_kind:kind,p_key:key,p_data:data===undefined?null:data});return r??true;}
   catch(e){toast(errMsg(e.message));setTimeout(()=>refresh(),400);return false;}
 }
+let UPTOK=null;
 async function uploadMedia(code,blob,ext){
-  const path=`${code}/${Date.now()}.${ext}`;
+  if(!UPTOK||UPTOK.exp<Date.now())UPTOK={t:await sbRpc('najm_upload_token',{p_user:USER.username,p_pin:PIN}),exp:Date.now()+25*60000};
+  const path=`${UPTOK.t}/${code}/${Date.now()}.${ext}`;
   const r=await fetch(`${SB_URL}/storage/v1/object/najm-media/${path}`,{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':blob.type||'application/octet-stream'},body:blob});
   if(!r.ok)throw new Error(await r.text());
   return `${SB_URL}/storage/v1/object/public/najm-media/${path}`;
@@ -698,6 +701,7 @@ async function pull(){
   N.mgrs=(mgrs||[]).map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],active:true}));
   N.mgrDaily={};for(const r of mgrPtsRows||[])(N.mgrDaily[r.day]||(N.mgrDaily[r.day]={}))[r.username]=r.pts;
   N.mgrCrit={};for(const r of mgrFull||[])(N.mgrCrit[r.day]||(N.mgrCrit[r.day]={}))[r.username]=r.crit;
+  N.payouts=USER?.role==='ops'?((await sbRpc('najm_payouts_list',{p_user:USER.username,p_pin:PIN,p_month:m}).catch(()=>[]))||[]):[];
   N.ledger=(ledger||[]).map(l=>({...l,points:+l.points}));N.market=market||[];N.offers=(offers||[]).map(o=>({...o,points:+o.points}));
   S=N;RANK_CACHE=null;SALES_CACHE={};LAST_PULL=new Date();
 }
@@ -962,16 +966,23 @@ function vDash(){
 }
 
 // ---------- Rating (managers) ----------
+const todayC=()=>ymd(new Date());
+function dayLocked(e){if(isOps())return false;const t=todayC();const y=new Date();y.setDate(y.getDate()-1);
+  return DATE>t||DATE<ymd(y)||!!(peekDay(DATE).winners||{})[e.branch+'|'+e.shift];}
 function vRate(){
   const list=filtered(true);const D=peekDay(DATE);const field=RATE_FIELD[USER.role];
   const canAtt=USER.role!=='fresh';
+  const left=list.filter(e=>{const a=D[field][e.code];return !dayLocked(e)&&peekDay(DATE).att[e.code]!=='abs'&&peekDay(DATE).att[e.code]!=='off'&&!(a&&a.every(x=>x!=null));});
   return `<div class="sec-title"><h2>تقييم يوم ${esc(DATE)} — ${ROLES[USER.role]}</h2>
-    <div class="row">${canAtt?`<button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button><button class="btn" onclick="bulkAtt('on')">✔️ الباقي في ميعاده</button>`:''}</div></div>
+    <div class="row">${canAtt?`<button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button><button class="btn" onclick="bulkAtt('on')">✔️ الباقي في ميعاده</button>`:''}<button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
+  ${left.length?`<div class="card" style="margin-bottom:10px;border-color:#f3c3be;background:var(--red-soft)"><b>⏰ فاضل ${fmt(left.length)} موظف ماكملتش تقييمهم النهارده:</b> <span class="small">${left.slice(0,12).map(e=>esc(e.name.split(' ').slice(0,2).join(' '))).join('، ')}${left.length>12?' …':''}</span></div>`:list.length?'<div class="card" style="margin-bottom:10px;border-color:#bfe3d6;background:var(--green-soft)"><b>✔ خلّصت تقييم فريقك النهارده</b></div>':''}
+  ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول للي اتعلن رجل اليوم بتاعهم أو لو اليوم عدّى أكتر من يوم — أي تعديل عن طريق مدير التشغيل.</div>':''}
   <div class="lock" style="margin-bottom:10px">البصمة ${S.settings.att.on} نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · مدير التشغيل نجمة · سلوك مثالي ½. كل بند من 0 لـ 2.</div>
   ${filterBar({scoped:true})}
   <div class="grid g-emp">${list.map(e=>{
     const s=score(DATE,e.code);const arr=D[field][e.code]||[];const myC=cardsOf(e.code,DATE,DATE,true);
-    return `<div class="card" id="rc-${e.code}">
+    const lk=dayLocked(e);
+    return `<div class="card" id="rc-${e.code}" style="${lk?'opacity:.6;pointer-events:none':''}">${lk?'<div class="small" style="color:var(--red);font-weight:800">🔒 مقفول</div>':''}
       <div class="emp-top" style="margin-bottom:6px">${ava(e)}<div><div class="emp-name">${esc(e.name)}</div><div class="small muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.shift)}</div></div></div>
       ${canAtt?`<div class="seg att" style="margin-bottom:6px;width:100%;display:flex">${Object.entries(ATT).map(([k,v])=>`<button style="flex:1;padding:3px 2px;font-size:11px" data-v="${k}" class="${s.st===k?'on':''}" onclick="setAtt('${e.code}','${k}')">${v}</button>`).join('')}</div>`:`<div class="small muted">البصمة: ${ATT[s.st]||'—'}</div>`}
       ${D.attTime?.[e.code]?`<div class="small muted">وقت البصمة: ${esc(D.attTime[e.code])}</div>`:''}
@@ -1063,7 +1074,7 @@ async function clearWinners(k){if(!await askConfirm('إلغاء الإعلان؟
 function vMonth(){
   const m=monthOf(DATE);const R=ranks();const k=S.settings.cards;
   const rows=R.rows.filter(x=>!F.branch||x.e.branch===F.branch);const top3=rows.slice(0,3);
-  return `<div class="sec-title"><h2>👑 العامل المثالي — ${monthName(m)}</h2><span class="small muted">حتى ${esc(DATE)}</span></div>
+  return `<div class="sec-title"><h2>👑 العامل المثالي — ${monthName(m)}</h2><div class="row"><span class="small muted">حتى ${esc(DATE)}</span>${isOps()?'<button class="btn gold" onclick="showPayouts()">💵 صرف الجوايز</button>':''}</div></div>
     <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
     <div class="lock" style="margin-bottom:12px">🏆 الجوايز: الكأس الدهبي ${fmt(prizes().gold)} ج · الفضي ${fmt(prizes().silver)} ج · البرونزي ${fmt(prizes().bronze)} ج · من 4 لـ 10 ${fmt(prizes().top10)} ج · رجل اليوم ${fmt(prizes().daily)} ج.<br>الترتيب: عدد مرات «رجل اليوم» ← تقييم الشهر من 100 (النجوم + الكروت: <i class="fcard yellow"></i> ${k.yellow} · <i class="fcard red"></i> ${k.red} · <i class="fcard green"></i> +${k.green} · كل ${k.yellowsToRed} أصفر = أحمر) ← نقاط التارجت والكابتن.</div>
     ${top3.length?`<div class="podium" style="margin-bottom:16px">${top3.map((x,i)=>`<div class="card" style="cursor:pointer;${i===0?'border:2px solid var(--gold)':''}" onclick="openEmp('${x.e.code}')"><div style="font-size:26px">${['🥇','🥈','🥉'][i]}</div>${ava(x.e,'xl'+(i===0?' win':'')).replace('class="ava','style="margin:6px auto" class="ava')}<div class="emp-name">${esc(x.e.name)}</div><div class="small muted">${esc(x.e.branch)} · ${esc(x.e.dept)}</div>${starsHTML(x.ms.avg,'lg')}<div class="small">🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100 ${cardsHTML(x.ms.cards)}</div><div class="badge b-gold" style="margin-top:6px;font-size:13px">${['الكأس الدهبي','الكأس الفضي','الكأس البرونزي'][i]} · ${fmt(prizes()[['gold','silver','bronze'][i]])} ج</div></div>`).join('')}</div>`:''}
@@ -1331,7 +1342,7 @@ function vSettings(){
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
-   <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}</div></div>
+   <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}${num('marketDays','أيام فتح السوق للعروض')}</div></div>
    <div class="card"><h3>📺 شاشات الفروع</h3><div class="small muted" style="margin-bottom:6px">افتح الرابط على تلفزيون الفرع وسيبه — بيتقلب ويتحدث لوحده.</div>${tvLinks()}</div>
    <div class="card"><h3>💰 مكافأة التارجت (مخفية)</h3>${num('bonusAt100','المكافأة عند 100 نقطة (ج)')}</div>
    <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button>${LIVE?'':'<button class="btn" onclick="importJSON()">⬆️ استرجاع</button>'}<button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button>${LIVE?'':'<button class="btn gold" onclick="loadDemo()">🧪 بيانات تجريبية</button>'}</div><div class="small muted" style="margin-top:6px;${LIVE?'display:none':''}">البيانات التجريبية بتملا تقييمات وكروت ورجل اليوم للشهر الحالي، وحسابات تجريبية: br1/1111 · shm/2222 · fr/3333.</div></div>
@@ -1633,7 +1644,7 @@ function vMarket(){
      const mine=USER&&!isOps()?offers.find(o=>o.username===USER.username):null;
      return `<div class="card" style="margin-bottom:10px;border-color:#cfc4ff"><div class="row" style="justify-content:space-between">
        <div class="row" style="flex-wrap:nowrap">${ava(e,'win')}<div><b style="font-size:17px">${esc(e.name)}</b> <span class="badge b-gray">كود ${esc(e.code)}</span><div class="small muted">العامل المثالي لـ ${monthName(mk.month)} · دلوقتي: ${esc(e.branch)} · ${esc(e.shift)}</div></div></div>
-       <span class="badge ${st[1]}">${st[0]}</span></div>
+       <div style="text-align:left"><span class="badge ${st[1]}">${st[0]}</span>${mk.status==='listed'&&mk.created_at?`<div class="small muted">العروض لحد ${new Date(new Date(mk.created_at).getTime()+(S.settings.marketDays||5)*864e5).toLocaleDateString('ar-EG',{weekday:'long',day:'numeric',month:'long'})}</div>`:''}</div></div>
        ${mk.wish?`<div class="lock" style="margin-top:8px">🎯 رغبته: ${esc([mk.wish.branch,mk.wish.shift&&('شيفت '+mk.wish.shift)].filter(Boolean).join(' · ')||'مفتوح لأي عرض')}${mk.wish.note?` — «${esc(mk.wish.note)}»`:''}</div>`:''}
        <table style="margin-top:8px"><tbody>${offers.map(o=>`<tr style="${mk.chosen===o.id?'background:var(--green-soft)':''}"><td><b>${esc(mgrName(o.username))}</b><div class="small muted">${esc(o.branch||'')} · ${esc(o.shift||'')}</div></td><td><b style="color:var(--purple)">${fmt(o.points)} نقطة</b></td><td class="small">${esc(o.note||'')}</td><td>${mk.chosen===o.id?'<span class="badge b-green">✔ اختاره</span>':''}</td></tr>`).join('')||'<tr><td class="small muted">مفيش عروض لسه</td></tr>'}</tbody></table>
        ${mk.chosen==='stay'?'<div class="small" style="margin-top:6px">✋ اللاعب اختار يفضل مكانه</div>':''}
@@ -1850,6 +1861,44 @@ function bulkPhotos(){
   f.click();
 }
 
+// ---------- صرف الجوايز (مدير التشغيل) ----------
+function duePrizes(){
+  const m=monthOf(DATE);const P=prizes();const out=[];
+  for(const d of monthDays(m,DATE))for(const[g,codes]of Object.entries(peekDay(d).winners||{}))for(const c of codes){const e=emp(c);if(e)out.push({id:`daily|${d}|${c}`,code:c,name:e.name,branch:e.branch,kind:'daily',ref:d,label:`رجل اليوم ${d.slice(5)} · ${g.split('|')[1]}`,amount:P.daily});}
+  const R=ranks();R.rows.slice(0,10).forEach((x,i)=>{const t=cupOf(i+1);out.push({id:`cup|${m}|${x.e.code}`,code:x.e.code,name:x.e.name,branch:x.e.branch,kind:'cup',ref:m,label:`${CUP_NAME[t]} (المركز ${i+1})`,amount:P[t]});});
+  const mg=(S.ledger||[]).find(l=>l.id===`bonus|${m}|${l.username}`);if(mg&&P.manager)out.push({id:`manager|${m}|${mg.username}`,code:mg.username,name:mgrName(mg.username),branch:'مدير',kind:'manager',ref:m,label:'المدير المثالي',amount:P.manager});
+  return out;
+}
+function showPayouts(){
+  const L=duePrizes();const paid=new Map((S.payouts||[]).map(p=>[p.id,p]));const m=monthOf(DATE);
+  const tot=L.reduce((a,x)=>a+x.amount,0),done=L.filter(x=>paid.has(x.id)).reduce((a,x)=>a+x.amount,0);
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>💵 صرف جوايز ${monthName(m)}</h2>
+   <div class="row" style="margin-bottom:8px"><span class="badge b-gold">المستحق ${fmt(tot)} ج</span><span class="badge b-green">اتصرف ${fmt(done)} ج</span><span class="badge b-red">فاضل ${fmt(tot-done)} ج</span><button class="btn sm" onclick="exportPayouts()">📊 Excel للحسابات</button></div>
+   <div class="lock" style="margin-bottom:8px">كؤوس الشهر بتتصرف بعد إقفال الشهر (الترتيب قبلها مؤقت).</div>
+   <div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>الاسم</th><th>الفرع</th><th>الجايزة</th><th>المبلغ</th><th>اتصرف؟</th></tr></thead><tbody>
+   ${L.map(x=>{const p=paid.get(x.id);return `<tr><td><b>${esc(x.name)}</b> <span class="small muted">${esc(x.code)}</span></td><td class="small">${esc(x.branch)}</td><td class="small">${esc(x.label)}</td><td><b>${fmt(x.amount)} ج</b></td><td>${p?`<span class="badge b-green">✔ ${new Date(p.paid_at).toLocaleDateString('ar-EG')}</span> <button class="btn sm" onclick="markPaid('${esc(x.id)}',false)">تراجع</button>`:`<button class="btn sm pri" onclick="markPaid('${esc(x.id)}',true)">اتصرف</button>`}</td></tr>`;}).join('')||'<tr><td colspan="5" class="empty">مفيش جوايز مستحقة لسه</td></tr>'}
+   </tbody></table></div>`);
+}
+async function markPaid(id,on){
+  const x=duePrizes().find(y=>y.id===id);if(!x)return;S.payouts=S.payouts||[];
+  if(on)S.payouts.push({id,month:monthOf(DATE),code:x.code,kind:x.kind,ref:x.ref,amount:x.amount,paid_at:new Date().toISOString()});else S.payouts=S.payouts.filter(p=>p.id!==id);
+  save();showPayouts();
+  if(LIVE){try{await sbRpc('najm_payout_save',{p_user:USER.username,p_pin:PIN,p_id:id,p_data:on?{month:monthOf(DATE),code:x.code,kind:x.kind,ref:x.ref,amount:x.amount}:null});}catch(e){toast(errMsg(e.message));}}
+}
+function exportPayouts(){
+  const paid=new Map((S.payouts||[]).map(p=>[p.id,p]));
+  const rows=duePrizes().map(x=>({'الكود':x.code,'الاسم':x.name,'الفرع':x.branch,'الجايزة':x.label,'المبلغ':x.amount,'اتصرف':paid.has(x.id)?'✔':'','تاريخ الصرف':paid.get(x.id)?new Date(paid.get(x.id).paid_at).toLocaleDateString('ar-EG'):''}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'الجوايز');XLSX.writeFile(wb,`najm-prizes-${monthOf(DATE)}.xlsx`);
+}
+// ---------- دليل الاستخدام ----------
+const GUIDE={
+  shift:['أول الشيفت: افتح «تقييم اليوم» — هتلاقي فريقك بس.','سجّل البصمة: ارفع شيت البصمة أو دوس «الباقي في ميعاده» وصلّح المتأخر والغايب.','آخر الشيفت: قيّم كل موظف في الـ5 بنود (0 أو 1 أو 2). الشريط الأحمر فوق بيقولك مين فاضل.','الكروت: أصفر لكسر البريك أو عدم الالتزام، أخضر للإيجابية ومساعدة الزملاء، أحمر للسلوك السيء (بيحتاج موافقة التشغيل). لازم تكتب السبب.','½ نجمة «مثالي» للموقف اللي يستاهل — واكتب الموقف.','التقييم بيتقفل لما يتعلن رجل اليوم أو بعد يوم — لو محتاج تعديل كلم مدير التشغيل.'],
+  branch:['نفس خطوات مدير الشيفت بس على الفرع كله.','سجّل مؤشرات الأقسام التشغيلية (النضافة، الكاشير…) من «التارجت والكابتن».','ارفع تقرير المبيعات اليومي لو مش بيتسحب لوحده.','حدد الكابتن الشخصي للشيفات والسيلز من صفحة القسم.'],
+  fresh:['افتح «تقييم اليوم» — هتلاقي أقسام الفريش فود بس.','قيّم كل موظف في الـ5 بنود آخر اليوم — تقييمك ثلث نجمة المدير المباشر في أقسامك.','حدد منتجات الكابتن للشيفات والسيلز في أقسامك.'],
+  ops:['الصبح: قيّم الموظفين (نجمتك)، وقيّم المديرين من «المديرين والسوق».','اعتمد رجل اليوم لكل شيفت من «رجل اليوم» — بيظهر على شاشة الفرع باحتفال.','وافق أو ارفض الكروت الحمرا من «الكروت».','ارفع مبيعات اليوم (لحد ما تتسحب لوحدها) وراجع التارجت.','آخر الشهر: اختار آخر يوم في الشهر من التاريخ، ودوس «إقفال الشهر وفتح السوق»، واكتب الكود السري وسلّمه للأول بإيدك.','اصرف الجوايز وعلّم عليها من «العامل المثالي» ← «صرف الجوايز».']
+};
+function showGuide(){const r=USER?.role||'shift';openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📘 دليل ${ROLES[r]}</h2><ol style="line-height:2;padding-inline-start:20px">${GUIDE[r].map(t=>`<li>${esc(t)}</li>`).join('')}</ol>`);}
+
 // ---------- login / modal ----------
 async function openLogin(){
   if(USER){if(await askConfirm('تسجيل خروج؟')){USER=null;PIN=null;try{sessionStorage.removeItem('najm-user')}catch(e){}if(LIVE)await refresh();render();}return;}
@@ -1865,7 +1914,7 @@ async function doLogin(){
   let u;
   if(LIVE){try{u=await sbRpc('najm_login',{p_user:un,p_pin:pin});}catch(e){toast('⚠️ مش قادر أوصل لقاعدة البيانات');return;}PIN=pin;}
   else u=S.users.find(x=>x.username===un&&x.pin===pin&&x.active!==false);
-  if(!u){PIN=null;toast('اسم الدخول أو الرقم السري غلط');return;}
+  if(!u){PIN=null;toast('اسم الدخول أو الرقم السري غلط — بعد 5 محاولات غلط الحساب بيتقفل 15 دقيقة');return;}
   USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]};
   try{sessionStorage.setItem('najm-user',JSON.stringify({...USER,pin:LIVE?PIN:undefined}))}catch(e){}
   F.branch=USER.branch||'';closeModal();VIEW=USER.role==='ops'?'dash':'rate';
