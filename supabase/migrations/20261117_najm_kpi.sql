@@ -93,12 +93,13 @@ create table if not exists public.najm_cards (
   approved boolean not null default false, approved_by text,
   created_at timestamptz not null default now()
 );
--- captain products: extra quantity target per department, points × 3 (settings.captainMult)
+-- captain = personal extra target: each salesperson / chef gets one or more products (kilos sold by the branch
+-- in the Foodics product-sales sheet), points × settings.captainMult
 create table if not exists public.najm_captains (
-  month text not null, dkey text not null, sku text not null,
+  month text not null, code text not null, sku text not null,
   name text, target numeric not null default 0, active boolean not null default true, by_user text,
   updated_at timestamptz not null default now(),
-  primary key (month, dkey, sku)
+  primary key (month, code, sku)
 );
 create index if not exists najm_cards_day_idx on public.najm_cards (day);
 
@@ -265,12 +266,7 @@ begin
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
-  if p_kind = 'captain' and u.role <> 'ops' and (
-       (u.branch is not null and split_part(p_key->>'dkey','|',1) <> u.branch)
-    or (u.role = 'fresh' and not (split_part(p_key->>'dkey','|',2) = any (coalesce(u.depts, array[]::text[]))))) then
-    raise exception 'najm: department outside your scope' using errcode = '42501';
-  end if;
-  if p_kind in ('att','rate','bonus','note','card') and not public.najm_in_scope(u, k_code) then
+  if p_kind in ('att','rate','bonus','note','card','captain') and not public.najm_in_scope(u, k_code) then
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
   if p_kind = 'att' and u.role = 'fresh' then
@@ -361,11 +357,11 @@ begin
       delete from najm_cards where id = p_key->>'id';
     end if;
   elsif p_kind = 'captain' then
-    if del then delete from najm_captains where month = p_key->>'month' and dkey = p_key->>'dkey' and sku = p_key->>'sku';
-    else insert into najm_captains(month, dkey, sku, name, target, active, by_user)
-      values (p_key->>'month', p_key->>'dkey', p_key->>'sku', p_data->>'name', coalesce((p_data->>'target')::numeric, 0),
+    if del then delete from najm_captains where month = p_key->>'month' and code = k_code and sku = p_key->>'sku';
+    else insert into najm_captains(month, code, sku, name, target, active, by_user)
+      values (p_key->>'month', k_code, p_key->>'sku', p_data->>'name', coalesce((p_data->>'target')::numeric, 0),
               coalesce((p_data->>'active')::boolean, true), u.username)
-      on conflict (month, dkey, sku) do update set name = excluded.name, target = excluded.target, active = excluded.active,
+      on conflict (month, code, sku) do update set name = excluded.name, target = excluded.target, active = excluded.active,
         by_user = excluded.by_user, updated_at = now(); end if;
   elsif p_kind = 'settings' then
     insert into najm_settings(id, data) values (1, p_data)
