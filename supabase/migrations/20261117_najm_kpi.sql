@@ -84,6 +84,23 @@ create table if not exists public.najm_private (
   id int primary key default 1 check (id = 1),
   data jsonb not null default '{}'::jsonb
 );
+-- cards: yellow −5 / red −20 / green +5 on the monthly score (values in settings.cards).
+-- yellow & green count immediately; red counts only after the operations manager approves it.
+create table if not exists public.najm_cards (
+  id text primary key, day date not null, code text not null,
+  color text not null check (color in ('yellow','red','green')),
+  reason text, by_user text,
+  approved boolean not null default false, approved_by text,
+  created_at timestamptz not null default now()
+);
+-- captain products: extra quantity target per department, points × 3 (settings.captainMult)
+create table if not exists public.najm_captains (
+  month text not null, dkey text not null, sku text not null,
+  name text, target numeric not null default 0, active boolean not null default true, by_user text,
+  updated_at timestamptz not null default now(),
+  primary key (month, dkey, sku)
+);
+create index if not exists najm_cards_day_idx on public.najm_cards (day);
 
 create index if not exists najm_ratings_day_idx on public.najm_ratings (day);
 create index if not exists najm_kpi_vals_day_idx on public.najm_kpi_vals (day);
@@ -94,14 +111,15 @@ do $$
 declare t text;
 begin
   foreach t in array array['najm_employees','najm_users','najm_ratings','najm_winners','najm_targets','najm_sales',
-    'najm_base_sales','najm_kpi_vals','najm_complaints','najm_notes','najm_settings','najm_private']
+    'najm_base_sales','najm_kpi_vals','najm_complaints','najm_notes','najm_settings','najm_private',
+    'najm_cards','najm_captains']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists najm_read on public.%I', t);
   end loop;
   -- public read (no ratings, users, complaints, notes, private)
   foreach t in array array['najm_employees','najm_winners','najm_targets','najm_sales',
-    'najm_base_sales','najm_kpi_vals','najm_settings']
+    'najm_base_sales','najm_kpi_vals','najm_settings','najm_captains']
   loop
     execute format('create policy najm_read on public.%I for select to anon, authenticated using (true)', t);
   end loop;
@@ -212,9 +230,22 @@ begin
     'complaints', coalesce((select jsonb_agg(to_jsonb(c)) from najm_complaints c where public.najm_in_scope(u, c.code)), '[]'),
     'notes',      coalesce((select jsonb_agg(to_jsonb(n)) from najm_notes n where public.najm_in_scope(u, n.code)), '[]'),
     'private',    case when u.role = 'ops' then (select data from najm_private where id = 1) end,
+    'cards',      coalesce((select jsonb_agg(to_jsonb(k)) from najm_cards k where public.najm_in_scope(u, k.code)), '[]'),
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
                     'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;
+
+-- public: approved card counts only (no reasons)
+create or replace function public.najm_public_cards(p_from date, p_to date)
+returns table(code text, yellow int, red int, green int)
+language sql stable security definer set search_path = public as $$
+  select code,
+         count(*) filter (where color = 'yellow')::int,
+         count(*) filter (where color = 'red')::int,
+         count(*) filter (where color = 'green')::int
+  from najm_cards where approved and day between p_from and p_to
+  group by code;
+$$;
 
 -- ---------------------------------------------------------------- the single write entry point
 create or replace function public.najm_save(p_user text, p_pin text, p_kind text, p_key jsonb, p_data jsonb)
@@ -230,11 +261,16 @@ begin
   select * into u from public.najm_auth(p_user, p_pin);
   if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
 
-  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user')
+  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user','card_approve')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
-  if p_kind in ('att','rate','bonus','note') and not public.najm_in_scope(u, k_code) then
+  if p_kind = 'captain' and u.role <> 'ops' and (
+       (u.branch is not null and split_part(p_key->>'dkey','|',1) <> u.branch)
+    or (u.role = 'fresh' and not (split_part(p_key->>'dkey','|',2) = any (coalesce(u.depts, array[]::text[]))))) then
+    raise exception 'najm: department outside your scope' using errcode = '42501';
+  end if;
+  if p_kind in ('att','rate','bonus','note','card') and not public.najm_in_scope(u, k_code) then
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
   if p_kind = 'att' and u.role = 'fresh' then
@@ -307,6 +343,30 @@ begin
       video = case when p_data ? 'video' then nullif(p_data->>'video','') else video end,
       updated_at = now()
     where code = k_code;
+  elsif p_kind = 'card' then
+    if del then
+      delete from najm_cards where id = p_key->>'id' and code = k_code
+        and (u.role = 'ops' or (by_user = u.username and not approved));
+    else
+      if p_data->>'color' not in ('yellow','red','green') then raise exception 'najm: bad card color'; end if;
+      insert into najm_cards(id, day, code, color, reason, by_user, approved, approved_by)
+        values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'color', p_data->>'reason', u.username,
+                (p_data->>'color') <> 'red' or u.role = 'ops', case when u.role = 'ops' then u.username end)
+      on conflict (id) do nothing;
+    end if;
+  elsif p_kind = 'card_approve' then
+    if coalesce((p_data->>'approved')::boolean, false) then
+      update najm_cards set approved = true, approved_by = u.username where id = p_key->>'id';
+    else
+      delete from najm_cards where id = p_key->>'id';
+    end if;
+  elsif p_kind = 'captain' then
+    if del then delete from najm_captains where month = p_key->>'month' and dkey = p_key->>'dkey' and sku = p_key->>'sku';
+    else insert into najm_captains(month, dkey, sku, name, target, active, by_user)
+      values (p_key->>'month', p_key->>'dkey', p_key->>'sku', p_data->>'name', coalesce((p_data->>'target')::numeric, 0),
+              coalesce((p_data->>'active')::boolean, true), u.username)
+      on conflict (month, dkey, sku) do update set name = excluded.name, target = excluded.target, active = excluded.active,
+        by_user = excluded.by_user, updated_at = now(); end if;
   elsif p_kind = 'settings' then
     insert into najm_settings(id, data) values (1, p_data)
     on conflict (id) do update set data = excluded.data, updated_at = now();
@@ -355,6 +415,7 @@ grant execute on function public.najm_public_scores(date, date) to anon, authent
 grant execute on function public.najm_full_scores(text, text, date, date) to anon, authenticated;
 grant execute on function public.najm_files(text, text) to anon, authenticated;
 grant execute on function public.najm_save(text, text, text, jsonb, jsonb) to anon, authenticated;
+grant execute on function public.najm_public_cards(date, date) to anon, authenticated;
 
 -- ---------------------------------------------------------------- storage for photos / videos
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -373,4 +434,4 @@ select 'ops', 'مدير التشغيل', 'ops', s, encode(sha256(convert_to(s ||
 from (select md5('najm-ops' || random()::text) s) x
 on conflict (username) do nothing;
 insert into public.najm_private(id, data) values (1, '{"bonusAt100":0}') on conflict (id) do nothing;
-insert into public.najm_settings(id, data) values (1, '{"freshDepts":["قسم البقاله"]}') on conflict (id) do nothing;
+insert into public.najm_settings(id, data) values (1, '{"freshDepts":["قسم البقاله"],"cards":{"yellow":-5,"red":-20,"green":5,"yellowsToRed":2},"captainMult":3}') on conflict (id) do nothing;
