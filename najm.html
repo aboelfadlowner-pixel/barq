@@ -205,12 +205,12 @@ body.tvmode>header,body.tvmode>nav,body.tvmode>main,body.tvmode #demoFlag{displa
 
 /* departments league */
 .tv-league{height:100%;display:flex;flex-direction:column;padding:26px 34px}
-.tv-bars{flex:1;display:flex;align-items:flex-end;gap:26px;position:relative;padding:40px 10px 0;border-bottom:3px solid rgba(255,255,255,.2)}
+.tv-bars{flex:1;display:flex;align-items:flex-end;gap:14px;position:relative;padding:40px 10px 0;border-bottom:3px solid rgba(255,255,255,.2)}
 .tv-bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative}
 .tv-bar .v{font-size:36px;font-weight:900;margin-bottom:8px;font-variant-numeric:tabular-nums}
 .tv-bar .col{width:100%;max-width:150px;border-radius:16px 16px 4px 4px;position:relative;box-shadow:inset 0 2px 0 rgba(255,255,255,.35),0 12px 30px rgba(0,0,0,.35)}
 .tv-bar .col.ok{background:linear-gradient(180deg,#5fe0a1,#16915c)} .tv-bar .col.mid{background:linear-gradient(180deg,#ffd76a,#e09a12)} .tv-bar .col.low{background:linear-gradient(180deg,#ff8a7a,#c8372d)}
-.tv-bar .lb{position:absolute;bottom:-62px;font-size:24px;font-weight:800;text-align:center;line-height:1.1;width:100%}
+.tv-bar .lb{position:absolute;bottom:-62px;font-size:21px;font-weight:800;text-align:center;line-height:1.1;width:100%}
 .tv-pace{position:absolute;left:0;right:0;border-top:3px dashed rgba(255,255,255,.65);z-index:1}
 .tv-pace span{position:absolute;top:-38px;inset-inline-start:0;font-size:20px;font-weight:800;background:rgba(0,0,0,.45);padding:2px 12px;border-radius:10px}
 .tv-bar .tv-capb{position:absolute;top:-12px;inset-inline-end:-6px;width:44px;height:44px;border-radius:50%;background:#ffd54a;color:#3b2a9b;font-weight:900;font-size:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.4)}
@@ -595,7 +595,7 @@ function normalize(){
   for(const k of Object.keys(d)) if(S[k]===undefined) S[k]=d[k];
 }
 let saveT=null;
-function save(){RANK_CACHE=null;SALES_CACHE={};if(LIVE)return;clearTimeout(saveT);saveT=setTimeout(async()=>{try{const db=await idb();db.transaction(ST,'readwrite').objectStore(ST).put(S,'state');}catch(e){toast('⚠️ تعذّر الحفظ')}},250);}
+function save(){RANK_CACHE=null;SALES_CACHE={};if(LIVE||DEMO)return;clearTimeout(saveT);saveT=setTimeout(async()=>{try{const db=await idb();db.transaction(ST,'readwrite').objectStore(ST).put(S,'state');}catch(e){toast('⚠️ تعذّر الحفظ')}},250);}
 
 // ---------- helpers ----------
 const $=s=>document.querySelector(s);
@@ -1515,7 +1515,7 @@ function sceneDay(){
 }
 function sceneLeague(){
   const m=monthOf(DATE);const pace=monthDays(m,DATE).length/daysInMonth(m)*100;
-  const L=deptsOf(TVB).map(d=>({d,p:deptProgress(m,TVB,d,DATE),caps:captainsIn(m,DATE,e=>e.branch===TVB&&e.dept===d).length})).filter(x=>x.p&&x.p.pct!=null).sort((a,b)=>b.p.pct-a.p.pct).slice(0,8);
+  const L=deptsOf(TVB).map(d=>({d,p:deptProgress(m,TVB,d,DATE),caps:captainsIn(m,DATE,e=>e.branch===TVB&&e.dept===d).length})).filter(x=>x.p&&x.p.pct!=null).sort((a,b)=>b.p.pct-a.p.pct).slice(0,13);
   const max=Math.max(110,...L.map(x=>x.p.pct));const h=v=>Math.max(4,v/max*100);
   return `<div class="tv-h">📊 دوري الأقسام <small>— نسبة تحقيق التارجت لحد النهارده</small></div>
   <div class="tv-glass tv-league" style="height:calc(100% - 78px);padding-bottom:84px">
@@ -1591,7 +1591,7 @@ function tvCelebrate(list){
     let t0=performance.now();const draw=t=>{if(!ov.isConnected)return;c.clearRect(0,0,1920,1080);for(const p of P){p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;if(p.y>1100)p.y=-20;c.save();c.translate(p.x,p.y);c.rotate(p.r);c.fillStyle=p.c;c.fillRect(-p.w/2,-p.h/2,p.w,p.h);c.restore();}if(t-t0<11000)requestAnimationFrame(draw);};requestAnimationFrame(draw);}
   setTimeout(()=>ov.remove(),12000);
 }
-function tvLinks(){return branches().map(b=>`<div class="kv"><span>📺 ${esc(b)}</span><a class="btn sm" target="_blank" rel="noopener" href="?tv=${encodeURIComponent(b)}">فتح الشاشة</a></div>`).join('');}
+function tvLinks(){return branches().map(b=>`<div class="kv"><span>📺 ${esc(b)}</span><a class="btn sm" target="_blank" rel="noopener" href="?tv=${encodeURIComponent(b)}${DEMO?'&demo=1':''}">فتح الشاشة</a></div>`).join('');}
 // =========================================================
 // دوري المديرين + سوق الانتقالات
 //   نقاط المدير = تقييم مدير التشغيل اليومي (لحد 10) + رجل اليوم من فريقه + كؤوس فريقه − الكروت الحمرا
@@ -1737,8 +1737,7 @@ function sceneMarket(){
   const offers=(S.offers||[]).filter(o=>o.market_id===mk.id).sort((a,b)=>b.points-a.points);
   const chosen=offers.find(o=>o.id===mk.chosen);
   return `<div class="tv-h">🔁 سوق الانتقالات <small>— العامل المثالي لـ ${monthName(mk.month)}</small></div>
-  <div class="tv-player" style="height:calc(100% - 78px)"><div class="tv-fut" style="height:640px">${medalSVG('mkm')}<div class="lvl"><b>#1</b><span>${monthName(mk.month)}</span></div>
-    <div class="ph" style="display:flex;justify-content:center;margin-top:60px">${tvPh(e,260,true)}</div><div class="nm">${esc(e.name)}</div><div class="sub">كود ${esc(e.code)} · ${esc(e.branch)} · ${esc(e.shift)}</div></div>
+  <div class="tv-player" style="height:calc(100% - 78px)"><div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div class="tv-award" style="width:auto;padding:6px 26px"><div class="nm" style="margin:0;font-size:28px">👑 العامل المثالي #1 — ${monthName(mk.month)}</div></div>${futCard(e,'lg')}</div>
    <div>${mk.status==='approved'?`<div class="tv-h" style="font-size:52px;color:var(--g2)">✍️ ${chosen?`انضم لشيفت ${esc(chosen.shift||'')} — ${esc(mgrName(chosen.username))}`:'قرر يفضل مكانه'}</div>`
      :`<div class="tv-h" style="font-size:44px">${mk.wish?`🎯 عايز: ${esc([mk.wish.branch,mk.wish.shift&&('شيفت '+mk.wish.shift)].filter(Boolean).join(' · ')||'أي عرض')}`:'🎯 بيحدد رغبته'}</div>`}
     <div class="tv-glass tv-top10" style="margin-top:10px">${offers.slice(0,5).map((o,i)=>`<div class="tv-row"><div class="pos ${i===0?'p1':''}">${i+1}</div><div class="who"><b>${esc(mgrName(o.username))}</b><span>${esc(o.branch||'')} · ${esc(o.shift||'')}${o.note?' — «'+esc(o.note)+'»':''}</span></div><div class="tv-amt" style="color:#b9a6ff">${fmt(o.points)} نقطة</div></div>`).join('')||'<div class="tv-empty" style="font-size:28px">مستني عروض المديرين…</div>'}</div></div></div>`;
@@ -1898,6 +1897,66 @@ const GUIDE={
   ops:['الصبح: قيّم الموظفين (نجمتك)، وقيّم المديرين من «المديرين والسوق».','اعتمد رجل اليوم لكل شيفت من «رجل اليوم» — بيظهر على شاشة الفرع باحتفال.','وافق أو ارفض الكروت الحمرا من «الكروت».','ارفع مبيعات اليوم (لحد ما تتسحب لوحدها) وراجع التارجت.','آخر الشهر: اختار آخر يوم في الشهر من التاريخ، ودوس «إقفال الشهر وفتح السوق»، واكتب الكود السري وسلّمه للأول بإيدك.','اصرف الجوايز وعلّم عليها من «العامل المثالي» ← «صرف الجوايز».']
 };
 function showGuide(){const r=USER?.role||'shift';openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📘 دليل ${ROLES[r]}</h2><ol style="line-height:2;padding-inline-start:20px">${GUIDE[r].map(t=>`<li>${esc(t)}</li>`).join('')}</ol>`);}
+// =========================================================
+// وضع التجربة: najm.html?demo=1 (وكمان ?tv=<فرع>&demo=1) — أرقام وهمية في الذاكرة بس، مفيش أي حاجة بتتحفظ
+// =========================================================
+const DEMO=new URLSearchParams(location.search).has('demo');
+const DEMO_PRODUCTS={
+  'قسم البقاله':['جبنة رومي قديمة','جبنة فيتا','جبنة إسطنبولي','جبنة شيدر','قشطة بلدي','زبدة فلاحي','بسطرمة','لانشون فراخ','زيتون أسود','مش بلدي','عسل نحل','حلاوة طحينية'],
+  'قسم الفاكهه':['مانجو عويس','فراولة','موز','تفاح أحمر','برتقال','عنب بناتي','جوافة','كيوي'],
+  'قسم الايس كريم':['جيلاتي فانيليا','جيلاتي مانجو','آيس كريم شوكولاتة','سموزي فراولة','قهوة مثلجة','ميلك شيك'],
+  'bakery':['كرواسون سادة','فطير مشلتت','بقلاوة','بسبوسة','عيش فينو','دونات'],
+  'vip':['علبة هدايا جبن','سلة فواكه','تورتة مناسبات'],
+};
+function demoSeed(){
+  let n=20261117;const rnd=()=>{n=(n*16807)%2147483647;return n/2147483647;};const pick=a=>a[Math.floor(rnd()*a.length)];
+  S=defaultState();const B='البيطاش الرئيسي',A='عين شمس';
+  S.users.push(
+    {username:'br1',name:'مدير البيطاش',role:'branch',branch:B,shift:'',depts:[],pin:'1111',active:true},
+    {username:'shm',name:'مدير شيفت الصبح',role:'shift',branch:B,shift:'Morning',depts:[],pin:'2222',active:true},
+    {username:'shn',name:'مدير شيفت الليل',role:'shift',branch:B,shift:'Night',depts:[],pin:'3333',active:true},
+    {username:'shb',name:'مدير شيفت البين',role:'shift',branch:B,shift:'Between',depts:[],pin:'4444',active:true},
+    {username:'fr',name:'مدير الفريش فود',role:'fresh',branch:B,shift:'',depts:['قسم البقاله'],pin:'5555',active:true},
+    {username:'ain',name:'مدير عين شمس',role:'branch',branch:A,shift:'',depts:[],pin:'6666',active:true});
+  const m=monthOf(DATE),pm=prevMonth(m),days=monthDays(m,DATE);
+  // products and sales (kilos/units)
+  let k=1;const cat={};const base={[B]:{},[A]:{}};
+  for(const[dept,L]of Object.entries(DEMO_PRODUCTS))for(const name of L){const sku='demo-'+(k++);cat[sku]={name,dept};for(const br of [B,A])base[br][sku]={name,qty:Math.round((br===B?1:.6)*(150+rnd()*1400))};}
+  S.baseSales[pm]=base;
+  for(const d of days){S.sales[d]={};for(const br of [B,A]){const o={};for(const[sku,v]of Object.entries(base[br]))o[sku]={name:v.name,qty:Math.round(v.qty/30*(0.7+rnd()*1.1)*10)/10};S.sales[d][br]=o;}}
+  const T=S.targets[m]={};
+  for(const br of [B,A])for(const dept of Object.keys(DEMO_PRODUCTS)){const f=1.05+rnd()*.7;T[deptKey(br,dept)]={type:'sales',items:Object.entries(cat).filter(([,c])=>c.dept===dept).map(([sku,c])=>({key:sku,name:c.name,target:Math.round(base[br][sku].qty*f)}))};}
+  for(const br of [B,A]){T[deptKey(br,'قسم الكاشير')]={type:'manual',kpis:PRESETS['الكاشير'].map((x,i)=>({...x,id:'c'+i}))};
+    for(const dept of ['خدمه العملاء','قسم الامن و المراقبه','قسم الخدمات','دليفري','بيكب','قسم الداتا انتري','تسعير','كول سنتر'])T[deptKey(br,dept)]={type:'manual',kpis:PRESETS['نضافة + تقييم المدير'].map((x,i)=>({...x,id:'d'+i}))};
+    for(const d of days){const V=S.kpiVals[d]||(S.kpiVals[d]={});V[deptKey(br,'قسم الكاشير')]={c0:rnd()<.8?0:1,c1:1+Math.round(rnd()*2),c2:8+Math.round(rnd()*2),c3:8+Math.round(rnd()*2),c4:9,c5:rnd()<.7?0:1};
+      for(const dept of ['خدمه العملاء','قسم الامن و المراقبه','قسم الخدمات','دليفري','بيكب','قسم الداتا انتري','تسعير','كول سنتر'])V[deptKey(br,dept)]={d0:7+Math.round(rnd()*3)};}}
+  // daily ratings for everyone (each employee has his own level so the league spreads out)
+  const lvl={};for(const e of activeEmps())lvl[e.code]=.45+rnd()*.5;
+  const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
+  for(const d of days){const D=day(d);
+    for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
+      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+    for(const br of branches())for(const sh of Object.values(SH)){const L=activeEmps().filter(e=>e.branch===br&&e.shift===sh);const R=rankGroup(d,L);if(R.length)D.winners[`${br}|${sh}`]=R.slice(0,R.length>8?2:1).map(x=>x.e.code);}}
+  // cards
+  const staff=activeEmps();const dd=()=>pick(days);
+  for(let i=0;i<22;i++)S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'green',reason:pick(['ساعد في قسم تاني وقت الزحمة','إيجابية مع العملاء','اتنقل لقسم تاني وغطّى']),by:'br1',approved:true});
+  for(let i=0;i<14;i++)S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'yellow',reason:pick(['كسر البريك','تأخير عن الاستلام','موبايل وقت الشغل']),by:'shm',approved:true});
+  S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'red',reason:'رفع صوته على عميل',by:'br1',approved:true});
+  S.cards.push({id:uid(),date:DATE,code:pick(staff).code,color:'red',reason:'خناقة مع زميل',by:'shn',approved:false});
+  // personal captains
+  const C=S.captains[m]={};const prodOf=dept=>Object.entries(cat).filter(([,c])=>c.dept===dept).map(([s])=>s);
+  for(const br of [B,A])for(const dept of ['قسم البقاله','قسم الفاكهه','قسم الايس كريم','bakery']){const team=activeEmps().filter(e=>e.branch===br&&e.dept===dept).slice(0,3);const P=prodOf(dept);
+    team.forEach((e,i)=>{const sku=P[i%P.length];C[e.code]=[{sku,name:cat[sku].name,target:Math.round(base[br][sku].qty*(1.1+rnd()*.4)),active:true,by:'br1'}];});}
+  // managers: daily ratings, last month's wallet, a transfer market in progress
+  S.mgrCrit={};for(const d of days){S.mgrCrit[d]={};for(const u of S.users.filter(x=>x.role!=='ops'))S.mgrCrit[d][u.username]=Array.from({length:5},()=>rnd()<.7?2:1);}
+  const w={br1:340,shm:180,shn:260,shb:150,fr:210,ain:230};for(const[u,p]of Object.entries(w))S.ledger.push({id:`close|${pm}|${u}`,username:u,month:pm,points:p,reason:`نقاط ${monthName(pm)}`});
+  S.ledger.push({id:`bonus|${pm}|br1`,username:'br1',month:pm,points:50,reason:`المدير المثالي — ${monthName(pm)}`});
+  const star=activeEmps().find(e=>e.branch===B&&e.shift==='Night'&&e.dept==='قسم الكاشير')||activeEmps()[0];
+  S.market=[{id:pm,month:pm,code:star.code,status:'listed',wish:{branch:null,shift:'Morning',note:'نفسي أجرب الصبح عشان الدراسة'},chosen:null,secret:'123456',created_at:new Date().toISOString()}];
+  S.offers=[{id:pm+'|shm',market_id:pm,username:'shm',points:150,branch:B,shift:'Morning',note:'مكانك محجوز عندنا'},{id:pm+'|shb',market_id:pm,username:'shb',points:90,branch:B,shift:'Between',note:'البين أريح ليك'}];
+  const t=activeEmps().find(e=>e.branch===B&&e.dept==='قسم البقاله');if(t)t.title='أسطوري';
+  RANK_CACHE=null;SALES_CACHE={};
+}
 
 // ---------- login / modal ----------
 async function openLogin(){
@@ -1925,12 +1984,13 @@ function openModal(h){$('#modal').innerHTML=h;$('#modalBg').classList.add('open'
 function closeModal(){$('#modalBg').classList.remove('open');IMP=null;}
 
 (async()=>{
-  await load();
+  if(DEMO){demoSeed();}else await load();
   let saved=null;try{saved=JSON.parse(sessionStorage.getItem('najm-user')||'null');}catch(e){}
   const TVQ=new URLSearchParams(location.search).get('tv');
   if(TVQ!==null){saved=null;tvInit(TVQ);}
   const dp=$('#dayPick');dp.value=DATE;dp.onchange=()=>{if(dp.value){DATE=dp.value;RANK_CACHE=null;LIVE?refresh():render();}};
   render();
+  if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · التشغيل <b>ops / 0000</b> · مدير الصبح <b>shm / 2222</b> · مدير البيطاش <b>br1 / 1111</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
   try{
     if(saved?.pin){const u=await sbRpc('najm_login',{p_user:saved.username,p_pin:saved.pin});if(u){USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]};PIN=saved.pin;}}
     await pull();LIVE=true;
