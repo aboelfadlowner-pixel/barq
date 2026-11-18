@@ -80,6 +80,8 @@ export const branchPlace      = () => impl.branchPlace();
 export const setBranchPlace   = (lat, lng) => impl.setBranchPlace(lat, lng);
 export const listDrivers      = () => impl.listDrivers();
 export const adminDelivery    = (id, what, driverId) => impl.adminDelivery(id, what, driverId);
+export const changeDriver     = (id, driverId) => impl.changeDriver(id, driverId);   // 46: admin, wrong driver
+export const driverChanges    = (id) => impl.driverChanges(id);
 export const getOrderDelivery = (id) => impl.getOrderDelivery(id);
 export const deliveryReport   = (from, to) => impl.deliveryReport(from, to);
 export const photoUrl         = (path) => impl.photoUrl(path);

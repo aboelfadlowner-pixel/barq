@@ -705,6 +705,38 @@ export function adminDelivery(id, what, driverId) {
   }
   return resolve(true);
 }
+const driverChangeLog = [];   // 46: { orderId, at, stage, from, to, by }
+export function changeDriver(id, driverId) {
+  const o = orders.find((x) => x.id === id);
+  if (!o) return Promise.reject(new Error('الطلب غير موجود'));
+  if (demoAccount.role !== 'admin') return Promise.reject(new Error('تغيير الطيار للأدمن بس'));
+  if (o.status === 'cancelled') return Promise.reject(new Error('الطلب ده اتلغى'));
+  if (!['at_cashier', 'out'].includes(o.stage)) return Promise.reject(new Error('الطلب لسه ما وصلش الكاشير'));
+  if (!o.driverUserId) return Promise.reject(new Error('الطلب ده من غير طيار — الفرع يختار الطيار من شاشته'));
+  if (o.stage === 'out' && !isSameWorkDay(o.outAt, new Date())) return Promise.reject(new Error('تغيير الطيار في نفس يوم الشغل بس'));
+  if (!staff.some((x) => x.id === driverId && x.role === 'driver' && x.active)) return Promise.reject(new Error('اختار طيار من القائمة'));
+  if (driverId === o.driverUserId) return Promise.reject(new Error('ده نفس الطيار'));
+  const d = deliveries.get(id) ?? {};
+  const stage = o.stage === 'out' && d.deliveredAt ? 'delivered' : o.stage;
+  const from = o.driver;
+  if (o.stage === 'out') {
+    const open = orders.find((x) => x.id !== id && x.driverUserId === driverId && x.stage === 'out' && x.status !== 'cancelled'
+      && x.tripId && isSameWorkDay(x.outAt, new Date()) && !deliveries.get(x.id)?.returnedAt);
+    const oldTrip = o.tripId;
+    if (open) {
+      o.tripId = open.tripId; o.tripSeq = Math.max(...orders.filter((x) => x.tripId === open.tripId).map((x) => x.tripSeq || 0)) + 1;
+      if (d.returnedAt) deliveries.set(id, { ...d, returnedAt: null, returnedAdmin: false, returnedLat: null, returnedLng: null, returnedDistance: null, returnedFar: false });
+    } else { o.tripId = `trip-${Date.now()}`; o.tripSeq = 1; }
+    for (const t of [o.tripId, oldTrip]) {
+      const list = orders.filter((x) => t && x.tripId === t).sort((a, b) => (a.tripSeq || 0) - (b.tripSeq || 0));
+      list.forEach((x, i) => Object.assign(x, { tripSeq: i + 1, tripSize: list.length }));
+    }
+  } else o.assignedAt = new Date().toISOString();
+  Object.assign(o, { driverUserId: driverId, driver: driverLabel(driverId) });
+  driverChangeLog.push({ orderId: id, at: new Date().toISOString(), stage, from, to: o.driver, by: demoAccount.name || 'الأدمن' });
+  return resolve(o.driver);
+}
+export const driverChanges = (id) => resolve(driverChangeLog.filter((c) => c.orderId === id).map(({ orderId, ...c }) => c));
 const deliveryOf = (o) => {
   const d = deliveries.get(o.id) ?? {};
   return { outByAdmin: !!o.outByAdmin, tripSeq: o.tripSeq ?? null, tripSize: o.tripSize ?? null, assignedAt: o.assignedAt ?? null,
