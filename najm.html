@@ -686,7 +686,7 @@ async function pull(){
   if(files?.private?.bonusAt100!=null)N.settings.bonusAt100=files.private.bonusAt100;
   N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||'',title:e.title||''}));
   N.targets={[m]:Object.fromEntries(tg.map(r=>[r.dkey,r.cfg]))};
-  N.captains={[m]:{}};for(const c of caps)(N.captains[m][c.code]||(N.captains[m][c.code]=[])).push({sku:c.sku,name:c.name,target:+c.target,active:c.active,by:c.by_user});
+  N.captains={[m]:{}};for(const c of caps)(N.captains[m][c.code]||(N.captains[m][c.code]=[])).push({sku:c.sku,name:c.name,target:+c.target,pts:c.pts==null?null:+c.pts,active:c.active,by:c.by_user});
   N.salesSum={month:m,upto:DATE,data:salesSum||{}};N.salesDays={};for(const r of salesDays)(N.salesDays[r.branch]||(N.salesDays[r.branch]=[])).push(r.day);
   N.baseSales={[pm]:Object.fromEntries(base.map(r=>[r.branch,r.items]))};
   for(const r of kpi)(N.kpiVals[r.day]||(N.kpiVals[r.day]={}))[r.dkey]=r.vals;
@@ -794,6 +794,9 @@ function salesAgg(month,branch,upto){
   return out;
 }
 const pts=p=>p==null?null:p<50?0:p<85?50:Math.round(p);
+// نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز — القاعدة لسه هتتحدد (دلوقتي: الشرايح 50/85)
+const tgtRatio=p=>p==null?null:(pts(p)||0)/100;
+const tgtCfg=(month,branch,dept)=>S.targets[month]?.[deptKey(branch,dept)]||null;
 function deptProgress(month,branch,dept,upto,empCode){
   const cfg=S.targets[month]?.[deptKey(branch,dept)];
   if(!cfg) return null;
@@ -830,7 +833,7 @@ function deptProgress(month,branch,dept,upto,empCode){
 function captainsOfEmp(e,month,upto,onlyActive=true){
   const L=S.captains[month]?.[e.code]||[];if(!L.length)return [];
   const agg=salesAgg(month,e.branch,upto);const cap=S.settings.capPct;const mult=S.settings.captainMult||3;
-  return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;const pct=c.target>0?Math.min(cap,sold/c.target*100):null;const p=pts(pct);return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,pct,points:p==null?null:p*mult};});
+  return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;const pct=c.target>0?Math.min(cap,sold/c.target*100):null;const p=pts(pct);const man=+c.pts>0;return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,pct,max:man?+c.pts:100*mult,points:p==null?null:man?Math.round(+c.pts*tgtRatio(pct)):p*mult};});
 }
 function captainsIn(month,upto,pred){const out=[];for(const e of activeEmps())if(pred(e))out.push(...captainsOfEmp(e,month,upto));return out;}
 function complaintsOf(code,month){return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month));}
@@ -839,12 +842,15 @@ function empTarget(e,month,upto){
   const caps=captainsOfEmp(e,month,upto);
   const capPts=caps.reduce((a,c)=>a+(c.points||0),0);
   if(!dp&&!caps.length) return null;
-  const base=dp?.points??null;
+  const cfg=tgtCfg(month,e.branch,e.dept);const manD=+cfg?.pts>0;
+  const base=dp?.pct==null?(dp?.points??null):manD?Math.round(+cfg.pts*tgtRatio(dp.pct)):dp.points;
+  const deptMax=dp?(manD?+cfg.pts:100):0;const maxPts=deptMax+caps.reduce((a,c)=>a+(c.max||0),0);
+  const need=+cfg?.need>0?+cfg.need:Math.round(maxPts*TGT_G()/100);
   const cc=complaintsOf(e.code,month).length;
   const raw=(base||0)+capPts;
   const has=base!=null||caps.length>0;
   const empPoints=has?Math.round(cc?raw*(1-S.settings.complaintPenalty/100):raw):null;
-  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc};
+  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc,deptMax,maxPts,need,manual:manD};
 }
 const money=p=>p==null?null:Math.round(p/100*(+S.settings.bonusAt100||0));
 
@@ -862,19 +868,22 @@ function tgtOf(t,month,upto){
   const pace=upto&&upto<monthOf(upto)+'-'+pad(daysInMonth(month))?monthDays(month,upto).length/daysInMonth(month)*100:100;
   const adj=p=>p==null?null:Math.min(cap,pace>0?p/pace*100:p);
   const dept=t.type==='sales'?adj(t.pct):t.pct==null?null:Math.min(cap,t.pct);
-  const cps=(t.caps||[]).map(c=>adj(c.pct)).filter(v=>v!=null);const capv=cps.length?cps.reduce((a,b)=>a+b,0)/cps.length:null;
-  const v=dept!=null&&capv!=null?(dept+capv)/2:dept??capv;
-  return {v:v==null?null:Math.round(v),dept,capv,pace,type:t.type,t};
+  const dPts=dept==null?null:Math.round((t.deptMax||100)*tgtRatio(dept));
+  const cPts=(t.caps||[]).map(c=>{const a=adj(c.pct);return a==null?null:Math.round((c.max||0)*tgtRatio(a));}); // same order as t.caps
+  const any=dPts!=null||cPts.some(v=>v!=null);
+  let v=any?(dPts||0)+cPts.reduce((a,b)=>a+(b||0),0):null;
+  if(v!=null&&t.complaints)v=Math.round(v*(1-S.settings.complaintPenalty/100));
+  return {v,need:t.need,max:t.maxPts,dept,dPts,cPts,pace,type:t.type,t};
 }
 const KPI_G=()=>+S.settings.goal||85, TGT_G=()=>+S.settings.targetGoal||85;
-function qualify(ms,tg){const k=ms.monthScore,t=tg?.v;return {kOk:k!=null&&k>=KPI_G(),tOk:t!=null&&t>=TGT_G(),ok:k!=null&&k>=KPI_G()&&t!=null&&t>=TGT_G()};}
+function qualify(ms,tg){const k=ms.monthScore,t=tg?.v;const kOk=k!=null&&k>=KPI_G(),tOk=t!=null&&tg.need>0&&t>=tg.need;return {kOk,tOk,ok:kOk&&tOk};}
 let RANK_CACHE=null;
 function ranks(){
   const key=DATE;
   if(RANK_CACHE&&RANK_CACHE.key===key)return RANK_CACHE;
   const m=monthOf(DATE);
   const rows=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);const tg=tgtOf(ms.target,m,DATE);return {e,ms,tg,q:qualify(ms,tg)};}).filter(x=>x.ms.n>0||x.ms.wins>0);
-  const both=x=>(x.ms.monthScore||0)+Math.min(100,x.tg?.v||0);
+  const both=x=>(x.ms.monthScore||0)+(x.tg?.need?Math.min(100,x.tg.v/x.tg.need*100):0);
   rows.sort((a,b)=>(b.q.ok-a.q.ok)||b.ms.wins-a.ms.wins||both(b)-both(a)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
   const company={},branch={},bc={};
   rows.forEach((x,i)=>{company[x.e.code]=i+1;bc[x.e.branch]=(bc[x.e.branch]||0)+1;branch[x.e.code]=bc[x.e.branch];});
@@ -1100,10 +1109,10 @@ function vMonth(){
   const rows=R.rows.filter(x=>!F.branch||x.e.branch===F.branch);const top3=rows.filter(x=>x.q.ok).slice(0,3);
   return `<div class="sec-title"><h2>👑 العامل المثالي — ${monthName(m)}</h2><div class="row"><span class="small muted">حتى ${esc(DATE)}</span>${isOps()?'<button class="btn gold" onclick="showPayouts()">💵 صرف الجوايز</button>':''}</div></div>
     <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
-    <div class="lock" style="margin-bottom:12px">${cash()?`🏆 الجوايز: الكأس الدهبي ${fmt(prizes().gold)} ج · الفضي ${fmt(prizes().silver)} ج · البرونزي ${fmt(prizes().bronze)} ج · من 4 لـ 10 ${fmt(prizes().top10)} ج · رجل اليوم ${fmt(prizes().daily)} ج.`:'🏆 الجوايز: الكأس الدهبي · الكأس الفضي · الكأس البرونزي · وسام العشرة الأوائل (من 4 لـ 10) · جايزة رجل اليوم.'}<br><b>شرط الجايزة: لازم الاتنين مع بعض — الـ KPI ${fmt(KPI_G())} أو أكتر، والتارجت ${fmt(TGT_G())}% أو أكتر.</b> اللي ناقصه واحدة منهم بيتحط بعد المؤهلين ومالوش جايزة.<br>الترتيب: عدد مرات «رجل اليوم» ← الـ KPI من 100 (النجوم + الكروت: <i class="fcard yellow"></i> ${k.yellow} · <i class="fcard red"></i> ${k.red} · <i class="fcard green"></i> +${k.green} · كل ${k.yellowsToRed} أصفر = أحمر) ← نقاط التارجت والكابتن.</div>
+    <div class="lock" style="margin-bottom:12px">${cash()?`🏆 الجوايز: الكأس الدهبي ${fmt(prizes().gold)} ج · الفضي ${fmt(prizes().silver)} ج · البرونزي ${fmt(prizes().bronze)} ج · من 4 لـ 10 ${fmt(prizes().top10)} ج · رجل اليوم ${fmt(prizes().daily)} ج.`:'🏆 الجوايز: الكأس الدهبي · الكأس الفضي · الكأس البرونزي · وسام العشرة الأوائل (من 4 لـ 10) · جايزة رجل اليوم.'}<br><b>شرط الجايزة: لازم الاتنين مع بعض — الـ KPI ${fmt(KPI_G())} أو أكتر، ونقط التارجت توصل المطلوب اللي مدير التشغيل حدده لكل قسم.</b> اللي ناقصه واحدة منهم بيتحط بعد المؤهلين ومالوش جايزة.<br>الترتيب: عدد مرات «رجل اليوم» ← الـ KPI من 100 (النجوم + الكروت: <i class="fcard yellow"></i> ${k.yellow} · <i class="fcard red"></i> ${k.red} · <i class="fcard green"></i> +${k.green} · كل ${k.yellowsToRed} أصفر = أحمر) ← نقاط التارجت والكابتن.</div>
     ${top3.length?`<div class="podium" style="margin-bottom:16px">${top3.map((x,i)=>`<div class="card" style="cursor:pointer;${i===0?'border:2px solid var(--gold)':''}" onclick="openEmp('${x.e.code}')"><div style="font-size:26px">${['🥇','🥈','🥉'][i]}</div>${ava(x.e,'xl'+(i===0?' win':'')).replace('class="ava','style="margin:6px auto" class="ava')}<div class="emp-name">${esc(x.e.name)}</div><div class="small muted">${esc(x.e.branch)} · ${esc(x.e.dept)}</div>${starsHTML(x.ms.avg,'lg')}<div class="small">🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100 ${cardsHTML(x.ms.cards)}</div><div class="badge b-gold" style="margin-top:6px;font-size:13px">${['الكأس الدهبي','الكأس الفضي','الكأس البرونزي'][i]}${cash()?` · ${fmt(prizes()[['gold','silver','bronze'][i]])} ج`:''}</div></div>`).join('')}</div>`:''}
     <div class="card"><h3>المتأهلين</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>الموظف</th><th>الفرع</th><th>🏆</th><th>🧑‍💼 الـ KPI</th><th>الكروت</th><th>🎯 التارجت</th><th>الكابتن</th><th>الجايزة</th>${isOps()?'<th>مكافأة التارجت</th>':''}</tr></thead><tbody>
-    ${rows.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td><span class="rank ${R.company[x.e.code]<=3?'r1':''}">${R.company[x.e.code]}</span></td><td><div class="row" style="flex-wrap:nowrap">${ava(x.e,'sm')}<div><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.job)}</div></div></div></td><td class="small">${esc(x.e.branch)}<div class="muted">#${R.branch[x.e.code]} في الفرع</div></td><td><b>${fmt(x.ms.wins)}</b></td><td>${starsHTML(x.ms.avg)} <b style="color:${x.q.kOk?'var(--green)':'var(--red)'}">${fmt(x.ms.monthScore)} ${x.q.kOk?'✔':'✖'}</b></td><td>${cardsHTML(x.ms.cards)||'—'}</td><td><b style="color:${x.q.tOk?'var(--green)':'var(--red)'}">${x.tg?.v!=null?fmt(x.tg.v)+'% '+(x.q.tOk?'✔':'✖'):'لسه مفيش تارجت ✖'}</b></td><td>${x.ms.target?.capPts?'+'+fmt(x.ms.target.capPts):'—'}</td><td>${(t=>t?`<span class="badge ${t==='gold'?'b-gold':t==='top10'?'b-green':'b-gray'}">${t==='gold'?'🥇':t==='silver'?'🥈':t==='bronze'?'🥉':'🎖️'} ${cash()?fmt(prizes()[t])+' ج':{gold:'الدهبي',silver:'الفضي',bronze:'البرونزي',top10:'وسام'}[t]}</span>`:'—')(cupOf(prizeRank(x.e.code)))}</td>${isOps()?`<td>${x.ms.target?.empPoints!=null&&S.settings.bonusAt100?fmt(money(x.ms.target.empPoints))+' ج':'—'}</td>`:''}</tr>`).join('')||`<tr><td colspan="10" class="empty">مفيش تقييمات في الشهر ده لسه</td></tr>`}
+    ${rows.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td><span class="rank ${R.company[x.e.code]<=3?'r1':''}">${R.company[x.e.code]}</span></td><td><div class="row" style="flex-wrap:nowrap">${ava(x.e,'sm')}<div><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.job)}</div></div></div></td><td class="small">${esc(x.e.branch)}<div class="muted">#${R.branch[x.e.code]} في الفرع</div></td><td><b>${fmt(x.ms.wins)}</b></td><td>${starsHTML(x.ms.avg)} <b style="color:${x.q.kOk?'var(--green)':'var(--red)'}">${fmt(x.ms.monthScore)} ${x.q.kOk?'✔':'✖'}</b></td><td>${cardsHTML(x.ms.cards)||'—'}</td><td><b style="color:${x.q.tOk?'var(--green)':'var(--red)'}">${x.tg?.v!=null?fmt(x.tg.v)+' / '+fmt(x.tg.need)+' '+(x.q.tOk?'✔':'✖'):'لسه مفيش تارجت ✖'}</b></td><td>${x.ms.target?.capPts?'+'+fmt(x.ms.target.capPts):'—'}</td><td>${(t=>t?`<span class="badge ${t==='gold'?'b-gold':t==='top10'?'b-green':'b-gray'}">${t==='gold'?'🥇':t==='silver'?'🥈':t==='bronze'?'🥉':'🎖️'} ${cash()?fmt(prizes()[t])+' ج':{gold:'الدهبي',silver:'الفضي',bronze:'البرونزي',top10:'وسام'}[t]}</span>`:'—')(cupOf(prizeRank(x.e.code)))}</td>${isOps()?`<td>${x.ms.target?.empPoints!=null&&S.settings.bonusAt100?fmt(money(x.ms.target.empPoints))+' ج':'—'}</td>`:''}</tr>`).join('')||`<tr><td colspan="10" class="empty">مفيش تقييمات في الشهر ده لسه</td></tr>`}
     </tbody></table></div></div>`;
 }
 
@@ -1129,7 +1138,7 @@ function vTarget(){
   const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy();
   return `<div class="sec-title"><h2>🎯 التارجت والكابتن — ${monthName(m)}</h2>
     <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}</div></div>
-    <div class="lock" style="margin-bottom:10px">التارجت بالكميات للقسم كله. أقل من 50% = صفر · 50%–85% = 50 نقطة · 85%+ = النسبة نفسها. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس، ونقاطه × ${S.settings.captainMult}. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>
+    <div class="lock" style="margin-bottom:10px"><b>النقط بيحددها مدير التشغيل أول كل شهر:</b> نقط تارجت كل قسم، ونقط كل كابتن، والمطلوب للعشرة الأوائل — والتطبيق بيحسب الباقي لوحده. التارجت بالكميات للقسم كله. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>
     <div class="chips" style="margin-bottom:12px">${branches().map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
     ${ribbonHTML([TG.branch])}
     ${TG.dept?(TG.mode==='edit'&&isOps()?targetEditor(m):targetDetail(m)):''}
@@ -1139,9 +1148,9 @@ function captainPanel(m){
   const L=activeEmps().filter(e=>e.branch===TG.branch&&e.dept===TG.dept);
   const rows=L.map(e=>({e,caps:captainsOfEmp(e,m,DATE,false)})).filter(x=>x.caps.length);
   const team=L.filter(e=>inScope(e));const can=team.length>0;
-  return `<div class="card" style="margin-top:10px;border-color:#cfc4ff;background:#faf8ff"><div class="sec-title" style="margin:0 0 6px"><h3>🎗️ الكابتن الشخصي (× ${S.settings.captainMult})</h3><span class="small muted">كل موظف ليه صنف أو أكتر — بيتحسب من كيلوهات الفرع في شيت فوديكس</span></div>
-    ${rows.length?`<table><thead><tr><th>الموظف</th><th>المنتج</th><th>التارجت</th><th>المتباع</th><th>الإنجاز</th><th>النقاط</th>${can?'<th></th>':''}</tr></thead><tbody>${rows.map(x=>x.caps.map((c,i)=>`<tr style="${c.active===false?'opacity:.5':''}">${i===0?`<td rowspan="${x.caps.length}"><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(x.e,'sm')}<b>${esc(x.e.name)}</b></div></td>`:''}<td><span class="cap-c" style="width:18px;height:18px;font-size:11px">C</span> ${esc(c.name)} <span class="small muted">${esc(c.sku)}</span></td><td>${fmt(c.target,1)}</td><td>${fmt(c.sold,1)}</td><td style="min-width:110px">${barHTML(c.pct,null,'cap')}<span class="small">${fmt(c.pct)}%</span></td><td><b>${fmt(c.points)}</b></td>${can?`<td class="row" style="gap:4px">${inScope(x.e)?`<button class="btn sm" onclick="toggleCap('${x.e.code}','${esc(c.sku)}')">${c.active===false?'تفعيل':'إيقاف'}</button><button class="btn sm red" onclick="delCap('${x.e.code}','${esc(c.sku)}')">حذف</button>`:''}</td>`:''}</tr>`).join('')).join('')}</tbody></table>`:'<div class="small muted">لسه محدش واخد كابتن في القسم ده</div>'}
-    ${can?`<div class="row" style="margin-top:8px"><select class="inp" id="capEmp">${team.map(e=>`<option value="${e.code}">${esc(e.name)}</option>`).join('')}</select><input class="inp" id="capCode" placeholder="كود المنتج (sk-…)" style="width:140px" oninput="capLookup()"><span id="capName" class="small muted">اكتب الكود يطلع المنتج</span><input class="inp" id="capTarget" type="number" placeholder="التارجت (كيلو)" style="width:110px"><button class="btn pri sm" onclick="addCap()">+ كابتن</button></div>`:''}
+  return `<div class="card" style="margin-top:10px;border-color:#cfc4ff;background:#faf8ff"><div class="sec-title" style="margin:0 0 6px"><h3>🎗️ الكابتن الشخصي</h3><span class="small muted">كل موظف ليه صنف أو أكتر — بيتحسب من كيلوهات الفرع في شيت فوديكس</span></div>
+    ${rows.length?`<table><thead><tr><th>الموظف</th><th>المنتج</th><th>التارجت</th><th>المتباع</th><th>الإنجاز</th><th>النقاط</th>${can?'<th></th>':''}</tr></thead><tbody>${rows.map(x=>x.caps.map((c,i)=>`<tr style="${c.active===false?'opacity:.5':''}">${i===0?`<td rowspan="${x.caps.length}"><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(x.e,'sm')}<b>${esc(x.e.name)}</b></div></td>`:''}<td><span class="cap-c" style="width:18px;height:18px;font-size:11px">C</span> ${esc(c.name)} <span class="small muted">${esc(c.sku)}</span></td><td>${fmt(c.target,1)}</td><td>${fmt(c.sold,1)}</td><td style="min-width:110px">${barHTML(c.pct,null,'cap')}<span class="small">${fmt(c.pct)}%</span></td><td><b>${fmt(c.points)}</b> <span class="small muted">/ ${fmt(c.max)}${+c.pts>0?'':' (× '+S.settings.captainMult+')'}</span></td>${can?`<td class="row" style="gap:4px">${inScope(x.e)?`<button class="btn sm" onclick="toggleCap('${x.e.code}','${esc(c.sku)}')">${c.active===false?'تفعيل':'إيقاف'}</button><button class="btn sm red" onclick="delCap('${x.e.code}','${esc(c.sku)}')">حذف</button>`:''}</td>`:''}</tr>`).join('')).join('')}</tbody></table>`:'<div class="small muted">لسه محدش واخد كابتن في القسم ده</div>'}
+    ${can?`<div class="row" style="margin-top:8px"><select class="inp" id="capEmp">${team.map(e=>`<option value="${e.code}">${esc(e.name)}</option>`).join('')}</select><input class="inp" id="capCode" placeholder="كود المنتج (sk-…)" style="width:140px" oninput="capLookup()"><span id="capName" class="small muted">اكتب الكود يطلع المنتج</span><input class="inp" id="capTarget" type="number" placeholder="التارجت (كيلو)" style="width:110px">${isOps()?'<input class="inp" id="capPts" type="number" placeholder="نقط الكابتن" style="width:110px">':''}<button class="btn pri sm" onclick="addCap()">+ كابتن</button></div>`:''}
   </div>`;
 }
 function capLookup(){
@@ -1154,10 +1163,11 @@ function addCap(){
   const ec=$('#capEmp').value;const e=emp(ec);if(!e||!inScope(e)){toast('اختار موظف من فريقك');return;}
   if(!k){toast('الكود مش موجود');return;}const t=+$('#capTarget').value;if(!(t>0)){toast('حط تارجت للكابتن');return;}
   const m=monthOf(DATE);const M=S.captains[m]||(S.captains[m]={});const L=M[ec]||(M[ec]=[]);
-  const ex=L.find(c=>c.sku===k);if(ex){ex.target=t;ex.active=true;}else L.push({sku:k,name:cat[k],target:t,active:true,by:USER.username});
-  save();render();push('captain',{month:m,code:ec,sku:k},{name:cat[k],target:t,active:true});toast('🎗️ اتفعّل الكابتن لـ '+e.name);
+  const ex=L.find(c=>c.sku===k);const cp=isOps()?(+$('#capPts')?.value||null):(ex?.pts??null);
+  if(ex){ex.target=t;ex.active=true;ex.pts=cp;}else L.push({sku:k,name:cat[k],target:t,pts:cp,active:true,by:USER.username});
+  save();render();push('captain',{month:m,code:ec,sku:k},{name:cat[k],target:t,pts:cp,active:true});toast('🎗️ اتفعّل الكابتن لـ '+e.name);
 }
-function toggleCap(code,sku){const c=(S.captains[monthOf(DATE)]?.[code]||[]).find(x=>x.sku===sku);if(!c)return;c.active=c.active===false;save();render();push('captain',{month:monthOf(DATE),code,sku},{name:c.name,target:c.target,active:c.active});}
+function toggleCap(code,sku){const c=(S.captains[monthOf(DATE)]?.[code]||[]).find(x=>x.sku===sku);if(!c)return;c.active=c.active===false;save();render();push('captain',{month:monthOf(DATE),code,sku},{name:c.name,target:c.target,pts:c.pts??null,active:c.active});}
 async function delCap(code,sku){if(!await askConfirm('حذف الكابتن؟'))return;const M=S.captains[monthOf(DATE)];M[code]=(M[code]||[]).filter(x=>x.sku!==sku);save();render();push('captain',{month:monthOf(DATE),code,sku},null);}
 function targetDetail(m){
   const p=deptProgress(m,TG.branch,TG.dept,DATE);
@@ -1178,6 +1188,10 @@ function targetEditor(m){
   const key=deptKey(TG.branch,TG.dept);
   if(!DRAFT||DRAFT._key!==key+m){const cur=S.targets[m]?.[key];DRAFT=cur?JSON.parse(JSON.stringify(cur)):{type:'sales',items:[],kpis:[]};DRAFT.items=DRAFT.items||[];DRAFT.kpis=DRAFT.kpis||[];DRAFT._key=key+m;DRAFT.mult=S.settings.defaultMultiplier;DRAFT.q='';}
   const head=`<div class="sec-title"><h3>✏️ تارجت ${esc(TG.branch)} — ${esc(TG.dept)} — ${monthName(m)}</h3><div class="row"><button class="btn pri sm" onclick="saveTarget()">💾 حفظ</button><button class="btn sm" onclick="DRAFT=null;TG.mode='view';render()">إلغاء</button></div></div>
+    <div class="card" style="margin-bottom:10px;border-color:#cfc4ff;background:#faf8ff"><b>⭐ نقط القسم للشهر ده</b><div class="row" style="margin-top:6px">
+      <label class="small">نقط التارجت لو اتقفل 100%<br><input class="inp" type="number" style="width:120px" value="${DRAFT.pts??''}" placeholder="مثلاً 100" onchange="DRAFT.pts=+this.value||null"></label>
+      <label class="small">المطلوب للعشرة الأوائل (نقط التارجت + الكابتن)<br><input class="inp" type="number" style="width:120px" value="${DRAFT.need??''}" placeholder="مثلاً 120" onchange="DRAFT.need=+this.value||null"></label></div>
+      <div class="small muted" style="margin-top:4px">لو سبت المطلوب فاضي = ${fmt(TGT_G())}% من أقصى نقط (القسم + كباتن الموظف).</div></div>
     <div class="chips" style="margin-bottom:10px"><button class="chip ${DRAFT.type==='sales'?'on':''}" onclick="DRAFT.type='sales';render()">🛒 مبيعات (كميات)</button><button class="chip ${DRAFT.type==='manual'?'on':''}" onclick="DRAFT.type='manual';render()">🧹 تشغيلي</button></div>`;
   if(DRAFT.type==='manual') return `<div class="card">${head}
     <div class="row small" style="margin-bottom:8px">قوالب: ${Object.keys(PRESETS).map(p=>`<button class="btn sm" onclick="applyPreset('${p}')">${p}</button>`).join('')}</div>
@@ -1198,6 +1212,7 @@ function applyPreset(p){DRAFT.kpis=PRESETS[p].map(k=>({...k,id:uid()}));render()
 function saveTarget(){
   const m=monthOf(DATE);const key=deptKey(TG.branch,TG.dept);
   const cfg=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.filter(i=>i.target>0)}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
+  if(DRAFT.pts>0)cfg.pts=DRAFT.pts;if(DRAFT.need>0)cfg.need=DRAFT.need;
   (S.targets[m]||(S.targets[m]={}))[key]=cfg;push('target',{month:m,dkey:key},cfg);
   save();DRAFT=null;TG.mode='view';render();toast('💾 اتحفظ التارجت');
 }
@@ -1364,7 +1379,7 @@ function vSettings(){
    <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر = أحمر')}</div></div>
    <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد التصفيات')}${num('winnersPerShift','أقصى فايزين بالشيفت')}</div>
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
-   <div class="card"><h3>📈 شرط العشرة الأوائل + تقرير الـ10 أيام</h3><div class="row">${num('goal','حد الـ KPI للعشرة الأوائل')}${num('targetGoal','حد التارجت % للعشرة الأوائل')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">الموظف لازم يعدّي الحدّين مع بعض عشان يدخل العشرة الأوائل وياخد جايزة. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
+   <div class="card"><h3>📈 شرط العشرة الأوائل + تقرير الـ10 أيام</h3><div class="row">${num('goal','حد الـ KPI للعشرة الأوائل')}${num('targetGoal','المطلوب الافتراضي % من نقط التارجت')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">الموظف لازم يعدّي الحدّين مع بعض عشان يدخل العشرة الأوائل وياخد جايزة. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
    <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}${num('marketDays','أيام فتح السوق للعروض')}${num('mgrWeights.ops','وزن تقييم التشغيل %')}${num('mgrWeights.team','وزن أداء الفريق %')}${num('mgrWeights.votes','وزن تصويت الموظفين %')}</div></div>
@@ -1951,9 +1966,10 @@ function progressOf(e,cp,goal){
 }
 function tgtDetailHTML(R){const t=R.tg?.t;if(!t)return `<div class="lock" style="margin-top:8px">🎯 لسه مفيش تارجت متحدد لقسمك — كلّم مديرك.</div>`;
   const rows=[];
-  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);rows.push(`<tr><td>🛒 تارجت القسم</td><td>باع ${fmt(Sd,1)} من ${fmt(T,1)} (${fmt(t.pct)}%)</td><td>${t.pace!=null?`المفروض لحد النهارده ${fmt(t.pace)}%`:''}</td></tr>`);}
-  else if(t.kpis)for(const k of t.kpis)rows.push(`<tr><td>📋 ${esc(k.name)}</td><td>${k.val!=null?fmt(k.val,1):'—'}</td><td>${k.pct!=null?fmt(k.pct)+'%':'—'}</td></tr>`);
-  for(const c of t.caps||[])rows.push(`<tr><td><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن ${esc(c.name)}</td><td>باع ${fmt(c.sold,1)} من ${fmt(c.target,1)} (${fmt(c.pct)}%)</td><td>${c.target>c.sold?`فاضل ${fmt(c.target-c.sold,1)}`:'✔ قفل'}</td></tr>`);
+  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);rows.push(`<tr><td>🛒 تارجت القسم</td><td>باع ${fmt(Sd,1)} من ${fmt(T,1)} (${fmt(t.pct)}%)</td><td>${t.pace!=null?`المفروض لحد النهارده ${fmt(t.pace)}%`:''}</td><td><b>${fmt(R.tg?.dPts)}</b> / ${fmt(t.deptMax)} نقطة</td></tr>`);}
+  else if(t.kpis){for(const k of t.kpis)rows.push(`<tr><td>📋 ${esc(k.name)}</td><td>${k.val!=null?fmt(k.val,1):'—'}</td><td>${k.pct!=null?fmt(k.pct)+'%':'—'}</td><td></td></tr>`);rows.push(`<tr><td><b>📋 مؤشرات القسم</b></td><td>${fmt(t.pct)}%</td><td></td><td><b>${fmt(R.tg?.dPts)}</b> / ${fmt(t.deptMax)} نقطة</td></tr>`);}
+  (t.caps||[]).forEach((c,i)=>rows.push(`<tr><td><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن ${esc(c.name)}</td><td>باع ${fmt(c.sold,1)} من ${fmt(c.target,1)} (${fmt(c.pct)}%)</td><td>${c.target>c.sold?`فاضل ${fmt(c.target-c.sold,1)}`:'✔ قفل'}</td><td><b>${fmt(R.tg?.cPts?.[i])}</b> / ${fmt(c.max)} نقطة</td></tr>`));
+  if(R.tg&&R.tg.pace<100)rows.push(`<tr><td colspan="4" class="small muted">النقط محسوبة «على المسار»: اللي اتباع لحد النهارده مقارنة باللي المفروض يتباع لحد النهارده.</td></tr>`);
   return `<h3 style="margin:10px 0 4px">🎯 التارجت بالتفصيل</h3><table><tbody>${rows.join('')}</tbody></table>`;}
 function tgtTip(R){const t=R.tg?.t;if(!t)return 'لسه مفيش تارجت متحدد لقسمك.';const L=[];
   for(const c of t.caps||[])if(c.target>c.sold)L.push(`فاضل ${fmt(c.target-c.sold,1)} من ${esc(c.name)}`);
@@ -1972,7 +1988,7 @@ function reportHTML(R,forEmp){
       <div class="small muted">تقرير يوم ${fmt(R.cp.day)} ${monthName(R.cp.m)}</div></div>
     <div class="grid g-2" style="margin-bottom:8px">
       <div class="card" style="text-align:center;border-color:${R.q.kOk?'var(--green)':'#e7a59e'}"><div class="small muted">🧑‍💼 الـ KPI بتاعك</div><div style="font-size:32px;font-weight:900">${fmt(R.score)}<span class="small muted">/100</span> ${R.q.kOk?'✔':'✖'}</div><div class="small">المطلوب ${fmt(KPI_G())}</div>${R.score!=null?barHTML(R.score/KPI_G()*100,null,R.q.kOk?'':'bad'):''}</div>
-      <div class="card" style="text-align:center;border-color:${R.q.tOk?'var(--green)':'#e7a59e'}"><div class="small muted">🎯 التارجت (القسم${R.tg?.capv!=null?' + الكابتن':''})</div><div style="font-size:32px;font-weight:900">${R.tg?.v!=null?fmt(R.tg.v)+'%':'—'} ${R.q.tOk?'✔':'✖'}</div><div class="small">المطلوب ${fmt(TGT_G())}%${R.tg&&R.tg.pace<100?' <span class="muted">(على المسار — مقارنة باللي المفروض لحد يوم '+fmt(R.cp.day)+')</span>':''}</div>${R.tg?.v!=null?barHTML(R.tg.v/TGT_G()*100,null,R.q.tOk?'':'bad'):''}</div>
+      <div class="card" style="text-align:center;border-color:${R.q.tOk?'var(--green)':'#e7a59e'}"><div class="small muted">🎯 نقط التارجت (القسم${R.tg?.cPts?.length?' + الكابتن':''})</div><div style="font-size:32px;font-weight:900">${R.tg?.v!=null?fmt(R.tg.v):'—'}<span class="small muted"> نقطة</span> ${R.q.tOk?'✔':'✖'}</div><div class="small">المطلوب ${fmt(R.tg?.need)} نقطة من ${fmt(R.tg?.max)}${R.tg&&R.tg.pace<100?' <span class="muted">(على المسار — مقارنة باللي المفروض لحد يوم '+fmt(R.cp.day)+')</span>':''}</div>${R.tg?.v!=null&&R.tg.need?barHTML(R.tg.v/R.tg.need*100,null,R.q.tOk?'':'bad'):''}</div>
     </div>
     <div class="small" style="margin-bottom:6px">⚖️ عشان تدخل العشرة الأوائل لازم <b>الاتنين مع بعض</b>.</div>
     <div class="small muted" style="margin:6px 0 10px">${fmt(R.n)} يوم متقيّم · ${R.abs?`غياب ${fmt(R.abs)} يوم · `:''}${cardsHTML(R.cards)||'مفيش كروت'}${R.cardP?` (${R.cardP>0?'+':''}${fmt(R.cardP)} نقطة)`:''}</div>
@@ -2009,12 +2025,12 @@ function vProgress(){
   const goal=goalAt(cp.date);const list=filtered(true);
   const R=list.map(e=>progressOf(e,cp,goal)).filter(r=>r.st!=='none').sort((a,b)=>(b.score||0)-(a.score||0));
   const cnt=k=>R.filter(r=>r.st===k).length;
-  return `<div class="sec-title"><h2>📈 تقارير التقدّم — يوم ${fmt(cp.day)} ${monthName(cp.m)}</h2><div class="small">الشرط: KPI <b>${fmt(KPI_G())}</b> أو أكتر، والتارجت <b>${fmt(TGT_G())}%</b> أو أكتر — الاتنين مع بعض</div></div>
+  return `<div class="sec-title"><h2>📈 تقارير التقدّم — يوم ${fmt(cp.day)} ${monthName(cp.m)}</h2><div class="small">الشرط: KPI <b>${fmt(KPI_G())}</b> أو أكتر، ونقط التارجت توصل المطلوب لقسمه — الاتنين مع بعض</div></div>
     <div class="row" style="margin-bottom:10px;gap:8px"><span class="badge b-green">🟢 مرشحين ${fmt(cnt('green'))}</span><span class="badge b-gold">🟡 قريبين ${fmt(cnt('near'))}</span><span class="badge b-red">🔴 متأخرين ${fmt(cnt('red'))}</span></div>
     ${filterBar({scoped:true})}
     <div class="card"><div class="tbl-wrap"><table><thead><tr><th>الموظف</th><th>الحالة</th><th>🧑‍💼 KPI</th><th>🎯 التارجت</th><th>أكتر حاجة مأخّراه</th><th>أضعف بند فني</th><th>أضعف بند هايجين</th></tr></thead><tbody>
     ${R.map(r=>{const w=r.parts.filter(p=>p.lost>0.5).sort((a,b)=>b.lost-a.lost)[0];return `<tr style="cursor:pointer" onclick="openReport('${r.e.code}')"><td><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(r.e,'sm')}<div><b>${esc(r.e.name)}</b><div class="small muted">${esc(r.e.dept)} · ${esc(r.e.shift)}</div></div></div></td>
-      <td><span class="badge ${ST_TXT[r.st][2]}">${ST_TXT[r.st][0]} ${ST_TXT[r.st][1].split(' ')[0]}</span></td><td><b style="color:${r.q.kOk?'var(--green)':'var(--red)'}">${fmt(r.score)} ${r.q.kOk?'✔':'✖'}</b></td><td><b style="color:${r.q.tOk?'var(--green)':'var(--red)'}">${r.tg?.v!=null?fmt(r.tg.v)+'%':'—'} ${r.q.tOk?'✔':'✖'}</b></td>
+      <td><span class="badge ${ST_TXT[r.st][2]}">${ST_TXT[r.st][0]} ${ST_TXT[r.st][1].split(' ')[0]}</span></td><td><b style="color:${r.q.kOk?'var(--green)':'var(--red)'}">${fmt(r.score)} ${r.q.kOk?'✔':'✖'}</b></td><td><b style="color:${r.q.tOk?'var(--green)':'var(--red)'}">${r.tg?.v!=null?fmt(r.tg.v)+' / '+fmt(r.tg.need):'—'} ${r.q.tOk?'✔':'✖'}</b></td>
       <td class="small">${w?`${w.t} (−${fmt(w.lost,1)})`:'—'}</td><td class="small">${r.techA[0]?esc(r.techA[0].t):'—'}</td><td class="small">${r.hyA[0]?esc(r.hyA[0].t):'—'}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">مفيش تقييمات لسه</td></tr>'}
     </tbody></table></div></div>`;
 }
@@ -2055,7 +2071,7 @@ function demoSeed(){
   S.baseSales[pm]=base;
   for(const d of days){S.sales[d]={};for(const br of [B,A]){const o={};for(const[sku,v]of Object.entries(base[br]))o[sku]={name:v.name,qty:Math.round(v.qty/30*(0.7+rnd()*1.1)*10)/10};S.sales[d][br]=o;}}
   const T=S.targets[m]={};
-  for(const br of [B,A])for(const dept of Object.keys(DEMO_PRODUCTS)){const f=1.05+rnd()*.7;T[deptKey(br,dept)]={type:'sales',items:Object.entries(cat).filter(([,c])=>c.dept===dept).map(([sku,c])=>({key:sku,name:c.name,target:Math.round(base[br][sku].qty*f)}))};}
+  for(const br of [B,A])for(const dept of Object.keys(DEMO_PRODUCTS)){const f=1.05+rnd()*.7;T[deptKey(br,dept)]={type:'sales',pts:dept==='قسم البقاله'?100:80,need:dept==='قسم البقاله'?120:70,items:Object.entries(cat).filter(([,c])=>c.dept===dept).map(([sku,c])=>({key:sku,name:c.name,target:Math.round(base[br][sku].qty*f)}))};}
   for(const br of [B,A]){T[deptKey(br,'قسم الكاشير')]={type:'manual',kpis:PRESETS['الكاشير'].map((x,i)=>({...x,id:'c'+i}))};
     for(const dept of ['خدمه العملاء','قسم الامن و المراقبه','قسم الخدمات','دليفري','بيكب','قسم الداتا انتري','تسعير','كول سنتر'])T[deptKey(br,dept)]={type:'manual',kpis:PRESETS['نضافة + تقييم المدير'].map((x,i)=>({...x,id:'d'+i}))};
     for(const d of days){const V=S.kpiVals[d]||(S.kpiVals[d]={});V[deptKey(br,'قسم الكاشير')]={c0:rnd()<.8?0:1,c1:1+Math.round(rnd()*2),c2:8+Math.round(rnd()*2),c3:8+Math.round(rnd()*2),c4:9,c5:rnd()<.7?0:1};
@@ -2076,7 +2092,7 @@ function demoSeed(){
   // personal captains
   const C=S.captains[m]={};const prodOf=dept=>Object.entries(cat).filter(([,c])=>c.dept===dept).map(([s])=>s);
   for(const br of [B,A])for(const dept of ['قسم البقاله','قسم الفاكهه','قسم الايس كريم','bakery']){const team=activeEmps().filter(e=>e.branch===br&&e.dept===dept).slice(0,3);const P=prodOf(dept);
-    team.forEach((e,i)=>{const sku=P[i%P.length];C[e.code]=[{sku,name:cat[sku].name,target:Math.round(base[br][sku].qty*(1.1+rnd()*.4)),active:true,by:'haitham'}];});}
+    team.forEach((e,i)=>{const sku=P[i%P.length];C[e.code]=[{sku,name:cat[sku].name,target:Math.round(base[br][sku].qty*(1.1+rnd()*.4)),pts:60,active:true,by:'haitham'}];});}
   // managers: daily ratings, last month's wallet, a transfer market in progress
   S.mgrCrit={};for(const d of days){S.mgrCrit[d]={};for(const u of S.users.filter(x=>x.role!=='ops'))S.mgrCrit[d][u.username]=Array.from({length:5},()=>rnd()<.7?2:1);}
   const w={haitham:340,mahmoud:180,islam:260,firas:210,abdelrahman:230};for(const[u,p]of Object.entries(w))S.ledger.push({id:`close|${pm}|${u}`,username:u,month:pm,points:p,reason:`نقاط ${monthName(pm)}`});
