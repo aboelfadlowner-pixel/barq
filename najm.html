@@ -1132,7 +1132,8 @@ function vTarget(){
     const p=deptProgress(m,TG.branch,d,DATE);const caps=captainsIn(m,DATE,e=>e.branch===TG.branch&&e.dept===d);const capPeople=new Set(caps.map(c=>c.code)).size;
     return `<div class="card" style="cursor:pointer" onclick="TG.dept='${esc(d)}';TG.mode='view';render()">
       <div class="sec-title" style="margin:0 0 6px"><b>${esc(d)}</b>${p?`<span class="badge ${p.type==='sales'?'b-blue':'b-green'}">${p.type==='sales'?'مبيعات (كميات)':'تشغيلي'}</span>`:'<span class="badge b-gray">لم يُحدد</span>'}</div>
-      ${p&&p.pct!=null?`${barHTML(p.pct,p.pace)}<div class="kv"><span>${p.pace!=null?`المفروض لحد النهارده ${fmt(p.pace)}%`:'الإنجاز'}</span><b>${fmt(p.pct)}% · ${fmt(p.points)} نقطة</b></div>`:p?'<div class="small muted">مفيش بيانات لسه</div>':''}
+      ${p&&p.pct!=null?`${barHTML(p.pct,p.pace)}<div class="kv"><span>${p.pace!=null?`المفروض لحد النهارده ${fmt(p.pace)}%`:'الإنجاز'}</span><b>${fmt(p.pct)}% · ${(c=>+c?.pts>0?`${fmt(Math.round(+c.pts*tgtRatio(p.pct)))} / ${fmt(c.pts)}`:fmt(p.points))(tgtCfg(m,TG.branch,d))} نقطة</b></div>`:p?'<div class="small muted">مفيش بيانات لسه</div>':''}
+      ${(c=>+c?.pts>0?`<div class="small muted">⭐ ${fmt(c.pts)} نقطة لو اتقفل · المطلوب للعشرة الأوائل ${c.need?fmt(c.need):'تلقائي'}</div>`:isOps()?'<div class="small" style="color:var(--red)">⭐ لسه محددتش نقط القسم ده</div>':'')(tgtCfg(m,TG.branch,d))}
       ${caps.length?`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن شخصي</span><b style="color:var(--purple)">${fmt(capPeople)} موظف · ${fmt(caps.length)} منتج</b></div>`:''}
     </div>`;}).join('');
   const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy();
