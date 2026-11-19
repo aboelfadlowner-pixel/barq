@@ -1,12 +1,13 @@
 // نجم أبو الفضل — الدخول والخروج: المديرين (يوزر + رقم سري) والموظفين (كود البصمة + رقم سري)
 // ---------- login / modal ----------
 async function openLogin(){
+  if(!USER&&isEmp()){if(await askConfirm('خروج من حسابك؟'))meLogout();return;}
   if(USER){if(await askConfirm('تسجيل خروج؟')){USER=null;PIN=null;try{sessionStorage.removeItem('najm-user')}catch(e){}if(LIVE)await refresh();render();}return;}
   openModal(`<button class="x" onclick="closeModal()">✕</button><div class="login"><h2>🔐 دخول المديرين</h2>
     <label>اسم الدخول<br><input class="inp" id="l_user" style="width:100%" autocomplete="username"></label><br><br>
     <label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()"></label>
     <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>
-    <div class="small muted" style="margin-top:10px">الموظفين بيدخلوا من «📈 تقريري» بكود البصمة ورقمهم السري.</div></div>`);
+    <div class="small muted" style="margin-top:10px">الموظفين بيدخلوا من «🔑 دخول الموظفين» بكود البصمة ورقمهم السري.</div></div>`);
   setTimeout(()=>$('#l_user')?.focus(),50);
 }
 async function doLogin(){
@@ -38,11 +39,11 @@ async function meLogin(){
   let must=false;
   if(LIVE){let r;try{r=await sbRpc('najm_emp_login',{p_code:c,p_pin:pin});}catch(x){toast(/wrong code/.test(x.message)?'الكود أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':'⚠️ مش قادر أوصل لقاعدة البيانات');return;}must=!!r.must_change;}
   else{const p=localEmpPin(c);if(!e||!e.active||!p||p.pin!==pin){toast('الكود أو الرقم السري غلط');return;}must=!!p.must;}
-  ME=c;MEPIN=pin;meSave();
+  ME=c;MEPIN=pin;meSave();VIEW='me';
   if(LIVE){toast('⏳ بنجهّز صفحتك…');await refresh(true);}render();
   if(must)meChangePin(true);
 }
-function meLogout(){ME=null;MEPIN=null;meSave();VOTER=null;render();}
+function meLogout(){ME=null;MEPIN=null;meSave();VOTER=null;VIEW='dash';render();}
 async function meChangePin(first){
   const p=await askText(first?'أول مرة: اختار رقم سري جديد ليك (4 لـ 6 أرقام)':'الرقم السري الجديد (4 لـ 6 أرقام)');if(p===null)return;const np=p.trim();
   if(!/^\d{4,6}$/.test(np)){toast('الرقم السري لازم يكون من 4 لـ 6 أرقام');return meChangePin(first);}
