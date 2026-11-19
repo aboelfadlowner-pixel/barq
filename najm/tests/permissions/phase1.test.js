@@ -198,6 +198,11 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   test('الجداول الجديدة مقفولة عن العامة', async () => {
     for (const t of ['najm_card_appeals', 'najm_history', 'najm_day_closes', 'najm_emp_pins']) eq((await asAnon(db, `select count(*)::int n from ${t}`))[0].n, 0, t);
   });
+  test('كل دالة بتتحقق من الرقم السري لازم تكون volatile (عشان تشتغل من المتصفح ومتترفضش كـ «قراءة بس»)', async () => {
+    const r = (await db.query(`select proname from pg_proc where pronamespace='public'::regnamespace and proname like 'najm%' and provolatile<>'v'
+      and (prosrc like '%najm_auth%' or prosrc like '%najm_emp_auth%' or prosrc like '%najm_emp_login%' or prosrc like '%najm_login_any%')`)).rows.map(x => x.proname);
+    eq(r, []);
+  });
   await run('المرحلة الأولى — الداتابيز');
   await db.end();
 })();
