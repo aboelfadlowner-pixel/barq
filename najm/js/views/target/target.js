@@ -10,6 +10,10 @@ function catalog(){ // product list: code -> name (from uploaded sales; linked t
 }
 function vTarget(){
   const m=monthOf(DATE);
+  // الموظف بيشوف تارجت قسمه بس · مدير الفرع فرعه بس · التشغيل كل الفروع
+  if(isEmp()){const e=emp(ME);TG.branch=e.branch;TG.dept=e.dept;TG.mode='view';
+    return `<div class="sec-title"><h2>🎯 تارجت قسمك — ${esc(e.dept)} · ${monthName(m)}</h2></div>${targetDetail(m)}`;}
+  if(USER?.branch&&!isOps())TG.branch=USER.branch;
   if(!TG.branch)TG.branch=USER?.branch||branches()[0];
   const cards=deptsOf(TG.branch).map(d=>{
     const p=deptProgress(m,TG.branch,d,DATE);const caps=captainsIn(m,DATE,e=>e.branch===TG.branch&&e.dept===d);const capPeople=new Set(caps.map(c=>c.code)).size;
@@ -23,7 +27,7 @@ function vTarget(){
   return `<div class="sec-title"><h2>🎯 التارجت والكابتن — ${monthName(m)}</h2>
     <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}</div></div>
     <div class="lock" style="margin-bottom:10px"><b>النقط بيحددها مدير التشغيل أول كل شهر:</b> نقط تارجت كل قسم، ونقط كل كابتن، والمطلوب للعشرة الأوائل — والتطبيق بيحسب الباقي لوحده. التارجت بالكميات للقسم كله. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>
-    <div class="chips" style="margin-bottom:12px">${branches().map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
+    <div class="chips" style="margin-bottom:12px">${(USER?.branch&&!isOps()?[USER.branch]:branches()).map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
     ${ribbonHTML([TG.branch])}
     ${TG.dept?(TG.mode==='edit'&&isOps()?targetEditor(m):targetDetail(m)):''}
     <div class="grid g-2" style="margin-top:12px">${cards||'<div class="empty">مفيش أقسام</div>'}</div>`;

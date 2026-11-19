@@ -10,7 +10,11 @@ function vEmps(){
     </tbody></table></div>`;
 }
 function openEmp(code){
-  const e=emp(code);if(!e)return;const m=monthOf(DATE);const R=ranks();const ms=msOf(e);const t=ms.target;
+  const e=emp(code);if(!e)return;
+  // الزائر ميشوفش بروفايلات · الموظف بيشوف نسخة مختصرة لزمايله (من غير كروت ولا تفاصيل) · المدير الكامل لفريقه بس
+  if(isGuest()){toast('🔑 ادخل بكودك ورقمك السري عشان تشوف بروفايل زمايلك');return;}
+  if(isEmp()&&code===ME){closeModal();go('me');return;}
+  const m=monthOf(DATE);const R=ranks();const ms=msOf(e);const t=ms.target;
   const mgr=isMgr()&&inScope(e);
   const days=monthDays(m);const off=(new Date(days[0]).getDay()+1)%7;
   const cal=Array(off).fill('<div style="border:0"></div>').concat(days.map(d=>{const s=score(d,code);const w=isWinner(d,code);const cs=S.cards.filter(c=>c.code===code&&c.date===d&&counted(c));return `<div class="${w?'w':''}"><div class="muted">${+d.slice(8)}</div>${s.st==='abs'?'<span style="color:var(--red)">غ</span>':s.total!=null?`<b>${fmt(s.total,2)}</b>`:''}${w?'🏆':''}${cs.map(c=>`<i class="fcard ${c.color}" style="width:8px;height:11px"></i>`).join('')}</div>`;})).join('');
@@ -34,13 +38,13 @@ function openEmp(code){
    <div class="grid g-2" style="margin-bottom:12px">
      <div class="card"><h3>${monthName(m)}</h3>
        <div class="kv"><span>متوسط النجوم</span><span>${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b></span></div>
-       <div class="kv"><span>تقييم الشهر (بعد الكروت)</span><b>${fmt(ms.monthScore)}/100 ${ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
-       <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>
+       <div class="kv"><span>تقييم الشهر</span><b>${fmt(ms.monthScore)}/100 ${mgr&&ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
+       ${mgr?`<div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>`:''}
        <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.pct!=null?barHTML(t.pct,t.pace):''}
        ${caps.map(c=>`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> ${esc(c.name)}</span><b style="color:var(--purple)">${fmt(c.pct)}% · ${fmt(c.points)} ن</b></div>`).join('')}
        <div class="kv"><span>إجمالي النقاط</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}${t?.complaints?` <span class="badge b-red">−${S.settings.complaintPenalty}% شكوى</span>`:''}</b></div>
        ${isOps()&&t?.empPoints!=null&&S.settings.bonusAt100?`<div class="kv"><span>المكافأة (التشغيل فقط)</span><b>${fmt(money(t.empPoints))} ج</b></div>`:''}
-     </div>${crit||`<div class="card"><h3>النجوم يوم بيوم</h3><div class="cal">${['سبت','أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة'].map(d=>`<div style="border:0;min-height:0" class="muted">${d}</div>`).join('')}${cal}</div></div>`}
+     </div>${crit||'<div class="card"><h3>👀 بروفايل مختصر</h3><div class="small muted">الكروت وتفاصيل التقييم بتظهر للموظف نفسه ولمديرينه بس.</div></div>'}
    </div>
    ${mgr?`<div class="card" style="margin-bottom:12px"><h3>النجوم يوم بيوم</h3><div class="cal">${['سبت','أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة'].map(d=>`<div style="border:0;min-height:0" class="muted">${d}</div>`).join('')}${cal}</div></div>
    <div class="grid g-2">

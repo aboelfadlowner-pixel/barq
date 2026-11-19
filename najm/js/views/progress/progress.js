@@ -46,12 +46,7 @@ function reportHTML(R,forEmp){
 }
 function vProgress(){
   const cp=checkpointOf(DATE);
-  if(!USER){
-    if(!ME||!MEPIN||!emp(ME))return empLoginForm('📈 تقريري','كل 10 أيام بيطلعلك تقرير: إنت من العشرة الأوائل ولا متأخر، وإيه اللي مأخّرك بالظبط. وكمان كروتك وتقدر تعترض على أي كارت.');
-    const e=emp(ME);
-    const top=cp.day?reportHTML(progressOf(e,cp,goalAt(cp.date)),true):`<div class="card" style="text-align:center"><div style="font-size:48px">📅</div><h2>أهلاً ${esc(e.name.split(' ')[0])}</h2><div class="muted">أول تقرير للشهر ده هيطلع يوم ${fmt(cp.next)}.</div></div>`;
-    return `<div style="max-width:820px;margin:0 auto">${top}${myCardsHTML()}<div class="row" style="margin-top:10px"><button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button><button class="btn sm" onclick="meLogout()">مش أنا — خروج</button></div></div>`;
-  }
+  if(!USER)return vMe();   // الموظف: تقريره في «صفحتي»
   if(!cp.day)return `<h2>📈 تقارير التقدّم</h2><div class="empty">أول تقرير للشهر ده يوم ${fmt(cp.next)}.</div>`;
   const goal=goalAt(cp.date);const list=filtered(true);
   const R=list.map(e=>progressOf(e,cp,goal)).filter(r=>r.st!=='none').sort((a,b)=>(b.score||0)-(a.score||0));

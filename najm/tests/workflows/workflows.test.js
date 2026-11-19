@@ -42,8 +42,47 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     ok(!(await p.$('#capPts')), 'branch manager sees captain points');
   });
   test('الموظف يدخل بكوده ويشوف تقريره بالمربعين (KPI ونقط التارجت)', async () => {
-    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; MEPIN = '1234'; go('progress'); return document.querySelector('#main').innerText; });
+    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; MEPIN = '1234'; go('me'); return document.querySelector('#main').innerText; });
     ok(txt.includes('الـ KPI بتاعك') && txt.includes('نقط التارجت'), txt.slice(0, 120));
+  });
+  test('مين يشوف إيه: الزائر / الموظف / المدير / التشغيل', async () => {
+    const r = await p.evaluate(() => {
+      const tabs = () => TABS.filter(t => t[2]()).map(t => t[0]);
+      const keep = [ME, MEPIN]; const out = {};
+      USER = null; ME = null; MEPIN = null; out.guest = tabs();
+      ME = activeEmps()[0].code; MEPIN = '1234'; out.emp = tabs();
+      USER = { username: 'haitham', role: 'branch', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] }; out.branch = tabs();
+      USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; out.ops = tabs();
+      USER = null; [ME, MEPIN] = keep; return out;
+    });
+    eq(r.guest, ['dash', 'me', 'day', 'month']);
+    eq(r.emp, ['dash', 'me', 'day', 'month', 'players', 'vote', 'target']);
+    ok(r.branch.includes('league') && r.branch.includes('rate') && !r.branch.includes('vote') && !r.branch.includes('settings'), r.branch.join());
+    ok(r.ops.includes('settings') && r.ops.includes('league'), r.ops.join());
+  });
+  test('الزائر ميفتحش بروفايل حد · الموظف يشوف بروفايل زميله مختصر من غير كروت · المدير يشوفه كامل', async () => {
+    const r = await p.evaluate(() => {
+      const keep = [ME, MEPIN]; closeModal();
+      const A = activeEmps().filter(e => e.branch === 'البيطاش الرئيسي'); const other = A.find(e => S.cards.some(c => c.code === e.code)) || A[1];
+      USER = null; ME = null; MEPIN = null; openEmp(other.code); const guest = !!document.querySelector('#modal.on, .modal.on') && document.querySelector('#modal')?.innerText.includes(other.name);
+      closeModal(); ME = A.find(e => e.code !== other.code).code; MEPIN = '1234'; openEmp(other.code); const t1 = document.querySelector('#modal').innerText; closeModal();
+      USER = { username: 'haitham', role: 'branch', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] }; openEmp(other.code); const t2 = document.querySelector('#modal').innerText; closeModal();
+      USER = null; [ME, MEPIN] = keep; return [guest, t1.includes('بروفايل مختصر') && !t1.includes('الكروت\n') && !t1.includes('ملاحظات الإدارة'), t2.includes('ملاحظات الإدارة')];
+    });
+    eq(r, [false, true, true]);
+  });
+  test('الموظف يشوف تارجت قسمه بس', async () => {
+    const t = await p.evaluate(() => { USER = null; const e = activeEmps().find(x => x.dept === 'قسم البقاله'); ME = e.code; MEPIN = '1234'; go('target'); return document.querySelector('#main').innerText; });
+    ok(t.includes('تارجت قسمك — قسم البقاله') && !t.includes('📥'), t.slice(0, 200));
+  });
+  test('صفحة المدير: مهام النهارده وفريقه ونقطه · التشغيل: مستني قرارك وكل المديرين', async () => {
+    const r = await p.evaluate(() => {
+      USER = { username: 'haitham', role: 'branch', branch: 'البيطاش الرئيسي', name: 'هيثم', shift: '', depts: [] }; go('me'); const a = document.querySelector('#main').innerText;
+      USER = { username: 'ops', role: 'ops', name: 'مدير التشغيل', branch: '', shift: '', depts: [] }; go('me'); const b = document.querySelector('#main').innerText;
+      openMgrProfile('haitham'); const c = document.querySelector('#modal').innerText; closeModal(); USER = null; go('dash');
+      return [a.includes('مهام النهارده') && a.includes('فريقك') && a.includes('دوري المديرين'), b.includes('مستني قرارك') && b.includes('كل المديرين'), c.includes('فريقك')];
+    });
+    eq(r, [true, true, true]);
   });
   test('المبالغ مخفية عن الموظف ومدير الفرع، وظاهرة للتشغيل', async () => {
     const r = await p.evaluate(src => {
