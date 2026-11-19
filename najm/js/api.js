@@ -69,9 +69,10 @@ async function push(kind,key,data){
   catch(e){toast(errMsg(e.message));setTimeout(()=>refresh(),400);return false;}
 }
 // نسخة التجربة / من غير إنترنت: نفس السجل اللي الداتابيز بتكتبه (من غير أرقام سرية)
+let OLD_VAL;   // القيمة قبل التعديل (للسجل في نسخة التجربة)
 function logLocal(kind,key,data){if(!USER||!S)return;
   const code=key?.code||(kind==='appeal_decide'?(S.appeals||[]).find(a=>a.id===key?.id)?.code:kind==='card_approve'?(S.cards||[]).find(c=>c.id===key?.id)?.code:null)||null;
-  (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:USER.username,actor_name:USER.name,kind,code,day:key?.day||null,data:{key,data:kind==='user'||kind==='emp_pin'?null:data}});if(S.history.length>2000)S.history.length=2000;}
+  (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:USER.username,actor_name:USER.name,kind,code,day:key?.day||null,data:{key,data:kind==='user'||kind==='emp_pin'?null:data,...(OLD_VAL!==undefined?{old:OLD_VAL}:{})}});OLD_VAL=undefined;if(S.history.length>2000)S.history.length=2000;}
 let UPTOK=null;
 async function uploadMedia(code,blob,ext){
   if(!UPTOK||UPTOK.exp<Date.now()){const t=await sbRpc('najm_upload_token',{p_user:USER.username,p_pin:PIN});if(!t)throw new Error('najm: wrong username or PIN');UPTOK={t,exp:Date.now()+25*60000};}
@@ -91,7 +92,7 @@ async function pull(){
     sbAll('najm_sales',`day=gte.${from}&day=lte.${to}&select=day,branch`),
     sbGet(`najm_base_sales?month=eq.${pm}&select=branch,items`),
     sbAll('najm_kpi_vals',`day=gte.${from}&day=lte.${to}&select=day,dkey,vals`),
-    sbGet(`najm_winners?day=gte.${from}&day=lte.${to}&select=day,gkey,codes`),
+    sbGet(`najm_winners?day=gte.${from}&day=lte.${to}&select=day,gkey,codes,candidates,approved_by,approved_at`),
     sbRpcAll('najm_public_scores',{p_from:from,p_to:to},'day,code'),
     sbRpc('najm_card_points',{p_from:from,p_to:DATE<to?DATE:to}),
     sbRpcAll('najm_card_stats',{p_from:from,p_to:DATE<to?DATE:to},'code'),
@@ -114,7 +115,7 @@ async function pull(){
   N.baseSales={[pm]:Object.fromEntries(base.map(r=>[r.branch,r.items]))};
   for(const r of kpi)(N.kpiVals[r.day]||(N.kpiVals[r.day]={}))[r.dkey]=r.vals;
   const D=d=>N.days[d]||(N.days[d]={att:{},attTime:{},br:{},sh:{},fr:{},ops:{},hy:{},bonus:{},winners:{},pub:{},full:{}});
-  for(const w of win)D(w.day).winners[w.gkey]=w.codes;
+  N.winnersMeta={};for(const w of win){D(w.day).winners[w.gkey]=w.codes;(N.winnersMeta[w.day]||(N.winnersMeta[w.day]={}))[w.gkey]={candidates:w.candidates,approved_by:w.approved_by,approved_at:w.approved_at};}
   for(const r of pub){const x=D(r.day);x.pub[r.code]={att:r.att,total:r.total==null?null:+r.total,complete:r.complete,bonus:r.has_bonus};if(r.att)x.att[r.code]=r.att;}
   for(const r of full){const x=D(r.day);x.full[r.code]=1;if(r.att)x.att[r.code]=r.att;else delete x.att[r.code];if(r.att_time)x.attTime[r.code]=r.att_time;
     for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};}

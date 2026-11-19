@@ -21,12 +21,12 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [mgrStar(D, 'a', { dept: 'قسم الكاشير' }).mgr, mgrStar(D, 'a', { dept: 'قسم البقاله' }).mgr];
     }), [0.5, 0.75]);
   });
-  test('نجوم اليوم = البصمة + المدير + التشغيل + الهايجين + المثالي (أقصى 5)', async () => {
+  test('نجوم اليوم: الأساسي من 5 (البصمة + المدير + التشغيل + الهايجين) + ½ مثالي Bonus فوقه', async () => {
     eq(await ev(() => {
       const code = activeEmps().find(e => !isFresh(e)).code, d = '2099-01-01', D = day(d), full = [2, 2, 2, 2, 2];
       D.full[code] = 1; D.att[code] = 'on'; D.br[code] = full; D.sh[code] = full; D.ops[code] = full; D.hy[code] = full; D.bonus[code] = { v: .5 };
-      const s = score(d, code); delete S.days[d]; return [s.att, s.mgr, s.ops, s.hy, s.total, s.complete];
-    }), [2, 1, 1, 1, 5, true]);
+      const s = score(d, code); delete S.days[d]; return [s.att, s.mgr, s.ops, s.hy, s.base, s.total, s.complete];
+    }), [2, 1, 1, 1, 5, 5.5, true]);
   });
   test('الكروت: الأخضر +10 · الأصفر −5 · الأحمر −20 · كل 3 صفر = أحمر (والصفر التلاتة بتتلغي)', async () => {
     eq(await ev(() => [cardPts({ y: 1, r: 0, g: 0 }), cardPts({ y: 2, r: 0, g: 0 }), cardPts({ y: 3, r: 0, g: 0 }), cardPts({ y: 4, r: 0, g: 0 }), cardPts({ y: 0, r: 0, g: 1 }), cardPts({ y: 3, r: 1, g: 2 })]), [-5, -10, -20, -25, 10, -20]);

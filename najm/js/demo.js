@@ -241,7 +241,7 @@ function demoSeed(){
   for(const d of days.filter(x=>x<DATE))for(const gk of [`${B}|Morning`,`${B}|Night`,`${A}|Morning`,`${A}|Night`]){
     const own=closeOwners(gk);if(!own.length)continue;const dl=closeDeadline(d,gk);const late=rnd()<.15;const at=new Date(dl.getTime()+(late?(40+rnd()*200):-(30+rnd()*300))*60000);
     const pen=late?S.settings.lateClosePenalty:0;(S.closes[d]||(S.closes[d]={}))[gk]={day:d,gkey:gk,deadline:dl.toISOString(),closed_by:own[0],closed_at:at.toISOString(),late_minutes:late?minsLate(at,dl):0,penalty:pen,responsible:late?own:null};
-    if(late)for(const u of own)S.ledger.push({id:`late|${d}|${gk}|${u}`,username:u,month:m,points:-pen,reason:`تأخير إغلاق يوم ${d} — ${gk.replace('|',' · ')}`});}
+    if(late)for(const u of own)S.ledger.push({id:`late|${d}|${gk}|${u}`,username:u,month:m,points:-pen,reason:`تأخير تسليم يوم ${d} — ${gk.replace('|',' · ')}`});}
   // personal captains
   const C=S.captains[m]={};const prodOf=dept=>Object.entries(cat).filter(([,c])=>c.dept===dept).map(([s])=>s);
   for(const br of [B,A])for(const dept of ['قسم البقاله','قسم الفاكهه','قسم الايس كريم','bakery']){const team=activeEmps().filter(e=>e.branch===br&&e.dept===dept).slice(0,3);const P=prodOf(dept);

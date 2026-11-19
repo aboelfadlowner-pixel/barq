@@ -100,7 +100,7 @@ async function resetEmpPin(code){
   const ok=await push('emp_pin',{code},{pin:p});if(ok!==false)toast(`🔑 الرقم السري الجديد لـ ${e.name.split(' ')[0]}: ${p}`);
 }
 // سجل الموظف (History): التقييمات، الكروت، الاعتراضات، ... — للمديرين في نطاقهم
-const HIST_KIND={att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'إغلاق اليوم',day_late:'تأخير إغلاق'};
+const HIST_KIND={att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'تسليم اليوم',day_late:'تأخير تسليم'};
 async function openHistory(code){
   const e=emp(code);let L;
   if(LIVE){try{L=await sbRpc('najm_history_of',{p_user:USER.username,p_pin:PIN,p_code:code})||[];}catch(x){toast(errMsg(x.message));return;}}
@@ -110,9 +110,12 @@ async function openHistory(code){
     if(h.kind==='card_approve')return d?.approved?'اعتماد كارت أحمر':'رفض كارت أحمر';
     if(h.kind==='appeal')return '«'+esc(h.data?.body||'')+'»';
     if(h.kind==='appeal_decide')return (d?.accept?'قبول':'رفض')+(d?.note?' — '+esc(d.note):'');
-    if(h.kind==='rate')return Array.isArray(d)?d.join(' · '):'مسح التقييم';
-    if(h.kind==='att')return d?(ATT[d.st]||'')+(d.time?' '+esc(d.time):''):'مسح';
-    if(h.kind==='bonus')return d?esc(d.note||''):'شيل نص النجمة';
+    const ov=h.data?.old;const why=k.reason?` <span class="badge b-gold">سبب التعديل: ${esc(k.reason)}</span>`:'';
+    const fmtv=v=>v==null?'—':Array.isArray(v)?v.map(x=>x??'—').join(' · '):v.st!==undefined?(ATT[v.st]||'—'):v.v!==undefined?(v.v?'½ '+esc(v.note||''):'—'):String(v);
+    const was=ov!==undefined&&(h.kind==='rate'||h.kind==='att'||h.kind==='bonus')?` <span class="muted">(كان: ${fmtv(ov)})</span>`:'';
+    if(h.kind==='rate')return (Array.isArray(d)?d.join(' · '):'مسح التقييم')+was+why;
+    if(h.kind==='att')return (d?(ATT[d.st]||'')+(d.time?' '+esc(d.time):''):'مسح')+was+why;
+    if(h.kind==='bonus')return (d?esc(d.note||''):'شيل نص النجمة')+was+why;
     if(h.kind==='note')return esc(d?.text||'');
     return '';};
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📜 سجل ${esc(e?.name||code)}</h2><div class="small muted" style="margin-bottom:8px">كل اللي اتعمل على الموظف ده: مين عمله وإمتى. مفيش حاجة بتتمسح من السجل.</div>

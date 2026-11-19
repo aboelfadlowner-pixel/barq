@@ -55,3 +55,8 @@ create table if not exists public.najm_emp_pins (
   must_change boolean not null default true,       -- أول دخول برقم من مدير التشغيل ← لازم يغيّره
   updated_at timestamptz not null default now()
 );
+
+-- ---------------------------------------------------------------- سجل رجل اليوم: المرشحين ومين اعتمد (من غير مبالغ — الجايزة وحالة صرفها في najm_payouts للتشغيل بس)
+alter table public.najm_winners add column if not exists candidates jsonb;
+alter table public.najm_winners add column if not exists approved_by text;
+alter table public.najm_winners add column if not exists approved_at timestamptz;

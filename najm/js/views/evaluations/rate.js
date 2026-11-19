@@ -25,14 +25,15 @@ function vRate(){
         ${myC.map(c=>`<span class="badge ${c.color==='red'?'b-red':c.color==='green'?'b-green':'b-gold'}" title="${esc(c.reason)}">${cardStatus(c)==='approved'?'':'⏳ '}<i class="fcard ${c.color}"></i></span>`).join('')}</div>`}
     </div>`;}).join('')||'<div class="empty">مفيش موظفين في نطاقك</div>'}</div>`;
 }
-function setAtt(code,v){const D=day(DATE);mark(D,code);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();render();push('att',{day:DATE,code},D.att[code]?{st:D.att[code],time:D.attTime[code]||null}:null);}
-async function bulkAtt(v){const D=day(DATE);const L=filtered(true).filter(e=>!D.att[e.code]);L.forEach(e=>{mark(D,e.code);D.att[e.code]=v;});save();render();for(let i=0;i<L.length;i+=10)await Promise.all(L.slice(i,i+10).map(e=>push('att',{day:DATE,code:e.code},{st:v})));toast(`اتسجل الحضور لـ ${L.length} موظف`);}
-function setCrit(code,i,v){const D=day(DATE);mark(D,code);const bag=D[RATE_FIELD[USER.role]];const a=bag[code]||(bag[code]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;save();render();push('rate',{day:DATE,code},a.every(x=>x==null)?null:a);}
+async function setAtt(code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);OLD_VAL={st:D.att[code]??null,time:D.attTime?.[code]??null};mark(D,code);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();render();push('att',k,D.att[code]?{st:D.att[code],time:D.attTime[code]||null}:null);}
+async function bulkAtt(v){if(isOps()&&filtered(true).some(opsClosed)&&!await opsReason())return;const D=day(DATE);const L=filtered(true).filter(e=>!D.att[e.code]);L.forEach(e=>{mark(D,e.code);D.att[e.code]=v;});save();render();for(let i=0;i<L.length;i+=10)await Promise.all(L.slice(i,i+10).map(e=>push('att',{day:DATE,code:e.code,...(opsClosed(e)?{reason:OPS_REASON[DATE]}:{})},{st:v})));toast(`اتسجل الحضور لـ ${L.length} موظف`);}
+async function setCrit(code,i,v){const k=await editKey(code);if(!k)return;const D=day(DATE);mark(D,code);const bag=D[RATE_FIELD[USER.role]];OLD_VAL=bag[code]?[...bag[code]]:null;const a=bag[code]||(bag[code]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;save();render();push('rate',k,a.every(x=>x==null)?null:a);}
 async function toggleBonus(code){
-  const D=day(DATE);
-  mark(D,code);if(D.bonus[code]){if(await askConfirm('شيل نص النجمة؟')){delete D.bonus[code];save();render();push('bonus',{day:DATE,code},null);}return;}
-  const note=await askText('إيه الفعل المثالي اللي عمله؟');if(note===null)return;if(!note.trim()){toast('لازم تكتب السبب');return;}
-  D.bonus[code]={v:.5,note:note.trim(),by:USER.username};save();render();push('bonus',{day:DATE,code},{v:.5,note:note.trim()});
+  const k=await editKey(code);if(!k)return;
+  const D=day(DATE);OLD_VAL={v:D.bonus[code]?.v??null,note:D.bonus[code]?.note??null};
+  mark(D,code);if(D.bonus[code]){if(await askConfirm('شيل نص النجمة؟')){delete D.bonus[code];save();render();push('bonus',k,null);}return;}
+  const note=await askText('إيه الفعل المثالي اللي عمله؟ (نص نجمة Bonus فوق الـ 5)');if(note===null)return;if(!note.trim()){toast('لازم تكتب السبب');return;}
+  D.bonus[code]={v:.5,note:note.trim(),by:USER.username,at:new Date().toISOString()};save();render();push('bonus',k,{v:.5,note:note.trim()});
 }
 async function giveCard(code,color){
   const r=await askText(`${CARD[color].t} — السبب؟ (${CARD[color].d})`);if(r===null)return;if(!r.trim()){toast('لازم تكتب السبب');return;}

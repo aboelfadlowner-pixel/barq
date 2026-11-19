@@ -13,4 +13,13 @@ function rankGroup(d,list){
     .filter(x=>x.s.total!=null&&x.s.st!=='abs'&&x.s.st!=='off'&&x.s.total>=min&&!badCardOn(d,x.e.code))
     .sort((a,b)=>dayValue(d,b)-dayValue(d,a)||b.s.total-a.s.total||(b.s.att||0)-(a.s.att||0)||(b.s.ops||0)-(a.s.ops||0)||(b.s.mgr||0)-(a.s.mgr||0));
 }
+// ليه الموظف مش مرشح (بيظهر لمدير التشغيل في شاشة الاعتماد)
+function notEligibleWhy(d,e){
+  const s=score(d,e.code);const min=+(S.settings.minStarsWinner??4);const c=dayCards(d,e.code);
+  if(s.st==='abs')return 'غياب';if(s.st==='off')return 'إجازة';
+  if(s.total==null)return 'لسه متقيّمش';
+  if(c.r)return 'كارت أحمر النهارده';if(c.y)return 'كارت أصفر النهارده';
+  if(s.total<min)return `${fmt(s.total,2)} نجمة (أقل من ${fmt(min)})`;
+  return null;
+}
 function isWinner(d,code){return Object.values(peekDay(d).winners||{}).some(a=>a.includes(code));}

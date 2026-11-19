@@ -15,3 +15,15 @@ function myCloseGroups(){if(!USER||isHy()||USER.role==='fresh')return [];
   return out;}
 const closeOn=()=>!!S.settings.closeStart;
 const minsLate=(at,dl)=>Math.max(0,Math.round((at-dl)/60000));
+
+// مراحل اليوم لكل فرع وشيفت: 1 مفتوح ← 2 مراجعة (المدير سلّم يومه) ← 3 اعتماد رجل اليوم ← 4 مغلق (بعد الاعتماد على طول)
+const STAGES=['مفتوح','مراجعة','اعتماد رجل اليوم','مغلق'];
+function dayStage(d,gk){const W=peekDay(d).winners||{};const [b,g]=gk.split('|');
+  if(W[gk]||(g==='Night'&&W[b+'|Between']))return 4;
+  if(closeOf(d,gk)?.closed_by)return 2;
+  return 1;}
+// مدير التشغيل بيعدّل في يوم مغلق أو قديم ← لازم سبب (بيتسجّل مع القيمة القديمة والجديدة)
+function opsClosed(e){if(!isOps())return false;const y=new Date();y.setDate(y.getDate()-1);return DATE<ymd(y)||dayStage(DATE,groupKey(e))===4;}
+const OPS_REASON={};
+async function opsReason(){if(OPS_REASON[DATE])return OPS_REASON[DATE];const r=await askText(`يوم ${DATE} مغلق — سبب التعديل؟ (بيتسجّل في السجل مع القيمة القديمة والجديدة)`);if(r===null||!r.trim()){if(r!==null)toast('لازم تكتب السبب');return null;}return OPS_REASON[DATE]=r.trim();}
+async function editKey(code){const k={day:DATE,code};const e=emp(code);if(e&&opsClosed(e)){const r=await opsReason();if(!r)return null;k.reason=r;}return k;}

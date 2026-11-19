@@ -137,6 +137,39 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await db.query("select count(*)::int n from najm_mgr_ledger where id like 'late|%'")).rows[0].n, 6);
   });
 
+  // ---------------- التصرف المثالي ½ فوق الـ 5 · رجل اليوم (سجل المرشحين + الحد) · تعديل التشغيل في يوم مغلق بسبب
+  test('التصرف المثالي نص نجمة فوق الـ 5 (الأساسي 5 + ½ = 5.5)', async () => {
+    const c = (await db.query("select code from najm_employees where branch=$1 and dept<>'قسم البقاله' and shift='Night' limit 1 offset 3", [B])).rows[0].code;
+    for (const [u, pin] of [['br', '1111'], ['ops', '0000']]) await save(u, pin, 'rate', { day: D, code: c }, [2, 2, 2, 2, 2]);
+    await save('ops', '0000', 'att', { day: D, code: c, reason: 'x' }, { st: 'on' });
+    await db.query("update najm_ratings set sh='{2,2,2,2,2}', hy='{2,2,2,2,2}' where day=$1 and code=$2", [D, c]);
+    await save('ops', '0000', 'bonus', { day: D, code: c, reason: 'x' }, { v: 0.5, note: 'ساعد زميله' });
+    const r = (await db.query('select (najm_score(r, e.dept, (select data from najm_settings where id=1))) s from najm_ratings r join najm_employees e on e.code=r.code where r.day=$1 and r.code=$2', [D, c])).rows[0].s;
+    eq([+r.base, +r.total], [5, 5.5]);
+  });
+  test('رجل اليوم: التشغيل يعتمد لحد 2 في البيطاش و1 في عين شمس، والمرشحين بيتسجلوا', async () => {
+    const ms = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 3", [B])).rows.map(r => r.code);
+    await fails(save('ops', '0000', 'winners', { day: ago(1), gkey: B + '|Morning' }, { codes: ms, candidates: [] }), /too many winners/);
+    await fails(save('br', '1111', 'winners', { day: ago(1), gkey: B + '|Morning' }, { codes: ms.slice(0, 1) }), /operations manager only/);
+    await save('ops', '0000', 'winners', { day: ago(1), gkey: B + '|Morning' }, { codes: ms.slice(0, 2), candidates: ms.map(c => ({ code: c, stars: 4.5, cards: 0 })) });
+    const w = (await db.query('select codes, candidates, approved_by from najm_winners where day=$1 and gkey=$2', [ago(1), B + '|Morning'])).rows[0];
+    eq([w.codes.length, w.candidates.length, w.approved_by], [2, 3, 'ops']);
+    const A = 'عين شمس', as = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 2", [A])).rows.map(r => r.code);
+    await fails(save('ops', '0000', 'winners', { day: ago(1), gkey: A + '|Morning' }, { codes: as }), /too many winners/);
+  });
+  test('بعد اعتماد رجل اليوم (اليوم مغلق): تعديل التشغيل لازم بسبب، والسجل فيه القديم والجديد', async () => {
+    const c = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1 offset 5", [B])).rows[0].code;
+    await db.query("insert into najm_ratings(day,code,ops) values ($1,$2,'{1,1,1,1,1}') on conflict (day,code) do update set ops=excluded.ops", [ago(1), c]);
+    await fails(save('ops', '0000', 'rate', { day: ago(1), code: c }, [2, 2, 2, 2, 2]), /reason required/);
+    await save('ops', '0000', 'rate', { day: ago(1), code: c, reason: 'اتقيّم غلط' }, [2, 2, 2, 2, 2]);
+    const h = (await db.query("select data from najm_history where kind='rate' and code=$1 order by id desc limit 1", [c])).rows[0].data;
+    eq([h.old, h.data, h.key.reason], [[1, 1, 1, 1, 1], [2, 2, 2, 2, 2], 'اتقيّم غلط']);
+  });
+  test('مدير الفرع ميقدرش يعدّل بعد اعتماد رجل اليوم', async () => {
+    const c = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1 offset 5", [B])).rows[0].code;
+    await fails(save('br', '1111', 'rate', { day: ago(1), code: c }, [1, 1, 1, 1, 1]), /day locked/);
+  });
+
   // ---------------- السجل
   test('كل عملية بتتسجل في السجل باللي عملها — من غير أرقام سرية', async () => {
     const k = (await db.query('select kind, count(*)::int n from najm_history group by kind order by kind')).rows.map(r => r.kind);

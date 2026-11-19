@@ -10,6 +10,7 @@ declare
   arr smallint[];
   r najm_ratings; st jsonb; dpt text; s text;
   gk text := p_key->>'gkey'; dl timestamptz; pen numeric; own text[]; ret jsonb; er record; a najm_card_appeals; k najm_cards;
+  old jsonb; wl jsonb; wmax int; today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
   -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
@@ -34,6 +35,21 @@ begin
     or exists (select 1 from najm_day_closes c join najm_employees e on e.code = k_code
                where c.day = k_day and c.gkey = e.branch || '|' || public.najm_shift_group(e.shift) and c.closed_by is not null)) then
     raise exception 'najm: day locked' using errcode = '42501';
+  end if;
+  -- مراحل اليوم: مفتوح ← مراجعة (المدير سلّم) ← اعتماد رجل اليوم ← مغلق. تعديل التشغيل في يوم مغلق (أو قديم) لازم بسبب،
+  -- والسجل بيحفظ القيمة القديمة والجديدة
+  if p_kind in ('att','rate','bonus') then
+    select * into r from najm_ratings where day = k_day and code = k_code;
+    old := case p_kind when 'att' then jsonb_build_object('st', r.att, 'time', r.att_time)
+                       when 'bonus' then jsonb_build_object('v', r.bonus, 'note', r.bonus_note)
+                       else to_jsonb(case u.role when 'branch' then r.br when 'shift' then r.sh when 'fresh' then r.fr
+                                                 when 'hygiene' then r.hy else r.ops end) end;
+    if u.role = 'ops' and coalesce(trim(p_key->>'reason'), '') = '' and (
+         k_day < today - 1
+      or exists (select 1 from najm_winners w join najm_employees e on e.code = k_code
+                 where w.day = k_day and w.gkey in (e.branch || '|' || e.shift, e.branch || '|' || public.najm_shift_group(e.shift)))) then
+      raise exception 'najm: reason required for a closed day' using errcode = '42501';
+    end if;
   end if;
   if p_kind = 'att' and u.role = 'fresh' then
     raise exception 'najm: attendance is entered by branch/shift managers' using errcode = '42501';
@@ -72,8 +88,18 @@ begin
     on conflict (day, code) do update set bonus = excluded.bonus, bonus_note = excluded.bonus_note, updated_at = now();
   elsif p_kind = 'winners' then
     if del then delete from najm_winners where day = k_day and gkey = p_key->>'gkey';
-    else insert into najm_winners(day, gkey, codes) values (k_day, p_key->>'gkey', array(select jsonb_array_elements_text(p_data)))
-      on conflict (day, gkey) do update set codes = excluded.codes, updated_at = now(); end if;
+    else
+      -- رجل اليوم: التشغيل بيعتمد من المرشحين الأربعة — لحد العدد اللي في الإعدادات لكل فرع وشيفت (البيطاش 2، عين شمس 1)
+      wl := case when jsonb_typeof(p_data) = 'array' then p_data else p_data->'codes' end;
+      select data into st from najm_settings where id = 1;
+      wmax := coalesce((st->'winnersBy'->split_part(gk, '|', 1)->>split_part(gk, '|', 2))::int, (st->>'winnersPerShift')::int, 2);
+      if jsonb_array_length(coalesce(wl, '[]'::jsonb)) = 0 then raise exception 'najm: choose at least one winner'; end if;
+      if jsonb_array_length(wl) > wmax then raise exception 'najm: too many winners (max %)', wmax; end if;
+      insert into najm_winners(day, gkey, codes, candidates, approved_by, approved_at)
+        values (k_day, gk, array(select jsonb_array_elements_text(wl)), case when jsonb_typeof(p_data) = 'object' then p_data->'candidates' end, u.username, now())
+      on conflict (day, gkey) do update set codes = excluded.codes, candidates = coalesce(excluded.candidates, najm_winners.candidates),
+        approved_by = excluded.approved_by, approved_at = excluded.approved_at, updated_at = now();
+    end if;
   elsif p_kind = 'target' then
     if del then delete from najm_targets where month = p_key->>'month' and dkey = p_key->>'dkey';
     else insert into najm_targets(month, dkey, cfg) values (p_key->>'month', p_key->>'dkey', p_data)
@@ -234,6 +260,7 @@ begin
     values (u.username, p_kind, k_code, k_day, gk,
             case when p_kind in ('sales', 'base_sales', 'emp_pins_generate') then jsonb_build_object('key', p_key)
                  when p_kind in ('user', 'emp_pin') then jsonb_build_object('key', p_key, 'data', case when del then null else p_data - 'pin' end)
+                 when p_kind in ('att', 'rate', 'bonus') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
                  else jsonb_build_object('key', p_key, 'data', p_data) end);
 
   if p_kind in ('att','rate','bonus') then

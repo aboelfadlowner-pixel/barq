@@ -24,7 +24,7 @@ create or replace function public.najm_close_penalty(p_day date, p_gkey text, p_
 returns void language sql security definer set search_path = public as $$
   insert into najm_mgr_ledger(id, username, month, points, reason)
   select 'late|' || p_day || '|' || p_gkey || '|' || x, x, to_char(p_day, 'YYYY-MM'), -p_pen,
-         'تأخير إغلاق يوم ' || p_day || ' — ' || replace(p_gkey, '|', ' · ')
+         'تأخير تسليم يوم ' || p_day || ' — ' || replace(p_gkey, '|', ' · ')
   from unnest(p_users) x
   where p_pen > 0
   on conflict (id) do nothing;

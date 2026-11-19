@@ -38,7 +38,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [true, true]);
     await as(OPS); await p.evaluate(() => openMgrHistory('islam'));
     const t = await p.evaluate(() => document.querySelector('#modal').innerText); await p.evaluate(() => closeModal());
-    ok(t.includes('تأخير إغلاق يوم') || t.includes('مفيش حركات'), t.slice(0, 150));
+    ok(t.includes('تأخير تسليم يوم') || t.includes('مفيش حركات'), t.slice(0, 150));
   });
   let card;
   test('الموظف يدخل بكوده + الرقم السري (الغلط مبيدخلش)', async () => {
@@ -80,6 +80,24 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('سجل الموظف: الكارت والاعتراض والقرار باللي عملهم', async () => {
     const t = await p.evaluate(async c => { await openHistory(c); return document.querySelector('#modal').innerText; }, card.code); await p.evaluate(() => closeModal());
     ok(t.includes('اعتراض') && t.includes('قرار اعتراض'), t.slice(0, 200));
+  });
+  test('مراحل اليوم: مفتوح ← مراجعة (بعد التسليم) ← مغلق (بعد اعتماد رجل اليوم)', async () => {
+    const r = await p.evaluate(() => { const gk = 'البيطاش الرئيسي|Night'; const y = new Date(); y.setDate(y.getDate() - 3); const old = ymd(y);
+      return [dayStage(todayC(), 'عين شمس|Night'), dayStage(todayC(), 'البيطاش الرئيسي|Morning'), dayStage(old, gk)]; });
+    eq(r[1] >= 2, true); eq(r[2], 4);
+  });
+  test('شاشة رجل اليوم: المرشحين الأربعة + مين مش مرشح وليه', async () => {
+    await as(OPS); await p.evaluate(() => { F.branch = 'البيطاش الرئيسي'; go('day'); });
+    const t = await main(); ok(t.includes('أعلى ٤ مرشحين') && t.includes('مش مرشحين') && t.includes('مفتوح'), t.slice(0, 300));
+  });
+  test('تعديل التشغيل في يوم مغلق بيطلب سبب، وبيتسجل مع القيمة القديمة', async () => {
+    await p.evaluate(() => { const y = new Date(); y.setDate(y.getDate() - 3); DATE = ymd(y); USER = { username: 'ops', name: 'مدير التشغيل', role: 'ops', branch: '', shift: '', depts: [] }; });
+    const code = await p.evaluate(() => activeEmps().find(e => peekDay(DATE).ops[e.code]).code);
+    await p.evaluate(c => { setCrit(c, 0, 0); }, code); await answer('اتسجل غلط');
+    await p.waitForTimeout(200);
+    const h = await p.evaluate(c => S.history.find(x => x.kind === 'rate' && x.code === c), code);
+    eq([h.data.key.reason, Array.isArray(h.data.old)], ['اتسجل غلط', true]);
+    await p.evaluate(() => { DATE = todayC(); });
   });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');

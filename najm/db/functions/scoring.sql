@@ -29,9 +29,10 @@ begin
     mc := b is not null and s is not null;
   end if;
   anyv := a is not null or m is not null or o is not null or h is not null or coalesce(r.bonus,0) > 0;
-  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0) + coalesce(r.bonus,0)) end;
+  -- الأساسي من 5، والتصرف المثالي (½) Bonus منفصل فوقه
+  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) + coalesce(r.bonus,0) end;
   return jsonb_build_object('att', r.att, 'att_star', a, 'mgr_star', m, 'ops_star', o, 'hy_star', h, 'bonus', coalesce(r.bonus,0),
-    'total', tot, 'complete', a is not null and mc and o is not null,
+    'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) end, 'complete', a is not null and mc and o is not null,
     'parts', jsonb_build_object('br', b, 'sh', s, 'fr', f), 'fresh', fresh);
 end $$;
 

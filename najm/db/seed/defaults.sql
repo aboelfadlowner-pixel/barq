@@ -9,4 +9,4 @@ on conflict (username) do nothing;
 
 insert into public.najm_private(id, data) values (1, '{"bonusAt100":0}') on conflict (id) do nothing;
 
-insert into public.najm_settings(id, data) values (1, '{"freshDepts":["قسم البقاله"],"cards":{"yellow":-5,"red":-20,"green":10,"yellowsToRed":3},"captainMult":3}') on conflict (id) do nothing;
+insert into public.najm_settings(id, data) values (1, '{"freshDepts":["قسم البقاله"],"cards":{"yellow":-5,"red":-20,"green":10,"yellowsToRed":3},"captainMult":3,"winnersBy":{"البيطاش الرئيسي":{"Morning":2,"Night":2},"عين شمس":{"Morning":1,"Night":1},"المصنع":{"Morning":0,"Night":0}}}') on conflict (id) do nothing;
