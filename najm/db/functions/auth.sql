@@ -78,3 +78,24 @@ begin
 end $$;
 
 grant execute on function public.najm_upload_token(text, text) to anon, authenticated;
+
+-- شاشة دخول واحدة: كود البصمة (أو اسم الدخول) + الرقم السري.
+-- لو الكود مربوط بحساب مدير ← بيدخل كمدير بصلاحياته بس (مش كموظف). غير كده ← موظف.
+-- الغلط بيرجع {error} (مش exception) عشان المحاولة الغلط تفضل متحسوبة (5 ← قفل 15 دقيقة)
+create or replace function public.najm_login_any(p_id text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare un text; u najm_users; r jsonb; i text := trim(coalesce(p_id, ''));
+begin
+  select username into un from najm_users where active and (username = lower(i) or (coalesce(emp_code, '') <> '' and emp_code = i))
+    order by (username = lower(i)) desc limit 1;
+  if un is not null then
+    select * into u from public.najm_auth(un, p_pin);
+    if u.username is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+    return jsonb_build_object('kind', 'mgr', 'username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch,
+                              'shift', u.shift, 'depts', to_jsonb(u.depts), 'emp_code', u.emp_code);
+  end if;
+  r := public.najm_emp_login(i, p_pin);
+  if r ? 'error' then return r; end if;
+  return r || jsonb_build_object('kind', 'emp');
+end $$;
+grant execute on function public.najm_login_any(text, text) to anon, authenticated;

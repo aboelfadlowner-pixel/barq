@@ -27,7 +27,7 @@ function supabaseOn(db) {   // answers the REST/RPC calls the app makes, as role
     } catch (e) { return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: e.message }) }); }
   };
 }
-const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l_user', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(2500); };
+const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l_id', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(2500); };
 
 (async () => {
   const db = await freshDb('najm_test_int', { employees: true });

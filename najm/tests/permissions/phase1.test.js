@@ -170,6 +170,21 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'rate', { day: ago(1), code: c }, [1, 1, 1, 1, 1]), /day locked/);
   });
 
+  // ---------------- الدخول بكود البصمة للكل
+  test('الدخول بكود البصمة: المدير المربوط بكوده بيدخل كمدير بس، والموظف كموظف', async () => {
+    const c = (await db.query("select code from najm_employees where branch='عين شمس' order by code limit 1 offset 7")).rows[0].code;
+    await save('ops', '0000', 'user', { username: 'mx' }, { name: 'مدير تجربة', role: 'branch', branch: 'عين شمس', pin: '5555' });
+    await db.query('update najm_users set emp_code=$1 where username=$2', [c, 'mx']);
+    const any = (id, pin) => rpc('select najm_login_any($1,$2) r', [id, pin]).then(x => x.r);
+    const m = await any(c, '5555'); eq([m.kind, m.username, m.role], ['mgr', 'mx', 'branch']);
+    eq((await any(c, '0000')).error, 'najm: wrong code or PIN');
+    eq((await any('ops', '0000')).kind, 'mgr');
+    eq((await any('125', '4321')).kind, 'emp');
+    await save('ops', '0000', 'emp_pin', { code: c }, { pin: '9090' });
+    eq((await rpc('select najm_emp_login($1,$2) r', [c, '9090'])).r.error, 'najm: wrong code or PIN');
+    await fails(db.query('insert into najm_users(username,name,role,salt,pin_hash,emp_code) values ($1,$1,$2,$3,$3,$4)', ['my', 'branch', 'x', c]), /duplicate key/);
+  });
+
   // ---------------- السجل
   test('كل عملية بتتسجل في السجل باللي عملها — من غير أرقام سرية', async () => {
     const k = (await db.query('select kind, count(*)::int n from najm_history group by kind order by kind')).rows.map(r => r.kind);

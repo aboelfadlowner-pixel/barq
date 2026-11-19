@@ -44,9 +44,9 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('الموظف يدخل بكوده + الرقم السري (الغلط مبيدخلش)', async () => {
     card = await p.evaluate(() => S.cards.find(c => c.status === 'approved' && c.color === 'yellow' && !(S.appeals || []).some(a => a.cardId === c.id)));
     await as(null); await p.evaluate(() => { meLogout(); go('me'); });
-    await p.fill('#me_code', card.code); await p.fill('#me_pin', '9999'); await p.evaluate(() => meLogin());
+    await p.fill('#l_id', card.code); await p.fill('#l_pin', '9999'); await p.evaluate(() => doLogin());
     eq(await p.evaluate(() => ME), null);
-    await p.fill('#me_code', card.code); await p.fill('#me_pin', '1234'); await p.evaluate(() => meLogin()); await p.waitForTimeout(200);
+    await p.fill('#l_id', card.code); await p.fill('#l_pin', '1234'); await p.evaluate(() => doLogin()); await p.waitForTimeout(200);
     eq(await p.evaluate(() => ME), card.code);
     ok((await main()).includes('كروتي'));
   });
