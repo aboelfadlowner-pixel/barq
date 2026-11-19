@@ -1,7 +1,7 @@
 // الشغل من ناحية المستخدم على نسخة التجربة (?demo=1)
 const { test, run, eq, ok, browser, openApp } = require('../helpers');
 
-const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l_user', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(400); };
+const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.click('#lt_mgr'); await p.fill('#l_user', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(400); };
 const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
 
 (async () => {

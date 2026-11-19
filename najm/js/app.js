@@ -9,7 +9,7 @@ let VIEW='dash', DATE=ymd(new Date()), F={branch:'', shift:'', dept:'', q:''};
 const TABS=[
   // مين يشوف إيه: الزائر (الترتيب ورجل اليوم والعامل المثالي) · الموظف بكوده · المديرين · التشغيل كل حاجة
   ['dash','🏪 لوحة الفروع',()=>true],
-  ['me',()=>isGuest()?'🔑 دخول الموظفين':'👤 صفحتي',()=>true],
+  ['me','👤 صفحتي',()=>true],
   ['rate','📝 تقييم اليوم',()=>isMgr()],
   ['day','🏆 رجل اليوم',()=>true],
   ['month','👑 العامل المثالي',()=>true],
@@ -26,7 +26,7 @@ const TABS=[
 function renderNav(){
   const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length:0;
   $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${typeof t[1]==='function'?t[1]():t[1]}${t[0]==='cards'&&pend?`<span class="cnt">${fmt(pend)}</span>`:''}</button>`).join('');
-  $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:isEmp()?`👤 ${esc(emp(ME).name.split(' ')[0])} — خروج`:'👤 دخول المديرين';
+  $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:isEmp()?`👤 ${esc(emp(ME).name.split(' ')[0])} — خروج`:'👤 دخول';
 }
 function go(v){VIEW=v;render();window.scrollTo(0,0);}
 function render(){

@@ -3,12 +3,23 @@
 async function openLogin(){
   if(!USER&&isEmp()){if(await askConfirm('خروج من حسابك؟'))meLogout();return;}
   if(USER){if(await askConfirm('تسجيل خروج؟')){USER=null;PIN=null;try{sessionStorage.removeItem('najm-user')}catch(e){}if(LIVE)await refresh();render();}return;}
-  openModal(`<button class="x" onclick="closeModal()">✕</button><div class="login"><h2>🔐 دخول المديرين</h2>
+  openModal(`<button class="x" onclick="closeModal()">✕</button><div class="login"><h2>👤 دخول</h2>
+    <div class="chips" style="margin-bottom:12px"><button class="chip on" id="lt_emp" onclick="loginMode('emp')">👷 موظف</button><button class="chip" id="lt_mgr" onclick="loginMode('mgr')">🧑‍💼 مدير</button></div>
+    <div id="loginBox"></div></div>`);
+  loginMode('emp');
+}
+// شاشة دخول واحدة: الموظف (كود البصمة + الرقم السري) أو المدير (اسم الدخول + الرقم السري)
+function loginMode(k){
+  $('#lt_emp')?.classList.toggle('on',k==='emp');$('#lt_mgr')?.classList.toggle('on',k==='mgr');
+  $('#loginBox').innerHTML=k==='emp'?`
+    <label>كود البصمة<br><input class="inp" id="me_code" inputmode="numeric" style="width:100%" autocomplete="username"></label><br><br>
+    <label>الرقم السري<br><input class="inp" id="me_pin" type="password" inputmode="numeric" style="width:100%" autocomplete="current-password" onkeydown="if(event.key==='Enter')meLogin()"></label>
+    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="meLogin()">دخول</button></div>
+    <div class="small muted" style="margin-top:10px">الرقم السري بتاخده من مدير التشغيل أول مرة، وبتغيّره بنفسك.</div>`:`
     <label>اسم الدخول<br><input class="inp" id="l_user" style="width:100%" autocomplete="username"></label><br><br>
     <label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()"></label>
-    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>
-    <div class="small muted" style="margin-top:10px">الموظفين بيدخلوا من «🔑 دخول الموظفين» بكود البصمة ورقمهم السري.</div></div>`);
-  setTimeout(()=>$('#l_user')?.focus(),50);
+    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>`;
+  setTimeout(()=>$(k==='emp'?'#me_code':'#l_user')?.focus(),50);
 }
 async function doLogin(){
   const un=$('#l_user').value.trim().toLowerCase(),pin=$('#l_pin').value;
@@ -39,7 +50,7 @@ async function meLogin(){
   let must=false;
   if(LIVE){let r;try{r=await sbRpc('najm_emp_login',{p_code:c,p_pin:pin});}catch(x){toast(/wrong code/.test(x.message)?'الكود أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':'⚠️ مش قادر أوصل لقاعدة البيانات');return;}must=!!r.must_change;}
   else{const p=localEmpPin(c);if(!e||!e.active||!p||p.pin!==pin){toast('الكود أو الرقم السري غلط');return;}must=!!p.must;}
-  ME=c;MEPIN=pin;meSave();VIEW='me';
+  ME=c;MEPIN=pin;meSave();VIEW='me';closeModal();
   if(LIVE){toast('⏳ بنجهّز صفحتك…');await refresh(true);}render();
   if(must)meChangePin(true);
 }
