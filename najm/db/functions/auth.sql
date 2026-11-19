@@ -62,7 +62,8 @@ returns text language plpgsql security definer set search_path = public as $$
 declare u najm_users; t text := md5(random()::text || clock_timestamp()::text);
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return null; end if;
   if u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
   delete from najm_upload_tokens where expires_at < now();
   insert into najm_upload_tokens(token, username, expires_at) values (t, u.username, now() + interval '30 minutes');

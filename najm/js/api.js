@@ -49,7 +49,11 @@ function save(){RANK_CACHE=null;SALES_CACHE={};if(LIVE||DEMO)return;clearTimeout
 // =========================================================
 let LIVE=false, PIN=null, LAST_PULL=null, PULLING=false;
 async function sbGet(path){const r=await fetch(`${SB_URL}/rest/v1/${path}`,{headers:SBH});if(!r.ok)throw new Error(await r.text());return r.json();}
-async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/${fn}${qs}`,{method:'POST',headers:SBH,body:JSON.stringify(args)});const t=await r.text();if(!r.ok){let m=t;try{m=JSON.parse(t).message||t}catch(e){}throw new Error(m);}return t?JSON.parse(t):null;}
+async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/${fn}${qs}`,{method:'POST',headers:SBH,body:JSON.stringify(args)});const t=await r.text();if(!r.ok){let m=t;try{m=JSON.parse(t).message||t}catch(e){}throw new Error(m);}
+  const v=t?JSON.parse(t):null;
+  // a wrong PIN comes back as {error:'najm: …'} (not an HTTP error) so the database keeps counting failed attempts
+  if(v&&typeof v==='object'&&!Array.isArray(v)&&typeof v.error==='string'&&v.error.startsWith('najm:'))throw new Error(v.error);
+  return v;}
 async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=await sbRpc(fn,args,`?order=${order}&limit=1000&offset=${off}`);out=out.concat(d||[]);if(!d||d.length<1000)break;off+=1000;}return out;}
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
 const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
@@ -60,7 +64,7 @@ async function push(kind,key,data){
 }
 let UPTOK=null;
 async function uploadMedia(code,blob,ext){
-  if(!UPTOK||UPTOK.exp<Date.now())UPTOK={t:await sbRpc('najm_upload_token',{p_user:USER.username,p_pin:PIN}),exp:Date.now()+25*60000};
+  if(!UPTOK||UPTOK.exp<Date.now()){const t=await sbRpc('najm_upload_token',{p_user:USER.username,p_pin:PIN});if(!t)throw new Error('najm: wrong username or PIN');UPTOK={t,exp:Date.now()+25*60000};}
   const path=`${UPTOK.t}/${code}/${Date.now()}.${ext}`;
   const r=await fetch(`${SB_URL}/storage/v1/object/najm-media/${path}`,{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':blob.type||'application/octet-stream'},body:blob});
   if(!r.ok)throw new Error(await r.text());

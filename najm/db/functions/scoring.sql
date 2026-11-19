@@ -52,14 +52,15 @@ $$;
 
 grant execute on function public.najm_public_scores(date, date) to anon, authenticated;
 
-create function public.najm_full_scores(p_user text, p_pin text, p_from date, p_to date)
+create or replace function public.najm_full_scores(p_user text, p_pin text, p_from date, p_to date)
 returns table(day date, code text, att text, att_time text, br smallint[], sh smallint[], fr smallint[], ops smallint[], hy smallint[],
               bonus numeric, bonus_note text, score jsonb)
 language plpgsql stable security definer set search_path = public as $$
 declare u najm_users; st jsonb;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: login required' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return; end if;
   select data into st from najm_settings where id = 1;
   return query
     select r.day, r.code, r.att, r.att_time, r.br, r.sh, r.fr, r.ops, r.hy, r.bonus, r.bonus_note,

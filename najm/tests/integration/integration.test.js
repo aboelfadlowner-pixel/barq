@@ -64,6 +64,13 @@ const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l
     const p = await page(); await login(p, 'ops', '1234');
     eq(await p.evaluate(() => USER), null);
   });
+  test('لو الرقم السري اتغيّر وانت داخل: التطبيق يقول «غلط» ومايقولش «اتحفظ»', async () => {
+    const p = await page(); await login(p, 'ops', '0000');
+    const r = await p.evaluate(async d => { PIN = '9999'; const ok = await push('att', { day: d, code: '4' }, { st: 'on' }); return [ok, document.querySelector('#toast').textContent]; }, D);
+    eq(r[0], false); ok(r[1].includes('الرقم السري غلط'), r[1]);
+    eq((await db.query("select fails from najm_login_fails where username='ops'")).rows[0]?.fails, 1);
+    await db.query("delete from najm_login_fails");
+  });
   await run('التكامل مع الداتابيز');
   await b.close(); await db.end();
 })();

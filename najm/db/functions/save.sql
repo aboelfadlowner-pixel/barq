@@ -11,7 +11,8 @@ declare
   r najm_ratings; st jsonb; dpt text; s text;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
 
   if u.role = 'hygiene' and p_kind <> 'rate' then
     raise exception 'najm: hygiene rates only' using errcode = '42501';
@@ -176,7 +177,8 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare u najm_users;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: login required' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return jsonb_build_object('error', 'najm: login required'); end if;
   return jsonb_build_object(
     'complaints', coalesce((select jsonb_agg(to_jsonb(c)) from najm_complaints c where public.najm_in_scope(u, c.code)), '[]'),
     'notes',      coalesce((select jsonb_agg(to_jsonb(n)) from najm_notes n where public.najm_in_scope(u, n.code)), '[]'),
