@@ -1,6 +1,6 @@
 -- نجم أبو الفضل — دوري المديرين وسوق الانتقالات — النسخة الحالية من كل دالة (create or replace)
 
-create function public.najm_public_users()
+create or replace function public.najm_public_users()
 returns table(username text, name text, role text, branch text, shift text, depts text[], emp_code text)
 language sql stable security definer set search_path = public as $$
   select username, name, role, branch, shift, depts, emp_code from najm_users where active order by role, username;
@@ -65,7 +65,8 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare u najm_users; m najm_market; o najm_offers; s text; bal numeric; del boolean := p_data is null or p_data = 'null'::jsonb;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: wrong username or PIN' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
   if p_kind in ('mgr_rate','ledger','market_open','market_approve','market_close','user_emp') and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -134,7 +135,8 @@ language plpgsql stable security definer set search_path = public as $$
 declare u najm_users;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
-  if u.username is null then raise exception 'najm: login required' using errcode = '28000'; end if;
+  -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
+  if u.username is null then return; end if;
   return query select r.day, r.username, r.crit from najm_mgr_ratings r
     where r.day between p_from and p_to and (u.role = 'ops' or r.username = u.username);
 end $$;

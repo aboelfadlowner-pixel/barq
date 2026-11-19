@@ -5,7 +5,9 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
 
 (async () => {
   const db = await freshDb('najm_test_perm', { employees: true });
-  const save = (u, pin, kind, key, data) => asAnon(db, 'select najm_save($1,$2,$3,$4,$5) r', [u, pin, kind, JSON.stringify(key), data === null ? null : JSON.stringify(data)]);
+  // wrong PIN comes back as {error:'najm: …'} (so the failed attempt stays counted) — treat it like an error here, as the app does
+  const save = (u, pin, kind, key, data) => asAnon(db, 'select najm_save($1,$2,$3,$4,$5) r', [u, pin, kind, JSON.stringify(key), data === null ? null : JSON.stringify(data)])
+    .then(rows => { const r = rows[0].r; if (r && typeof r.error === 'string' && r.error.startsWith('najm:')) throw new Error(r.error); return rows; });
   const B = 'البيطاش الرئيسي', A = 'عين شمس';
   await save('ops', '0000', 'user', { username: 'br' }, { name: 'مدير فرع', role: 'branch', branch: B, pin: '1111' });
   await save('ops', '0000', 'user', { username: 'hy' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '7777' });
@@ -53,6 +55,17 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
     eq(await login('1111'), null, 'locked account still logs in:');
     await db.query("update najm_login_fails set locked_until = now() - interval '1 minute' where username='br'");
     ok(await login('1111'), 'account did not unlock after 15 minutes');
+  });
+  test('محاولات الرقم السري الغلط بتتحسب من أي دالة (مش من شاشة الدخول بس) ← القفل', async () => {
+    await save('ops', '0000', 'user', { username: 'sh' }, { name: 'شيفت', role: 'shift', branch: B, shift: 'Morning', pin: '2222' });
+    const D2 = today();
+    await fails(save('sh', '0000', 'att', { day: D2, code: '125' }, { st: 'on' }), /wrong username or PIN/);
+    eq((await asAnon(db, 'select count(*)::int n from najm_full_scores($1,$2,$3,$3)', ['sh', '0000', D2]))[0].n, 0);
+    await asAnon(db, 'select najm_files($1,$2) r', ['sh', '0000']);
+    await asAnon(db, 'select najm_market_save($1,$2,$3,$4,$5) r', ['sh', '0000', 'offer', '{}', '{}']);
+    await asAnon(db, 'select najm_upload_token($1,$2) r', ['sh', '0000']);
+    eq((await db.query("select fails, locked_until is not null l from najm_login_fails where username='sh'")).rows[0], { fails: 0, l: true });
+    await fails(save('sh', '2222', 'att', { day: D2, code: '125' }, { st: 'on' }), /wrong username or PIN/);
   });
   await run('الصلاحيات');
   await db.end();
