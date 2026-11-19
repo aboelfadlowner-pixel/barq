@@ -8,20 +8,20 @@
 let VIEW='dash', DATE=ymd(new Date()), F={branch:'', shift:'', dept:'', q:''};
 const TABS=[
   // مين يشوف إيه: الزائر (الترتيب ورجل اليوم والعامل المثالي) · الموظف بكوده · المديرين · التشغيل كل حاجة
-  ['dash','🏪 لوحة الفروع',()=>true],
-  ['me','👤 صفحتي',()=>true],
-  ['rate','📝 تقييم اليوم',()=>isMgr()],
-  ['day','🏆 رجل اليوم',()=>true],
-  ['month','👑 العامل المثالي',()=>true],
-  ['players','🃏 كروت اللاعبين',()=>!isGuest()],
-  ['progress','📈 تقارير التقدّم',()=>isMgr()&&!isHy()],
-  ['vote','🗳️ صوّت لمديرك',()=>isEmp()],
-  ['league','🏟️ المديرين والسوق',()=>isMgr()],
-  ['target',()=>isEmp()?'🎯 تارجت قسمي':'🎯 التارجت والكابتن',()=>!isGuest()],
-  ['cards','🟨 الكروت',()=>isMgr()&&!isHy()],
-  ['emps','🗂️ ملفات الموظفين',()=>isMgr()&&!isHy()],
-  ['settings','⚙️ الإعدادات',()=>isOps()],
-  ['screens','📺 شاشة الفرع',()=>isMgr()],
+  ['dash','لوحة الفروع',()=>true],
+  ['me','صفحتي',()=>true],
+  ['rate','تقييم اليوم',()=>isMgr()],
+  ['day','رجل اليوم',()=>true],
+  ['month','العامل المثالي',()=>true],
+  ['players','كروت اللاعبين',()=>!isGuest()],
+  ['progress','تقارير التقدّم',()=>isMgr()&&!isHy()],
+  ['vote','صوّت لمديرك',()=>isEmp()],
+  ['league','المديرين والسوق',()=>isMgr()],
+  ['target',()=>isEmp()?'تارجت قسمي':'التارجت والكابتن',()=>!isGuest()],
+  ['cards','الكروت',()=>isMgr()&&!isHy()],
+  ['emps','ملفات الموظفين',()=>isMgr()&&!isHy()],
+  ['settings','الإعدادات',()=>isOps()],
+  ['screens','شاشة الفرع',()=>isMgr()],
 ];
 function renderNav(){
   const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length:0;

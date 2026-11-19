@@ -6,7 +6,7 @@
   --blue:#2f6fd6; --blue-soft:#e6efff; --star-off:#d9dce4; --purple:#5b3fd1; --purple-soft:#ece8ff;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:'Cairo',Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+body{margin:0;font-family:'IBM Plex Sans Arabic','Cairo',Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
 button,input,select,textarea{font-family:inherit;font-size:14px}
 header{background:linear-gradient(120deg,#0b4a3d,#13806a);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:20}
 header h1{margin:0;font-size:19px;font-weight:900;flex:1;min-width:180px}
@@ -15,7 +15,7 @@ header h1 small{display:block;font-size:11px;font-weight:600;opacity:.8}
 .hdr-ctrl input[type=date]{border:0;border-radius:8px;padding:6px 8px}
 .role-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:700}
 nav{display:flex;gap:4px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:6px 10px;position:sticky;top:56px;z-index:19}
-nav button{border:0;background:none;padding:8px 14px;border-radius:8px;cursor:pointer;white-space:nowrap;font-weight:700;color:var(--muted)}
+nav button{border:0;background:none;padding:9px 16px;border-radius:8px;cursor:pointer;white-space:nowrap;font-weight:600;font-size:15px;color:var(--muted)}
 nav button.on{background:var(--brand-soft);color:var(--brand)}
 nav .cnt{background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-inline-start:4px}
 main{padding:16px;max-width:1300px;margin:0 auto}
