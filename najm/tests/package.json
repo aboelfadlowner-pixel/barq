@@ -1,0 +1,12 @@
+{
+  "name": "najm-tests",
+  "private": true,
+  "description": "اختبارات نجم أبو الفضل — npm install مرة واحدة، وبعدين npm test",
+  "scripts": {
+    "test": "node run.js",
+    "test:calc": "node calculations/calculations.test.js",
+    "test:workflows": "node workflows/workflows.test.js",
+    "test:db": "node database/database.test.js && node permissions/permissions.test.js && node integration/integration.test.js"
+  },
+  "devDependencies": { "playwright": "^1.47.0", "pg": "^8.11.0", "xlsx": "0.18.5" }
+}

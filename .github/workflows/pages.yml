@@ -1,7 +1,8 @@
 # Publishes ONLY the web pages to GitHub Pages (same links as before):
 #   - the tools' pages at the root (*.html)
 #   - the call center's screens (call-center/index.html, css/, js/, assets/)
-# Not published: database files (call-center/db), server functions (*/supabase),
+#   - نجم أبو الفضل (najm/index.html, css/, js/, assets/) — najm.html at the root redirects there
+# Not published: database files (call-center/db, najm/db), tests (najm/tests), server functions (*/supabase),
 # the Google Drive script, website-sync, READMEs, and anything else in the repo.
 # Settings → Pages → Source must be «GitHub Actions» for this to take effect.
 name: Publish site (web pages only)
@@ -35,9 +36,13 @@ jobs:
           cp ./*.html _site/
           cp call-center/index.html _site/call-center/
           cp -r call-center/css call-center/js call-center/assets _site/call-center/
+          # نجم أبو الفضل: the page and its css/js/assets only (najm/db and najm/tests stay private)
+          mkdir -p _site/najm
+          cp najm/index.html _site/najm/
+          cp -r najm/css najm/js najm/assets _site/najm/
           touch _site/.nojekyll
           # guard: nothing private may slip in
-          if find _site \( -name '*.sql' -o -name '*.ts' -o -name '*.gs' -o -name '*.md' -o -path '*/supabase/*' -o -path '*/db/*' \) | grep -q .; then
+          if find _site \( -name '*.sql' -o -name '*.ts' -o -name '*.gs' -o -name '*.md' -o -path '*/supabase/*' -o -path '*/db/*' -o -path '*/tests/*' \) | grep -q .; then
             echo "Private files found in _site — stopping"; find _site \( -name '*.sql' -o -name '*.ts' -o -name '*.gs' -o -name '*.md' \); exit 1
           fi
           echo "Published files:"; find _site -type f | sort
