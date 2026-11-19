@@ -1,7 +1,7 @@
 // الشغل من ناحية المستخدم على نسخة التجربة (?demo=1)
 const { test, run, eq, ok, browser, openApp } = require('../helpers');
 
-const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.click('#lt_mgr'); await p.fill('#l_user', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(400); };
+const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l_id', u); await p.fill('#l_pin', pin); await p.click('.login .btn.pri'); await p.waitForTimeout(400); };
 const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
 
 (async () => {
@@ -25,7 +25,7 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     await login(p, 'yasser', '7777');
     eq(await p.evaluate(() => USER.role), 'hygiene');
     const t = await tabs(); ok(t.some(x => x.includes('تقييم اليوم')) && !t.some(x => x.includes('الكروت')), t.join('|'));
-    const r = await p.evaluate(async () => { const e = filtered(true)[0]; delete day(DATE).hy[e.code]; for (const i of [0, 1, 2, 3, 4]) await setCrit(e.code, i, 2); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('النضافة الشخصية')]; });
+    const r = await p.evaluate(async () => { go('rate'); const e = filtered(true)[0]; delete day(DATE).hy[e.code]; for (const i of [0, 1, 2, 3, 4]) await setCrit(e.code, i, 2); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('النضافة الشخصية')]; });
     eq(r, [[2, 2, 2, 2, 2], true]);
     await p.evaluate(() => { USER = null; render(); });
   });

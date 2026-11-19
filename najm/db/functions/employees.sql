@@ -10,7 +10,8 @@ begin
   if f.locked_until is not null and f.locked_until > now() then return null; end if;
   select * into p from najm_emp_pins where code = c;
   select * into e from najm_employees where code = c and active;
-  if e.code is null or p.code is null
+  -- المدير بيدخل كمدير بس (مش كموظف)
+  if e.code is null or p.code is null or exists (select 1 from najm_users where active and emp_code = c)
      or p.pin_hash <> encode(sha256(convert_to(p.salt || coalesce(p_pin, ''), 'UTF8')), 'hex') then
     insert into najm_login_fails(username, fails) values (un, 1)
       on conflict (username) do update set fails = najm_login_fails.fails + 1,

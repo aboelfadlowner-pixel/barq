@@ -208,7 +208,7 @@ begin
   elsif p_kind = 'emp_pins_generate' then
     -- أرقام سرية عشوائية (4 أرقام) للموظفين اللي ملهمش (أو للكل) — بترجع للتشغيل مرة واحدة عشان تتطبع وتتوزع
     ret := '{}'::jsonb;
-    for er in select code from najm_employees where active
+    for er in select code from najm_employees where active and code not in (select emp_code from najm_users where active and coalesce(emp_code, '') <> '')
               and (coalesce((p_data->>'all')::boolean, false) or code not in (select code from najm_emp_pins)) loop
       s := lpad((floor(random() * 10000))::int::text, 4, '0');
       dpt := md5(random()::text);

@@ -38,7 +38,7 @@ function editUser(name){
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${name?'تعديل حساب':'حساب جديد'}</h2>
    <div class="grid g-2">
     <label style="grid-column:1/-1">المدير نفسه (من الموظفين)<br><input class="inp" id="u_emp" list="dl_emps" style="width:100%" placeholder="اكتب الاسم أو الكود" value="${u.emp_code&&emp(u.emp_code)?esc(u.emp_code+' — '+emp(u.emp_code).name):''}" onchange="userFromEmp()"><datalist id="dl_emps">${activeEmps().map(e=>`<option value="${esc(e.code+' — '+e.name)}">${esc(e.job+' · '+e.branch)}</option>`).join('')}</datalist></label>
-    <label>اسم الدخول (خاص بيه)<br><input class="inp" id="u_user" value="${esc(u.username)}" ${name?'disabled':''} placeholder="مثلاً mahmoud"></label>
+    <label>اسم الدخول (اختياري — المدير بيدخل بكود البصمة بتاعه)<br><input class="inp" id="u_user" value="${esc(u.username)}" ${name?'disabled':''} placeholder="لو فاضي = كود البصمة"></label>
     <label>الاسم<br><input class="inp" id="u_name" value="${esc(u.name)}"></label>
     <label>الدور<br><select class="inp" id="u_role">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></label>
     <label>الفرع<br><select class="inp" id="u_branch"><option value="">كل الفروع</option>${branches().map(b=>`<option ${b===u.branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
@@ -51,8 +51,9 @@ function editUser(name){
 function userFromEmp(){const c=($('#u_emp').value.split('—')[0]||'').trim();const e=emp(c);if(!e)return;
   if(!$('#u_name').value)$('#u_name').value=e.name;$('#u_name').value=e.name;$('#u_branch').value=e.branch;if(Object.values(SH).includes(e.shift))$('#u_shift').value=e.shift;}
 async function saveUser(name){
-  const g=id=>$('#'+id).value.trim();const un=(name||g('u_user')).toLowerCase();
-  if(!un||!g('u_name')){toast('اسم الدخول والاسم مطلوبين');return;}
+  const g=id=>$('#'+id).value.trim();const ec0=(g('u_emp').split('—')[0]||'').trim();const un=(name||g('u_user')||(emp(ec0)?ec0:'')).toLowerCase();
+  if(!un||!g('u_name')){toast('اختار المدير من الموظفين (كود البصمة) واكتب الاسم');return;}
+  if(emp(ec0)&&S.users.some(x=>x.emp_code===ec0&&x.username!==un)){toast('الكود ده مربوط بحساب مدير تاني');return;}
   let u=S.users.find(x=>x.username===un);
   if(!name&&u){toast('اسم الدخول موجود');return;}
   if(!u&&!g('u_pin')){toast('حط رقم سري');return;}
