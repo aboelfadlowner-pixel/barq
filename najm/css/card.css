@@ -1,0 +1,63 @@
+/* ===== كارت اللاعب — ستايل FC: نيون / أسطوري / دهبي / فضي / برونزي ===== */
+.fc{--w:280px;--fs:16px;--f1:#fbecb4;--f2:#e6bd4f;--f3:#a8740f;--b1:#fff4cf;--b2:#e9c35c;--b3:#b98515;--ink:#2f2000;--halo:#ffd451;--w1:#16915c;--w2:#f6cf55;--gem:#e09a12;
+  width:var(--w);aspect-ratio:.72;position:relative;font-size:var(--fs);flex:none;filter:drop-shadow(0 16px 26px rgba(0,0,0,.4));font-family:'Cairo',Tahoma,sans-serif}
+.fc.silver{--f1:#fbfcfd;--f2:#c9d1d8;--f3:#7b8691;--b1:#ffffff;--b2:#d7dde2;--b3:#98a3ad;--ink:#1c232a;--halo:#e9f2fa;--w1:#5d6b78;--w2:#dfe6ec;--gem:#9aa6b2}
+.fc.bronze{--f1:#f9dcbd;--f2:#d39160;--f3:#7f411a;--b1:#fbe1c6;--b2:#d9996a;--b3:#99582c;--ink:#2a1203;--halo:#ffb27a;--w1:#8c4c1d;--w2:#f0b98b;--gem:#b7652e}
+.fc.neon{--f1:#7ef9ff;--f2:#7a5cff;--f3:#ff3fa4;--b1:#2a1a6e;--b2:#2b3aa8;--b3:#0e9fc4;--ink:#ffffff;--halo:#4ff3ff;--w1:#ff3fa4;--w2:#3ff0d8;--gem:#ff8a2a}
+.fc.icon{--f1:#fff3d0;--f2:#e2c27a;--f3:#9a7432;--b1:#fbf3df;--b2:#e9d7ae;--b3:#c3a46b;--ink:#3a2a0c;--halo:#ffd451;--w1:#ff6fb5;--w2:#4fe3d1;--gem:#d9822b}
+/* outer frame with angular top corners */
+.fc-frame{position:absolute;inset:0;clip-path:polygon(7% 4%,20% 0,80% 0,93% 4%,100% 12%,100% 90%,93% 96%,62% 100%,38% 100%,7% 96%,0 90%,0 12%);background:linear-gradient(150deg,var(--f1),var(--f2) 45%,var(--f3))}
+.fc-body{position:absolute;inset:2.2%;clip-path:polygon(7% 4%,20% 0,80% 0,93% 4%,100% 12%,100% 90%,93% 96%,62% 100%,38% 100%,7% 96%,0 90%,0 12%);overflow:hidden;color:var(--ink);
+  background:radial-gradient(90% 55% at 55% 30%,rgba(255,255,255,.55),transparent 62%),linear-gradient(165deg,var(--b1),var(--b2) 50%,var(--b3))}
+.fc.neon .fc-body{background:radial-gradient(80% 50% at 60% 30%,rgba(79,243,255,.35),transparent 60%),repeating-linear-gradient(125deg,rgba(255,255,255,.05) 0 3px,transparent 3px 18px),linear-gradient(165deg,var(--b1),var(--b2) 55%,var(--b3))}
+.fc-body:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(118deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px);pointer-events:none}
+/* neon wings at the top corners */
+.fc-wing{position:absolute;top:-1.5%;width:23%;height:24%;z-index:3;pointer-events:none}
+.fc-wing.l{left:-3.5%;clip-path:polygon(0 18%,55% 0,100% 0,38% 30%,30% 100%,12% 70%)} .fc-wing.r{right:-3.5%;clip-path:polygon(100% 18%,45% 0,0 0,62% 30%,70% 100%,88% 70%)}
+.fc-wing{background:linear-gradient(160deg,var(--w2),var(--w1));filter:drop-shadow(0 0 6px var(--w1))}
+.fc.gold .fc-wing,.fc.silver .fc-wing,.fc.bronze .fc-wing{opacity:.85}
+/* OVR + position */
+.fc-ovr{position:absolute;top:8%;left:9%;z-index:4;text-align:center;line-height:.95}
+.fc-ovr b{display:block;font-size:2.9em;font-weight:900;letter-spacing:-1px;text-shadow:0 2px 0 rgba(255,255,255,.25)}
+.fc.neon .fc-ovr b{text-shadow:0 0 12px rgba(79,243,255,.8)}
+.fc-ovr span{display:block;font-size:.78em;font-weight:900;max-width:5.5em;margin-top:.15em}
+/* glowing halo ring behind the photo */
+.fc-halo{position:absolute;top:11%;left:15%;width:70%;aspect-ratio:1;border-radius:50%;z-index:1;
+  box-shadow:0 0 0 .22em var(--halo),0 0 1.1em .25em var(--halo),inset 0 0 1.2em var(--halo)}
+.fc-halo:after{content:'';position:absolute;inset:-.45em;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 20%,var(--halo) 25%,transparent 32% 55%,#fff 60%,transparent 66% 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - .5em),#000 calc(100% - .45em));mask:radial-gradient(farthest-side,transparent calc(100% - .5em),#000 calc(100% - .45em));filter:blur(1px)}
+@media (prefers-reduced-motion:no-preference){.fc.neon .fc-halo:after,.fc.icon .fc-halo:after{animation:spin 3.5s linear infinite}.fc.neon .fc-halo{animation:pulse 1.8s ease-in-out infinite}}
+@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{50%{box-shadow:0 0 0 .22em var(--halo),0 0 1.8em .5em var(--halo),inset 0 0 1.6em var(--halo)}}
+.fc.gold .fc-halo,.fc.silver .fc-halo,.fc.bronze .fc-halo{box-shadow:0 0 0 .16em rgba(255,255,255,.7),0 0 .8em rgba(255,255,255,.45)}
+.fc.gold .fc-halo:after,.fc.silver .fc-halo:after,.fc.bronze .fc-halo:after{display:none}
+/* photo */
+.fc-ph{position:absolute;top:7%;left:20%;width:60%;height:51%;z-index:2;display:flex;align-items:flex-end;justify-content:center}
+.fc-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 12%;-webkit-mask-image:linear-gradient(to bottom,#000 74%,transparent 99%);mask-image:linear-gradient(to bottom,#000 74%,transparent 99%);border-radius:50% 50% 0 0}
+.fc.icon .fc-ph img{filter:sepia(.65) saturate(.85) contrast(1.05)}
+.fc-ini{width:70%;aspect-ratio:1;margin-bottom:10%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:4em;font-weight:900;background:rgba(0,0,0,.14)}
+.fc.neon .fc-ini{background:rgba(255,255,255,.12)}
+.fc-laurel{position:absolute;top:6%;left:9%;width:82%;aspect-ratio:1;z-index:3;pointer-events:none}
+/* badges column (top right) */
+.fc-bdg{position:absolute;top:10%;right:8%;z-index:4;display:flex;flex-direction:column;gap:.15em;align-items:center}
+.fc-bdg i{font-style:normal;font-size:1em;line-height:1.15;position:relative;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.fc-bdg sub{position:absolute;bottom:-.25em;right:-.55em;font-size:.55em;font-weight:900;background:rgba(0,0,0,.65);color:#fff;border-radius:.6em;padding:0 .3em}
+/* lower panel */
+.fc-low{position:absolute;left:0;right:0;top:57%;bottom:0;z-index:4;display:flex;flex-direction:column;align-items:center}
+.fc-title{padding:.05em .9em;border-radius:.4em;font-size:.72em;font-weight:900;color:#fff;background:linear-gradient(90deg,#0f6b45,#16915c);box-shadow:0 2px 6px rgba(0,0,0,.3);white-space:nowrap;margin-top:-.4em}
+.fc.neon .fc-title{background:linear-gradient(90deg,#ff3fa4,#7a5cff)} .fc.icon .fc-title{background:linear-gradient(90deg,#b8861c,#f6cf55);color:#2a1d00}
+.fc-name{font-size:1.35em;font-weight:900;line-height:1.2;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis;margin-top:.1em}
+.fc.neon .fc-name{text-shadow:0 0 10px rgba(79,243,255,.7)}
+.fc-icons{display:flex;align-items:center;gap:.5em;font-size:.62em;font-weight:900;opacity:.9;margin-top:.05em}
+.fc-icons img{height:1.9em} .fc-icons i{width:1px;height:1.4em;background:currentColor;opacity:.4}
+.fc-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:0 .15em;width:90%;margin-top:.35em;text-align:center;padding-top:.3em;border-top:1px solid rgba(0,0,0,.18)}
+.fc-stats div{line-height:1.05} .fc-stats b{display:block;font-size:1.12em;font-weight:900} .fc-stats span{font-size:.54em;font-weight:800;opacity:.85;white-space:nowrap}
+.fc.neon .fc-stats{border-color:rgba(255,255,255,.3)}
+.fc-gem{position:absolute;bottom:2.2%;left:50%;width:9%;aspect-ratio:1;transform:translateX(-50%);z-index:5;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,#fff 0,var(--gem) 40%,rgba(0,0,0,.45))}
+.fc-flame{position:absolute;top:-.85em;left:50%;transform:translateX(-50%);z-index:6;white-space:nowrap;font-size:.7em;font-weight:900;color:#fff;padding:.12em .8em;border-radius:1em;background:linear-gradient(180deg,#ff9a2e,#e5530c);box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.fc.neon{filter:drop-shadow(0 0 12px rgba(79,243,255,.55)) drop-shadow(0 16px 26px rgba(0,0,0,.4))}
+.fc.icon{filter:drop-shadow(0 0 14px rgba(255,212,81,.6)) drop-shadow(0 16px 26px rgba(0,0,0,.4))}
+.fc.sm{--w:190px;--fs:11px} .fc.lg{--w:420px;--fs:24px} .fc.xl{--w:500px;--fs:28.5px}
+.ovr-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:24px;padding:0 6px;border-radius:8px;font-weight:900;font-size:13px;background:linear-gradient(160deg,#fbecb4,#e6bd4f 48%,#b07c14);color:#3a2600}
+.ovr-pill.silver{background:linear-gradient(160deg,#f7f9fa,#cdd4da 48%,#8a95a0);color:#1c2329} .ovr-pill.bronze{background:linear-gradient(160deg,#f6d6b4,#d0915c 48%,#8c4c1d);color:#2a1304}
+.ovr-pill.neon{background:linear-gradient(160deg,#2a1a6e,#2b3aa8 55%,#0e9fc4);color:#fff;box-shadow:0 0 8px rgba(79,243,255,.7)} .ovr-pill.icon{background:linear-gradient(160deg,#fbf3df,#e9d7ae 50%,#c3a46b);color:#3a2a0c;box-shadow:0 0 8px rgba(255,212,81,.8)}
+.fut-grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}

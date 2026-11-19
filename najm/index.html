@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نجم أبو الفضل</title>
+<link rel="icon" href="assets/logo-head.png">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/tv.css">
+<link rel="stylesheet" href="css/card.css">
+</head>
+<body>
+<div class="demo-flag" id="demoFlag">نسخة عرض — البيانات محفوظة على الجهاز ده لحد ما قاعدة البيانات تتفعّل</div>
+<header>
+  <h1>⭐ نجم أبو الفضل<small>التارجت · رجل اليوم · العامل المثالي · الكروت · الكابتن</small></h1>
+  <div class="hdr-ctrl">
+    <input type="date" id="dayPick">
+    <button class="role-btn" id="roleBtn" onclick="openLogin()">👤 دخول المديرين</button>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+<div class="modal-bg" id="askBg" style="z-index:70"><div class="modal" id="ask" style="max-width:420px"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="filePick" style="display:none">
+
+
+<!-- ترتيب التحميل مهم: الإعدادات ← الأدوات ← المكونات ← البيانات ← الصلاحيات ← الحسابات ← الشاشات ← التشغيل -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/components/ui.js"></script>
+<script src="js/components/widgets.js"></script>
+<script src="js/components/filters.js"></script>
+<script src="js/components/files.js"></script>
+<script src="js/components/player-card.js"></script>
+<script src="js/components/guide.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth/session.js"></script>
+<script src="js/auth/permissions.js"></script>
+<script src="js/auth/login.js"></script>
+<script src="js/calculations/evaluations.js"></script>
+<script src="js/calculations/attendance.js"></script>
+<script src="js/calculations/hygiene.js"></script>
+<script src="js/calculations/daily-score.js"></script>
+<script src="js/calculations/cards.js"></script>
+<script src="js/calculations/daily-award.js"></script>
+<script src="js/calculations/target.js"></script>
+<script src="js/calculations/kpi.js"></script>
+<script src="js/calculations/leaderboard.js"></script>
+<script src="js/calculations/managers.js"></script>
+<script src="js/calculations/player-card.js"></script>
+<script src="js/calculations/progress-report.js"></script>
+<script src="js/views/dashboard/dashboard.js"></script>
+<script src="js/views/evaluations/rate.js"></script>
+<script src="js/views/evaluations/attendance-import.js"></script>
+<script src="js/views/daily-award/daily-award.js"></script>
+<script src="js/views/month/month.js"></script>
+<script src="js/views/month/payouts.js"></script>
+<script src="js/views/players/players.js"></script>
+<script src="js/views/progress/progress.js"></script>
+<script src="js/views/vote/vote.js"></script>
+<script src="js/views/league/league.js"></script>
+<script src="js/views/target/target.js"></script>
+<script src="js/views/target/sales-import.js"></script>
+<script src="js/views/cards/cards.js"></script>
+<script src="js/views/employees/employees.js"></script>
+<script src="js/views/employees/photos.js"></script>
+<script src="js/views/settings/settings.js"></script>
+<script src="js/tv.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
