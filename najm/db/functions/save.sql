@@ -9,15 +9,17 @@ declare
   del boolean := p_data is null or p_data = 'null'::jsonb;
   arr smallint[];
   r najm_ratings; st jsonb; dpt text; s text;
+  gk text := p_key->>'gkey'; dl timestamptz; pen numeric; own text[]; ret jsonb; er record; a najm_card_appeals; k najm_cards;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
   -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
   if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  perform public.najm_apply_late_closes();     -- الأيام اللي عدّى ميعاد إغلاقها ← خصم تلقائي
 
   if u.role = 'hygiene' and p_kind <> 'rate' then
     raise exception 'najm: hygiene rates only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user','card_approve')
+  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -28,7 +30,9 @@ begin
        k_day < (now() at time zone 'Africa/Cairo')::date - 1
     or k_day > (now() at time zone 'Africa/Cairo')::date
     or exists (select 1 from najm_winners w join najm_employees e on e.code = k_code
-               where w.day = k_day and w.gkey = e.branch || '|' || e.shift)) then
+               where w.day = k_day and w.gkey in (e.branch || '|' || e.shift, e.branch || '|' || public.najm_shift_group(e.shift)))
+    or exists (select 1 from najm_day_closes c join najm_employees e on e.code = k_code
+               where c.day = k_day and c.gkey = e.branch || '|' || public.najm_shift_group(e.shift) and c.closed_by is not null)) then
     raise exception 'najm: day locked' using errcode = '42501';
   end if;
   if p_kind = 'att' and u.role = 'fresh' then
@@ -106,22 +110,87 @@ begin
       updated_at = now()
     where code = k_code;
   elsif p_kind = 'card' then
+    -- مفيش كارت بيتمسح: الإلغاء بيغيّر الحالة بس، والكارت بيفضل في السجل
     if del then
-      delete from najm_cards where id = p_key->>'id' and code = k_code
-        and (u.role = 'ops' or (by_user = u.username and not approved));
+      update najm_cards set status = 'cancelled', approved = false, decided_by = u.username, decided_at = now()
+        where id = p_key->>'id' and code = k_code and status in ('pending','approved')
+          and (u.role = 'ops' or (by_user = u.username and status = 'pending'));
     else
       if p_data->>'color' not in ('yellow','red','green') then raise exception 'najm: bad card color'; end if;
-      insert into najm_cards(id, day, code, color, reason, by_user, approved, approved_by)
+      if coalesce(trim(p_data->>'reason'), '') = '' then raise exception 'najm: card reason required'; end if;
+      -- الأصفر والأخضر محسوبين على طول، والأحمر مستني موافقة مدير التشغيل
+      insert into najm_cards(id, day, code, color, reason, by_user, approved, approved_by, status)
         values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'color', p_data->>'reason', u.username,
-                (p_data->>'color') <> 'red' or u.role = 'ops', case when u.role = 'ops' then u.username end)
+                (p_data->>'color') <> 'red' or u.role = 'ops', case when u.role = 'ops' then u.username end,
+                case when (p_data->>'color') = 'red' and u.role <> 'ops' then 'pending' else 'approved' end)
       on conflict (id) do nothing;
     end if;
   elsif p_kind = 'card_approve' then
     if coalesce((p_data->>'approved')::boolean, false) then
-      update najm_cards set approved = true, approved_by = u.username where id = p_key->>'id';
+      update najm_cards set approved = true, approved_by = u.username, status = 'approved', decided_by = u.username, decided_at = now()
+        where id = p_key->>'id' and status = 'pending';
     else
-      delete from najm_cards where id = p_key->>'id';
+      update najm_cards set approved = false, status = 'rejected', decided_by = u.username, decided_at = now()
+        where id = p_key->>'id' and status = 'pending';
     end if;
+  elsif p_kind = 'appeal_decide' then
+    -- القرار للمدير اللي ادى الكارت أو مدير التشغيل. القبول بيلغي الكارت (overturned) وبيفضل في السجل
+    select * into a from najm_card_appeals where id = p_key->>'id';
+    select * into k from najm_cards where id = a.card_id;
+    if a.id is null then raise exception 'najm: appeal not found'; end if;
+    if a.status <> 'pending' then raise exception 'najm: appeal already decided'; end if;
+    if not (u.role = 'ops' or k.by_user = u.username) then raise exception 'najm: only the card issuer or operations can decide' using errcode = '42501'; end if;
+    update najm_card_appeals set status = case when coalesce((p_data->>'accept')::boolean, false) then 'accepted' else 'rejected' end,
+      decided_by = u.username, decided_at = now(), decision_note = p_data->>'note' where id = a.id;
+    if coalesce((p_data->>'accept')::boolean, false) then
+      update najm_cards set status = 'overturned', approved = false, decided_by = u.username, decided_at = now() where id = k.id;
+    end if;
+    k_code := a.code; k_day := k.day;
+  elsif p_kind = 'day_close' then
+    -- إغلاق اليوم: مدير الشيفت (البين مع الليل) أو مدير الفرع أو التشغيل
+    if gk is null or k_day is null then raise exception 'najm: day and shift required'; end if;
+    if not (u.role = 'ops' or (u.role = 'branch' and u.branch = split_part(gk, '|', 1))
+            or (u.role = 'shift' and u.branch = split_part(gk, '|', 1) and public.najm_shift_group(u.shift) = split_part(gk, '|', 2))) then
+      raise exception 'najm: outside your scope' using errcode = '42501';
+    end if;
+    if k_day > (now() at time zone 'Africa/Cairo')::date then raise exception 'najm: cannot close a future day'; end if;
+    if exists (select 1 from najm_day_closes where day = k_day and gkey = gk and closed_by is not null) then
+      raise exception 'najm: day already closed'; end if;
+    dl := public.najm_close_deadline(k_day, gk);
+    if exists (select 1 from najm_day_closes where day = k_day and gkey = gk) then
+      update najm_day_closes set closed_by = u.username, closed_at = now() where day = k_day and gkey = gk;  -- الخصم اتسجل قبل كده
+    else
+      select data into st from najm_settings where id = 1;
+      pen := case when now() > dl and nullif(st->>'closeStart', '') is not null and k_day >= (st->>'closeStart')::date
+                  then coalesce((st->>'lateClosePenalty')::numeric, 5) else 0 end;
+      own := coalesce(public.najm_close_owners(gk), array[u.username]);
+      insert into najm_day_closes(day, gkey, deadline, closed_by, closed_at, late_minutes, penalty, responsible)
+        values (k_day, gk, dl, u.username, now(), greatest(0, (extract(epoch from now() - dl) / 60)::int), pen, case when pen > 0 then own end);
+      perform public.najm_close_penalty(k_day, gk, own, pen);
+    end if;
+  elsif p_kind = 'emp_pin' then
+    -- مدير التشغيل يحط / يغيّر الرقم السري لموظف (الموظف بيغيّره أول ما يدخل)
+    if del then delete from najm_emp_pins where code = k_code;
+    else
+      if coalesce(p_data->>'pin', '') !~ '^\d{4,6}$' then raise exception 'najm: PIN must be 4-6 digits'; end if;
+      s := md5(random()::text);
+      insert into najm_emp_pins(code, salt, pin_hash, must_change)
+        values (k_code, s, encode(sha256(convert_to(s || (p_data->>'pin'), 'UTF8')), 'hex'), true)
+        on conflict (code) do update set salt = excluded.salt, pin_hash = excluded.pin_hash, must_change = true, updated_at = now();
+      delete from najm_login_fails where username = 'emp:' || k_code;
+    end if;
+  elsif p_kind = 'emp_pins_generate' then
+    -- أرقام سرية عشوائية (4 أرقام) للموظفين اللي ملهمش (أو للكل) — بترجع للتشغيل مرة واحدة عشان تتطبع وتتوزع
+    ret := '{}'::jsonb;
+    for er in select code from najm_employees where active
+              and (coalesce((p_data->>'all')::boolean, false) or code not in (select code from najm_emp_pins)) loop
+      s := lpad((floor(random() * 10000))::int::text, 4, '0');
+      dpt := md5(random()::text);
+      insert into najm_emp_pins(code, salt, pin_hash, must_change)
+        values (er.code, dpt, encode(sha256(convert_to(dpt || s, 'UTF8')), 'hex'), true)
+        on conflict (code) do update set salt = excluded.salt, pin_hash = excluded.pin_hash, must_change = true, updated_at = now();
+      ret := ret || jsonb_build_object(er.code, s);
+    end loop;
   elsif p_kind = 'captain' then
     if del then delete from najm_captains where month = p_key->>'month' and code = k_code and sku = p_key->>'sku';
     else insert into najm_captains(month, code, sku, name, target, pts, active, by_user)
@@ -160,6 +229,13 @@ begin
     raise exception 'najm: unknown kind %', p_kind;
   end if;
 
+  -- السجل (History): كل عملية باللي عملها والوقت — من غير أرقام سرية
+  insert into najm_history(actor, kind, code, day, gkey, data)
+    values (u.username, p_kind, k_code, k_day, gk,
+            case when p_kind in ('sales', 'base_sales', 'emp_pins_generate') then jsonb_build_object('key', p_key)
+                 when p_kind in ('user', 'emp_pin') then jsonb_build_object('key', p_key, 'data', case when del then null else p_data - 'pin' end)
+                 else jsonb_build_object('key', p_key, 'data', p_data) end);
+
   if p_kind in ('att','rate','bonus') then
     select * into r from najm_ratings where day = k_day and code = k_code;
     select dept into dpt from najm_employees where code = k_code;
@@ -167,7 +243,7 @@ begin
     return jsonb_build_object('row', jsonb_build_object('att', r.att, 'att_time', r.att_time, 'br', r.br, 'sh', r.sh,
       'fr', r.fr, 'ops', r.ops, 'hy', r.hy, 'bonus', r.bonus, 'bonus_note', r.bonus_note), 'score', public.najm_score(r, dpt, st));
   end if;
-  return null;
+  return ret;
 end $$;
 
 grant execute on function public.najm_save(text, text, text, jsonb, jsonb) to anon, authenticated;
@@ -184,6 +260,10 @@ begin
     'notes',      coalesce((select jsonb_agg(to_jsonb(n)) from najm_notes n where public.najm_in_scope(u, n.code)), '[]'),
     'private',    case when u.role = 'ops' then (select data from najm_private where id = 1) end,
     'cards',      coalesce((select jsonb_agg(to_jsonb(k)) from najm_cards k where public.najm_in_scope(u, k.code)), '[]'),
+    'appeals',    coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object('card_by', k.by_user, 'card_day', k.day, 'card_color', k.color, 'card_reason', k.reason)
+                    order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
+                    where public.najm_in_scope(u, a.code) or k.by_user = u.username), '[]'),
+    'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
                     'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;

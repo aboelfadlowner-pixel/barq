@@ -57,7 +57,10 @@ const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l
   });
   test('الموظف يفتح تقريره بكوده ويشوف تفاصيله هو بس', async () => {
     const p = await page();
-    const r = await p.evaluate(async d => { ME = '125'; await refresh(true); return [peekDay(d).hy['125'], Object.keys(peekDay(d).hy).length]; }, D);
+    await asAnon(db, "select najm_save('ops','0000','emp_pin','{\"code\":\"125\"}','{\"pin\":\"2580\"}')");
+    const wrong = await p.evaluate(async d => { ME = '125'; MEPIN = '0000'; await refresh(true); return Object.keys(peekDay(d).hy).length; }, D);
+    eq(wrong, 0, 'wrong PIN showed details:');
+    const r = await p.evaluate(async d => { MEPIN = '2580'; await refresh(true); return [peekDay(d).hy['125'], Object.keys(peekDay(d).hy).length]; }, D);
     eq(r, [[2, 2, 1, 2, 2], 1]);
   });
   test('رقم سري غلط مبيدخلش', async () => {

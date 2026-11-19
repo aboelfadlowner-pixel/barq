@@ -13,7 +13,7 @@ function openEmp(code){
   const e=emp(code);if(!e)return;const m=monthOf(DATE);const R=ranks();const ms=msOf(e);const t=ms.target;
   const mgr=isMgr()&&inScope(e);
   const days=monthDays(m);const off=(new Date(days[0]).getDay()+1)%7;
-  const cal=Array(off).fill('<div style="border:0"></div>').concat(days.map(d=>{const s=score(d,code);const w=isWinner(d,code);const cs=S.cards.filter(c=>c.code===code&&c.date===d&&c.approved);return `<div class="${w?'w':''}"><div class="muted">${+d.slice(8)}</div>${s.st==='abs'?'<span style="color:var(--red)">غ</span>':s.total!=null?`<b>${fmt(s.total,2)}</b>`:''}${w?'🏆':''}${cs.map(c=>`<i class="fcard ${c.color}" style="width:8px;height:11px"></i>`).join('')}</div>`;})).join('');
+  const cal=Array(off).fill('<div style="border:0"></div>').concat(days.map(d=>{const s=score(d,code);const w=isWinner(d,code);const cs=S.cards.filter(c=>c.code===code&&c.date===d&&counted(c));return `<div class="${w?'w':''}"><div class="muted">${+d.slice(8)}</div>${s.st==='abs'?'<span style="color:var(--red)">غ</span>':s.total!=null?`<b>${fmt(s.total,2)}</b>`:''}${w?'🏆':''}${cs.map(c=>`<i class="fcard ${c.color}" style="width:8px;height:11px"></i>`).join('')}</div>`;})).join('');
   let crit='';
   if(mgr){
     const rows=['br','sh','fr','ops'].filter(f=>f!=='fr'||isFresh(e)).map(f=>{const sums=[0,0,0,0,0],cnt=[0,0,0,0,0];for(const d of days){const a=peekDay(d)[f][code];if(a)a.forEach((v,i)=>{if(v!=null){sums[i]+=v;cnt[i]++;}});}return {f,sums,cnt};});
@@ -28,7 +28,7 @@ function openEmp(code){
      <div style="flex:1;min-width:200px"><h2 style="margin:0">${esc(e.name)}</h2>
        <div class="muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
        <div class="row" style="margin-top:6px;gap:6px">${R.company[code]?`<span class="badge b-blue">#${fmt(R.branch[code])} في الفرع</span><span class="badge b-blue">#${fmt(R.company[code])} في المؤسسة من ${fmt(R.total)}</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins)} مرة رجل اليوم</span>${(t=>t?`<span class="badge b-gold">${CUP_NAME[t]}${cash()?` · ${fmt(prizes()[t])} ج`:''}</span>`:'')(cupOf(prizeRank(code)))}${cardsHTML(ms.cards)}</div></div>
-     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="setTitle('${code}')">🏷️ لقب</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button></div>`:''}
+     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="setTitle('${code}')">🏷️ لقب</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button><button class="btn sm" onclick="resetEmpPin('${code}')">🔑 رقم سري</button></div>`:''}${mgr?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="openHistory('${code}')">📜 السجل</button></div>`:''}
    </div>
    ${media}
    <div class="grid g-2" style="margin-bottom:12px">
@@ -44,7 +44,7 @@ function openEmp(code){
    </div>
    ${mgr?`<div class="card" style="margin-bottom:12px"><h3>النجوم يوم بيوم</h3><div class="cal">${['سبت','أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة'].map(d=>`<div style="border:0;min-height:0" class="muted">${d}</div>`).join('')}${cal}</div></div>
    <div class="grid g-2">
-     <div class="card"><h3>🟨🟥🟩 الكروت</h3>${S.cards.filter(c=>c.code===code).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>`<div class="small" style="margin:4px 0"><i class="fcard ${c.color}"></i> <b>${c.date}</b> — ${esc(c.reason)} ${c.approved?'':'<span class="badge b-gray">⏳</span>'}</div>`).join('')||'<div class="small muted">مفيش</div>'}</div>
+     <div class="card"><h3>🟨🟥🟩 الكروت</h3>${S.cards.filter(c=>c.code===code).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>`<div class="small" style="margin:4px 0"><i class="fcard ${c.color}"></i> <b>${c.date}</b> — ${esc(c.reason)} <span class="muted">(${esc(mgrName(c.by))})</span> ${cardStatus(c)==='approved'?'':`<span class="badge ${CARD_STATUS[cardStatus(c)][1]}">${CARD_STATUS[cardStatus(c)][0]}</span>`}${(S.appeals||[]).some(x=>x.cardId===c.id&&x.status==='pending')?' <span class="badge b-gold">✋ اعتراض</span>':''}</div>`).join('')||'<div class="small muted">مفيش</div>'}</div>
      <div class="card"><h3>⭐ مواقف مثالية</h3>${days.map(d=>({d,b:peekDay(d).bonus[code]})).filter(x=>x.b).map(x=>`<div class="small" style="margin:4px 0"><b>${x.d}</b> — ${esc(x.b.note)}</div>`).join('')||'<div class="small muted">مفيش</div>'}</div>
      <div class="card"><h3>⚠️ شكاوى العملاء</h3>${S.complaints.filter(c=>c.code===code).map(c=>`<div class="small row" style="justify-content:space-between;margin:4px 0"><span><b>${c.date}</b> — ${esc(c.note)}</span>${isOps()?`<button class="btn sm red" onclick="delComplaint('${c.id}','${code}')">حذف</button>`:''}</div>`).join('')||'<div class="small muted">مفيش</div>'}${isOps()?`<button class="btn sm red" style="margin-top:6px" onclick="addComplaint('${code}')">+ شكوى</button>`:''}</div>
      <div class="card"><h3>📝 ملاحظات الإدارة</h3>${S.notes.filter(n=>n.code===code).map(n=>`<div class="small" style="margin:4px 0"><b>${n.date}</b> (${esc(n.by)}) — ${esc(n.text)}</div>`).join('')||'<div class="small muted">مفيش</div>'}<button class="btn sm" style="margin-top:6px" onclick="addNote('${code}')">+ ملاحظة</button></div>
@@ -90,4 +90,31 @@ function importEmps(){
     }
     save();render();for(let i=0;i<touched.length;i+=10)await Promise.all(touched.slice(i,i+10).map(e=>push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active})));toast(`جديد ${add} · اتحدّث ${upd}`);
   });
+}
+
+// مدير التشغيل يحط رقم سري جديد لموظف (نسيه مثلاً) — الموظف بيغيّره أول ما يدخل
+async function resetEmpPin(code){
+  const e=emp(code);const p=String(Math.floor(Math.random()*10000)).padStart(4,'0');
+  if(!await askConfirm(`رقم سري جديد لـ ${e.name}: ${p} — ابلغه بيه، وهو هيغيّره أول ما يدخل. تأكيد؟`))return;
+  if(!LIVE){S.empPins[code]={pin:p,must:true};save();}
+  const ok=await push('emp_pin',{code},{pin:p});if(ok!==false)toast(`🔑 الرقم السري الجديد لـ ${e.name.split(' ')[0]}: ${p}`);
+}
+// سجل الموظف (History): التقييمات، الكروت، الاعتراضات، ... — للمديرين في نطاقهم
+const HIST_KIND={att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'إغلاق اليوم',day_late:'تأخير إغلاق'};
+async function openHistory(code){
+  const e=emp(code);let L;
+  if(LIVE){try{L=await sbRpc('najm_history_of',{p_user:USER.username,p_pin:PIN,p_code:code})||[];}catch(x){toast(errMsg(x.message));return;}}
+  else L=(S.history||[]).filter(h=>h.code===code);
+  const desc=h=>{const d=h.data?.data;const k=h.data?.key||{};
+    if(h.kind==='card')return d?`<i class="fcard ${d.color}"></i> ${esc(d.reason||'')}`:'إلغاء كارت';
+    if(h.kind==='card_approve')return d?.approved?'اعتماد كارت أحمر':'رفض كارت أحمر';
+    if(h.kind==='appeal')return '«'+esc(h.data?.body||'')+'»';
+    if(h.kind==='appeal_decide')return (d?.accept?'قبول':'رفض')+(d?.note?' — '+esc(d.note):'');
+    if(h.kind==='rate')return Array.isArray(d)?d.join(' · '):'مسح التقييم';
+    if(h.kind==='att')return d?(ATT[d.st]||'')+(d.time?' '+esc(d.time):''):'مسح';
+    if(h.kind==='bonus')return d?esc(d.note||''):'شيل نص النجمة';
+    if(h.kind==='note')return esc(d?.text||'');
+    return '';};
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📜 سجل ${esc(e?.name||code)}</h2><div class="small muted" style="margin-bottom:8px">كل اللي اتعمل على الموظف ده: مين عمله وإمتى. مفيش حاجة بتتمسح من السجل.</div>
+    ${L.length?`<div class="tbl-wrap" style="max-height:60vh"><table><thead><tr><th>الوقت</th><th>مين</th><th>إيه</th><th>اليوم</th><th>التفاصيل</th></tr></thead><tbody>${L.slice(0,300).map(h=>`<tr><td class="small">${new Date(h.at).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</td><td class="small">${esc(h.actor_name||mgrName(h.actor))}</td><td class="small"><b>${HIST_KIND[h.kind]||esc(h.kind)}</b></td><td class="small">${esc(h.day||'')}</td><td class="small">${desc(h)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">مفيش حاجة في السجل لسه</div>'}`);
 }

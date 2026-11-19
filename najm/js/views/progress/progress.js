@@ -47,12 +47,10 @@ function reportHTML(R,forEmp){
 function vProgress(){
   const cp=checkpointOf(DATE);
   if(!USER){
-    if(!ME||!emp(ME))return `<div class="card" style="max-width:520px;margin:20px auto"><h2>📈 تقريري</h2><div class="muted" style="margin-bottom:10px">كل 10 أيام بيطلعلك تقرير: إنت من العشرة الأوائل ولا متأخر، وإيه اللي مأخّرك بالظبط.</div>
-      <label>كود البصمة بتاعك<br><input class="inp" id="me_code" inputmode="numeric" style="width:100%;font-size:20px" onkeydown="if(event.key==='Enter')meLogin()"></label>
-      <div class="row" style="margin-top:12px"><button class="btn pri" onclick="meLogin()">دخول</button></div><div class="small muted" style="margin-top:8px">الموبايل هيفتكرك المرة الجاية.</div></div>`;
+    if(!ME||!MEPIN||!emp(ME))return empLoginForm('📈 تقريري','كل 10 أيام بيطلعلك تقرير: إنت من العشرة الأوائل ولا متأخر، وإيه اللي مأخّرك بالظبط. وكمان كروتك وتقدر تعترض على أي كارت.');
     const e=emp(ME);
-    if(!cp.day)return `<div class="card" style="max-width:620px;margin:20px auto;text-align:center"><div style="font-size:48px">📅</div><h2>أهلاً ${esc(e.name.split(' ')[0])}</h2><div class="muted">أول تقرير للشهر ده هيطلع يوم ${fmt(cp.next)}.</div><button class="btn sm" style="margin-top:10px" onclick="meLogout()">مش أنا</button></div>`;
-    return `<div style="max-width:820px;margin:0 auto">${reportHTML(progressOf(e,cp,goalAt(cp.date)),true)}<div class="row" style="margin-top:10px"><button class="btn sm" onclick="meLogout()">مش أنا — خروج</button></div></div>`;
+    const top=cp.day?reportHTML(progressOf(e,cp,goalAt(cp.date)),true):`<div class="card" style="text-align:center"><div style="font-size:48px">📅</div><h2>أهلاً ${esc(e.name.split(' ')[0])}</h2><div class="muted">أول تقرير للشهر ده هيطلع يوم ${fmt(cp.next)}.</div></div>`;
+    return `<div style="max-width:820px;margin:0 auto">${top}${myCardsHTML()}<div class="row" style="margin-top:10px"><button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button><button class="btn sm" onclick="meLogout()">مش أنا — خروج</button></div></div>`;
   }
   if(!cp.day)return `<h2>📈 تقارير التقدّم</h2><div class="empty">أول تقرير للشهر ده يوم ${fmt(cp.next)}.</div>`;
   const goal=goalAt(cp.date);const list=filtered(true);
@@ -68,5 +66,26 @@ function vProgress(){
     </tbody></table></div></div>`;
 }
 function openReport(code){const cp=checkpointOf(DATE);if(!cp.day)return;openModal(`<button class="x" onclick="closeModal()">✕</button>${reportHTML(progressOf(emp(code),cp,goalAt(cp.date)),false)}`);}
-async function meLogin(){const c=$('#me_code').value.trim();const e=emp(c);if(!e||!e.active){toast('الكود ده مش موجود');return;}ME=c;try{localStorage.setItem('najm-me',c);}catch(x){}if(LIVE){toast('⏳ بنجهّز تقريرك…');await refresh(true);}render();}
-function meLogout(){ME=null;try{localStorage.removeItem('najm-me');}catch(x){}render();}
+// ---------- كروتي + الاعتراض ----------
+// LIVE: من najm_my_cards (كل الكروت طول فترة الشغل). التجربة: من الكروت المحمّلة
+function myCards(){
+  if(LIVE)return S.myCards||[];
+  return (S.cards||[]).filter(c=>c.code===ME).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>{const a=(S.appeals||[]).filter(x=>x.cardId===c.id).sort((x,y)=>String(y.at).localeCompare(String(x.at)))[0];
+    return {id:c.id,day:c.date,color:c.color,reason:c.reason,status:cardStatus(c),by:mgrName(c.by),appeal:a?{status:a.status,body:a.body,note:a.note}:null};});
+}
+function myCardsHTML(){
+  const L=myCards();const m=monthOf(DATE);const cur=L.filter(c=>String(c.day).startsWith(m));
+  const appealTxt=a=>!a?'':a.status==='pending'?'<span class="badge b-gold">✋ اعتراضك مستني قرار</span>':a.status==='accepted'?`<span class="badge b-green">✔ اعتراضك اتقبل</span>${a.note?` <span class="small muted">${esc(a.note)}</span>`:''}`:`<span class="badge b-red">اعتراضك اترفض</span>${a.note?` <span class="small muted">${esc(a.note)}</span>`:''}`;
+  const row=c=>{const st=CARD_STATUS[c.status]||['',''];const canAppeal=['approved','pending'].includes(c.status)&&!(c.appeal&&c.appeal.status==='pending');
+    return `<tr style="${['approved','pending'].includes(c.status)?'':'opacity:.6'}"><td>${esc(c.day)}</td><td><i class="fcard ${c.color}"></i> ${CARD[c.color].t}</td><td class="small">${esc(c.reason)}<div class="muted">من ${esc(c.by||'')}</div></td><td><span class="badge ${st[1]}">${st[0]}</span> ${appealTxt(c.appeal)}</td><td>${canAppeal?`<button class="btn sm" onclick="empAppeal('${esc(c.id)}')">✋ اعتراض</button>`:''}</td></tr>`;};
+  return `<div class="card" style="margin-top:12px"><h3>🟨🟥🟩 كروتي</h3><div class="small muted" style="margin-bottom:6px">الشهر ده: ${cardsHTML(cardCount(ME,m,DATE))||'مفيش كروت'} — النقط بتبدأ من جديد كل شهر، والكروت كلها بتفضل في سجلك. لو شايف إن كارت مش في محله، اعترض واكتب السبب.</div>
+    ${L.length?`<div class="tbl-wrap"><table><thead><tr><th>اليوم</th><th>الكارت</th><th>السبب</th><th>الحالة</th><th></th></tr></thead><tbody>${L.map(row).join('')}</tbody></table></div>`:'<div class="small muted">مفيش كروت 👏</div>'}</div>`;
+}
+async function empAppeal(cardId){
+  const t=await askText('اكتب اعتراضك على الكارت ده (هيوصل للمدير اللي اداه ولمدير التشغيل):');if(t===null)return;const body=t.trim();
+  if(body.length<3){toast('اكتب سبب الاعتراض');return;}
+  if(LIVE){try{await sbRpc('najm_emp_appeal',{p_code:ME,p_pin:MEPIN,p_card:cardId,p_body:body});}catch(x){toast(/already open/.test(x.message)?'في اعتراض مفتوح على الكارت ده':'⚠️ '+x.message);return;}await refresh(true);}
+  else{const c=S.cards.find(x=>x.id===cardId);S.appeals=S.appeals||[];S.appeals.unshift({id:uid(),cardId,code:ME,body,status:'pending',at:new Date().toISOString(),cardBy:c?.by,cardDay:c?.date,cardColor:c?.color,cardReason:c?.reason});
+    (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:'emp:'+ME,actor_name:emp(ME)?.name,kind:'appeal',code:ME,day:c?.date,data:{card:cardId,body}});save();}
+  render();toast('✋ اعتراضك اتبعت');
+}

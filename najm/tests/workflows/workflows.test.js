@@ -42,7 +42,7 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     ok(!(await p.$('#capPts')), 'branch manager sees captain points');
   });
   test('الموظف يدخل بكوده ويشوف تقريره بالمربعين (KPI ونقط التارجت)', async () => {
-    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; go('progress'); return document.querySelector('#main').innerText; });
+    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; MEPIN = '1234'; go('progress'); return document.querySelector('#main').innerText; });
     ok(txt.includes('الـ KPI بتاعك') && txt.includes('نقط التارجت'), txt.slice(0, 120));
   });
   test('المبالغ مخفية عن الموظف ومدير الفرع، وظاهرة للتشغيل', async () => {

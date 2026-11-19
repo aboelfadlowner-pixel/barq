@@ -43,7 +43,9 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
     ok(r.length === 1 && !('hy' in r[0]) && !('br' in r[0]), 'public scores expose details');
   });
   test('التصويت: صوت واحد لكل كود ولكل جهاز، ومفيش تصويت للهايجين', async () => {
-    const v = (code, dev, m) => asAnon(db, 'select najm_vote($1,$2,$3) r', [code, dev, m]).then(r => r[0].r);
+    for (const [c, pin] of [['125', '1234'], ['4', '5678']]) await save('ops', '0000', 'emp_pin', { code: c }, { pin });
+    const PIN = { '125': '1234', '4': '5678' };
+    const v = (code, dev, m) => asAnon(db, 'select najm_vote($1,$2,$3,$4) r', [code, PIN[code], dev, m]).then(r => r[0].r);
     eq((await v('125', 'device-aaaaaaaaaaaaaaaa', 'hy')).error, 'manager');
     eq((await v('125', 'device-aaaaaaaaaaaaaaaa', 'br')).ok, true);
     eq((await v('125', 'device-bbbbbbbbbbbbbbbb', 'br')).error, 'voted');

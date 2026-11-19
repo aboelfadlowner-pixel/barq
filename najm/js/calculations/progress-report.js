@@ -2,7 +2,6 @@
 // =========================================================
 // تقرير التقدّم كل 10 أيام: الموظف ماشي ناحية العشرة الأوائل ولا متأخر — ومين اللي مأخّره (البصمة، التقييم الفني، الهايجين، الكروت)
 // =========================================================
-let ME=null;try{ME=localStorage.getItem('najm-me')||null;}catch(e){}
 const CHECKS=()=>(S.settings.checkpoints||[10,20]).filter(n=>n>0).sort((a,b)=>a-b);
 function checkpointOf(date){ // latest report day (10, 20, end of month) on or before date
   const m=monthOf(date),dd=+date.slice(8,10),last=daysInMonth(m);

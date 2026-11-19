@@ -1,0 +1,88 @@
+// المرحلة الأولى على نسخة التجربة: رجل اليوم بالشيفتات الجديدة، إغلاق اليوم، دخول الموظف بالرقم السري، الاعتراض، السجل، الأرقام السرية
+const { test, run, eq, ok, browser, openApp } = require('../helpers');
+
+(async () => {
+  const b = await browser();
+  const p = await openApp(b);
+  const as = who => p.evaluate(w => { USER = w; RANK_CACHE = null; render(); }, who);
+  const OPS = { username: 'ops', name: 'مدير التشغيل', role: 'ops', branch: '', shift: '', depts: [] };
+  const MAHMOUD = { username: 'mahmoud', name: 'محمود', role: 'shift', branch: 'البيطاش الرئيسي', shift: 'Morning', depts: [] };
+  const ISLAM = { username: 'islam', name: 'إسلام', role: 'shift', branch: 'البيطاش الرئيسي', shift: 'Night', depts: [] };
+  const answer = async text => { await p.waitForSelector('#askBg.open', { timeout: 5000 }); if (text != null) await p.fill('#askIn', text); await p.click('#askOk'); await p.waitForTimeout(150); };
+  const main = () => p.evaluate(() => document.querySelector('#main').innerText);
+
+  test('رجل اليوم: البيطاش «الصبح» و«الليل + البين» بـ 2 لكل شيفت، وعين شمس 1', async () => {
+    const r = await p.evaluate(() => { const W = peekDay(DATE).winners; return [W['البيطاش الرئيسي|Morning']?.length, W['البيطاش الرئيسي|Night']?.length, W['عين شمس|Morning']?.length, Object.keys(W).some(k => k.endsWith('|Between'))]; });
+    eq(r, [2, 2, 1, false]);
+    await as(OPS); await p.evaluate(() => go('day'));
+    const t = await main(); ok(t.includes('الليل + البين') && t.includes('اعتماد (٢)'), t.slice(0, 200));
+  });
+  test('مفيش فايز عنده كارت أصفر أو أحمر يومها أو أقل من 4 نجوم', async () => {
+    eq(await p.evaluate(() => { const bad = []; for (const [d, D] of Object.entries(S.days)) for (const codes of Object.values(D.winners || {})) for (const c of codes) if (badCardOn(d, c) || score(d, c).total < 4) bad.push(d + ':' + c); return bad; }), []);
+  });
+  test('مدير الصبح يشوف إغلاق شيفته بس، ويقفله ← التقييم يتقفل', async () => {
+    await p.evaluate(() => { DATE = todayC(); });
+    await as(MAHMOUD); await p.evaluate(() => go('rate'));
+    eq(await p.evaluate(() => myCloseGroups()), ['البيطاش الرئيسي|Morning']);
+    await p.evaluate(() => { closeDay('البيطاش الرئيسي|Morning'); }); await answer();
+    await p.waitForTimeout(200);
+    const r = await p.evaluate(() => { const c = closeOf(DATE, 'البيطاش الرئيسي|Morning'); const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Morning'); return [c?.closed_by, dayLocked(e)]; });
+    eq(r, ['mahmoud', true]);
+    ok((await main()).includes('اتقفل'));
+  });
+  test('مدير الليل بيقيّم البين (البين مع الليل)', async () => {
+    eq(await p.evaluate(w => { USER = w; const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Between'); return inScope(e); }, ISLAM), true);
+  });
+  test('الإغلاق المتأخر بيتخصم من المدير ويظهر في سجله', async () => {
+    const r = await p.evaluate(() => { const L = (S.ledger || []).filter(l => l.id.startsWith('late|')); return [L.length > 0, L.every(l => l.points === -S.settings.lateClosePenalty)]; });
+    eq(r, [true, true]);
+    await as(OPS); await p.evaluate(() => openMgrHistory('islam'));
+    const t = await p.evaluate(() => document.querySelector('#modal').innerText); await p.evaluate(() => closeModal());
+    ok(t.includes('تأخير إغلاق يوم') || t.includes('مفيش حركات'), t.slice(0, 150));
+  });
+  let card;
+  test('الموظف يدخل بكوده + الرقم السري (الغلط مبيدخلش)', async () => {
+    card = await p.evaluate(() => S.cards.find(c => c.status === 'approved' && c.color === 'yellow' && !(S.appeals || []).some(a => a.cardId === c.id)));
+    await as(null); await p.evaluate(() => { meLogout(); go('progress'); });
+    await p.fill('#me_code', card.code); await p.fill('#me_pin', '9999'); await p.evaluate(() => meLogin());
+    eq(await p.evaluate(() => ME), null);
+    await p.fill('#me_code', card.code); await p.fill('#me_pin', '1234'); await p.evaluate(() => meLogin()); await p.waitForTimeout(200);
+    eq(await p.evaluate(() => ME), card.code);
+    ok((await main()).includes('كروتي'));
+  });
+  test('الموظف يشوف كروته بالسبب واسم المدير ويعترض', async () => {
+    const t = await main(); ok(t.includes(card.reason), 'reason missing');
+    await p.evaluate(id => { empAppeal(id); }, card.id); await answer('مكنتش موجود الساعة دي');
+    ok((await main()).includes('اعتراضك مستني قرار'));
+  });
+  test('الاعتراض بيوصل للمدير اللي اداه، ومدير تاني ميقدرش يقرر', async () => {
+    const issuer = card.by;
+    await as({ ...MAHMOUD, username: issuer === 'mahmoud' ? 'islam' : 'mahmoud' }); await p.evaluate(() => go('cards'));
+    const other = await main();
+    await as({ username: issuer, name: issuer, role: issuer === 'haitham' ? 'branch' : 'shift', branch: 'البيطاش الرئيسي', shift: issuer === 'islam' ? 'Night' : 'Morning', depts: [] });
+    await p.evaluate(() => go('cards'));
+    const mine = await main(); ok(mine.includes('اعتراضات مستنية قرار') && mine.includes('مكنتش موجود'), 'issuer does not see the appeal');
+    if (other.includes('مكنتش موجود')) ok(other.includes('القرار للمدير اللي اداه'), 'other manager can decide');
+  });
+  test('قبول الاعتراض ← الكارت «اتلغى بعد اعتراض» ونقطه بتتشال، ويفضل في السجل', async () => {
+    const before = await p.evaluate(c => cardPts(cardCount(c, monthOf(DATE), DATE)), card.code);
+    const id = await p.evaluate(c => S.appeals.find(a => a.cardId === c && a.status === 'pending').id, card.id);
+    await p.evaluate(i => { decideAppeal(i, true); }, id); await answer('اتأكدت'); await p.waitForTimeout(200);
+    const r = await p.evaluate(c => [S.cards.find(x => x.id === c.id).status, cardPts(cardCount(c.code, monthOf(DATE), DATE))], card);
+    eq(r[0], 'overturned'); eq(r[1], before + 5);
+  });
+  test('مدير التشغيل يطلّع أرقام سرية (ملف Excel)', async () => {
+    await as(OPS);
+    await p.evaluate(() => { window.__rows = 0; XLSX.writeFile = wb => { window.__rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]).length; }; genEmpPins(true); });
+    await answer(); await p.waitForTimeout(400);
+    const n = await p.evaluate(() => window.__rows);
+    ok(n === 0 || n > 100, 'rows ' + n);
+  });
+  test('سجل الموظف: الكارت والاعتراض والقرار باللي عملهم', async () => {
+    const t = await p.evaluate(async c => { await openHistory(c); return document.querySelector('#modal').innerText; }, card.code); await p.evaluate(() => closeModal());
+    ok(t.includes('اعتراض') && t.includes('قرار اعتراض'), t.slice(0, 200));
+  });
+  test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
+  await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
+  await b.close();
+})();

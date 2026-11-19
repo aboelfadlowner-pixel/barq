@@ -71,16 +71,6 @@ end $$;
 
 grant execute on function public.najm_full_scores(text, text, date, date) to anon, authenticated;
 
--- the employee's own progress report: his daily ratings (opened with his fingerprint code)
-create or replace function public.najm_my_ratings(p_code text, p_from date, p_to date)
-returns table(day date, att text, br smallint[], sh smallint[], fr smallint[], ops smallint[], hy smallint[], bonus numeric)
-language sql stable security definer set search_path = public as $$
-  select r.day, r.att, r.br, r.sh, r.fr, r.ops, r.hy, r.bonus from najm_ratings r
-  join najm_employees e on e.code = r.code and e.active
-  where r.code = trim(p_code) and r.day between p_from and p_to and p_to - p_from <= 31;
-$$;
-
-grant execute on function public.najm_my_ratings(text, date, date) to anon, authenticated;
 
 -- player card (FIFA-style) inputs per employee for a period — aggregates only, no per-manager detail
 create or replace function public.najm_card_stats(p_from date, p_to date)
@@ -128,3 +118,33 @@ returns jsonb language sql stable set search_path = public as $$
 $$;
 
 grant execute on function public.najm_sales_sum(date, date) to anon, authenticated;
+
+-- نقط الكروت في الشهر (الحساب في الداتابيز): الأخضر +10 · الأصفر −5 · الأحمر −20 · كل 3 صفر = أحمر (والصفر التلاتة نقطهم بتتلغي)
+-- الكروت المحسوبة بس (status = approved). القيم من الإعدادات (cards).
+create or replace function public.najm_card_points(p_from date, p_to date)
+returns table(code text, yellow int, red int, green int, points numeric)
+language sql stable security definer set search_path = public as $$
+  with k as (
+    select coalesce((d->'cards'->>'yellow')::numeric, -5) y, coalesce((d->'cards'->>'red')::numeric, -20) r,
+           coalesce((d->'cards'->>'green')::numeric, 10) g, greatest(1, coalesce((d->'cards'->>'yellowsToRed')::int, 3)) n
+    from (select (select data from najm_settings where id = 1) d) s),
+  c as (
+    select code, count(*) filter (where color = 'yellow')::int yellow, count(*) filter (where color = 'red')::int red,
+           count(*) filter (where color = 'green')::int green
+    from najm_cards where status = 'approved' and day between p_from and p_to group by code)
+  select c.code, c.yellow, c.red, c.green,
+         (c.red + c.yellow / k.n) * k.r + (c.yellow % k.n) * k.y + c.green * k.g
+  from c, k;
+$$;
+grant execute on function public.najm_card_points(date, date) to anon, authenticated;
+
+-- كروت كل يوم (عدد بس، من غير أسباب) — لرجل اليوم: مفيش أصفر أو أحمر يومها، والأخضر بيرفّع
+create or replace function public.najm_public_day_cards(p_from date, p_to date)
+returns table(day date, code text, yellow int, red int, green int)
+language sql stable security definer set search_path = public as $$
+  select day, code, count(*) filter (where color = 'yellow')::int, count(*) filter (where color = 'red')::int,
+         count(*) filter (where color = 'green')::int
+  from najm_cards where status = 'approved' and day between p_from and p_to and p_to - p_from <= 62
+  group by day, code;
+$$;
+grant execute on function public.najm_public_day_cards(date, date) to anon, authenticated;

@@ -211,13 +211,37 @@ function demoSeed(){
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
       D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);D.hy[e.code]=crit(e.code);if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
-    for(const br of branches())for(const sh of Object.values(SH)){const L=activeEmps().filter(e=>e.branch===br&&e.shift===sh);const R=rankGroup(d,L);if(R.length)D.winners[`${br}|${sh}`]=R.slice(0,R.length>8?2:1).map(x=>x.e.code);}}
+  }
   // cards
   const staff=activeEmps();const dd=()=>pick(days);
   for(let i=0;i<22;i++)S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'green',reason:pick(['ساعد في قسم تاني وقت الزحمة','إيجابية مع العملاء','اتنقل لقسم تاني وغطّى']),by:'haitham',approved:true});
   for(let i=0;i<14;i++)S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'yellow',reason:pick(['كسر البريك','تأخير عن الاستلام','موبايل وقت الشغل']),by:'mahmoud',approved:true});
   S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'red',reason:'رفع صوته على عميل',by:'haitham',approved:true});
   S.cards.push({id:uid(),date:DATE,code:pick(staff).code,color:'red',reason:'خناقة مع زميل',by:'islam',approved:false});
+  for(const c of S.cards)c.status=c.approved?'approved':'pending';
+  // كارت اتلغى وكارت أحمر اترفض — بيفضلوا في السجل
+  S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'yellow',reason:'اتكتب غلط على الموظف',by:'mahmoud',approved:false,status:'cancelled',decidedBy:'mahmoud'});
+  S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'red',reason:'تأخير في الاستلام',by:'islam',approved:false,status:'rejected',decidedBy:'ops'});
+  // رجل اليوم: البيطاش 2 صبح + 2 ليل · عين شمس 1 + 1 · بالنجوم والكروت (البين مع الليل)
+  for(const d of days){const D=day(d);for(const br of branches())for(const g of SHIFT_GROUPS){const W=winnersFor(br,g);if(!W)continue;const R=rankGroup(d,activeEmps().filter(e=>e.branch===br&&shiftGroup(e.shift)===g));if(R.length)D.winners[`${br}|${g}`]=R.slice(0,W).map(x=>x.e.code);}}
+  // الرقم السري للموظفين في التجربة: 1234 لكل الموظفين
+  S.empPins={};for(const e of activeEmps())S.empPins[e.code]={pin:'1234',must:false};
+  // اعتراضين: واحد مستني قرار، وواحد اتقبل
+  const ys=S.cards.filter(c=>c.color==='yellow'&&c.status==='approved');
+  if(ys[0]){const c=ys[0];S.appeals.push({id:uid(),cardId:c.id,code:c.code,body:'كنت في البريك بإذن مدير الشيفت',status:'pending',at:new Date().toISOString(),cardBy:c.by,cardDay:c.date,cardColor:c.color,cardReason:c.reason});}
+  if(ys[1]){const c=ys[1];c.status='overturned';c.approved=false;S.appeals.push({id:uid(),cardId:c.id,code:c.code,body:'الموبايل كان مكالمة من الإدارة',status:'accepted',at:new Date().toISOString(),cardBy:c.by,cardDay:c.date,cardColor:c.color,cardReason:c.reason,decidedBy:c.by,note:'اتأكدت — الكارت اتلغى'});}
+  // السجل في التجربة: الكروت والاعتراضات اللي فوق
+  const nameOf=u=>(S.users.find(x=>x.username===u)||{}).name||u;
+  S.history=[...S.cards.map(c=>({at:c.date+'T15:00:00',actor:c.by,actor_name:nameOf(c.by),kind:'card',code:c.code,day:c.date,data:{data:{color:c.color,reason:c.reason}}})),
+    ...S.appeals.map(a=>({at:a.cardDay+'T20:00:00',actor:'emp:'+a.code,actor_name:emp(a.code)?.name,kind:'appeal',code:a.code,day:a.cardDay,data:{body:a.body}})),
+    ...S.appeals.filter(a=>a.status!=='pending').map(a=>({at:a.cardDay+'T22:00:00',actor:a.decidedBy,actor_name:nameOf(a.decidedBy),kind:'appeal_decide',code:a.code,day:a.cardDay,data:{data:{accept:a.status==='accepted',note:a.note}}}))
+  ].sort((x,y)=>y.at.localeCompare(x.at));
+  // إغلاق اليوم: الخصم شغال من أول الشهر، ومعظم الأيام اتقفلت في الميعاد وكام يوم متأخر
+  S.settings.closeStart=m+'-01';
+  for(const d of days.filter(x=>x<DATE))for(const gk of [`${B}|Morning`,`${B}|Night`,`${A}|Morning`,`${A}|Night`]){
+    const own=closeOwners(gk);if(!own.length)continue;const dl=closeDeadline(d,gk);const late=rnd()<.15;const at=new Date(dl.getTime()+(late?(40+rnd()*200):-(30+rnd()*300))*60000);
+    const pen=late?S.settings.lateClosePenalty:0;(S.closes[d]||(S.closes[d]={}))[gk]={day:d,gkey:gk,deadline:dl.toISOString(),closed_by:own[0],closed_at:at.toISOString(),late_minutes:late?minsLate(at,dl):0,penalty:pen,responsible:late?own:null};
+    if(late)for(const u of own)S.ledger.push({id:`late|${d}|${gk}|${u}`,username:u,month:m,points:-pen,reason:`تأخير إغلاق يوم ${d} — ${gk.replace('|',' · ')}`});}
   // personal captains
   const C=S.captains[m]={};const prodOf=dept=>Object.entries(cat).filter(([,c])=>c.dept===dept).map(([s])=>s);
   for(const br of [B,A])for(const dept of ['قسم البقاله','قسم الفاكهه','قسم الايس كريم','bakery']){const team=activeEmps().filter(e=>e.branch===br&&e.dept===dept).slice(0,3);const P=prodOf(dept);

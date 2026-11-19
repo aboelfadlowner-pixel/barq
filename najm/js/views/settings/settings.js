@@ -13,9 +13,16 @@ function vSettings(){
    <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.abs','غياب',.25)}</div>
      <div class="row" style="margin-top:8px">${txt('shiftStart.Morning','بداية Morning','time')}${txt('shiftStart.Between','بداية Between','time')}${txt('shiftStart.Night','بداية Night','time')}</div>
      <div class="row" style="margin-top:8px">${num('graceMin','سماح (دقيقة)')}${num('lateMax','تأخير بسيط لحد')}</div></div>
-   <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر = أحمر')}</div></div>
-   <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد التصفيات')}${num('winnersPerShift','أقصى فايزين بالشيفت')}</div>
+   <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر في الشهر = أحمر')}</div><div class="small muted" style="margin-top:6px">الحساب الرسمي في الداتابيز بنفس القيم دي. الكروت بتأثر على الـ KPI بس.</div></div>
+   <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد المرشحين اللي بيظهروا')}${num('minStarsWinner','أقل نجوم للترشيح',.25)}</div>
+     <div class="small" style="margin:8px 0 4px"><b>عدد رجال اليوم لكل فرع</b> (البين بيتحسب مع الليل):</div>
+     ${branches().map(b=>`<div class="row" style="gap:6px;margin-bottom:4px"><span class="small" style="min-width:110px">${esc(b)}</span>${SHIFT_GROUPS.map(g=>`<label class="small">${GROUP_NAME[g]} <input class="inp" type="number" min="0" style="width:60px" value="${winnersFor(b,g)}" onchange="setWinnersBy('${esc(b)}','${g}',+this.value)"></label>`).join('')}</div>`).join('')}
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
+   <div class="card"><h3>🔒 إغلاق اليوم</h3><div class="row"><label class="small">الخصم بيبدأ من يوم<br><input class="inp" type="date" value="${esc(s.closeStart||'')}" onchange="setS('closeStart',this.value)"></label>${num('closeAfterHours','آخر ميعاد = بداية الشيفت + ساعات')}${num('lateClosePenalty','خصم التأخير (نقطة)')}</div>
+     <div class="small muted" style="margin-top:6px">كل مدير شيفت بيقفل شيفته (البين مع الليل). لو اتأخر عن الميعاد، الخصم بيتسجل في رصيده تلقائي من غير موافقتك. لو التاريخ فاضي، الخصم مش شغال.</div></div>
+   <div class="card"><h3>🔑 الرقم السري للموظفين</h3><div class="small muted" style="margin-bottom:6px">الموظف بيدخل «تقريري» والتصويت والاعتراض بكود البصمة + رقم سري. أول مرة بيدخل بالرقم اللي هنا وبيغيّره بنفسه.</div>
+     <div class="small" style="margin-bottom:6px">عندهم رقم: <b>${fmt(Object.keys(S.empPins||{}).length)}</b> من ${fmt(activeEmps().length)} موظف</div>
+     <div class="row"><button class="btn pri sm" onclick="genEmpPins(false)">🔑 أرقام للي ملهمش + Excel</button><button class="btn sm red" onclick="genEmpPins(true)">أرقام جديدة للكل</button></div></div>
    <div class="card"><h3>📈 شرط العشرة الأوائل + تقرير الـ10 أيام</h3><div class="row">${num('goal','حد الـ KPI للعشرة الأوائل')}${num('targetGoal','المطلوب الافتراضي % من نقط التارجت')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">الموظف لازم يعدّي الحدّين مع بعض عشان يدخل العشرة الأوائل وياخد جايزة. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
@@ -68,4 +75,17 @@ function exportXLSX(){
   const sum=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);return {'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'القسم':e.dept,'الوظيفة':e.job,'الشيفت':e.shift,'أيام':ms.n,'متوسط النجوم':ms.avg!=null?+ms.avg.toFixed(2):'','تقييم الشهر':ms.monthScore??'','رجل اليوم':ms.wins,'أصفر':ms.cards.y,'أحمر':ms.cards.r,'أخضر':ms.cards.g,'غياب':ms.abs,'تأخير':ms.late,'تارجت %':ms.target?.pct!=null?Math.round(ms.target.pct):'','نقاط الكابتن':ms.target?.capPts||0,'إجمالي النقاط':ms.target?.empPoints??'','مكافأة':ms.target?.empPoints!=null?money(ms.target.empPoints):''};});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sum),'ملخص الشهر');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.cards.filter(c=>c.date.startsWith(m)).map(c=>({'اليوم':c.date,'الكود':c.code,'الاسم':emp(c.code)?.name,'الكارت':CARD[c.color].t,'السبب':c.reason,'من':c.by,'محسوب':c.approved?'✔':'⏳'}))),'الكروت');
   XLSX.writeFile(wb,`najm-${m}.xlsx`);
+}
+
+function setWinnersBy(b,g,v){const w=S.settings.winnersBy||(S.settings.winnersBy={});w[b]={...(w[b]||{}),[g]:Math.max(0,v|0)};setS('winnersBy',w);}
+// أرقام سرية للموظفين: بتظهر مرة واحدة بس (في ملف Excel للطباعة والتوزيع) — الداتابيز بتحفظها مشفّرة
+async function genEmpPins(all){
+  if(all&&!await askConfirm('أرقام سرية جديدة لكل الموظفين؟ الأرقام القديمة هتبطل، وكل موظف هيحتاج رقمه الجديد.'))return;
+  let map;
+  if(LIVE){try{map=await sbRpc('najm_save',{p_user:USER.username,p_pin:PIN,p_kind:'emp_pins_generate',p_key:{},p_data:{all}});}catch(e){toast(errMsg(e.message));return;}}
+  else{map={};for(const e of activeEmps())if(all||!S.empPins[e.code]){const p=String(Math.floor(Math.random()*10000)).padStart(4,'0');S.empPins[e.code]={pin:p,must:true};map[e.code]=p;}save();logLocal('emp_pins_generate',{},null);}
+  const rows=Object.entries(map||{}).map(([c,p])=>{const e=emp(c);return {'الكود':c,'الاسم':e?.name||'','الفرع':e?.branch||'','القسم':e?.dept||'','الرقم السري':p};});
+  if(!rows.length){toast('كل الموظفين عندهم أرقام');return;}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'أرقام الموظفين');XLSX.writeFile(wb,`najm-pins-${ymd(new Date())}.xlsx`);
+  if(LIVE)await refresh(true);render();toast(`🔑 ${rows.length} رقم سري — اتنزّلوا في ملف Excel. وزّعهم واحفظ الملف في مكان آمن.`);
 }

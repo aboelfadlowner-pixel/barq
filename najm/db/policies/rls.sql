@@ -41,3 +41,9 @@ alter table public.najm_login_fails enable row level security;
 alter table public.najm_payouts enable row level security;
 
 alter table public.najm_votes enable row level security;
+
+-- المرحلة الأولى: الجداول الجديدة مقفولة تمامًا (القراءة والكتابة من خلال الدوال بس)
+alter table public.najm_card_appeals enable row level security;
+alter table public.najm_history enable row level security;
+alter table public.najm_day_closes enable row level security;
+alter table public.najm_emp_pins enable row level security;

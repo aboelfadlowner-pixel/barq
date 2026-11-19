@@ -2,8 +2,8 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 const suites = [
-  ['calculations/calculations.test.js', false], ['workflows/workflows.test.js', false],
-  ['database/database.test.js', true], ['permissions/permissions.test.js', true], ['integration/integration.test.js', true],
+  ['calculations/calculations.test.js', false], ['workflows/workflows.test.js', false], ['workflows/phase1.test.js', false],
+  ['database/database.test.js', true], ['permissions/permissions.test.js', true], ['permissions/phase1.test.js', true], ['integration/integration.test.js', true],
 ];
 (async () => {
   let dbOk = true;
