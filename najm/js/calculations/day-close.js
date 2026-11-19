@@ -1,4 +1,4 @@
-// نجم أبو الفضل — إغلاق اليوم: كل مدير بيقفل شيفته (البين مع الليل). آخر ميعاد = بداية الشيفت + closeAfterHours.
+// نجم أبو الفضل — إغلاق اليوم: كل مدير بيقفل شيفته (Between مع الليل). آخر ميعاد = بداية الشيفت + closeAfterHours.
 // التأخير بيتخصم من المسؤول تلقائي (najm_apply_late_closes في الداتابيز) — ده نفس الحساب للعرض والتجربة.
 function closeDeadline(d,gk){
   const g=gk.split('|')[1];const st=(S.settings.shiftStart||{})[g]||(g==='Night'?'17:00':'09:00');

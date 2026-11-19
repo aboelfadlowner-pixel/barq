@@ -13,7 +13,7 @@ function defaultState(){
       capPct:120, complaintPenalty:50, bonusAt100:0, defaultMultiplier:2,
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:10, yellowsToRed:3},
-      // رجل اليوم لكل فرع وشيفت (البين مع الليل) + أقل نجوم للترشيح
+      // رجل اليوم لكل فرع وشيفت (Between مع الليل) + أقل نجوم للترشيح
       winnersBy:{'البيطاش الرئيسي':{Morning:2,Night:2},'عين شمس':{Morning:1,Night:1},'المصنع':{Morning:0,Night:0}},
       minStarsWinner:4,
       // إغلاق اليوم: آخر ميعاد = بداية الشيفت + closeAfterHours · الخصم بيبدأ من closeStart (التشغيل بيحدده)

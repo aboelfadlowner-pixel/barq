@@ -1,8 +1,8 @@
-// نجم أبو الفضل — رجل اليوم: البيطاش 4 (2 صبح + 2 ليل) · عين شمس 2 (1 + 1) · البين بيتحسب مع الليل
+// نجم أبو الفضل — رجل اليوم: البيطاش 4 (2 صبح + 2 ليل) · عين شمس 2 (1 + 1) · Between بيتحسب مع الليل
 // المرشح لازم يبقى كويس في الاتنين: نجوم اليوم من minStarsWinner (4) وطالع، ومفيش كارت أصفر أو أحمر يومها.
 // الترتيب = النجوم + نقط كروت اليوم ÷ 10 (الكارت الأخضر +10 = نجمة زيادة). مفيش سبب مكتوب — الأساس النجوم والكروت.
 const SHIFT_GROUPS=['Morning','Night'];
-const GROUP_NAME={Morning:'الصبح',Night:'الليل + البين'};
+const GROUP_NAME={Morning:'الصبح',Night:'الليل + Between'};
 const shiftGroup=sh=>sh==='Night'||sh==='Between'?'Night':'Morning';
 const groupKey=e=>`${e.branch}|${shiftGroup(e.shift)}`;
 function winnersFor(branch,group){const w=S.settings.winnersBy?.[branch];return w&&w[group]!=null?+w[group]:+(S.settings.winnersPerShift||0);}

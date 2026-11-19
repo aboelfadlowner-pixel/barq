@@ -43,7 +43,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [R.length, R[0] === L[2].code, R.includes(L[0].code), R.includes(L[3].code)];
     }), [2, true, false, false]);
   });
-  test('رجال اليوم: البيطاش 2 + 2 · عين شمس 1 + 1 · المصنع صفر · البين مع الليل', async () => {
+  test('رجال اليوم: البيطاش 2 + 2 · عين شمس 1 + 1 · المصنع صفر · Between مع الليل', async () => {
     eq(await ev(() => [winnersFor('البيطاش الرئيسي', 'Morning'), winnersFor('البيطاش الرئيسي', 'Night'), winnersFor('عين شمس', 'Morning'), winnersFor('عين شمس', 'Night'), winnersFor('المصنع', 'Morning'), shiftGroup('Between'), shiftGroup('Night'), shiftGroup('Morning')]), [2, 2, 1, 1, 0, 'Night', 'Night', 'Morning']);
   });
   test('إغلاق اليوم: آخر ميعاد = بداية الشيفت + 10 ساعات', async () => {

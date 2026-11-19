@@ -82,7 +82,7 @@ function myCardsHTML(){
     ${L.length?`<div class="tbl-wrap"><table><thead><tr><th>اليوم</th><th>الكارت</th><th>السبب</th><th>الحالة</th><th></th></tr></thead><tbody>${L.map(row).join('')}</tbody></table></div>`:'<div class="small muted">مفيش كروت 👏</div>'}</div>`;
 }
 async function empAppeal(cardId){
-  const t=await askText('اكتب اعتراضك على الكارت ده (هيوصل للمدير اللي اداه ولمدير التشغيل):');if(t===null)return;const body=t.trim();
+  const t=await askText('اكتب اعتراضك على الكارت ده (هيوصل لمدير التشغيل):');if(t===null)return;const body=t.trim();
   if(body.length<3){toast('اكتب سبب الاعتراض');return;}
   if(LIVE){try{await sbRpc('najm_emp_appeal',{p_code:ME,p_pin:MEPIN,p_card:cardId,p_body:body});}catch(x){toast(/already open/.test(x.message)?'في اعتراض مفتوح على الكارت ده':'⚠️ '+x.message);return;}await refresh(true);}
   else{const c=S.cards.find(x=>x.id===cardId);S.appeals=S.appeals||[];S.appeals.unshift({id:uid(),cardId,code:ME,body,status:'pending',at:new Date().toISOString(),cardBy:c?.by,cardDay:c?.date,cardColor:c?.color,cardReason:c?.reason});

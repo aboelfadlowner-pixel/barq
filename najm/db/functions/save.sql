@@ -134,12 +134,12 @@ begin
         where id = p_key->>'id' and status = 'pending';
     end if;
   elsif p_kind = 'appeal_decide' then
-    -- القرار للمدير اللي ادى الكارت أو مدير التشغيل. القبول بيلغي الكارت (overturned) وبيفضل في السجل
+    -- القرار لمدير التشغيل بس. القبول بيلغي الكارت (overturned) وبيفضل في السجل
     select * into a from najm_card_appeals where id = p_key->>'id';
     select * into k from najm_cards where id = a.card_id;
     if a.id is null then raise exception 'najm: appeal not found'; end if;
     if a.status <> 'pending' then raise exception 'najm: appeal already decided'; end if;
-    if not (u.role = 'ops' or k.by_user = u.username) then raise exception 'najm: only the card issuer or operations can decide' using errcode = '42501'; end if;
+    if u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
     update najm_card_appeals set status = case when coalesce((p_data->>'accept')::boolean, false) then 'accepted' else 'rejected' end,
       decided_by = u.username, decided_at = now(), decision_note = p_data->>'note' where id = a.id;
     if coalesce((p_data->>'accept')::boolean, false) then
@@ -147,7 +147,7 @@ begin
     end if;
     k_code := a.code; k_day := k.day;
   elsif p_kind = 'day_close' then
-    -- إغلاق اليوم: مدير الشيفت (البين مع الليل) أو مدير الفرع أو التشغيل
+    -- إغلاق اليوم: مدير الشيفت (Between مع الليل) أو مدير الفرع أو التشغيل
     if gk is null or k_day is null then raise exception 'najm: day and shift required'; end if;
     if not (u.role = 'ops' or (u.role = 'branch' and u.branch = split_part(gk, '|', 1))
             or (u.role = 'shift' and u.branch = split_part(gk, '|', 1) and public.najm_shift_group(u.shift) = split_part(gk, '|', 2))) then
@@ -260,9 +260,9 @@ begin
     'notes',      coalesce((select jsonb_agg(to_jsonb(n)) from najm_notes n where public.najm_in_scope(u, n.code)), '[]'),
     'private',    case when u.role = 'ops' then (select data from najm_private where id = 1) end,
     'cards',      coalesce((select jsonb_agg(to_jsonb(k)) from najm_cards k where public.najm_in_scope(u, k.code)), '[]'),
-    'appeals',    coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object('card_by', k.by_user, 'card_day', k.day, 'card_color', k.color, 'card_reason', k.reason)
+    'appeals',    case when u.role = 'ops' then coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object('card_by', k.by_user, 'card_day', k.day, 'card_color', k.color, 'card_reason', k.reason)
                     order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
-                    where public.najm_in_scope(u, a.code) or k.by_user = u.username), '[]'),
+                    ), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
                     'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);

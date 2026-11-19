@@ -222,7 +222,7 @@ function demoSeed(){
   // كارت اتلغى وكارت أحمر اترفض — بيفضلوا في السجل
   S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'yellow',reason:'اتكتب غلط على الموظف',by:'mahmoud',approved:false,status:'cancelled',decidedBy:'mahmoud'});
   S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'red',reason:'تأخير في الاستلام',by:'islam',approved:false,status:'rejected',decidedBy:'ops'});
-  // رجل اليوم: البيطاش 2 صبح + 2 ليل · عين شمس 1 + 1 · بالنجوم والكروت (البين مع الليل)
+  // رجل اليوم: البيطاش 2 صبح + 2 ليل · عين شمس 1 + 1 · بالنجوم والكروت (Between مع الليل)
   for(const d of days){const D=day(d);for(const br of branches())for(const g of SHIFT_GROUPS){const W=winnersFor(br,g);if(!W)continue;const R=rankGroup(d,activeEmps().filter(e=>e.branch===br&&shiftGroup(e.shift)===g));if(R.length)D.winners[`${br}|${g}`]=R.slice(0,W).map(x=>x.e.code);}}
   // الرقم السري للموظفين في التجربة: 1234 لكل الموظفين
   S.empPins={};for(const e of activeEmps())S.empPins[e.code]={pin:'1234',must:false};

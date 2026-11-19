@@ -11,11 +11,11 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   const answer = async text => { await p.waitForSelector('#askBg.open', { timeout: 5000 }); if (text != null) await p.fill('#askIn', text); await p.click('#askOk'); await p.waitForTimeout(150); };
   const main = () => p.evaluate(() => document.querySelector('#main').innerText);
 
-  test('رجل اليوم: البيطاش «الصبح» و«الليل + البين» بـ 2 لكل شيفت، وعين شمس 1', async () => {
+  test('رجل اليوم: البيطاش «الصبح» و«الليل + Between» بـ 2 لكل شيفت، وعين شمس 1', async () => {
     const r = await p.evaluate(() => { const W = peekDay(DATE).winners; return [W['البيطاش الرئيسي|Morning']?.length, W['البيطاش الرئيسي|Night']?.length, W['عين شمس|Morning']?.length, Object.keys(W).some(k => k.endsWith('|Between'))]; });
     eq(r, [2, 2, 1, false]);
     await as(OPS); await p.evaluate(() => go('day'));
-    const t = await main(); ok(t.includes('الليل + البين') && t.includes('اعتماد (٢)'), t.slice(0, 200));
+    const t = await main(); ok(t.includes('الليل + Between') && t.includes('اعتماد (٢)'), t.slice(0, 200));
   });
   test('مفيش فايز عنده كارت أصفر أو أحمر يومها أو أقل من 4 نجوم', async () => {
     eq(await p.evaluate(() => { const bad = []; for (const [d, D] of Object.entries(S.days)) for (const codes of Object.values(D.winners || {})) for (const c of codes) if (badCardOn(d, c) || score(d, c).total < 4) bad.push(d + ':' + c); return bad; }), []);
@@ -30,7 +30,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, ['mahmoud', true]);
     ok((await main()).includes('اتقفل'));
   });
-  test('مدير الليل بيقيّم البين (البين مع الليل)', async () => {
+  test('مدير الليل بيقيّم Between (Between مع الليل)', async () => {
     eq(await p.evaluate(w => { USER = w; const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Between'); return inScope(e); }, ISLAM), true);
   });
   test('الإغلاق المتأخر بيتخصم من المدير ويظهر في سجله', async () => {
@@ -55,14 +55,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     await p.evaluate(id => { empAppeal(id); }, card.id); await answer('مكنتش موجود الساعة دي');
     ok((await main()).includes('اعتراضك مستني قرار'));
   });
-  test('الاعتراض بيوصل للمدير اللي اداه، ومدير تاني ميقدرش يقرر', async () => {
+  test('الاعتراض بيوصل لمدير التشغيل بس (المدير اللي ادى الكارت مبيشوفوش)', async () => {
     const issuer = card.by;
-    await as({ ...MAHMOUD, username: issuer === 'mahmoud' ? 'islam' : 'mahmoud' }); await p.evaluate(() => go('cards'));
-    const other = await main();
     await as({ username: issuer, name: issuer, role: issuer === 'haitham' ? 'branch' : 'shift', branch: 'البيطاش الرئيسي', shift: issuer === 'islam' ? 'Night' : 'Morning', depts: [] });
     await p.evaluate(() => go('cards'));
-    const mine = await main(); ok(mine.includes('اعتراضات مستنية قرار') && mine.includes('مكنتش موجود'), 'issuer does not see the appeal');
-    if (other.includes('مكنتش موجود')) ok(other.includes('القرار للمدير اللي اداه'), 'other manager can decide');
+    ok(!(await main()).includes('مكنتش موجود'), 'issuer sees the appeal');
+    await as(OPS); await p.evaluate(() => go('cards'));
+    const t = await main(); ok(t.includes('اعتراضات مستنية قرار') && t.includes('مكنتش موجود'), 'ops does not see the appeal');
   });
   test('قبول الاعتراض ← الكارت «اتلغى بعد اعتراض» ونقطه بتتشال، ويفضل في السجل', async () => {
     const before = await p.evaluate(c => cardPts(cardCount(c, monthOf(DATE), DATE)), card.code);

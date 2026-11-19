@@ -37,7 +37,7 @@ create table if not exists public.najm_history (
 create index if not exists najm_history_code_idx on public.najm_history (code, at);
 create index if not exists najm_history_actor_idx on public.najm_history (actor, at);
 
--- ---------------------------------------------------------------- إغلاق اليوم لكل فرع وشيفت (البين مع الليل)
+-- ---------------------------------------------------------------- إغلاق اليوم لكل فرع وشيفت (Between مع الليل)
 create table if not exists public.najm_day_closes (
   day date not null, gkey text not null,          -- gkey = <branch>|Morning or <branch>|Night
   deadline timestamptz not null,

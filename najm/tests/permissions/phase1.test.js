@@ -85,9 +85,13 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     ok((await rpc('select najm_emp_appeal($1,$2,$3,$4) r', ['125', '4321', 'y2', 'مش كارتي'])).r.error, 'appealed another employee card');
     appealId = (await db.query("select id from najm_card_appeals where card_id='y1'")).rows[0].id;
   });
-  test('مدير تاني (مش اللي ادى الكارت) ميقدرش يقرر', () => fails(save('shm', '2222', 'appeal_decide', { id: appealId }, { accept: true }), /issuer or operations/));
-  test('المدير اللي ادى الكارت يقبل الاعتراض ← الكارت يتلغى ويفضل في السجل', async () => {
-    await save('br', '1111', 'appeal_decide', { id: appealId }, { accept: true, note: 'اتأكدت من الكاميرا' });
+  test('الاعتراض بيوصل لمدير التشغيل بس — حتى المدير اللي ادى الكارت ميشوفوش وميقررش', async () => {
+    await fails(save('br', '1111', 'appeal_decide', { id: appealId }, { accept: true }), /operations manager only/);
+    eq((await rpc('select najm_files($1,$2) r', ['br', '1111'])).r.appeals, null);
+    eq((await rpc('select najm_files($1,$2) r', ['ops', '0000'])).r.appeals.length, 1);
+  });
+  test('مدير التشغيل يقبل الاعتراض ← الكارت يتلغى ويفضل في السجل', async () => {
+    await save('ops', '0000', 'appeal_decide', { id: appealId }, { accept: true, note: 'اتأكدت من الكاميرا' });
     eq(await status('y1'), 'overturned');
     eq((await db.query('select status, decision_note from najm_card_appeals where id=$1', [appealId])).rows[0], { status: 'accepted', decision_note: 'اتأكدت من الكاميرا' });
     eq(+(await points('125')).points, 10);
@@ -100,7 +104,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
 
   // ---------------- إغلاق اليوم
-  test('مدير الصبح يقفل شيفته بس (والبين مع الليل)', async () => {
+  test('مدير الصبح يقفل شيفته بس (وBetween مع الليل)', async () => {
     await fails(save('shm', '2222', 'day_close', { day: D, gkey: B + '|Night' }), /outside your scope/);
     await save('shm', '2222', 'day_close', { day: D, gkey: B + '|Morning' });
     await fails(save('shm', '2222', 'day_close', { day: D, gkey: B + '|Morning' }), /already closed/);
@@ -109,7 +113,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const m = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1", [B])).rows[0].code;
     await fails(save('shm', '2222', 'rate', { day: D, code: m }, [2, 2, 2, 2, 2]), /day locked/);
     const n = (await db.query("select code from najm_employees where branch=$1 and shift='Between' limit 1", [B])).rows[0].code;
-    await save('shn', '3333', 'rate', { day: D, code: n }, [2, 2, 2, 2, 2]);   // البين لسه مفتوح مع الليل
+    await save('shn', '3333', 'rate', { day: D, code: n }, [2, 2, 2, 2, 2]);   // Between لسه مفتوح مع الليل
   });
   test('مفيش خصم قبل ما التشغيل يحدد تاريخ البداية', async () => {
     eq((await db.query("select count(*)::int n from najm_mgr_ledger where id like 'late|%'")).rows[0].n, 0);

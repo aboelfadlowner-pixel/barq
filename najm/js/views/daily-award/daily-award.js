@@ -4,7 +4,7 @@ function vDay(){
   const D=peekDay(DATE);const bs=F.branch?[F.branch]:branches();const N=S.settings.finalists;const min=+(S.settings.minStarsWinner??4);
   let html=`<div class="sec-title"><h2>🏆 رجل اليوم — ${esc(DATE)}</h2></div>
     <div class="chips" style="margin-bottom:12px">${['',...branches()].map(b=>`<button class="chip ${F.branch===b?'on':''}" onclick="F.branch='${esc(b)}';render()">${b?esc(b):'الكل'}</button>`).join('')}</div>
-    <div class="lock" style="margin-bottom:12px">الاختيار بالنجوم والكروت مع بعض: لازم ${fmt(min)} نجوم أو أكتر، ومفيش كارت أصفر أو أحمر في اليوم ده. الترتيب = النجوم + الكارت الأخضر (نجمة زيادة). البين بيتحسب مع الليل.</div>`;
+    <div class="lock" style="margin-bottom:12px">الاختيار بالنجوم والكروت مع بعض: لازم ${fmt(min)} نجوم أو أكتر، ومفيش كارت أصفر أو أحمر في اليوم ده. الترتيب = النجوم + الكارت الأخضر (نجمة زيادة). Between بيتحسب مع الليل.</div>`;
   for(const b of bs){
     let inner='';
     for(const g of SHIFT_GROUPS){

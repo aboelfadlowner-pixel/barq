@@ -1,6 +1,6 @@
 -- نجم أبو الفضل — الدخول والصلاحيات ورفع الصور — النسخة الحالية من كل دالة (create or replace)
 
--- شيفت البين بيتحسب مع الليل (في التقييم ورجل اليوم وإغلاق اليوم)
+-- شيفت Between بيتحسب مع الليل (في التقييم ورجل اليوم وإغلاق اليوم)
 create or replace function public.najm_shift_group(p_shift text)
 returns text language sql immutable set search_path = public as $$
   select case when p_shift in ('Night', 'Between') then 'Night' else coalesce(nullif(p_shift, ''), 'Morning') end;

@@ -1,17 +1,17 @@
 // نجم أبو الفضل — تاب الكروت: كروت الشهر بحالتها، موافقة الأحمر، الإلغاء (من غير مسح)، واعتراضات الموظفين
 // ---------- Cards (managers) ----------
-const canDecideAppeal=a=>isOps()||a.cardBy===USER?.username;
+const canDecideAppeal=()=>isOps();   // الاعتراضات بتوصل لمدير التشغيل بس
 function vCards(){
   const m=monthOf(DATE);const L=S.cards.filter(c=>c.date.startsWith(m)&&inScope(emp(c.code)||{})).sort((a,b)=>b.date.localeCompare(a.date));
   const pend=L.filter(c=>cardStatus(c)==='pending');const k=S.settings.cards;
-  const mineApp=a=>inScope(emp(a.code)||{})||a.cardBy===USER.username;
+  const mineApp=()=>isOps();
   const openApp=(S.appeals||[]).filter(a=>a.status==='pending'&&mineApp(a));
   const doneApp=(S.appeals||[]).filter(a=>a.status!=='pending'&&mineApp(a)).slice(0,30);
   const row=c=>{const e=emp(c.code);const st=CARD_STATUS[cardStatus(c)];const live=['pending','approved'].includes(cardStatus(c));
     return `<tr style="${live?'':'opacity:.6'}"><td>${c.date}</td><td><div class="row" style="flex-wrap:nowrap">${ava(e,'sm')}<b>${esc(e?.name)}</b></div></td><td><i class="fcard ${c.color}"></i> ${CARD[c.color].t}</td><td class="small">${esc(c.reason)}</td><td class="small">${esc(mgrName(c.by))}</td><td><span class="badge ${st[1]}">${st[0]}</span></td>
     <td class="row" style="gap:4px">${cardStatus(c)==='pending'&&isOps()?`<button class="btn sm gold" onclick="approveCard('${c.id}',true)">اعتماد</button><button class="btn sm red" onclick="approveCard('${c.id}',false)">رفض</button>`:''}${live&&(isOps()||(c.by===USER.username&&cardStatus(c)==='pending'))?`<button class="btn sm" onclick="delCard('${c.id}')">إلغاء</button>`:''}</td></tr>`;};
   const appRow=a=>{const e=emp(a.code);return `<tr><td>${esc(a.cardDay||'')}</td><td><div class="row" style="flex-wrap:nowrap">${ava(e,'sm')}<b>${esc(e?.name)}</b></div></td><td><i class="fcard ${a.cardColor}"></i> ${esc(a.cardReason||'')}<div class="small muted">من ${esc(mgrName(a.cardBy))}</div></td><td class="small">«${esc(a.body)}»</td>
-    <td>${a.status==='pending'?(canDecideAppeal(a)?`<div class="row" style="gap:4px"><button class="btn sm gold" onclick="decideAppeal('${a.id}',true)">قبول (يتلغي الكارت)</button><button class="btn sm red" onclick="decideAppeal('${a.id}',false)">رفض</button></div>`:'<span class="small muted">القرار للمدير اللي اداه أو التشغيل</span>')
+    <td>${a.status==='pending'?(canDecideAppeal(a)?`<div class="row" style="gap:4px"><button class="btn sm gold" onclick="decideAppeal('${a.id}',true)">قبول (يتلغي الكارت)</button><button class="btn sm red" onclick="decideAppeal('${a.id}',false)">رفض</button></div>`:'<span class="small muted">القرار لمدير التشغيل</span>')
       :`<span class="badge ${a.status==='accepted'?'b-green':'b-red'}">${a.status==='accepted'?'اتقبل':'اترفض'}</span> <span class="small muted">${esc(mgrName(a.decidedBy))}${a.note?' — '+esc(a.note):''}</span>`}</td></tr>`;};
   return `<div class="sec-title"><h2>🟨🟥🟩 الكروت — ${monthName(m)}</h2></div>
     <div class="grid g-3" style="margin-bottom:12px">${['yellow','red','green'].map(c=>`<div class="card"><h3><i class="fcard ${c}"></i> ${CARD[c].t} <span class="badge ${c==='green'?'b-green':'b-red'}">${k[c]>0?'+':''}${k[c]}</span></h3><div class="small muted">${CARD[c].d}${c==='red'?' · بموافقة مدير التشغيل · بيمنعه من رجل اليوم يومها':''}${c==='yellow'?` · كل ${k.yellowsToRed} أصفر في الشهر = أحمر (${k.red}) والصفر بتتلغي`:''}</div><div style="font-size:26px;font-weight:900;margin-top:6px">${fmt(L.filter(x=>x.color===c&&counted(x)).length)}</div></div>`).join('')}</div>
