@@ -56,7 +56,8 @@ grant execute on function public.najm_public_scores(date, date) to anon, authent
 create or replace function public.najm_full_scores(p_user text, p_pin text, p_from date, p_to date)
 returns table(day date, code text, att text, att_time text, br smallint[], sh smallint[], fr smallint[], ops smallint[], hy smallint[],
               bonus numeric, bonus_note text, score jsonb)
-language plpgsql stable security definer set search_path = public as $$
+-- volatile: التحقق من الرقم السري بيكتب في عدّاد المحاولات (الدوال الـ stable بتتنفذ «قراءة بس» وبتترفض)
+language plpgsql volatile security definer set search_path = public as $$
 declare u najm_users; st jsonb;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
