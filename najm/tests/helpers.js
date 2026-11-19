@@ -43,8 +43,9 @@ async function openApp(b, { query = '?demo=1', supabase = null, viewport = { wid
 
 // ---- local Postgres built from db/ (same order as production)
 const DB_FILES = [
-  'migrations/001_tables.sql',
-  'functions/auth.sql', 'functions/scoring.sql', 'functions/save.sql', 'functions/league.sql', 'functions/votes.sql', 'functions/payouts.sql',
+  ...require('fs').readdirSync(path.resolve(__dirname, '../db/migrations')).filter(f => f.endsWith('.sql')).sort().map(f => 'migrations/' + f),
+  'functions/auth.sql', 'functions/close.sql', 'functions/employees.sql', 'functions/scoring.sql', 'functions/save.sql',
+  'functions/league.sql', 'functions/votes.sql', 'functions/payouts.sql',
   'policies/rls.sql', 'policies/storage.sql',
   'seed/defaults.sql',
 ].map(f => path.resolve(__dirname, '../db', f));

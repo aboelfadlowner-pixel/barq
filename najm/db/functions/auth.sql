@@ -1,5 +1,12 @@
 -- نجم أبو الفضل — الدخول والصلاحيات ورفع الصور — النسخة الحالية من كل دالة (create or replace)
 
+-- شيفت Between بيتحسب مع الليل (في التقييم ورجل اليوم وإغلاق اليوم)
+create or replace function public.najm_shift_group(p_shift text)
+returns text language sql immutable set search_path = public as $$
+  select case when p_shift in ('Night', 'Between') then 'Night' else coalesce(nullif(p_shift, ''), 'Morning') end;
+$$;
+grant execute on function public.najm_shift_group(text) to anon, authenticated;
+
 create or replace function public.najm_auth(p_user text, p_pin text)
 returns public.najm_users language plpgsql volatile security definer set search_path = public as $$
 declare u najm_users; f najm_login_fails; un text := lower(trim(p_user));
@@ -41,7 +48,7 @@ returns boolean language sql stable security definer set search_path = public as
   select case when u.role = 'ops' then true
     else exists (select 1 from najm_employees e where e.code = p_code
       and (u.branch is null or e.branch = u.branch)
-      and (u.role <> 'shift' or e.shift = u.shift)
+      and (u.role <> 'shift' or public.najm_shift_group(e.shift) = public.najm_shift_group(u.shift))
       and (u.role <> 'fresh' or e.dept = any (coalesce(u.depts, array[]::text[])))) end;
 $$;
 

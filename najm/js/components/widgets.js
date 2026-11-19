@@ -1,5 +1,6 @@
 // نجم أبو الفضل — أجزاء شكلية مشتركة: النجوم، صورة الموظف، شريط الإنجاز، الكروت
-function starsHTML(v,cls=''){const p=Math.max(0,Math.min(5,v||0))/5*100;return `<span class="stars ${cls}" title="${fmt(v,2)} من 5"><span class="bg">★★★★★</span><span class="fg" style="width:${p}%">★★★★★</span></span>`;}
+// النجوم من 5 + لو فيه تصرف مثالي (Bonus فوق الـ 5) بيظهر «+½»
+function starsHTML(v,cls=''){const p=Math.max(0,Math.min(5,v||0))/5*100;return `<span class="stars ${cls}" title="${fmt(v,2)} من 5${v>5?' + Bonus':''}"><span class="bg">★★★★★</span><span class="fg" style="width:${p}%">★★★★★</span></span>${v>5?`<b class="small" style="color:var(--gold-d,#b8860b);margin-inline-start:3px">+${fmt(v-5,1)}</b>`:''}`;}
 function ava(e,cls=''){return e.photo?`<img class="ava ${cls}" src="${e.photo}" alt="">`:`<div class="ava ${cls}">${esc((e.name||'?').trim()[0])}</div>`;}
 function barHTML(p,pace,cls){const w=Math.max(0,Math.min(100,p||0));const c=cls||(p>=85?'':p>=50?'warn':'bad');return `<div class="bar"><i class="${c}" style="width:${w}%"></i>${pace!=null?`<span class="pace" style="right:${Math.min(100,pace)}%"></span>`:''}</div>`;}
 function cardsHTML(c){if(!c.y&&!c.r&&!c.g)return '';return `<span class="cards-line">${c.y?`<span><i class="fcard yellow"></i> ${fmt(c.y)}</span>`:''}${c.r?`<span><i class="fcard red"></i> ${fmt(c.r)}</span>`:''}${c.g?`<span><i class="fcard green"></i> ${fmt(c.g)}</span>`:''}</span>`;}

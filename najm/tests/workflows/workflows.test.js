@@ -25,7 +25,7 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     await login(p, 'yasser', '7777');
     eq(await p.evaluate(() => USER.role), 'hygiene');
     const t = await tabs(); ok(t.some(x => x.includes('تقييم اليوم')) && !t.some(x => x.includes('الكروت')), t.join('|'));
-    const r = await p.evaluate(() => { const e = filtered(true)[0]; delete day(DATE).hy[e.code]; [0, 1, 2, 3, 4].forEach(i => setCrit(e.code, i, 2)); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('النضافة الشخصية')]; });
+    const r = await p.evaluate(async () => { const e = filtered(true)[0]; delete day(DATE).hy[e.code]; for (const i of [0, 1, 2, 3, 4]) await setCrit(e.code, i, 2); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('النضافة الشخصية')]; });
     eq(r, [[2, 2, 2, 2, 2], true]);
     await p.evaluate(() => { USER = null; render(); });
   });
@@ -42,7 +42,7 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     ok(!(await p.$('#capPts')), 'branch manager sees captain points');
   });
   test('الموظف يدخل بكوده ويشوف تقريره بالمربعين (KPI ونقط التارجت)', async () => {
-    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; go('progress'); return document.querySelector('#main').innerText; });
+    const txt = await p.evaluate(() => { USER = null; ME = ranks().rows[0].e.code; MEPIN = '1234'; go('progress'); return document.querySelector('#main').innerText; });
     ok(txt.includes('الـ KPI بتاعك') && txt.includes('نقط التارجت'), txt.slice(0, 120));
   });
   test('المبالغ مخفية عن الموظف ومدير الفرع، وظاهرة للتشغيل', async () => {

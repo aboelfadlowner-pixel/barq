@@ -12,7 +12,12 @@ function defaultState(){
       graceMin:10, lateMax:30, finalists:4, winnersPerShift:2,
       capPct:120, complaintPenalty:50, bonusAt100:0, defaultMultiplier:2,
       freshDepts:['قسم البقاله'],
-      cards:{yellow:-5, red:-20, green:5, yellowsToRed:2},
+      cards:{yellow:-5, red:-20, green:10, yellowsToRed:3},
+      // رجل اليوم لكل فرع وشيفت (Between مع الليل) + أقل نجوم للترشيح
+      winnersBy:{'البيطاش الرئيسي':{Morning:2,Night:2},'عين شمس':{Morning:1,Night:1},'المصنع':{Morning:0,Night:0}},
+      minStarsWinner:4,
+      // إغلاق اليوم: آخر ميعاد = بداية الشيفت + closeAfterHours · الخصم بيبدأ من closeStart (التشغيل بيحدده)
+      closeStart:'', closeAfterHours:10, lateClosePenalty:5,
       captainMult:3,
       goal:85, targetGoal:85, checkpoints:[10,20],
       prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:1000},
@@ -24,7 +29,8 @@ function defaultState(){
     branches:[{name:'البيطاش الرئيسي',kind:'branch'},{name:'عين شمس',kind:'branch'},{name:'المصنع',kind:'factory'}],
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
-    mgrCrit:{}, ledger:[], market:[], offers:[]
+    mgrCrit:{}, ledger:[], market:[], offers:[],
+    appeals:[], closes:{}, history:[], empPins:{}
   };
 }
 
@@ -58,10 +64,15 @@ async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=awai
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
 const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
 async function push(kind,key,data){
-  if(!LIVE) return true;
+  if(!LIVE){logLocal(kind,key,data);return true;}
   try{const r=await sbRpc('najm_save',{p_user:USER.username,p_pin:PIN,p_kind:kind,p_key:key,p_data:data===undefined?null:data});return r??true;}
   catch(e){toast(errMsg(e.message));setTimeout(()=>refresh(),400);return false;}
 }
+// نسخة التجربة / من غير إنترنت: نفس السجل اللي الداتابيز بتكتبه (من غير أرقام سرية)
+let OLD_VAL;   // القيمة قبل التعديل (للسجل في نسخة التجربة)
+function logLocal(kind,key,data){if(!USER||!S)return;
+  const code=key?.code||(kind==='appeal_decide'?(S.appeals||[]).find(a=>a.id===key?.id)?.code:kind==='card_approve'?(S.cards||[]).find(c=>c.id===key?.id)?.code:null)||null;
+  (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:USER.username,actor_name:USER.name,kind,code,day:key?.day||null,data:{key,data:kind==='user'||kind==='emp_pin'?null:data,...(OLD_VAL!==undefined?{old:OLD_VAL}:{})}});OLD_VAL=undefined;if(S.history.length>2000)S.history.length=2000;}
 let UPTOK=null;
 async function uploadMedia(code,blob,ext){
   if(!UPTOK||UPTOK.exp<Date.now()){const t=await sbRpc('najm_upload_token',{p_user:USER.username,p_pin:PIN});if(!t)throw new Error('najm: wrong username or PIN');UPTOK={t,exp:Date.now()+25*60000};}
@@ -81,11 +92,12 @@ async function pull(){
     sbAll('najm_sales',`day=gte.${from}&day=lte.${to}&select=day,branch`),
     sbGet(`najm_base_sales?month=eq.${pm}&select=branch,items`),
     sbAll('najm_kpi_vals',`day=gte.${from}&day=lte.${to}&select=day,dkey,vals`),
-    sbGet(`najm_winners?day=gte.${from}&day=lte.${to}&select=day,gkey,codes`),
+    sbGet(`najm_winners?day=gte.${from}&day=lte.${to}&select=day,gkey,codes,candidates,approved_by,approved_at`),
     sbRpcAll('najm_public_scores',{p_from:from,p_to:to},'day,code'),
-    sbRpc('najm_public_cards',{p_from:from,p_to:DATE<to?DATE:to}),
+    sbRpc('najm_card_points',{p_from:from,p_to:DATE<to?DATE:to}),
     sbRpcAll('najm_card_stats',{p_from:from,p_to:DATE<to?DATE:to},'code'),
   ]);
+  const [dayCards,closes]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to})]);
   const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull,votes]=await Promise.all([
     sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
     sbRpc('najm_market_list',{}),sbAll('najm_offers','select=*'),
@@ -103,16 +115,22 @@ async function pull(){
   N.baseSales={[pm]:Object.fromEntries(base.map(r=>[r.branch,r.items]))};
   for(const r of kpi)(N.kpiVals[r.day]||(N.kpiVals[r.day]={}))[r.dkey]=r.vals;
   const D=d=>N.days[d]||(N.days[d]={att:{},attTime:{},br:{},sh:{},fr:{},ops:{},hy:{},bonus:{},winners:{},pub:{},full:{}});
-  for(const w of win)D(w.day).winners[w.gkey]=w.codes;
+  N.winnersMeta={};for(const w of win){D(w.day).winners[w.gkey]=w.codes;(N.winnersMeta[w.day]||(N.winnersMeta[w.day]={}))[w.gkey]={candidates:w.candidates,approved_by:w.approved_by,approved_at:w.approved_at};}
   for(const r of pub){const x=D(r.day);x.pub[r.code]={att:r.att,total:r.total==null?null:+r.total,complete:r.complete,bonus:r.has_bonus};if(r.att)x.att[r.code]=r.att;}
   for(const r of full){const x=D(r.day);x.full[r.code]=1;if(r.att)x.att[r.code]=r.att;else delete x.att[r.code];if(r.att_time)x.attTime[r.code]=r.att_time;
     for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};}
-  if(!USER&&ME){const mine=await sbRpc('najm_my_ratings',{p_code:ME,p_from:from,p_to:to}).catch(()=>[]);
-    for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}}
+  // الموظف الداخل بكوده + رقمه السري: تفاصيل تقييمه هو بس، وكروته كلها
+  if(!USER&&ME&&MEPIN){const [mine,myc]=await Promise.all([sbRpc('najm_my_ratings',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
+    for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}
+    N.myCards=myc?.cards||null;}
+  N.dayCards={};for(const r of dayCards||[])(N.dayCards[r.day]||(N.dayCards[r.day]={}))[r.code]={y:r.yellow,r:r.red,g:r.green};
+  N.closes={};for(const c of closes||[])(N.closes[c.day]||(N.closes[c.day]={}))[c.gkey]={...c,penalty:+c.penalty};
   N.cardStats={};for(const r of cstats||[])N.cardStats[r.code]=Object.fromEntries(Object.entries(r).map(([k,v])=>[k,k==='code'?v:v==null?null:+v]));
-  N.cardCounts={};for(const c of cardsPub||[])N.cardCounts[c.code]={y:c.yellow,r:c.red,g:c.green};
+  N.cardCounts={};for(const c of cardsPub||[])N.cardCounts[c.code]={y:c.yellow,r:c.red,g:c.green,pts:+c.points};
   if(files){
-    N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved}));
+    N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved,status:c.status,decidedBy:c.decided_by}));
+    N.appeals=(files.appeals||[]).map(a=>({id:a.id,cardId:a.card_id,code:a.code,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note,cardBy:a.card_by,cardDay:a.card_day,cardColor:a.card_color,cardReason:a.card_reason}));
+    N.empPins=files.pins||{};
     N.complaints=(files.complaints||[]).map(c=>({id:c.id,date:c.day,code:c.code,note:c.note}));
     N.notes=(files.notes||[]).map(n=>({id:n.id,date:n.day,code:n.code,text:n.body,by:n.by_user}));
     if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],emp_code:(mgrs||[]).find(x=>x.username===u.username)?.emp_code||''}));

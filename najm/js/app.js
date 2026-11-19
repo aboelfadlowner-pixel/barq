@@ -22,7 +22,7 @@ const TABS=[
   ['screens','📺 شاشة الفرع',()=>true],
 ];
 function renderNav(){
-  const pend=isOps()?S.cards.filter(c=>!c.approved).length:0;
+  const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length:0;
   $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${typeof t[1]==='function'?t[1](USER):t[1]}${t[0]==='cards'&&pend?`<span class="cnt">${fmt(pend)}</span>`:''}</button>`).join('');
   $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:'👤 دخول المديرين';
 }
@@ -42,7 +42,7 @@ const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.d
   if(TVQ!==null){saved=null;tvInit(TVQ);}
   const dp=$('#dayPick');dp.value=DATE;dp.onchange=()=>{if(dp.value){DATE=dp.value;RANK_CACHE=null;LIVE?refresh():render();}};
   render();
-  if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · التشغيل <b>ops / 0000</b> · مدير البيطاش <b>haitham / 1111</b> · الهايجين <b>yasser / 7777</b> · مدير الصبح <b>mahmoud / 2222</b> · مدير الليل <b>islam / 3333</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
+  if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · التشغيل <b>ops / 0000</b> · مدير البيطاش <b>haitham / 1111</b> · الموظف <b>أي كود / 1234</b> · الهايجين <b>yasser / 7777</b> · مدير الصبح <b>mahmoud / 2222</b> · مدير الليل <b>islam / 3333</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
   try{
     if(saved?.pin){const u=await sbRpc('najm_login',{p_user:saved.username,p_pin:saved.pin});if(u){USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]};PIN=saved.pin;}}
     await pull();LIVE=true;
