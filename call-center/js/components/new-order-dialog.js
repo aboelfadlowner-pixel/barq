@@ -43,6 +43,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   const s0 = getState();
   const st = {
     phone: '', phone2: '', showPhone2: false,
+    phone2Auto: false,   // the extra number was filled in from the saved customer (not typed now)
     status: 'idle',          // idle | searching | found | choose | new
     matches: [],
     customer: null,          // saved customer (full record) when found
@@ -247,6 +248,7 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     const norm = normalizePhone(st.phone);
     if (!isValidPhone(norm)) {
       st.status = 'idle'; st.customer = null;
+      fillPhone2From(null);
       renderDetails(); checkBlocked();
       return;
     }
@@ -256,9 +258,10 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     if (seq !== lookupSeq) return;
     st.matches = found;
     if (found.length === 1) await choose(found[0]);
-    else if (found.length > 1) { st.status = 'choose'; st.customer = null; renderDetails(); }
+    else if (found.length > 1) { st.status = 'choose'; st.customer = null; fillPhone2From(null); renderDetails(); }
     else {
       st.status = 'new'; st.customer = null;
+      fillPhone2From(null);
       if (!edit || !s0.customer?.isNew) { st.addresses = st.addresses.filter((a) => a.isNew); st.name = st.name || ''; }
       st.addressId = st.addresses.find((a) => a.id === st.addressId)?.id ?? st.addresses[0]?.id ?? null;
       st.todayOrders = [];
@@ -267,10 +270,22 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
     checkBlocked();
   }
 
+  /* The saved customer's other number shows by itself as «رقم إضافي» (CONFIRMED: once an extra
+     number was added, it is there on the next order). A number typed now is never replaced. */
+  function fillPhone2From(c) {
+    if (st.showPhone2 && !st.phone2Auto) return;
+    const main = normalizePhone(st.phone);
+    const other = (c?.phones ?? []).map(normalizePhone).find((ph) => ph && ph !== main && isValidPhone(ph));
+    if (other) Object.assign(st, { showPhone2: true, phone2: other, phone2Auto: true });
+    else if (st.phone2Auto) Object.assign(st, { showPhone2: false, phone2: '', phone2Auto: false });
+    renderPhone2();
+  }
+
   async function choose(c, preferAddressId = null) {
     st.customer = c;
     st.status = 'found';
     st.name = c.name;
+    fillPhone2From(c);
     const pending = st.addresses.filter((a) => a.isNew);
     st.addresses = [...c.addresses.map((a) => ({ ...a })), ...pending];
     const usable = st.addresses.filter((a) => areaOf(a.areaId)?.active);
@@ -377,13 +392,13 @@ export function openNewOrderDialog({ edit = false, phone = '' } = {}) {
   });
 
   m.el.addEventListener('input', (e) => {
-    if (e.target.name === 'phone2') { st.phone2 = e.target.value; clearTimeout(timer2); timer2 = setTimeout(checkBlocked, 250); }
+    if (e.target.name === 'phone2') { st.phone2 = e.target.value; st.phone2Auto = false; clearTimeout(timer2); timer2 = setTimeout(checkBlocked, 250); }
     if (e.target.name === 'name' && (st.status === 'new' || st.status === 'found')) st.name = e.target.value;   // a saved customer's name can be corrected (38)
   });
   m.el.addEventListener('change', (e) => { if (e.target.name === 'addr') st.addressId = e.target.value; });
 
   on(m.el, 'click', '[data-add-phone2]', () => { st.showPhone2 = true; renderPhone2(); $('#no-phone2')?.focus(); });
-  on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; renderPhone2(); checkBlocked(); });
+  on(m.el, 'click', '[data-remove-phone2]', () => { st.showPhone2 = false; st.phone2 = ''; st.phone2Auto = false; renderPhone2(); checkBlocked(); });
   on(m.el, 'click', '[data-cid]', (e, b) => choose(st.matches.find((c) => c.id === b.dataset.cid)));
   on(m.el, 'click', '[data-rechoose]', () => { st.status = 'choose'; st.customer = null; renderDetails(); });
   on(m.el, 'click', '[data-recent]', () => st.customer && openRecentOrders(st.customer, m));
