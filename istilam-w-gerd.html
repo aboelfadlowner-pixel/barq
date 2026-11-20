@@ -3978,6 +3978,13 @@ function renderPriceCheckItemCard(item, i) {
         '<input type="number" class="cost-input-mobile" inputmode="decimal" placeholder="0.00" value="'+(item.promo_price===''?'':item.promo_price)+'" oninput="setPromoPrice('+i+',this.value)">' +
       '</div>'
     : '') +
+    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">⚖️ سعر الشيلف بالوزن (لو سعر النظام بالكيلو)</label>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+      '<select class="fi" style="flex:1" onchange="setWeightUnit('+i+',this.value)">' +
+        WEIGHT_UNITS.map(function(u){ return '<option value="'+u.v+'"'+(getWeightUnit(item).v===u.v?' selected':'')+'>'+u.label+'</option>'; }).join('') +
+      '</select>' +
+      (getWeightUnit(item).v ? '<span style="font-weight:800;color:var(--accent);white-space:nowrap">= '+fmt(weightedPrice(item, item.system_price))+' ج</span>' : '') +
+    '</div>' +
     '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">🖨️ عدد ملصقات السعر المطلوبة</label>' +
     '<div class="qty-stepper" style="height:44px">' +
       '<button type="button" onclick="stepLabelQty('+i+',1)">+</button>' +
@@ -3998,6 +4005,37 @@ function removePriceCheckItem(i) {
       { method:'DELETE', headers:{'Prefer':'return=minimal'} },
       { opType:'حذف_تشيك_سعر', label:'حذف من تشيك الأسعار: '+it.name }).catch(function(){});
   }
+}
+
+// سعر الرف بالوزن: الصنف اللي سعره على النظام بالكيلو (جبن، لحوم باردة...) ممكن يتطبع على الشيلف
+// بسعر النص أو الربع أو التُمن بدل سعر الكيلو. الاختيار بيتحفظ على الجهاز لكل SKU عشان المرة الجاية يفتكره
+var WEIGHT_UNITS = [
+  { v:'',      label:'السعر زي ما هو',  f:1 },
+  { v:'1',     label:'كيلو',            f:1 },
+  { v:'0.5',   label:'نص كيلو',         f:0.5 },
+  { v:'0.25',  label:'ربع كيلو',        f:0.25 },
+  { v:'0.125', label:'تمن كيلو',        f:0.125 }
+];
+var LS_PC_WEIGHT_UNITS = 'barq_pc_weight_units_v1';
+function loadWeightUnits() {
+  try { return JSON.parse(localStorage.getItem(LS_PC_WEIGHT_UNITS) || '{}') || {}; } catch(e) { return {}; }
+}
+function getWeightUnit(it) {
+  var v = it.weight_unit != null ? it.weight_unit : (loadWeightUnits()[it.sku] || '');
+  for (var i=0; i<WEIGHT_UNITS.length; i++) if (WEIGHT_UNITS[i].v === v) return WEIGHT_UNITS[i];
+  return WEIGHT_UNITS[0];
+}
+// السعر اللي يتطبع على الملصق بعد الوزن — مقرّب لأقرب قرشين (زي 975 × تمن = 121.88)
+function weightedPrice(it, price) {
+  return Math.round(parseFloat(price) * getWeightUnit(it).f * 100) / 100;
+}
+function setWeightUnit(i, v) {
+  var it = priceCheckItems[i];
+  it.weight_unit = v;
+  var all = loadWeightUnits();
+  if (v) all[it.sku] = v; else delete all[it.sku];
+  try { localStorage.setItem(LS_PC_WEIGHT_UNITS, JSON.stringify(all)); } catch(e) {}
+  render();
 }
 
 function togglePromoLabel(i, checked) {
@@ -4107,13 +4145,15 @@ function printPriceLabels() {
         var isPromo = it.is_promo && it.promo_price!=='' && it.promo_price!=null && parseFloat(it.promo_price) > 0;
         // وقت العرض: السعرين وكلمة "عرض" في صف واحد جمب بعض بدل ما يترصّوا فوق بعض — عشان
         // ارتفاع تاج العرض يفضل زي بالظبط ارتفاع التاج العادي (نفس مقاس حامل السعر في الرف)
-        var priceHtml = isPromo ?
+        var unit = getWeightUnit(it);
+        var priceHtml = (isPromo ?
           '<div class="tag-promo-row">' +
-            '<span class="tag-price-old">'+fmt(it.system_price)+' LE</span>' +
+            '<span class="tag-price-old">'+fmt(weightedPrice(it, it.system_price))+' LE</span>' +
             '<span class="tag-promo-badge">عرض</span>' +
-            '<span class="tag-price-promo">'+fmt(it.promo_price)+' LE</span>' +
+            '<span class="tag-price-promo">'+fmt(weightedPrice(it, it.promo_price))+' LE</span>' +
           '</div>'
-          : '<div class="tag-price">'+fmt(it.system_price)+' LE</div>';
+          : '<div class="tag-price">'+fmt(weightedPrice(it, it.system_price))+' LE</div>') +
+          (unit.v ? '<div class="tag-unit">'+unit.label+'</div>' : '');
         return '<td class="tag'+(isPromo?' promo':'')+'">' +
           '<div class="tag-header"><img class="tag-logo" src="'+SHOP_LOGO_DATA_URL+'"><span class="tag-name">'+it.name+'</span></div>' +
           priceHtml +
@@ -4143,13 +4183,14 @@ function printPriceLabels() {
       '.tag-logo{width:18px;height:18px;object-fit:contain;flex-shrink:0}' +
       '.tag-name{font-weight:800;font-size:15px;color:#1a1a1a}' +
       // في العادي: السعر واضح وبالأخضر الغامق فوق خلفية بيضا.
-      '.tag-price{font-weight:800;font-size:27px;margin-bottom:4px;color:#0f5c2e}' +
+      '.tag-price{font-weight:800;font-size:27px;margin-bottom:4px;color:#0f5c2e;direction:ltr;unicode-bidi:isolate}' +
       // وقت العرض: السعرين وكلمة "عرض" جمب بعض في صف واحد (مش فوق بعض) عشان ارتفاع تاج العرض
       // يفضل زي ارتفاع التاج العادي بالظبط
       '.tag-promo-row{display:flex;align-items:baseline;justify-content:center;gap:5px;margin-bottom:4px;flex-wrap:nowrap}' +
       '.tag-promo-badge{display:inline-block;background:#c0392b;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:9px;align-self:center}' +
-      '.tag-price-old{font-size:13px;font-weight:700;color:#c0392b;text-decoration:line-through}' +
-      '.tag-price-promo{font-weight:800;font-size:22px;color:#0f5c2e}' +
+      '.tag-price-old{font-size:13px;font-weight:700;color:#c0392b;text-decoration:line-through;direction:ltr;unicode-bidi:isolate}' +
+      '.tag-price-promo{font-weight:800;font-size:22px;color:#0f5c2e;direction:ltr;unicode-bidi:isolate}' +
+      '.tag-unit{font-size:12px;font-weight:800;color:#333;margin:-3px 0 3px}' +
       '.tag-bc-img{max-width:70%;height:15px;margin-bottom:1px}' +
       '.tag-bc-num{font-size:11px;letter-spacing:1px;color:#333}' +
       '@media print{body{padding:0}.tag{border-style:dashed}}' +
@@ -4405,10 +4446,12 @@ function printPriceLabelsThermal(tags, size) {
     var bcValue = it.bc || it.sku;
     var bcImg = generateBarcodeDataUrl(bcValue, { width:2, height:40 });
     var isPromo = it.is_promo && it.promo_price!=='' && it.promo_price!=null && parseFloat(it.promo_price) > 0;
-    var priceHtml = isPromo ?
-      '<div class="lpromo"><span class="lold">'+fmt(it.system_price)+'</span><span class="lbadge">عرض</span><span class="lprice">'+fmt(it.promo_price)+' LE</span></div>'
-      : '<div class="lprice">'+fmt(it.system_price)+' LE</div>';
-    return '<div class="label">' +
+    var unit = getWeightUnit(it);
+    var priceHtml = (isPromo ?
+      '<div class="lpromo"><span class="lold">'+fmt(weightedPrice(it, it.system_price))+'</span><span class="lbadge">عرض</span><span class="lprice">'+fmt(weightedPrice(it, it.promo_price))+' LE</span></div>'
+      : '<div class="lprice">'+fmt(weightedPrice(it, it.system_price))+' LE</div>') +
+      (unit.v ? '<div class="lunit">'+unit.label+'</div>' : '');
+    return '<div class="label'+(unit.v?' has-unit':'')+'">' +
       '<img class="llogo" src="'+SHOP_LOGO_DATA_URL+'">' +
       '<div class="lname">'+it.name+'</div>' +
       priceHtml +
@@ -4433,6 +4476,10 @@ function printPriceLabelsThermal(tags, size) {
     '.lpromo{display:flex;align-items:center;justify-content:center;gap:1mm;flex-wrap:nowrap}' +
     '.lold{font-size:'+(3.4*k).toFixed(2)+'mm;font-weight:700;text-decoration:line-through}' +
     '.lbadge{font-size:'+(2.6*k).toFixed(2)+'mm;font-weight:800;border:0.3mm solid #000;border-radius:2mm;padding:0 1mm}' +
+    '.lunit{font-size:'+(2.8*k).toFixed(2)+'mm;font-weight:800;line-height:1.1;margin-bottom:0.6mm}' +
+    // سطر الوزن بياخد مكان من الباركود عشان الليبل يفضل في نفس المقاس من غير ما حاجة تركب على حاجة
+    '.has-unit .lbc{height:'+Math.max(4, size.h*0.15).toFixed(1)+'mm}' +
+    '.has-unit .llogo{height:'+(6*k).toFixed(1)+'mm}' +
     '.lbc{height:'+Math.max(5, size.h*0.2).toFixed(1)+'mm;width:auto;max-width:90%;image-rendering:pixelated}' +
     '.lbcnum{font-size:'+(2.2*k).toFixed(2)+'mm;letter-spacing:0.3mm}' +
     '</style></head><body>' +
