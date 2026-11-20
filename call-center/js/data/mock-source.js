@@ -705,6 +705,77 @@ export function adminDelivery(id, what, driverId) {
   }
   return resolve(true);
 }
+/* «الحضور» (47) — demo: كريم and منى, the call center. Times are Cairo (+02:00). */
+const cairoAt = (day, hm) => new Date(`${day}T${hm}:00+02:00`).toISOString();
+const shifts = (() => {
+  const today = workDayIso();
+  const back = (n) => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+  const list = [];
+  for (let n = 6; n >= 1; n -= 1) {
+    const day = back(n);
+    if (n !== 4) list.push({ userId: 'acc-cc2', start: cairoAt(day, `09:0${n % 6}`), end: cairoAt(day, `17:${String(5 + n * 3).padStart(2, '0')}`) });
+    list.push({ userId: 'acc-cc3', start: cairoAt(day, `14:5${n % 9}`), end: n === 2 ? null : cairoAt(day, `22:${String(10 + n).padStart(2, '0')}`) });
+  }
+  // today: كريم is working since the morning; منى has not punched in (her orders show «من غير بصمة»)
+  list.push({ userId: 'acc-cc2', start: new Date(Math.min(new Date(cairoAt(today, '09:03')).getTime(), Date.now() - 50 * 60000)).toISOString(), end: null });
+  return list;
+})();
+const autoEnd = (sh) => { if (sh.end) return sh.end; const day = workDayIso(sh.start); if (day === workDayIso()) return null;
+  const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return cairoAt(d.toISOString().slice(0, 10), '02:00'); };
+const myOpenShift = () => shifts.find((x) => x.userId === demoAccount.id && !x.end && workDayIso(x.start) === workDayIso());
+export const myShift = () => resolve(demoAccount.role === 'call_center' ? (myOpenShift() ? { start: myOpenShift().start, end: null } : null) : undefined);
+export function startShift() {
+  if (myOpenShift()) return Promise.reject(new Error('الشيفت بدأ خلاص'));
+  const sh = { userId: demoAccount.id, start: new Date().toISOString(), end: null };
+  shifts.push(sh);
+  return resolve({ start: sh.start, end: null });
+}
+export function endShift() {
+  const sh = myOpenShift();
+  if (!sh) return Promise.reject(new Error('مفيش شيفت مفتوح'));
+  sh.end = new Date().toISOString();
+  return resolve({ start: sh.start, end: sh.end });
+}
+export function attendance(from, to) {
+  const people = staff.filter((x) => x.role === 'call_center' || shifts.some((sh) => sh.userId === x.id));
+  const nameOf = (id) => (id === demoAccount.id && demoAccount.role === 'call_center' ? demoAccount.name : staff.find((x) => x.id === id)?.name) || '—';
+  const inRange = (iso) => { const d = workDayIso(iso); return d >= from && d <= to; };
+  const ordersOf = (userId, day) => orders.filter((o) => o.employee === nameOf(userId) && workDayIso(o.createdAt) === day);
+  const rows = [];
+  const dayKeys = new Set();
+  for (const sh of shifts.filter((x) => inRange(x.start))) {
+    const end = autoEnd(sh); const day = workDayIso(sh.start);
+    const upto = end ? new Date(end) : new Date();
+    const mine = ordersOf(sh.userId, day);
+    const inside = mine.filter((o) => new Date(o.createdAt) >= new Date(sh.start) && new Date(o.createdAt) <= upto);
+    dayKeys.add(`${sh.userId}|${day}`);
+    rows.push({ day, userId: sh.userId, name: nameOf(sh.userId), start: sh.start, end, open: !end, autoClosed: !sh.end && !!end,
+      minutes: Math.round((upto - new Date(sh.start)) / 60000), orders: inside.length, outside: 0, noPunch: false });
+  }
+  // orders outside every shift of that day
+  for (const r of rows) {
+    const same = rows.filter((x) => x.userId === r.userId && x.day === r.day);
+    if (same[0] !== r) continue;
+    r.outside = ordersOf(r.userId, r.day).filter((o) => !same.some((x) => new Date(o.createdAt) >= new Date(x.start)
+      && new Date(o.createdAt) <= (x.end ? new Date(x.end) : new Date()))).length;
+  }
+  // worked without punching in: orders on a day with no shift
+  for (const p of people) {
+    const days = [...new Set(orders.filter((o) => o.employee === nameOf(p.id) && inRange(o.createdAt)).map((o) => workDayIso(o.createdAt)))];
+    for (const day of days) if (!dayKeys.has(`${p.id}|${day}`)) {
+      rows.push({ day, userId: p.id, name: nameOf(p.id), start: null, end: null, open: false, autoClosed: false, minutes: null,
+        orders: 0, outside: ordersOf(p.id, day).length, noPunch: true });
+    }
+  }
+  rows.sort((a, b) => b.day.localeCompare(a.day) || (a.start || '').localeCompare(b.start || '') || a.name.localeCompare(b.name));
+  const now = people.map((p) => {
+    const open = shifts.find((x) => x.userId === p.id && !x.end && workDayIso(x.start) === workDayIso());
+    const last = shifts.filter((x) => x.userId === p.id && autoEnd(x)).map(autoEnd).sort().pop() || null;
+    return { userId: p.id, name: nameOf(p.id), start: open?.start ?? null, lastEnd: last };
+  });
+  return resolve({ now, rows });
+}
+
 const driverChangeLog = [];   // 46: { orderId, at, stage, from, to, by }
 export function changeDriver(id, driverId) {
   const o = orders.find((x) => x.id === id);
