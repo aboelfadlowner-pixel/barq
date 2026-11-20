@@ -8,7 +8,6 @@ import { confirmDialog, openModal, showToast } from './modal.js';
 import { can, isPrepOnly, isDriverOnly, ROLES } from '../permissions.js';
 import { esc, on } from '../utils/dom.js';
 import { icon } from './icons.js';
-import { shiftChipHtml, mountShiftChip } from './shift-chip.js';
 
 const brand = `
   <div class="brand">
@@ -20,7 +19,6 @@ const brand = `
   </div>`;
 
 export function mountTopbar(el) {
-  mountShiftChip(el);
   on(el, 'click', '[data-change-password]', () => openChangePassword());
   on(el, 'click', '[data-logout]', async () => {
     const s = getState();
@@ -55,7 +53,7 @@ export function mountTopbar(el) {
       title="${sync.pulledAt ? `آخر تحديث للشيتات من الدرايف: ${formatTime(sync.pulledAt)}. ` : ''}يتم التحديث تلقائيًا كل 5 دقائق — اضغط للتحديث الآن">
       ${icon('repeat')}<span class="sync-text">${sync.busy ? 'جارٍ التحديث…' : sync.at ? `الأسعار ${formatTime(sync.at)}` : 'تحديث الأسعار'}</span></button>`;
 
-  return bind((s) => ({ route: s.route, user: s.user, agent: s.agent, sync: s.catalogSync, chatOn: s.chatOn, chatUnread: s.chatUnread, shift: s.shift }), ({ route, user, agent, sync, chatOn, chatUnread, shift }) => {
+  return bind((s) => ({ route: s.route, user: s.user, agent: s.agent, sync: s.catalogSync, chatOn: s.chatOn, chatUnread: s.chatUnread }), ({ route, user, agent, sync, chatOn, chatUnread }) => {
     if (!user) {
       el.innerHTML = `${brand}<div class="spacer"></div>
         <div class="top-meta"><span class="demo-pill">${icon('info')}<span class="demo-text">وضع تجريبي</span></span></div>`;
@@ -88,14 +86,12 @@ export function mountTopbar(el) {
         ${can(user, 'chat') && chatOn ? `<a href="#/chat" title="الشات مع الطيارين" class="nav-chat ${route === 'chat' ? 'active' : ''}">${icon('chat')}<span>الشات</span>${chatUnread ? `<span class="nav-n num">${chatUnread > 9 ? '9+' : chatUnread}</span>` : ''}</a>` : ''}
         ${can(user, 'deliveryReport') ? `<a href="#/delivery" title="التوصيل" class="${route === 'delivery' ? 'active' : ''}">${icon('package')}<span>التوصيل</span></a>` : ''}
         ${can(user, 'reports') ? `<a href="#/reports" title="التقارير" class="${route === 'reports' ? 'active' : ''}">${icon('chart')}<span>التقارير</span></a>` : ''}
-        ${can(user, 'attendance') ? `<a href="#/attendance" title="الحضور" class="${route === 'attendance' ? 'active' : ''}">${icon('clock')}<span>الحضور</span></a>` : ''}
         ${can(user, 'manageAreas') ? `<a href="#/areas" title="المناطق والموظفين" class="${route === 'areas' ? 'active' : ''}">${icon('pin')}<span>المناطق والموظفين</span></a>` : ''}
       </nav>
       <div class="spacer"></div>
       <div class="top-meta">
         <span class="demo-pill" title="كل البيانات المعروضة وهمية ولا يتم حفظ أي شيء">${icon('info')}<span class="demo-text">وضع تجريبي</span></span>
         ${syncChip(sync)}
-        ${can(user, 'shift') ? shiftChipHtml(shift) : ''}
         <a href="#/board" class="agent-chip ${agent ? '' : 'needs-value'}" title="تُسجَّل الطلبات باسم هذا الموظف — يمكن تغييره من «اختر اسمك» في شاشة مركز الاتصال">${icon('headset')}<span data-agent-name>${esc(agent?.name ?? 'اختر اسمك')}</span></a>
         ${user.role === 'admin' ? `<span class="role-pill role-pill-admin" title="المسؤول يرى الإعدادات والحسابات">${icon('user')}مسؤول</span>` : ''}
         ${logout}

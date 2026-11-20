@@ -81,11 +81,6 @@ export const setBranchPlace   = (lat, lng) => impl.setBranchPlace(lat, lng);
 export const listDrivers      = () => impl.listDrivers();
 export const adminDelivery    = (id, what, driverId) => impl.adminDelivery(id, what, driverId);
 export const changeDriver     = (id, driverId) => impl.changeDriver(id, driverId);   // 46: admin, wrong driver
-/* «الحضور» (47): the call center punches in / out; the admin sees it. null = not installed yet. */
-export const myShift          = () => impl.myShift();
-export const startShift       = () => impl.startShift();
-export const endShift         = () => impl.endShift();
-export const attendance       = (from, to) => impl.attendance(from, to);
 export const driverChanges    = (id) => impl.driverChanges(id);
 export const getOrderDelivery = (id) => impl.getOrderDelivery(id);
 export const deliveryReport   = (from, to) => impl.deliveryReport(from, to);
