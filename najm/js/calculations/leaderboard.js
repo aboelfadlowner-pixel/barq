@@ -5,7 +5,7 @@ function ranks(){
   if(RANK_CACHE&&RANK_CACHE.key===key)return RANK_CACHE;
   const m=monthOf(DATE);
   const rows=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);const tg=tgtOf(ms.target,m,DATE);return {e,ms,tg,q:qualify(ms,tg)};}).filter(x=>x.ms.n>0||x.ms.wins>0);
-  const both=x=>(x.ms.monthScore||0)+(x.tg?.dept!=null?Math.min(100,x.tg.dept):0);   // الـ KPI + نسبة تحقيق القسم
+  const both=x=>(x.ms.kpiPts!=null?x.ms.kpiPts/(x.ms.kpiMax||500)*100:0)+(x.tg?.dept!=null?Math.min(100,x.tg.dept):0);   // نقط الـ KPI (الزيادة فوق الـ 500 بتعلّي) + نسبة تحقيق القسم
   rows.sort((a,b)=>(b.q.ok-a.q.ok)||b.ms.wins-a.ms.wins||both(b)-both(a)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
   const company={},branch={},bc={};
   rows.forEach((x,i)=>{company[x.e.code]=i+1;bc[x.e.branch]=(bc[x.e.branch]||0)+1;branch[x.e.code]=bc[x.e.branch];});
@@ -24,6 +24,8 @@ function duePrizes(){
   const m=monthOf(DATE);const P=prizes();const out=[];
   for(const d of monthDays(m,DATE))for(const[g,codes]of Object.entries(peekDay(d).winners||{}))for(const c of codes){const e=emp(c);if(e)out.push({id:`daily|${d}|${c}`,code:c,name:e.name,branch:e.branch,kind:'daily',ref:d,label:`رجل اليوم ${d.slice(5)} · ${g.split('|')[1]}`,amount:P.daily});}
   const R=ranks();R.qualified.slice(0,10).forEach((x,i)=>{const t=cupOf(i+1);out.push({id:`cup|${m}|${x.e.code}`,code:x.e.code,name:x.e.name,branch:x.e.branch,kind:'cup',ref:m,label:`${CUP_NAME[t]} (المركز ${i+1})`,amount:P[t]});});
+  // فلوس الـ KPI لكل موظف (النقط لحد 500) — بتكمل آخر الشهر
+  for(const x of R.rows)if(x.ms.kpiMoney>0)out.push({id:`kpi|${m}|${x.e.code}`,code:x.e.code,name:x.e.name,branch:x.e.branch,kind:'kpi',ref:m,label:`الـ KPI (${fmt(x.ms.kpiPts)} نقطة)`,amount:x.ms.kpiMoney});
   const mg=(S.ledger||[]).find(l=>l.id===`bonus|${m}|${l.username}`);if(mg&&P.manager)out.push({id:`manager|${m}|${mg.username}`,code:mg.username,name:mgrName(mg.username),branch:'مدير',kind:'manager',ref:m,label:'المدير المثالي',amount:P.manager});
   return out;
 }

@@ -47,6 +47,21 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [seg.length, Math.abs(seg.reduce((x, y) => x + y.w, 0) - 1) < 1e-9, Math.abs(t.basePoints - exp) <= 1, !!t.split];
     }), [2, true, true, true]);
   });
+  test('الـ KPI بالنقط: اليوم الكامل ≈ 19.2 نقطة (500 ÷ 26)، الغياب صفر، الكروت بتتضاف، والفلوس أقصاها 500', async () => {
+    eq(await p.evaluate(() => {
+      const e = activeEmps()[0]; const m = '2026-05', keepD = S.days, keepC = S.cards, keepL = LIVE; S.days = {}; S.cards = []; LIVE = false;
+      const days = monthDays(m, m + '-31'); const D = d => day(d);
+      // 26 يوم 5 نجوم + ½ مثالي في يومين + كارت أخضر ← فوق الـ 500 (الفلوس 500 والنقط أكتر)
+      days.slice(0, 26).forEach((d, i) => { const x = D(d); x.att[e.code] = 'on'; x.br[e.code] = x.sh[e.code] = x.ops[e.code] = x.hy[e.code] = [2, 2, 2, 2, 2]; if (isFresh(e)) x.fr[e.code] = [2, 2, 2, 2, 2]; if (i < 2) x.bonus[e.code] = { v: .5, note: 'x' }; });
+      S.cards = [{ id: 'g', date: days[3], code: e.code, color: 'green', reason: 'x', by: 'ops', approved: true, status: 'approved' }];
+      const a = monthSummary(e, m, m + '-31');
+      // غياب يومين
+      days.slice(0, 2).forEach(d => { D(d).att[e.code] = 'abs'; });
+      const b = monthSummary(e, m, m + '-31');
+      S.days = keepD; S.cards = keepC; LIVE = keepL;
+      return [Math.round(dayPts(m) * 10) / 10, a.kpiPts, a.kpiMoney, b.kpiPts < a.kpiPts - 38, b.kpiMoney, b.monthScore < 100];
+    }), [19.2, 514, 500, true, 472, true]);
+  });
   test('نجمة الهايجين (اللبس) من البنود المطلوبة بس', async () => {
     eq(await p.evaluate(() => [hyScore([2, -1, -1, -1, -1]), hyScore([2, 2, 2, 2, 0]), hyScore([1, -1, 2, -1, -1]), hyScore([2, -1, null, -1, -1]), hyScore([-1, -1, -1, -1, -1])]), [1, 0.75, 0.75, null, null]);
   });

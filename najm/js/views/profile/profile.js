@@ -30,7 +30,7 @@ function empProfileHTML(e){
       <div class="card"><h3>⭐ نجومك النهارده (${esc(DATE)})</h3>${todayStarsHTML(e.code)}</div>
       <div class="card"><h3>📅 ${monthName(m)}</h3>
         <div class="kv"><span>متوسط النجوم</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b>`:'—'}</span></div>
-        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${ms.monthScore!=null?fmt(ms.monthScore)+'/100':'—'}</b></div>
+        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${kpiTxt(ms)} من ${fmt(ms.kpiMax||500)}</b></div>
         <div class="kv"><span>🎯 نقط التارجت</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}</b></div>
         <div class="kv"><span>الكروت</span><span>${cardsHTML(cardCount(e.code,m,DATE))||'<span class="muted">مفيش</span>'}</span></div>
         <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs||0)} / ${fmt(ms.late||0)}</b></div></div>
@@ -69,9 +69,9 @@ function mgrProfileHTML(u,self){
       <h3 style="margin:10px 0 4px">📜 الحركات (المكافآت وخصومات التأخير)</h3>${mgrHistoryHTML(u.username)}</div>`;
   }
   if(!ops){
-    const L=activeEmps().filter(e=>inScopeOf(u,e)).map(e=>({e,s:score(DATE,e.code),ms:msOf(e)})).sort((a,b)=>(b.ms.monthScore??-1)-(a.ms.monthScore??-1));
+    const L=activeEmps().filter(e=>inScopeOf(u,e)).map(e=>({e,s:score(DATE,e.code),ms:msOf(e)})).sort((a,b)=>(b.ms.kpiPts??-1)-(a.ms.kpiPts??-1));
     team=`<div class="card"><h3>👥 فريقك (${fmt(L.length)})</h3><div class="tbl-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th></th><th>الموظف</th><th>النهارده</th><th>الشهر</th></tr></thead><tbody>
-      ${L.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td>${ava(x.e,'sm')}</td><td><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.dept)} · ${esc(x.e.shift)}</div></td><td>${x.s.total!=null?fmt(x.s.total,2):'<span class="muted">—</span>'}</td><td>${x.ms.monthScore!=null?fmt(x.ms.monthScore)+'/100':'—'}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">مفيش موظفين</td></tr>'}
+      ${L.map(x=>`<tr style="cursor:pointer" onclick="openEmp('${x.e.code}')"><td>${ava(x.e,'sm')}</td><td><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.dept)} · ${esc(x.e.shift)}</div></td><td>${x.s.total!=null?fmt(x.s.total,2):'<span class="muted">—</span>'}</td><td>${kpiTxt(x.ms)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">مفيش موظفين</td></tr>'}
       </tbody></table></div></div>`;
     const C=S.cards.filter(c=>c.by===u.username).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,20);
     if(u.role!=='hygiene')given=`<div class="card"><h3>🟨🟥🟩 الكروت اللي اديتها</h3>${C.map(c=>{const st=CARD_STATUS[cardStatus(c)]||['',''];return `<div class="small" style="margin:4px 0"><i class="fcard ${c.color}"></i> <b>${esc(c.date)}</b> — ${esc(emp(c.code)?.name||c.code)}: ${esc(c.reason)} ${cardStatus(c)==='approved'?'':`<span class="badge ${st[1]}">${st[0]}</span>`}</div>`;}).join('')||'<div class="small muted">مفيش</div>'}</div>`;
