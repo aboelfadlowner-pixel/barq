@@ -18,7 +18,7 @@ function progressOf(e,cp,goal){
     if(s.pub){continue;}detail=true;
     if(s.mgr==null)mgrMiss++;mgr+=s.mgr||0;if(s.ops==null)opsMiss++;ops+=s.ops||0;if(s.hy==null)hyMiss++;hy+=s.hy||0;bon+=s.bonus||0;
     const D=peekDay(d);for(const f of ['br','sh','fr','ops']){const a=D[f]?.[e.code];if(a&&a.length===5)a.forEach((v,i)=>{if(v!=null){tech[i]+=v;techN[i]++;}});}
-    const h=D.hy?.[e.code];if(h&&h.length===5)h.forEach((v,i)=>{if(v!=null){hyc[i]+=v;hyN[i]++;}});}
+    const h=D.hy?.[e.code];if(h&&h.length===5)h.forEach((v,i)=>{if(v!=null&&v>=0){hyc[i]+=v;hyN[i]++;}});}
   const P=x=>Math.round(x*20*10)/10; // one star = 20 points out of 100
   const parts=detail&&n?[
     {k:'att',t:'⏰ البصمة',lost:P((max*n-att)/n),miss:0,note:attLate?`${fmt(attLate)} يوم تأخير`:''},

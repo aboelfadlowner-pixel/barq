@@ -170,6 +170,19 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'rate', { day: ago(1), code: c }, [1, 1, 1, 1, 1]), /day locked/);
   });
 
+  // ---------------- الهايجين = اللبس
+  test('الهايجين: التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»، والنجمة من المطلوب بس', async () => {
+    await save('ops', '0000', 'user', { username: 'hyg' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '7171' });
+    const sec = (await db.query("select code from najm_employees where branch=$1 and dept='قسم الامن و المراقبه' and shift<>'Morning' limit 1", [B])).rows[0].code;
+    await fails(save('hyg', '7171', 'rate', { day: D, code: sec }, [-1, 2, 2, 2, 2]), /bad hygiene items/);
+    await fails(save('hyg', '7171', 'rate', { day: D, code: sec }, [2, 2, 2, 2, 5]), /bad hygiene items/);
+    await fails(save('hyg', '7171', 'rate', { day: D, code: sec }, [2, 2, -2, 2, 2]), /bad hygiene items/);
+    await save('hyg', '7171', 'rate', { day: D, code: sec }, [2, -1, -1, -1, -1]);
+    const h = (await db.query("select najm_hy(hy) h from najm_ratings where day=$1 and code=$2", [D, sec])).rows[0].h;
+    eq(+h, 1);
+    eq([+(await db.query("select najm_hy('{2,2,2,2,0}') h")).rows[0].h, (await db.query("select najm_hy('{2,-1,null,-1,-1}') h")).rows[0].h, +(await db.query("select najm_hy('{1,-1,2,-1,-1}') h")).rows[0].h], [0.75, null, 0.75]);
+  });
+
   // ---------------- الدخول بكود البصمة للكل
   test('الدخول بكود البصمة: المدير المربوط بكوده بيدخل كمدير بس، والموظف كموظف', async () => {
     const c = (await db.query("select code from najm_employees where branch='عين شمس' order by code limit 1 offset 7")).rows[0].code;

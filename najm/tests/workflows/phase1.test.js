@@ -12,7 +12,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   const main = () => p.evaluate(() => document.querySelector('#main').innerText);
 
   test('رجل اليوم: البيطاش «الصبح» و«الليل + Between» بـ 2 لكل شيفت، وعين شمس 1', async () => {
-    const r = await p.evaluate(() => { const W = peekDay(DATE).winners; return [W['البيطاش الرئيسي|Morning']?.length, W['البيطاش الرئيسي|Night']?.length, W['عين شمس|Morning']?.length, Object.keys(W).some(k => k.endsWith('|Between'))]; });
+    const r = await p.evaluate(() => { const y = new Date(); y.setDate(y.getDate() - 1); const W = peekDay(ymd(y)).winners; return [W['البيطاش الرئيسي|Morning']?.length, W['البيطاش الرئيسي|Night']?.length, W['عين شمس|Morning']?.length, Object.keys(W).some(k => k.endsWith('|Between'))]; });
     eq(r, [2, 2, 1, false]);
     await as(OPS); await p.evaluate(() => go('day'));
     const t = await main(); ok(t.includes('الليل + Between') && t.includes('اعتماد (٢)'), t.slice(0, 200));

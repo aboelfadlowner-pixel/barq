@@ -25,9 +25,21 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     await login(p, 'yasser', '7777');
     eq(await p.evaluate(() => USER.role), 'hygiene');
     const t = await tabs(); ok(t.some(x => x.includes('تقييم اليوم')) && !t.some(x => x.includes('الكروت')), t.join('|'));
-    const r = await p.evaluate(async () => { go('rate'); const e = filtered(true)[0]; delete day(DATE).hy[e.code]; for (const i of [0, 1, 2, 3, 4]) await setCrit(e.code, i, 2); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('النضافة الشخصية')]; });
+    const r = await p.evaluate(async () => { go('rate'); const e = filtered(true).find(x => x.dept === 'قسم البقاله'); delete day(DATE).hy[e.code]; for (const i of [0, 1, 2, 3, 4]) await setCrit(e.code, i, 2); return [day(DATE).hy[e.code], document.querySelector('#main').innerText.includes('الأفرهيد')]; });
     eq(r, [[2, 2, 2, 2, 2], true]);
     await p.evaluate(() => { USER = null; render(); });
+  });
+  test('الهايجين: الخمس بنود جنب كل موظف، والتيشرت إجباري، و«مش مطلوب» مبيتحسبش', async () => {
+    const r = await p.evaluate(async () => {
+      USER = { username: 'yasser', role: 'hygiene', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] }; go('rate');
+      const sec = filtered(true).find(x => x.dept === 'قسم الامن و المراقبه'); delete day(DATE).hy[sec.code];
+      const card = document.querySelector('#rc-' + sec.code).innerText; const rows = document.querySelectorAll('#rc-' + sec.code + ' .crit').length;
+      await setCrit(sec.code, 0, 2); const a = [...day(DATE).hy[sec.code]]; const st = hyStar(day(DATE), sec.code);   // «مش مطلوب» من امبارح بيتفتكر
+      await setCrit(sec.code, 1, 0); const half = hyStar(day(DATE), sec.code);                                         // الإيبرون بقى مطلوب ومش لابسه ← 2 من 4
+      const notReq = document.querySelector('#rc-' + sec.code).innerText.split('مش مطلوب').length - 1;
+      USER = null; return [card.includes('التيشرت') && card.includes('الجلافز'), rows, half, a, st, notReq];
+    });
+    eq(r, [true, 5, 0.5, [2, -1, -1, -1, -1], 1, 4]);
   });
   test('مدير التشغيل يحدد نقط القسم والمطلوب، والتقرير يحسب بيها', async () => {
     await p.evaluate(() => { USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; TG.branch = 'البيطاش الرئيسي'; TG.dept = 'قسم البقاله'; TG.mode = 'edit'; go('target'); });

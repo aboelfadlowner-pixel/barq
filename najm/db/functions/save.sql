@@ -75,6 +75,11 @@ begin
       insert into najm_ratings(day, code, fr) values (k_day, k_code, arr)
       on conflict (day, code) do update set fr = excluded.fr, updated_at = now();
     elsif u.role = 'hygiene' then
+      -- اللبس: 5 بنود — التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»
+      if arr is not null and (coalesce(array_length(arr, 1), 0) <> 5 or coalesce(arr[1], 0) not between 0 and 2
+          or exists (select 1 from generate_series(2, 5) i where coalesce(arr[i], 0) not between -1 and 2)) then
+        raise exception 'najm: bad hygiene items';
+      end if;
       insert into najm_ratings(day, code, hy) values (k_day, k_code, arr)
       on conflict (day, code) do update set hy = excluded.hy, updated_at = now();
     else

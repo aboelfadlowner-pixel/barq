@@ -37,6 +37,11 @@ input.inp,select.inp,textarea.inp{border:1px solid var(--line);border-radius:8px
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:700;font-size:13px}
 .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.chip .cnt-sm{font-size:11px;font-weight:600;opacity:.65;margin-inline-start:2px}
+.filter-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.filter-lbl{font-size:12px;font-weight:700;color:var(--muted);min-width:42px}
+.chips.scroll{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.chips.scroll .chip{white-space:nowrap}
 .badge{display:inline-block;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;white-space:nowrap}
 .b-gold{background:var(--gold-soft);color:#8a6000}
 .b-green{background:var(--green-soft);color:var(--green)}
