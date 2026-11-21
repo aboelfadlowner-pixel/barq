@@ -1094,3 +1094,21 @@ tr[hidden] { display: none; }
 .o-printed { position: absolute; top: -4px; inset-inline-start: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--green-700, #2f7a52);
   color: #fff; display: grid; place-items: center; box-shadow: 0 0 0 2px #fff; }
 .o-printed .svg-icon { width: 11px; height: 11px; stroke-width: 3; }
+
+/* «بدء الشيفت» in the top bar and «الحضور» (47_attendance.sql) */
+.shift-btn { white-space: nowrap; }
+.shift-start { background: var(--green-700); color: #fff; border-color: var(--green-700); }
+.shift-start:hover { filter: brightness(1.08); }
+.shift-on { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 999px;
+  background: var(--green-50); color: var(--green-700); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.shift-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block;
+  animation: shift-pulse 1.6s ease-in-out infinite; }
+@keyframes shift-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .shift-dot { animation: none; } }
+.att-h { margin: 14px 0 8px; }
+.att-now { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.att-person { padding: 14px 16px; display: grid; gap: 6px; justify-items: start; }
+.att-person.is-on { border-color: var(--green-700); }
+.att-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 16px; }
+.att-table td { vertical-align: middle; }
+.att-nopunch { background: var(--danger-50); }

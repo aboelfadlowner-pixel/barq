@@ -527,6 +527,29 @@ export async function adminDelivery(orderId, what, driverId = null) {
   const c = await sb();
   return ok(await c.rpc('cc_admin_delivery', { p_order_id: orderId, p_what: what, p_driver: driverId }));
 }
+/* «الحضور» (47_attendance.sql): the call-center account's own shift; the admin's page.
+   Before 47 is installed: null (the button and the page stay hidden). */
+const toShift = (r) => (r ? { start: r.start_at, end: r.end_at || null } : null);
+export async function myShift() {
+  const c = await sb();
+  const res = await c.rpc('cc_shift_mine');
+  if (res.error?.code === NOT_INSTALLED) return undefined;
+  return toShift(ok(res));
+}
+export async function startShift() { const c = await sb(); return toShift(ok(await c.rpc('cc_shift_start'))); }
+export async function endShift() { const c = await sb(); return toShift(ok(await c.rpc('cc_shift_end'))); }
+export async function attendance(from, to) {
+  const c = await sb();
+  const res = await c.rpc('cc_attendance', { p_from: from, p_to: to });
+  if (res.error?.code === NOT_INSTALLED) return null;
+  const r = ok(res);
+  return {
+    now: (r.now || []).map((x) => ({ userId: x.user_id, name: x.name, start: x.start_at || null, lastEnd: x.last_end || null })),
+    rows: (r.rows || []).map((x) => ({ day: x.day, userId: x.user_id, name: x.name, start: x.start_at || null, end: x.end_at || null,
+      open: !!x.open, autoClosed: !!x.auto_closed, minutes: x.minutes ?? null, orders: x.orders || 0, outside: x.outside || 0, noPunch: !!x.no_punch })),
+  };
+}
+
 /* «تغيير الطيار» (46_admin_change_driver.sql): admin only; the order's changes for its page. */
 export async function changeDriver(orderId, driverId) {
   const c = await sb();
