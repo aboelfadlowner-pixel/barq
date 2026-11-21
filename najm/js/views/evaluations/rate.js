@@ -9,7 +9,6 @@ function vRate(){
   ${closeBarHTML()}
   ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول (اتقفل اليوم، أو اتعلن رجل اليوم، أو اليوم عدّى أكتر من يوم) — أي تعديل عن طريق مدير التشغيل.</div>':''}
   <div class="lock" style="margin-bottom:10px">البصمة ${S.settings.att.on} نجمة · الهايجين نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · مدير التشغيل نجمة · سلوك مثالي ½. كل بند من 0 لـ 2.</div>
-  ${isHy()?'<div class="lock" style="margin-bottom:10px"><b>الهايجين = اللبس:</b> 2 لابس ونضيف · 1 ناقص أو مش نضيف · 0 مش لابس. التيشرت إجباري على الكل، والباقي اختار «مش مطلوب» لو الموظف مش مطلوب منه — والنجمة بتتحسب من المطلوب بس. اختيار «مش مطلوب» بيتفتكر لبكرة.</div>':''}
   ${filterBar({scoped:true})}
   <div class="grid g-emp">${list.map(e=>{
     const s=score(DATE,e.code);const arr=D[field][e.code]||[];const myC=cardsOf(e.code,DATE,DATE,true);
