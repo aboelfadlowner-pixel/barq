@@ -13,8 +13,7 @@ $$;
 -- الحكم لكل يوم (نفس قواعد التطبيق): إجازة مكتوبة ← إجازة · بصمة ← في ميعاده / تأخير بسيط / كبير من ميعاد ورديته الحقيقي
 -- (السماح والتأخير البسيط من الإعدادات) · من غير بصمة ولا إجازة ← أول يوم في الأسبوع (من السبت) راحة، والباقي غياب
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
-drop function if exists public.najm_att_sync(jsonb, text);
-create or replace function public.najm_att_sync(p_rows jsonb, p_file text, p_keep_time boolean default true)
+create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare cfg jsonb; grace int; latemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date;
   today date := (now() at time zone 'Africa/Cairo')::date;
@@ -63,8 +62,15 @@ begin
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;
 -- بتتنادى من التحديث اليومي بس (مش من المتصفح)
-revoke all on function public.najm_att_sync(jsonb, text, boolean) from public, anon, authenticated;
-grant execute on function public.najm_att_sync(jsonb, text, boolean) to service_role;
+revoke all on function public.najm_att_sync_rows(jsonb, text, boolean) from public, anon, authenticated;
+
+-- نفس الحساب، بأوقات الدخول (من tools/attendance-sync.js)
+create or replace function public.najm_att_sync(p_rows jsonb, p_file text)
+returns jsonb language sql security definer set search_path = public as $$
+  select public.najm_att_sync_rows(p_rows, p_file, true);
+$$;
+revoke all on function public.najm_att_sync(jsonb, text) from public, anon, authenticated;
+grant execute on function public.najm_att_sync(jsonb, text) to service_role;
 
 -- الصيغة الصغيرة للتحديث اليومي (من tools/attendance-sheet.js --compact): «YYYY-MM|كود:يوم1,يوم2,...;...»
 -- كل يوم: دقايق التأخير عن ميعاد الوردية · L إجازة · - من غير بصمة ولا إجازة · x مش مقروء · . مفيش
@@ -83,7 +89,7 @@ begin
   from unnest(string_to_array(split_part(p_payload, '|', 2), ';')) seg,
        unnest(string_to_array(split_part(seg, ':', 2), ',')) with ordinality t(tok, i)
   where seg <> '' and t.tok <> '.';
-  return public.najm_att_sync(rows, p_file, false);
+  return public.najm_att_sync_rows(rows, p_file, false);
 end $$;
 revoke all on function public.najm_att_sync_compact(text, text, text) from public, anon, authenticated;
 grant execute on function public.najm_att_sync_compact(text, text, text) to service_role;
