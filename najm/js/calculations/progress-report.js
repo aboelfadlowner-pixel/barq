@@ -31,7 +31,7 @@ function progressOf(e,cp,goal){
   const cardP=ms.cardPts||0;
   const gv=goal?.v;const score100=ms.monthScore;
   let need=null;const last=daysInMonth(m);
-  if(gv!=null&&n&&cp.day<last){const r=Math.max(1,Math.round(n/cp.day*(last-cp.day)));const g=(gv-cardP)/20;need=(g*(n+r)-sumT)/r;}
+  if(gv!=null&&n&&cp.day<last){const r=Math.max(1,Math.round(n/cp.day*(last-cp.day)));const dm=dayPts(m);need=(gv/100*5*(n+(ms.abs||0)+r)-sumT-cardP*5/dm)/r;}   // متوسط النجوم المطلوب في الأيام الجاية
   const tg=tgtOf(ms.target,m,LIVE&&upto<DATE?DATE:upto);const q=qualify(ms,tg);const tv=tg?.v; // live sales are month-to-date, so compare them with today's pace
   const st=score100==null?'none':q.ok?'green':(score100>=gv-5&&tg?.dept!=null&&tg.dept>=TGT_G()-15)?'near':'red';
   return {e,cp,goal,ms,n,score:score100,st,tg,q,parts,techA,hyA,cardP,cards:ms.cards,bonusDays:bon/0.5,need,abs:ms.abs,detail};

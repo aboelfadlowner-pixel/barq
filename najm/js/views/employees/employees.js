@@ -6,7 +6,7 @@ function vEmps(){
     ${isOps()?'<div class="lock" style="margin-bottom:10px">رفع الصور بالجملة: اختار كل الصور مرة واحدة، وكل صورة اسمها كود الموظف (زي 125.jpg) — بتتقص طولي زي كارت اللاعب وتترفع لوحدها.</div>':''}
     ${filterBar({scoped:true})}
     <div class="tbl-wrap"><table><thead><tr><th></th><th>الكود</th><th>الاسم</th><th>الفرع</th><th>القسم</th><th>الوظيفة</th><th>الشيفت</th><th>الشهر</th></tr></thead><tbody>
-    ${list.map(e=>{const ms=msOf(e);return `<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e,'sm')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b> ${e.video?'🎬':''}</td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td><td class="small">${ms.monthScore!=null?fmt(ms.monthScore)+'/100':'—'} ${cardsHTML(ms.cards)}</td></tr>`;}).join('')}
+    ${list.map(e=>{const ms=msOf(e);return `<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e,'sm')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b> ${e.video?'🎬':''}</td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td><td class="small">${kpiTxt(ms)} ${cardsHTML(ms.cards)}</td></tr>`;}).join('')}
     </tbody></table></div>`;
 }
 function openEmp(code){
@@ -38,7 +38,7 @@ function openEmp(code){
    <div class="grid g-2" style="margin-bottom:12px">
      <div class="card"><h3>${monthName(m)}</h3>
        <div class="kv"><span>متوسط النجوم</span><span>${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b></span></div>
-       <div class="kv"><span>تقييم الشهر</span><b>${fmt(ms.monthScore)}/100 ${mgr&&ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
+       ${isOps()&&ms.kpiMoney!=null?`<div class="kv"><span>فلوس الـ KPI (التشغيل فقط)</span><b>${fmt(ms.kpiMoney)} ج</b></div>`:''}<div class="kv"><span>الـ KPI (من ${fmt(ms.kpiMax||500)})</span><b>${kpiTxt(ms)} ${mgr&&ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
        ${mgr?`<div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>`:''}
        <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.split?`<div class="small muted">🔀 اتنقل الشهر ده — التارجت متقسم بالأيام: ${t.split.map(x=>esc(x.dept)+' '+Math.round(x.w*100)+'%').join(' · ')}</div>`:''}${t?.pct!=null?barHTML(t.pct,t.pace):''}
        ${caps.map(c=>`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> ${esc(c.name)}</span><b style="color:var(--purple)">${fmt(c.pct)}% · ${fmt(c.points)} ن</b></div>`).join('')}

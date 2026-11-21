@@ -127,7 +127,7 @@ function sceneCups(){
   return `<div class="tv-h">🏆 كؤوس ${monthName(monthOf(DATE))} <small>— الترتيب لحد النهارده على مستوى أبو الفضل</small></div>
   <div class="tv-cups" style="height:calc(100% - 78px)"><div class="tv-glass tv-podium">${pod}</div>
    <div class="tv-glass tv-top10"><div class="tv-h" style="font-size:30px;margin:0 0 6px">🎖️ من المركز 4 لـ 10 — وسام العشرة الأوائل</div>
-   ${top.slice(3,10).map((x,i)=>`<div class="tv-row ${x.e.branch===TVB?'tv-mine':''}"><div class="pos">${i+4}</div>${tvPh(x.e,56)}<div class="who"><b>${esc(x.e.name)}<span class="tv-code">${esc(x.e.code)}</span></b><span>${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100</span></div><div class="tv-amt">🎖️</div></div>`).join('')||'<div class="tv-empty" style="font-size:26px">لسه بدري</div>'}
+   ${top.slice(3,10).map((x,i)=>`<div class="tv-row ${x.e.branch===TVB?'tv-mine':''}"><div class="pos">${i+4}</div>${tvPh(x.e,56)}<div class="who"><b>${esc(x.e.name)}<span class="tv-code">${esc(x.e.code)}</span></b><span>${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${kpiTxt(x.ms)}</span></div><div class="tv-amt">🎖️</div></div>`).join('')||'<div class="tv-empty" style="font-size:26px">لسه بدري</div>'}
    </div></div>`;
 }
 function scenePlayer(){

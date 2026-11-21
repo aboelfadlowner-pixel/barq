@@ -20,7 +20,7 @@ function empCard(e){
       <div class="small muted">${esc(e.job||'—')} · ${esc(e.dept||'')}</div>
       <div class="small muted">${esc(e.shift||'')}</div></div></div>
     <div class="kv"><span>النهارده</span>${s.total!=null?`<span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>`:'<span>لم يُقيَّم</span>'}</div>
-    <div class="kv"><span>تقييم الشهر</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.monthScore)}/100</b>`:'—'}</span></div>
+    <div class="kv"><span>تقييم الشهر</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${kpiTxt(ms)}</b>`:'—'}</span></div>
     <div class="kv"><span>التارجت</span><b>${t&&t.pct!=null?fmt(t.pct)+'%':'—'}${t?.empPoints!=null?' · '+fmt(t.empPoints)+' نقطة':''}</b></div>
     ${t&&t.pct!=null?barHTML(t.pct,t.pace):''}
     <div class="row small" style="gap:6px">${(f=>f.ovr!=null?`<span class="ovr-pill ${futEdition(e,f)}" title="التقييم المجمّع">${f.ovr}</span>`:'')(futStats(e))}${rb?`<span class="badge b-blue">#${fmt(rb)} في الفرع</span>`:''}${ms.wins?`<span class="badge b-gold">🏆 ${fmt(ms.wins)}</span>`:''}${t?.capPts?`<span class="badge b-purple">C +${fmt(t.capPts)}</span>`:''}${cardsHTML(ms.cards)}</div>
@@ -32,7 +32,7 @@ function honorBoard(bs){
   const top=R.rows.filter(x=>bs.includes(x.e.branch)).slice(0,3);
   return `<div class="card honor" style="margin-bottom:14px"><div class="grid g-2">
     <div><h3>🏆 رجال النهارده</h3>${win.length?`<div class="podium" style="justify-content:flex-start">${win.map(x=>`<div class="winner-box" style="cursor:pointer;padding:10px" onclick="openEmp('${x.e.code}')"><div class="crown" style="font-size:20px">👑</div>${ava(x.e,'win').replace('class="ava','style="margin:0 auto" class="ava')}<div class="emp-name small">${esc(x.e.name)}</div><div class="small muted">${esc(x.e.branch)} · ${esc(x.sh)}</div>${starsHTML(score(DATE,x.e.code).total)}</div>`).join('')}</div>`:'<div class="small muted">لم يُعلن بعد</div>'}</div>
-    <div><h3>👑 متصدرين ${monthName(monthOf(DATE))}</h3>${top.map((x,i)=>`<div class="row" style="margin:6px 0;cursor:pointer;flex-wrap:nowrap" onclick="openEmp('${x.e.code}')"><span style="font-size:20px">${['🥇','🥈','🥉'][i]}</span>${ava(x.e,'sm')}<div style="flex:1;min-width:0"><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${fmt(x.ms.monthScore)}/100</div></div>${cardsHTML(x.ms.cards)}</div>`).join('')||'<div class="small muted">مفيش تقييمات لسه</div>'}</div>
+    <div><h3>👑 متصدرين ${monthName(monthOf(DATE))}</h3>${top.map((x,i)=>`<div class="row" style="margin:6px 0;cursor:pointer;flex-wrap:nowrap" onclick="openEmp('${x.e.code}')"><span style="font-size:20px">${['🥇','🥈','🥉'][i]}</span>${ava(x.e,'sm')}<div style="flex:1;min-width:0"><b>${esc(x.e.name)}</b><div class="small muted">${esc(x.e.branch)} · 🏆 ${fmt(x.ms.wins)} · ${kpiTxt(x.ms)}</div></div>${cardsHTML(x.ms.cards)}</div>`).join('')||'<div class="small muted">مفيش تقييمات لسه</div>'}</div>
   </div></div>`;
 }
 function vDash(){

@@ -42,11 +42,13 @@ function rulesCardHTML(){
   const tiers=(R)=>R.ptsTiers.map(t=>`<span style="white-space:nowrap">${fmt(t[0])}٪ = ${fmt(t[1])} نقطة</span>`).join(' · ');
   const diff=JSON.stringify(cur)!==JSON.stringify(nxt);
   return `<div class="card" style="grid-column:1/-1;border-color:var(--gold)"><h3>📐 قواعد الشهر (التأهل ونقط التارجت)</h3>
-    <div class="small" style="margin-bottom:8px">شغالة في ${monthName(cm)}: حد الـ KPI <b>${fmt(cur.goal)}</b> · القسم يحقق <b>${fmt(cur.targetGoal)}%</b> من التارجت · الإجازة الأسبوعية <b>${fmt(cur.weeklyOff)}</b> يوم (من غير غياب) <br>الشرايح (${cur.ptsMode==='step'?'سلّم':'بالتناسب'}): ${tiers(cur)}</div>
+    <div class="small" style="margin-bottom:8px">شغالة في ${monthName(cm)}: الـ KPI <b>${fmt(cur.kpiPts)}</b> نقطة على <b>${fmt(cur.kpiDays)}</b> يوم (اليوم ${fmt(cur.kpiPts/cur.kpiDays,1)}) · حد الـ KPI <b>${fmt(cur.goal)}%</b> · القسم يحقق <b>${fmt(cur.targetGoal)}%</b> من التارجت · الإجازة الأسبوعية <b>${fmt(cur.weeklyOff)}</b> يوم (من غير غياب) <br>الشرايح (${cur.ptsMode==='step'?'سلّم':'بالتناسب'}): ${tiers(cur)}</div>
     ${diff?`<div class="small" style="margin-bottom:8px;color:var(--purple)">من ${monthName(nm)}: حد الـ KPI <b>${fmt(nxt.goal)}</b> · التارجت <b>${fmt(nxt.targetGoal)}%</b> · الإجازة الأسبوعية <b>${fmt(nxt.weeklyOff)}</b> · ${tiers(nxt)} (${nxt.ptsMode==='step'?'سلّم':'بالتناسب'})</div>`:''}
     <div class="row" style="gap:10px;align-items:flex-end">
       <label class="small">حد الـ KPI<br><input class="inp" type="number" style="width:90px" value="${RD.goal}" onchange="RD.goal=+this.value"></label>
       <label class="small">القسم يحقق % من التارجت<br><input class="inp" type="number" style="width:90px" value="${RD.targetGoal}" onchange="RD.targetGoal=+this.value"></label>
+      <label class="small">نقط الـ KPI في الشهر (= جنيه)<br><input class="inp" type="number" style="width:90px" value="${RD.kpiPts}" onchange="RD.kpiPts=+this.value"></label>
+      <label class="small">أيام الشغل في الشهر<br><input class="inp" type="number" style="width:90px" value="${RD.kpiDays}" onchange="RD.kpiDays=+this.value"></label>
       <label class="small">الإجازة الأسبوعية (أيام)<br><input class="inp" type="number" style="width:90px" value="${RD.weeklyOff}" onchange="RD.weeklyOff=+this.value"></label>
       <label class="small">بين الشرايح<br><select class="inp" onchange="RD.ptsMode=this.value"><option value="linear" ${RD.ptsMode!=='step'?'selected':''}>بالتناسب (93% ← 93)</option><option value="step" ${RD.ptsMode==='step'?'selected':''}>سلّم (93% ← نقط 85%)</option></select></label>
     </div>
@@ -58,7 +60,7 @@ function rulesCardHTML(){
 async function saveRules(now){
   const cm=monthOf(ymd(new Date())),from=now?cm:nextMonthOf(cm);
   const T=RD.ptsTiers.map(t=>[+t[0],+t[1]]).filter(t=>t[0]>0).sort((a,b)=>a[0]-b[0]);
-  if(!T.length||!(RD.weeklyOff>=0)||!(RD.goal>0)||!(RD.targetGoal>0)){toast('راجع الأرقام');return;}
+  if(!T.length||!(RD.weeklyOff>=0)||!(RD.goal>0)||!(RD.targetGoal>0)||!(RD.kpiPts>0)||!(RD.kpiDays>0)){toast('راجع الأرقام');return;}
   let reason='';
   if(now){reason=await askText(`تطبيق القواعد الجديدة على ${monthName(cm)} هيغيّر ترتيب ونقط الشهر ده. اكتب السبب:`);if(reason===null)return;reason=reason.trim();if(!reason){toast('لازم تكتب السبب');return;}}
   else if(!await askConfirm(`حفظ القواعد الجديدة؟ هتبدأ من ${monthName(from)}، و${monthName(cm)} هيفضل بالقواعد الحالية.`))return;
@@ -110,7 +112,7 @@ function exportJSON(){const b=new Blob([JSON.stringify(S)],{type:'application/js
 function importJSON(){pickFile('.json',f=>{const r=new FileReader();r.onload=async()=>{try{const d=JSON.parse(r.result);if(!d.employees)throw 0;if(!await askConfirm('هيستبدل كل البيانات. متأكد؟'))return;S=d;normalize();save();render();}catch(e){toast('ملف غير صالح')}};r.readAsText(f);});}
 function exportXLSX(){
   const m=monthOf(DATE);
-  const sum=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);return {'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'القسم':e.dept,'الوظيفة':e.job,'الشيفت':e.shift,'أيام':ms.n,'متوسط النجوم':ms.avg!=null?+ms.avg.toFixed(2):'','تقييم الشهر':ms.monthScore??'','رجل اليوم':ms.wins,'أصفر':ms.cards.y,'أحمر':ms.cards.r,'أخضر':ms.cards.g,'غياب':ms.abs,'تأخير':ms.late,'تارجت %':ms.target?.pct!=null?Math.round(ms.target.pct):'','نقاط الكابتن':ms.target?.capPts||0,'إجمالي النقاط':ms.target?.empPoints??'','مكافأة':ms.target?.empPoints!=null?money(ms.target.empPoints):''};});
+  const sum=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);return {'الكود':e.code,'الاسم':e.name,'الفرع':e.branch,'القسم':e.dept,'الوظيفة':e.job,'الشيفت':e.shift,'أيام':ms.n,'متوسط النجوم':ms.avg!=null?+ms.avg.toFixed(2):'','تقييم الشهر':ms.monthScore??'','نقط الـ KPI':ms.kpiPts??'','فلوس الـ KPI':ms.kpiMoney??'','رجل اليوم':ms.wins,'أصفر':ms.cards.y,'أحمر':ms.cards.r,'أخضر':ms.cards.g,'غياب':ms.abs,'تأخير':ms.late,'تارجت %':ms.target?.pct!=null?Math.round(ms.target.pct):'','نقاط الكابتن':ms.target?.capPts||0,'إجمالي النقاط':ms.target?.empPoints??'','مكافأة':ms.target?.empPoints!=null?money(ms.target.empPoints):''};});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sum),'ملخص الشهر');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.cards.filter(c=>c.date.startsWith(m)).map(c=>({'اليوم':c.date,'الكود':c.code,'الاسم':emp(c.code)?.name,'الكارت':CARD[c.color].t,'السبب':c.reason,'من':c.by,'محسوب':c.approved?'✔':'⏳'}))),'الكروت');
   XLSX.writeFile(wb,`najm-${m}.xlsx`);
 }
