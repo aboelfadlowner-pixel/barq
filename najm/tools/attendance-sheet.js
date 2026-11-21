@@ -3,7 +3,7 @@
 // وأي عمود تاني (الراتب، بدل الـ KPI، الجزاءات، السلف، الإضافي...) مبيتقريش خالص.
 // الاستخدام:  node attendance-sheet.js <file.xlsx> <out.json> [--compact <payload.txt>]   (محتاج: npm i --no-save xlsx@0.18.5)
 // --compact: صيغة صغيرة للتحديث اليومي «YYYY-MM|كود:يوم1,يوم2,...;كود:...» — كل يوم: دقايق التأخير عن ميعاد الوردية (0 لو بدري)
-//            أو L إجازة أو - من غير بصمة ولا إجازة أو x مش مقروء — ومعاها md5 عشان الداتابيز تتأكد إنها وصلت زي ما هي
+//            أو L إجازة أو - من غير بصمة ولا إجازة أو x مش مقروء / فرق أكتر من 4 ساعات عن ميعاد الوردية (للمراجعة) — ومعاها md5 عشان الداتابيز تتأكد إنها وصلت زي ما هي
 const XLSX = require('xlsx');
 const fs = require('fs');
 const [, , inFile, outFile, flag, compactFile] = process.argv;
@@ -48,20 +48,28 @@ if (flag === '--compact' && compactFile) {
   if (!last) { console.error('no check-ins in file'); process.exit(1); }
   const month = last.slice(0, 7); const nDays = +last.slice(8);
   const by = {}; for (const r of out) if (r.day.startsWith(month)) (by[r.code] ||= {})[+r.day.slice(8)] = r;
-  const segs = [];
+  const segs = [], starters = [], stopped = [], review = [];
   for (const [code, D] of Object.entries(by)) {
     if (!/^[0-9A-Za-z]+$/.test(code)) continue;
     const toks = []; let any = false;
     for (let d = 1; d <= nDays; d++) {
       const r = D[d]; let t = '.';
-      if (r) { if (r.leave) { t = 'L'; any = true; } else if (tmin(r.in) != null) { const a = tmin(r.shift), b = tmin(r.in); if (a == null) t = 'x'; else { let x = b - a; if (x < -720) x += 1440; if (x > 720) x -= 1440; t = String(Math.min(600, Math.max(0, x))); } any = true; } else if (r.in) t = 'x'; else t = '-'; }
+      if (r) { if (r.leave) { t = 'L'; any = true; } else if (tmin(r.in) != null) { const a = tmin(r.shift), b = tmin(r.in); if (a == null) t = 'x'; else { let x = b - a; if (x < -720) x += 1440; if (x > 720) x -= 1440; /* فرق أكتر من 4 ساعات = ميعاد الوردية مش مظبوط في الشيت (مش تأخير) ← بيتساب للمراجعة */ t = Math.abs(x) > 240 ? 'x' : String(Math.max(0, x)); } any = true; } else if (r.in) t = 'x'; else t = '-'; }
       toks.push(t);
     }
-    if (any) segs.push(code + ':' + toks.join(','));
+    if (!any) continue;
+    // موظف جديد: الأيام الفاضية قبل أول يوم ليه في الشيت مش غياب · بيانات وقفت أكتر من أسبوع: غالباً ساب الشغل ← مبتتحسبش غياب
+    const has = t => t !== '-' && t !== '.';
+    const first = toks.findIndex(has), lastI = toks.length - 1 - [...toks].reverse().findIndex(has);
+    for (let i = 0; i < first; i++) if (toks[i] === '-') toks[i] = '.';
+    if (first > 0) starters.push(code);
+    if (toks.length - 1 - lastI > 7) { for (let i = lastI + 1; i < toks.length; i++) if (toks[i] === '-') toks[i] = '.'; stopped.push(code); }
+    const xs = toks.filter(t => t === 'x').length; if (xs) review.push(code + '×' + xs);
+    segs.push(code + ':' + toks.join(','));
   }
   const payload = month + '|' + segs.join(';');
   if (!/^[0-9A-Za-z:,;|.\-]+$/.test(payload)) { console.error('unexpected characters in payload'); process.exit(1); }
   fs.writeFileSync(compactFile, payload);
   const md5 = require('crypto').createHash('md5').update(payload).digest('hex');
-  console.log(JSON.stringify({ compact: compactFile, month, lastDay: last, employees: segs.length, length: payload.length, md5 }));
+  console.log(JSON.stringify({ compact: compactFile, month, lastDay: last, employees: segs.length, length: payload.length, md5, newStarters: starters, stoppedOverWeek: stopped, shiftMismatchDays: review }));
 }
