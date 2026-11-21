@@ -210,7 +210,7 @@ function demoSeed(){
   const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
-      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);D.hy[e.code]=(a=>hyBlank(e).map((x,j)=>x===HY_NA?HY_NA:a[j]))(crit(e.code));if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(d<DATE)D.hy[e.code]=(a=>hyBlank(e).map((x,j)=>x===HY_NA?HY_NA:a[j]))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
   // cards
   const staff=activeEmps();const dd=()=>pick(days);
@@ -223,7 +223,8 @@ function demoSeed(){
   S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'yellow',reason:'اتكتب غلط على الموظف',by:'mahmoud',approved:false,status:'cancelled',decidedBy:'mahmoud'});
   S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'red',reason:'تأخير في الاستلام',by:'islam',approved:false,status:'rejected',decidedBy:'ops'});
   // رجل اليوم: البيطاش 2 صبح + 2 ليل · عين شمس 1 + 1 · بالنجوم والكروت (Between مع الليل)
-  for(const d of days){const D=day(d);for(const br of branches())for(const g of SHIFT_GROUPS){const W=winnersFor(br,g);if(!W)continue;const R=rankGroup(d,activeEmps().filter(e=>e.branch===br&&shiftGroup(e.shift)===g));if(R.length)D.winners[`${br}|${g}`]=R.slice(0,W).map(x=>x.e.code);}}
+  // النهارده لسه مفتوح (من غير رجل يوم) عشان تقدر تجرّب التقييم
+  for(const d of days.filter(x=>x<DATE)){const D=day(d);for(const br of branches())for(const g of SHIFT_GROUPS){const W=winnersFor(br,g);if(!W)continue;const R=rankGroup(d,activeEmps().filter(e=>e.branch===br&&shiftGroup(e.shift)===g));if(R.length)D.winners[`${br}|${g}`]=R.slice(0,W).map(x=>x.e.code);}}
   // الرقم السري للموظفين في التجربة: 1234 لكل الموظفين
   S.empPins={};for(const e of activeEmps())S.empPins[e.code]={pin:'1234',must:false};
   // اعتراضين: واحد مستني قرار، وواحد اتقبل
