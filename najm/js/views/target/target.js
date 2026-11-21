@@ -20,7 +20,7 @@ function vTarget(){
     return `<div class="card" style="cursor:pointer" onclick="TG.dept='${esc(d)}';TG.mode='view';render()">
       <div class="sec-title" style="margin:0 0 6px"><b>${esc(d)}</b>${p?`<span class="badge ${p.type==='sales'?'b-blue':'b-green'}">${p.type==='sales'?'مبيعات (كميات)':'تشغيلي'}</span>`:'<span class="badge b-gray">لم يُحدد</span>'}</div>
       ${p&&p.pct!=null?`${barHTML(p.pct,p.pace)}<div class="kv"><span>${p.pace!=null?`المفروض لحد النهارده ${fmt(p.pace)}%`:'الإنجاز'}</span><b>${fmt(p.pct)}% · ${(c=>+c?.pts>0?`${fmt(Math.round(+c.pts*tgtRatio(p.pct)))} / ${fmt(c.pts)}`:fmt(p.points))(tgtCfg(m,TG.branch,d))} نقطة</b></div>`:p?'<div class="small muted">مفيش بيانات لسه</div>':''}
-      ${(c=>+c?.pts>0?`<div class="small muted">⭐ ${fmt(c.pts)} نقطة لو اتقفل · المطلوب للعشرة الأوائل ${c.need?fmt(c.need):'تلقائي'}</div>`:isOps()?'<div class="small" style="color:var(--red)">⭐ لسه محددتش نقط القسم ده</div>':'')(tgtCfg(m,TG.branch,d))}
+      ${(c=>+c?.pts>0?`<div class="small muted">⭐ ${fmt(c.pts)} نقطة لو اتقفل</div>`:isOps()?'<div class="small" style="color:var(--red)">⭐ لسه محددتش نقط القسم ده</div>':'')(tgtCfg(m,TG.branch,d))}
       ${caps.length?`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن شخصي</span><b style="color:var(--purple)">${fmt(capPeople)} موظف · ${fmt(caps.length)} منتج</b></div>`:''}
     </div>`;}).join('');
   const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy();
@@ -77,9 +77,8 @@ function targetEditor(m){
   if(!DRAFT||DRAFT._key!==key+m){const cur=S.targets[m]?.[key];DRAFT=cur?JSON.parse(JSON.stringify(cur)):{type:'sales',items:[],kpis:[]};DRAFT.items=DRAFT.items||[];DRAFT.kpis=DRAFT.kpis||[];DRAFT._key=key+m;DRAFT.mult=S.settings.defaultMultiplier;DRAFT.q='';}
   const head=`<div class="sec-title"><h3>✏️ تارجت ${esc(TG.branch)} — ${esc(TG.dept)} — ${monthName(m)}</h3><div class="row"><button class="btn pri sm" onclick="saveTarget()">💾 حفظ</button><button class="btn sm" onclick="DRAFT=null;TG.mode='view';render()">إلغاء</button></div></div>
     <div class="card" style="margin-bottom:10px;border-color:#cfc4ff;background:#faf8ff"><b>⭐ نقط القسم للشهر ده</b><div class="row" style="margin-top:6px">
-      <label class="small">نقط التارجت لو اتقفل 100%<br><input class="inp" type="number" style="width:120px" value="${DRAFT.pts??''}" placeholder="مثلاً 100" onchange="DRAFT.pts=+this.value||null"></label>
-      <label class="small">المطلوب للعشرة الأوائل (نقط التارجت + الكابتن)<br><input class="inp" type="number" style="width:120px" value="${DRAFT.need??''}" placeholder="مثلاً 120" onchange="DRAFT.need=+this.value||null"></label></div>
-      <div class="small muted" style="margin-top:4px">لو سبت المطلوب فاضي = ${fmt(TGT_G())}% من أقصى نقط (القسم + كباتن الموظف).</div></div>
+      <label class="small">نقط التارجت لو اتقفل 100%<br><input class="inp" type="number" style="width:120px" value="${DRAFT.pts??''}" placeholder="مثلاً 100" onchange="DRAFT.pts=+this.value||null"></label></div>
+      <div class="small muted" style="margin-top:4px">شرط العشرة الأوائل: القسم يحقق ${fmt(TGT_G())}% من التارجت (من «قواعد الشهر» في الإعدادات).</div></div>
     <div class="chips" style="margin-bottom:10px"><button class="chip ${DRAFT.type==='sales'?'on':''}" onclick="DRAFT.type='sales';render()">🛒 مبيعات (كميات)</button><button class="chip ${DRAFT.type==='manual'?'on':''}" onclick="DRAFT.type='manual';render()">🧹 تشغيلي</button></div>`;
   if(DRAFT.type==='manual') return `<div class="card">${head}
     <div class="row small" style="margin-bottom:8px">قوالب: ${Object.keys(PRESETS).map(p=>`<button class="btn sm" onclick="applyPreset('${p}')">${p}</button>`).join('')}</div>

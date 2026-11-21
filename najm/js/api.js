@@ -19,7 +19,7 @@ function defaultState(){
       // إغلاق اليوم: آخر ميعاد = بداية الشيفت + closeAfterHours · الخصم بيبدأ من closeStart (التشغيل بيحدده)
       closeStart:'', closeAfterHours:10, lateClosePenalty:5,
       captainMult:3,
-      goal:85, targetGoal:85, checkpoints:[10,20],
+      goal:85, targetGoal:100, weeklyOff:1, checkpoints:[10,20],
       prizes:{gold:5000,silver:2000,bronze:1000,top10:500,daily:100,manager:1000},
       marketDays:5,
       mgrWeights:{ops:50,team:25,votes:25},
