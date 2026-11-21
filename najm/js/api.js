@@ -30,7 +30,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], closes:{}, history:[], empPins:{}, imports:[]
+    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[]
   };
 }
 
@@ -63,10 +63,17 @@ async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/$
 async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=await sbRpc(fn,args,`?order=${order}&limit=1000&offset=${off}`);out=out.concat(d||[]);if(!d||d.length<1000)break;off+=1000;}return out;}
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
 const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
+// الحفظ: مفيش «اتحفظ» غير بعد ما الداتابيز تأكد. لو النت فاصل بيقول «ماتحفظش» ويرجّع الشاشة للي في الداتابيز،
+// ولو في حاجة لسه بتتحفظ والصفحة بتتقفل ← تحذير
+let PENDING=0;
+window.addEventListener('beforeunload',e=>{if(PENDING>0){e.preventDefault();e.returnValue='';}});
 async function push(kind,key,data){
   if(!LIVE){logLocal(kind,key,data);return true;}
+  if(navigator.onLine===false){toast('⚠️ مفيش إنترنت — ماتحفظش. جرّب تاني لما النت يرجع');setTimeout(()=>refresh(),400);return false;}
+  PENDING++;
   try{const r=await sbRpc('najm_save',{p_user:USER.username,p_pin:PIN,p_kind:kind,p_key:key,p_data:data===undefined?null:data});return r??true;}
-  catch(e){toast(errMsg(e.message));setTimeout(()=>refresh(),400);return false;}
+  catch(e){toast(/Failed to fetch|NetworkError|network/i.test(e.message)?'⚠️ النت فصل — ماتحفظش. جرّب تاني':errMsg(e.message));setTimeout(()=>refresh(),400);return false;}
+  finally{PENDING--;}
 }
 // نسخة التجربة / من غير إنترنت: نفس السجل اللي الداتابيز بتكتبه (من غير أرقام سرية)
 let OLD_VAL;   // القيمة قبل التعديل (للسجل في نسخة التجربة)
@@ -97,7 +104,7 @@ async function pull(){
     sbRpc('najm_card_points',{p_from:from,p_to:DATE<to?DATE:to}),
     sbRpcAll('najm_card_stats',{p_from:from,p_to:DATE<to?DATE:to},'code'),
   ]);
-  const [dayCards,closes,complCnt]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to}),sbRpc('najm_public_complaints',{p_from:from,p_to:to})]);
+  const [dayCards,closes,complCnt,moves]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to}),sbRpc('najm_public_complaints',{p_from:from,p_to:to}),sbRpc('najm_public_moves',{p_from:from,p_to:to})]);
   const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull,votes]=await Promise.all([
     sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
     sbRpc('najm_market_list',{}),sbAll('najm_offers','select=*'),
@@ -124,6 +131,7 @@ async function pull(){
     N.myComplaints=mycp?.complaints||null;
     for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}
     N.myCards=myc?.cards||null;}
+  N.moves=(moves||[]).map(m=>({code:m.code,day:m.day,fromBranch:m.from_branch,fromDept:m.from_dept,toBranch:m.to_branch,toDept:m.to_dept}));
   N.complaintCounts=Object.fromEntries((complCnt||[]).map(r=>[r.code,r.n]));   // الشكاوى المثبتة (عدد بس) — للترتيب عند الكل
   N.dayCards={};for(const r of dayCards||[])(N.dayCards[r.day]||(N.dayCards[r.day]={}))[r.code]={y:r.yellow,r:r.red,g:r.green};
   N.closes={};for(const c of closes||[])(N.closes[c.day]||(N.closes[c.day]={}))[c.gkey]={...c,penalty:+c.penalty};

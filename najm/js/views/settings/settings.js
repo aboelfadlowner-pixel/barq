@@ -69,7 +69,7 @@ async function saveRules(now){
   if(i>=0)V[i]=ver;else V.push(ver);V.sort((a,b)=>a.from.localeCompare(b.from));
   RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();
 }
-function setS(path,v,reason){OLD_VAL=JSON.parse(JSON.stringify(path==='bonusAt100'?{bonusAt100:S.settings.bonusAt100}:S.settings));const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',reason?{reason,path}:{path},pub);}toast('اتحفظ');}
+function setS(path,v,reason){OLD_VAL=JSON.parse(JSON.stringify(path==='bonusAt100'?{bonusAt100:S.settings.bonusAt100}:S.settings));const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;const p=path==='bonusAt100'?push('private',{},{bonusAt100:v}):(({bonusAt100,...pub})=>push('settings',reason?{reason,path}:{path},pub))(S.settings);p.then(r=>{if(r!==false)toast('اتحفظ');});}
 function editUser(name){
   const u=name?S.users.find(x=>x.username===name):{username:'',name:'',role:'shift',branch:branches()[0],shift:'Morning',depts:[],active:true};
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${name?'تعديل حساب':'حساب جديد'}</h2>

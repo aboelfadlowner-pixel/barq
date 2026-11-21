@@ -97,10 +97,10 @@ function targetEditor(m){
 }
 function addItem(key){const b=baseFor(monthOf(DATE))[key];if(!b)return;DRAFT.items.push({key,name:b.name,target:Math.round(b.qty*(DRAFT.mult||1)*10)/10});render();}
 function applyPreset(p){DRAFT.kpis=PRESETS[p].map(k=>({...k,id:uid()}));render();}
-function saveTarget(){
+async function saveTarget(){
   const m=monthOf(DATE);const key=deptKey(TG.branch,TG.dept);
   const cfg=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.filter(i=>i.target>0)}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
   if(DRAFT.pts>0)cfg.pts=DRAFT.pts;if(DRAFT.need>0)cfg.need=DRAFT.need;
-  (S.targets[m]||(S.targets[m]={}))[key]=cfg;push('target',{month:m,dkey:key},cfg);
-  save();DRAFT=null;TG.mode='view';render();toast('💾 اتحفظ التارجت');
+  (S.targets[m]||(S.targets[m]={}))[key]=cfg;save();DRAFT=null;TG.mode='view';render();
+  if(await push('target',{month:m,dkey:key},cfg)!==false)toast('💾 اتحفظ التارجت');
 }

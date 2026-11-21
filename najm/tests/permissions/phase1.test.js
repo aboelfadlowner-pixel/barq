@@ -203,6 +203,28 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'complaint', { id: 'cp2' }, { date: D, code: '16', note: 'x' }), /outside your scope/);
   });
 
+  // ---------------- نقل الموظف + التصحيح المالي
+  test('نقل الموظف بيتسجل تلقائي (من مين ولمين ومين نقله)، والتعديل من غير نقل مبيتسجلش', async () => {
+    const e = (await db.query("select * from najm_employees where code='4'")).rows[0];
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: e.dept, job: 'شيف أول', shift: e.shift, active: true });
+    eq((await db.query("select count(*)::int n from najm_emp_moves where code='4'")).rows[0].n, 0);
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: 'قسم الكاشير', job: e.job, shift: e.shift, active: true });
+    const m = (await db.query("select from_dept, to_dept, by_user from najm_emp_moves where code='4'")).rows[0];
+    eq([m.from_dept, m.to_dept, m.by_user], [e.dept, 'قسم الكاشير', 'ops']);
+    eq((await asAnon(db, 'select count(*)::int n from najm_public_moves($1,$2)', [ago(3), D]))[0].n >= 1, true);
+    eq((await asAnon(db, 'select count(*)::int n from najm_emp_moves'))[0].n, 0);
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: e.dept, job: e.job, shift: e.shift, active: true });
+  });
+  test('إلغاء صرف جايزة (تصحيح مالي) لازم بسبب، وبيتسجل بالمبلغ القديم', async () => {
+    await rpc('select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', { month: D.slice(0, 7), code: '125', kind: 'gold', ref: 'x', amount: 1500 }]);
+    await fails(asAnon(db, 'select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', null]), /reason required/);
+    await rpc('select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', { undo: true, reason: 'اتصرف للشخص الغلط' }]);
+    const L = (await rpc('select najm_payout_log($1,$2) r', ['ops', '0000'])).r;
+    const u = L.find(h => h.kind === 'payout_undo');
+    eq([+u.data.old.amount, u.data.reason, L.some(h => h.kind === 'payout')], [1500, 'اتصرف للشخص الغلط', true]);
+    eq((await rpc('select najm_payout_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

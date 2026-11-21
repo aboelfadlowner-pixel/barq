@@ -26,7 +26,7 @@ function vRate(){
     </div>`;}).join('')||'<div class="empty">مفيش موظفين في نطاقك</div>'}</div>`;
 }
 async function setAtt(code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);OLD_VAL={st:D.att[code]??null,time:D.attTime?.[code]??null};mark(D,code);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();render();push('att',k,D.att[code]?{st:D.att[code],time:D.attTime[code]||null}:null);}
-async function bulkAtt(v){if(isOps()&&filtered(true).some(opsClosed)&&!await opsReason())return;const D=day(DATE);const L=filtered(true).filter(e=>!D.att[e.code]);L.forEach(e=>{mark(D,e.code);D.att[e.code]=v;});save();render();for(let i=0;i<L.length;i+=10)await Promise.all(L.slice(i,i+10).map(e=>push('att',{day:DATE,code:e.code,...(opsClosed(e)?{reason:OPS_REASON[DATE]}:{})},{st:v})));toast(`اتسجل الحضور لـ ${L.length} موظف`);}
+async function bulkAtt(v){if(isOps()&&filtered(true).some(opsClosed)&&!await opsReason())return;const D=day(DATE);const L=filtered(true).filter(e=>!D.att[e.code]);L.forEach(e=>{mark(D,e.code);D.att[e.code]=v;});save();render();let fail=0;for(let i=0;i<L.length;i+=10){const R=await Promise.all(L.slice(i,i+10).map(e=>push('att',{day:DATE,code:e.code,...(opsClosed(e)?{reason:OPS_REASON[DATE]}:{})},{st:v})));fail+=R.filter(x=>x===false).length;}toast(fail?`⚠️ اتحفظ ${L.length-fail} بس من ${L.length}`:`اتسجل الحضور لـ ${L.length} موظف`);}
 async function setCrit(code,i,v){const k=await editKey(code);if(!k)return;const D=day(DATE);mark(D,code);const bag=D[RATE_FIELD[USER.role]];OLD_VAL=bag[code]?[...bag[code]]:null;const a=bag[code]||(bag[code]=isHy()?hyBlank(emp(code)):[null,null,null,null,null]);if(isHy()&&i===0&&v===HY_NA)return;a[i]=a[i]===v?null:v;save();render();push('rate',k,a.every(x=>x==null||x===HY_NA)?null:a);}
 // الهايجين: الخمس بنود جنب كل موظف — التيشرت إجباري، والباقي فيه «مش مطلوب»
 function hyRowsHTML(e,arr){if(!arr||!arr.length)arr=hyBlank(e);   // «مش مطلوب» من آخر مرة بيظهر من الأول
@@ -43,6 +43,6 @@ async function giveCard(code,color){
   const approved=color!=='red'||isOps();
   const id=uid();S.cards.push({id,date:DATE,code,color,reason:r.trim(),by:USER.username,approved,status:approved?'approved':'pending'});
   if(LIVE&&approved){const c=S.cardCounts[code]||(S.cardCounts[code]={y:0,r:0,g:0});c[color[0]]++;delete c.pts;const dc=(S.dayCards[DATE]||(S.dayCards[DATE]={}))[code]||(S.dayCards[DATE][code]={y:0,r:0,g:0});dc[color[0]]++;}save();render();
-  push('card',{id,code},{date:DATE,color,reason:r.trim()});
+  if(await push('card',{id,code},{date:DATE,color,reason:r.trim()})===false)return;
   toast(approved?'اتسجل الكارت':'🟥 الكارت الأحمر مستني موافقة مدير التشغيل');
 }

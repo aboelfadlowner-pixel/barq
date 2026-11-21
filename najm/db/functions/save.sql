@@ -153,6 +153,7 @@ begin
       values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'text', u.username)
     on conflict (id) do nothing;
   elsif p_kind = 'employee' then
+    perform set_config('najm.actor', u.username, true);   -- سجل النقل بيعرف مين نقل الموظف
     insert into najm_employees(code, name, branch, dept, job, shift, active)
       values (k_code, p_data->>'name', p_data->>'branch', p_data->>'dept', p_data->>'job', p_data->>'shift',
               coalesce((p_data->>'active')::boolean, true))

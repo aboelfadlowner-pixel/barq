@@ -167,3 +167,13 @@ language sql stable security definer set search_path = public as $$
   select code, count(*)::int from najm_complaints where status = 'proven' and day between p_from and p_to and p_to - p_from <= 62 group by code;
 $$;
 grant execute on function public.najm_public_complaints(date, date) to anon, authenticated;
+
+-- نقل الموظفين بين الأقسام والفروع (للتارجت في شهر النقل) — من غير بيانات حساسة
+create or replace function public.najm_public_moves(p_from date, p_to date)
+returns table(code text, day date, from_branch text, from_dept text, to_branch text, to_dept text)
+language sql stable security definer set search_path = public as $$
+  select code, day, from_branch, from_dept, to_branch, to_dept from najm_emp_moves
+  where day between p_from and p_to and p_to - p_from <= 62 and (from_branch, from_dept) is distinct from (to_branch, to_dept)
+  order by day, id;
+$$;
+grant execute on function public.najm_public_moves(date, date) to anon, authenticated;

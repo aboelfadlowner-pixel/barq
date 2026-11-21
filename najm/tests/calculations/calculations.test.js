@@ -35,6 +35,17 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(await p.evaluate(() => { const tg = { v: 90, need: 80 }, m = s => ({ monthScore: 90, ...s });
       return [qualify(m({ worked: 21, left: 0 }), tg).ok, qualify(m({ worked: 15, left: 0 }), tg).ok, qualify(m({ worked: 12, left: 9 }), tg).ok, qualify(m({ worked: 8, left: 9 }), tg).dOk]; }), [true, false, true, false]);
   });
+  test('الموظف اللي اتنقل في نص الشهر: التارجت متقسم على القسمين بالأيام', async () => {
+    eq(await p.evaluate(() => {
+      const e = activeEmps().find(x => x.dept === 'قسم البقاله' && x.branch === 'البيطاش الرئيسي'); const m = monthOf(DATE); const keep = S.moves;
+      const days = monthDays(m, DATE); const mid = days[Math.floor(days.length / 2)];
+      const a = empTarget(e, m, DATE), b = empTarget({ ...e, dept: 'قسم الكاشير' }, m, DATE);
+      S.moves = [{ code: e.code, day: mid, fromBranch: e.branch, fromDept: e.dept, toBranch: e.branch, toDept: 'قسم الكاشير' }];
+      const seg = deptSegments({ ...e, dept: 'قسم الكاشير' }, m, DATE); const t = empTarget({ ...e, dept: 'قسم الكاشير' }, m, DATE); S.moves = keep;
+      const w = seg.find(x => x.dept === e.dept).w; const exp = Math.round((a.basePoints || 0) * w + (b.basePoints || 0) * (1 - w));
+      return [seg.length, Math.abs(seg.reduce((x, y) => x + y.w, 0) - 1) < 1e-9, Math.abs(t.basePoints - exp) <= 1, !!t.split];
+    }), [2, true, true, true]);
+  });
   test('نجمة الهايجين (اللبس) من البنود المطلوبة بس', async () => {
     eq(await p.evaluate(() => [hyScore([2, -1, -1, -1, -1]), hyScore([2, 2, 2, 2, 0]), hyScore([1, -1, 2, -1, -1]), hyScore([2, -1, null, -1, -1]), hyScore([-1, -1, -1, -1, -1])]), [1, 0.75, 0.75, null, null]);
   });

@@ -40,7 +40,7 @@ function openEmp(code){
        <div class="kv"><span>متوسط النجوم</span><span>${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b></span></div>
        <div class="kv"><span>تقييم الشهر</span><b>${fmt(ms.monthScore)}/100 ${mgr&&ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
        ${mgr?`<div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>`:''}
-       <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.pct!=null?barHTML(t.pct,t.pace):''}
+       <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.split?`<div class="small muted">🔀 اتنقل الشهر ده — التارجت متقسم بالأيام: ${t.split.map(x=>esc(x.dept)+' '+Math.round(x.w*100)+'%').join(' · ')}</div>`:''}${t?.pct!=null?barHTML(t.pct,t.pace):''}
        ${caps.map(c=>`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> ${esc(c.name)}</span><b style="color:var(--purple)">${fmt(c.pct)}% · ${fmt(c.points)} ن</b></div>`).join('')}
        <div class="kv"><span>إجمالي النقاط</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}${t?.complaints?` <span class="badge b-red">−${S.settings.complaintPenalty}% شكوى</span>`:''}</b></div>
        ${isOps()&&t?.empPoints!=null&&S.settings.bonusAt100?`<div class="kv"><span>المكافأة (التشغيل فقط)</span><b>${fmt(money(t.empPoints))} ج</b></div>`:''}
@@ -88,9 +88,12 @@ function editEmp(code){
 function saveEmp(code){
   const v=id=>$('#'+id).value.trim();const c=code||v('f_code');if(!c||!v('f_name')){toast('الكود والاسم مطلوبين');return;}
   if(!code&&emp(c)){toast('الكود موجود');return;}
-  const e=code?emp(code):{code:c,photo:'',video:''};
+  const e=code?emp(code):{code:c,photo:'',video:''};const was={branch:e.branch,dept:e.dept};
   Object.assign(e,{name:v('f_name'),branch:v('f_branch'),dept:v('f_dept'),job:v('f_job'),shift:v('f_shift'),active:$('#f_active').checked});
-  if(!code)S.employees.push(e);save();closeModal();render();push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active});
+  // النقل بين الفروع / الأقسام بيتسجل (في الداتابيز تلقائي) — التارجت في شهر النقل بيتقسم بالأيام
+  if(code&&(was.branch!==e.branch||was.dept!==e.dept)&&!LIVE)(S.moves||(S.moves=[])).push({code:e.code,day:todayC(),fromBranch:was.branch,fromDept:was.dept,toBranch:e.branch,toDept:e.dept});
+  if(!code)S.employees.push(e);save();closeModal();RANK_CACHE=null;render();
+  push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active}).then(r=>{if(r!==false){toast(code&&(was.branch!==e.branch||was.dept!==e.dept)?'✔ اتنقل الموظف — واتسجل النقل':'✔ اتحفظ');if(LIVE)refresh(true);}});
 }
 function importEmps(){
   pickFile('.xlsx,.xls,.csv',async f=>{
