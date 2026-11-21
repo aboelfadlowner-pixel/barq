@@ -5,7 +5,7 @@ function ranks(){
   if(RANK_CACHE&&RANK_CACHE.key===key)return RANK_CACHE;
   const m=monthOf(DATE);
   const rows=activeEmps().map(e=>{const ms=monthSummary(e,m,DATE);const tg=tgtOf(ms.target,m,DATE);return {e,ms,tg,q:qualify(ms,tg)};}).filter(x=>x.ms.n>0||x.ms.wins>0);
-  const both=x=>(x.ms.monthScore||0)+(x.tg?.need?Math.min(100,x.tg.v/x.tg.need*100):0);
+  const both=x=>(x.ms.monthScore||0)+(x.tg?.dept!=null?Math.min(100,x.tg.dept):0);   // الـ KPI + نسبة تحقيق القسم
   rows.sort((a,b)=>(b.q.ok-a.q.ok)||b.ms.wins-a.ms.wins||both(b)-both(a)||(b.ms.target?.empPoints||0)-(a.ms.target?.empPoints||0));
   const company={},branch={},bc={};
   rows.forEach((x,i)=>{company[x.e.code]=i+1;bc[x.e.branch]=(bc[x.e.branch]||0)+1;branch[x.e.code]=bc[x.e.branch];});

@@ -33,7 +33,7 @@ function progressOf(e,cp,goal){
   let need=null;const last=daysInMonth(m);
   if(gv!=null&&n&&cp.day<last){const r=Math.max(1,Math.round(n/cp.day*(last-cp.day)));const g=(gv-cardP)/20;need=(g*(n+r)-sumT)/r;}
   const tg=tgtOf(ms.target,m,LIVE&&upto<DATE?DATE:upto);const q=qualify(ms,tg);const tv=tg?.v; // live sales are month-to-date, so compare them with today's pace
-  const st=score100==null?'none':q.ok?'green':(score100>=gv-5&&tv!=null&&tv>=TGT_G()-5)?'near':'red';
+  const st=score100==null?'none':q.ok?'green':(score100>=gv-5&&tg?.dept!=null&&tg.dept>=TGT_G()-15)?'near':'red';
   return {e,cp,goal,ms,n,score:score100,st,tg,q,parts,techA,hyA,cardP,cards:ms.cards,bonusDays:bon/0.5,need,abs:ms.abs,detail};
 }
 const ST_TXT={green:['🟢','مرشح للعشرة الأوائل','b-green'],near:['🟡','قريب من العشرة الأوائل','b-gold'],red:['🔴','متأخر عن العشرة الأوائل','b-red'],none:['⚪','لسه مفيش تقييمات كفاية','b-gray']};

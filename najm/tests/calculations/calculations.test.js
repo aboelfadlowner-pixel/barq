@@ -27,13 +27,14 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   });
   test('قواعد الشهر: التغيير بيبدأ من الشهر الجاي والشهور اللي فاتت بتفضل بقواعدها', async () => {
     eq(await p.evaluate(() => { const keep = S.settings.ruleVersions;
-      S.settings.ruleVersions = [{ from: '0000-00', rules: { ...RULE_DEF } }, { from: '2026-12', rules: { ...RULE_DEF, minWorkDays: 22, goal: 90 } }];
-      const r = [rulesFor('2026-11').minWorkDays, rulesFor('2026-12').minWorkDays, rulesFor('2027-03').goal, rulesFor('2025-01').goal];
-      S.settings.ruleVersions = keep; return r; }), [20, 22, 90, 85]);
+      S.settings.ruleVersions = [{ from: '0000-00', rules: { ...RULE_DEF } }, { from: '2026-12', rules: { ...RULE_DEF, weeklyOff: 2, goal: 90 } }];
+      const r = [rulesFor('2026-11').weeklyOff, rulesFor('2026-12').weeklyOff, rulesFor('2027-03').goal, rulesFor('2025-01').goal];
+      S.settings.ruleVersions = keep; return r; }), [1, 2, 90, 85]);
   });
-  test('التأهل: أقل أيام شغل (ولسه يقدر يلحق لو في أيام فاضلة)', async () => {
-    eq(await p.evaluate(() => { const tg = { v: 90, need: 80 }, m = s => ({ monthScore: 90, ...s });
-      return [qualify(m({ worked: 21, left: 0 }), tg).ok, qualify(m({ worked: 15, left: 0 }), tg).ok, qualify(m({ worked: 12, left: 9 }), tg).ok, qualify(m({ worked: 8, left: 9 }), tg).dOk]; }), [true, false, true, false]);
+  test('التأهل: مغابش خالص ومخدش غير إجازاته الأسبوعية (المرضي بيطلّعه)، والقسم حقق 100%', async () => {
+    eq(await p.evaluate(() => { const tg = { v: 100, need: 100, dept: 100 }, m = s => ({ monthScore: 90, offMax: 5, ...s });
+      return [qualify(m({ abs: 0, off: 4 }), tg).ok, qualify(m({ abs: 1, off: 0 }), tg).ok, qualify(m({ abs: 0, off: 6 }), tg).ok,
+        qualify(m({ abs: 0, off: 4 }), { ...tg, dept: 92 }).ok, allowedOff('2026-02'), allowedOff('2026-11')]; }), [true, false, false, false, 4, 5]);
   });
   test('الموظف اللي اتنقل في نص الشهر: التارجت متقسم على القسمين بالأيام', async () => {
     eq(await p.evaluate(() => {
@@ -82,10 +83,10 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   });
   test('العشرة الأوائل: لازم الـ KPI والتارجت مع بعض (والأيام مكتملة)', async () => {
     eq(await ev(() => [
-      qualify({ worked: 22, left: 0, monthScore: 90 }, { v: 130, need: 120 }).ok,
-      qualify({ worked: 22, left: 0, monthScore: 90 }, { v: 100, need: 120 }).ok,
-      qualify({ worked: 22, left: 0, monthScore: 70 }, { v: 130, need: 120 }).ok,
-      qualify({ worked: 22, left: 0, monthScore: 90 }, null).ok,
+      qualify({ abs: 0, off: 0, monthScore: 90 }, { dept: 104 }).ok,
+      qualify({ abs: 0, off: 0, monthScore: 90 }, { dept: 90 }).ok,
+      qualify({ abs: 0, off: 0, monthScore: 70 }, { dept: 104 }).ok,
+      qualify({ abs: 0, off: 0, monthScore: 90 }, null).ok,
     ]), [true, false, false, false]);
   });
   test('الترتيب: المؤهلين الأول، والجوايز للمؤهلين بس', async () => {

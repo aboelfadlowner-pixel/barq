@@ -42,12 +42,12 @@ function rulesCardHTML(){
   const tiers=(R)=>R.ptsTiers.map(t=>`<span style="white-space:nowrap">${fmt(t[0])}٪ = ${fmt(t[1])} نقطة</span>`).join(' · ');
   const diff=JSON.stringify(cur)!==JSON.stringify(nxt);
   return `<div class="card" style="grid-column:1/-1;border-color:var(--gold)"><h3>📐 قواعد الشهر (التأهل ونقط التارجت)</h3>
-    <div class="small" style="margin-bottom:8px">شغالة في ${monthName(cm)}: حد الـ KPI <b>${fmt(cur.goal)}</b> · المطلوب من التارجت <b>${fmt(cur.targetGoal)}%</b> · أقل أيام شغل <b>${fmt(cur.minWorkDays)}</b> <br>الشرايح (${cur.ptsMode==='step'?'سلّم':'بالتناسب'}): ${tiers(cur)}</div>
-    ${diff?`<div class="small" style="margin-bottom:8px;color:var(--purple)">من ${monthName(nm)}: حد الـ KPI <b>${fmt(nxt.goal)}</b> · التارجت <b>${fmt(nxt.targetGoal)}%</b> · أيام <b>${fmt(nxt.minWorkDays)}</b> · ${tiers(nxt)} (${nxt.ptsMode==='step'?'سلّم':'بالتناسب'})</div>`:''}
+    <div class="small" style="margin-bottom:8px">شغالة في ${monthName(cm)}: حد الـ KPI <b>${fmt(cur.goal)}</b> · القسم يحقق <b>${fmt(cur.targetGoal)}%</b> من التارجت · الإجازة الأسبوعية <b>${fmt(cur.weeklyOff)}</b> يوم (من غير غياب) <br>الشرايح (${cur.ptsMode==='step'?'سلّم':'بالتناسب'}): ${tiers(cur)}</div>
+    ${diff?`<div class="small" style="margin-bottom:8px;color:var(--purple)">من ${monthName(nm)}: حد الـ KPI <b>${fmt(nxt.goal)}</b> · التارجت <b>${fmt(nxt.targetGoal)}%</b> · الإجازة الأسبوعية <b>${fmt(nxt.weeklyOff)}</b> · ${tiers(nxt)} (${nxt.ptsMode==='step'?'سلّم':'بالتناسب'})</div>`:''}
     <div class="row" style="gap:10px;align-items:flex-end">
       <label class="small">حد الـ KPI<br><input class="inp" type="number" style="width:90px" value="${RD.goal}" onchange="RD.goal=+this.value"></label>
-      <label class="small">المطلوب من التارجت %<br><input class="inp" type="number" style="width:90px" value="${RD.targetGoal}" onchange="RD.targetGoal=+this.value"></label>
-      <label class="small">أقل أيام شغل للتأهل<br><input class="inp" type="number" style="width:90px" value="${RD.minWorkDays}" onchange="RD.minWorkDays=+this.value"></label>
+      <label class="small">القسم يحقق % من التارجت<br><input class="inp" type="number" style="width:90px" value="${RD.targetGoal}" onchange="RD.targetGoal=+this.value"></label>
+      <label class="small">الإجازة الأسبوعية (أيام)<br><input class="inp" type="number" style="width:90px" value="${RD.weeklyOff}" onchange="RD.weeklyOff=+this.value"></label>
       <label class="small">بين الشرايح<br><select class="inp" onchange="RD.ptsMode=this.value"><option value="linear" ${RD.ptsMode!=='step'?'selected':''}>بالتناسب (93% ← 93)</option><option value="step" ${RD.ptsMode==='step'?'selected':''}>سلّم (93% ← نقط 85%)</option></select></label>
     </div>
     <div class="small" style="margin:10px 0 4px"><b>شرايح نقط التارجت</b> — أقل من أول شريحة = صفر، وأكتر من آخر شريحة = نقط آخر شريحة:</div>
@@ -58,13 +58,13 @@ function rulesCardHTML(){
 async function saveRules(now){
   const cm=monthOf(ymd(new Date())),from=now?cm:nextMonthOf(cm);
   const T=RD.ptsTiers.map(t=>[+t[0],+t[1]]).filter(t=>t[0]>0).sort((a,b)=>a[0]-b[0]);
-  if(!T.length||!(RD.minWorkDays>=0)||!(RD.goal>0)){toast('راجع الأرقام');return;}
+  if(!T.length||!(RD.weeklyOff>=0)||!(RD.goal>0)||!(RD.targetGoal>0)){toast('راجع الأرقام');return;}
   let reason='';
   if(now){reason=await askText(`تطبيق القواعد الجديدة على ${monthName(cm)} هيغيّر ترتيب ونقط الشهر ده. اكتب السبب:`);if(reason===null)return;reason=reason.trim();if(!reason){toast('لازم تكتب السبب');return;}}
   else if(!await askConfirm(`حفظ القواعد الجديدة؟ هتبدأ من ${monthName(from)}، و${monthName(cm)} هيفضل بالقواعد الحالية.`))return;
   const V=[...(S.settings.ruleVersions||[])];
   if(!V.length)V.push({from:'0000-00',rules:rulesFor(cm)});   // القواعد القديمة للشهور اللي فاتت
-  const rules={...RD,ptsTiers:T};
+  const {minWorkDays,...rd}=RD;const rules={...rd,ptsTiers:T};
   const i=V.findIndex(v=>v.from===from);const ver={from,rules,by:USER.username,at:new Date().toISOString(),...(reason?{reason}:{})};
   if(i>=0)V[i]=ver;else V.push(ver);V.sort((a,b)=>a.from.localeCompare(b.from));
   RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();

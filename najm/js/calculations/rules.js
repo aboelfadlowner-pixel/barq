@@ -2,12 +2,12 @@
 // (تغيير القاعدة بيبدأ من الشهر الجاي — ولو اتطبق على الشهر الحالي لازم بسبب — والشهور اللي فاتت متتغيّرش)
 //   ptsTiers   : شرايح نقط التارجت [نسبة التحقيق %، النقط] — أقل من أول شريحة = صفر، وبعد آخر شريحة = نقط آخر شريحة
 //   ptsMode    : linear = بين شريحتين بالتناسب · step = سلّم (بياخد نقط الشريحة اللي وصلها بس)
-//   minWorkDays: أقل أيام شغل فعلي في الشهر عشان يدخل العشرة الأوائل
-//   goal       : حد الـ KPI للعشرة الأوائل · targetGoal: المطلوب الافتراضي % من نقط التارجت
-const RULE_KEYS=['ptsTiers','ptsMode','minWorkDays','goal','targetGoal'];
+//   weeklyOff  : أيام الإجازة الأسبوعية — المؤهل للعشرة الأوائل مايغيبش خالص ومياخدش غير إجازاته الأسبوعية (المرضي بيطلّعه)
+//   goal       : حد الـ KPI للعشرة الأوائل · targetGoal: القسم لازم يحقق كام % من التارجت عشان الموظف يتأهل
+const RULE_KEYS=['ptsTiers','ptsMode','weeklyOff','goal','targetGoal'];
 // الشرايح المعتمدة: أقل من 85% = صفر · من 85% = 50% من نقط وفلوس التارجت · 100% فأكتر = 100% (سلّم)
-const RULE_DEF={ptsTiers:[[85,50],[100,100]],ptsMode:'step',minWorkDays:20,goal:85,targetGoal:85};
-const RULE_NAME={ptsTiers:'شرايح نقط التارجت',ptsMode:'طريقة الحساب بين الشرايح',minWorkDays:'أقل أيام شغل للتأهل',goal:'حد الـ KPI',targetGoal:'المطلوب الافتراضي من نقط التارجت %'};
+const RULE_DEF={ptsTiers:[[85,50],[100,100]],ptsMode:'step',weeklyOff:1,goal:85,targetGoal:100};
+const RULE_NAME={ptsTiers:'شرايح نقط التارجت',ptsMode:'طريقة الحساب بين الشرايح',weeklyOff:'الإجازة الأسبوعية',goal:'حد الـ KPI',targetGoal:'القسم يحقق % من التارجت'};
 function rulesFor(m){
   const V=(S.settings.ruleVersions||[]).filter(v=>v.from<=m).sort((a,b)=>a.from.localeCompare(b.from)).pop();
   const cur=Object.fromEntries(RULE_KEYS.map(k=>[k,S.settings[k]]).filter(([,v])=>v!=null));
@@ -26,3 +26,5 @@ function tierPts(p,r=RULES()){
 }
 // أيام الشغل الفعلي (في ميعاده / تأخير) — الإجازة والغياب مش بيتحسبوا
 const WORK_ST=['on','late','vlate'];
+// الإجازات المسموحة في الشهر للمؤهل = الإجازة الأسبوعية × عدد الأسابيع (لأعلى)
+const allowedOff=(m,r=RULES())=>(+r.weeklyOff||0)*Math.ceil(daysInMonth(m)/7);
