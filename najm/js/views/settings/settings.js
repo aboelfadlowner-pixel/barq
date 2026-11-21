@@ -18,7 +18,6 @@ function vSettings(){
      <div class="small" style="margin:8px 0 4px"><b>عدد رجال اليوم لكل فرع</b> (Between بيتحسب مع الليل):</div>
      ${branches().map(b=>`<div class="row" style="gap:6px;margin-bottom:4px"><span class="small" style="min-width:110px">${esc(b)}</span>${SHIFT_GROUPS.map(g=>`<label class="small">${GROUP_NAME[g]} <input class="inp" type="number" min="0" style="width:60px" value="${winnersFor(b,g)}" onchange="setWinnersBy('${esc(b)}','${g}',+this.value)"></label>`).join('')}</div>`).join('')}
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
-   ${hySettingsHTML()}
    <div class="card"><h3>🔒 إغلاق اليوم</h3><div class="row"><label class="small">الخصم بيبدأ من يوم<br><input class="inp" type="date" value="${esc(s.closeStart||'')}" onchange="setS('closeStart',this.value)"></label>${num('closeAfterHours','آخر ميعاد = بداية الشيفت + ساعات')}${num('lateClosePenalty','خصم التأخير (نقطة)')}</div>
      <div class="small muted" style="margin-top:6px">كل مدير شيفت بيقفل شيفته (Between مع الليل). لو اتأخر عن الميعاد، الخصم بيتسجل في رصيده تلقائي من غير موافقتك. لو التاريخ فاضي، الخصم مش شغال.</div></div>
    <div class="card"><h3>🔑 الرقم السري للموظفين</h3><div class="small muted" style="margin-bottom:6px">الموظف بيدخل «تقريري» والتصويت والاعتراض بكود البصمة + رقم سري. أول مرة بيدخل بالرقم اللي هنا وبيغيّره بنفسه.</div>
@@ -33,15 +32,6 @@ function vSettings(){
    <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button>${LIVE?'':'<button class="btn" onclick="importJSON()">⬆️ استرجاع</button>'}<button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button>${LIVE?'':'<button class="btn gold" onclick="loadDemo()">🧪 بيانات تجريبية</button>'}</div><div class="small muted" style="margin-top:6px;${LIVE?'display:none':''}">البيانات التجريبية بتملا الشهر بأرقام وهمية وحسابات مديرين تجريبية (haitham/1111 · mahmoud/2222 · islam/3333 · firas/5555).</div></div>
   </div>`;
 }
-// بنود الهايجين (اللبس) المطلوبة من كل قسم — التيشرت إجباري على الكل
-function hySettingsHTML(){
-  const D=[...new Set(activeEmps().map(e=>e.dept).filter(Boolean))].sort();
-  return `<div class="card" style="grid-column:1/-1"><h3>🧼 الهايجين — اللبس المطلوب من كل قسم</h3><div class="small muted" style="margin-bottom:6px">مسؤول الهايجين بيقيّم البنود المطلوبة بس. التيشرت إجباري على الكل. النجمة = مجموع البنود المطلوبة ÷ أقصى درجة ليها.</div>
-    <div class="tbl-wrap"><table><thead><tr><th>القسم</th>${HY_CRITERIA.map(c=>`<th class="small">${c}</th>`).join('')}</tr></thead><tbody>
-    ${D.map(d=>{const req=hyItems({dept:d});return `<tr><td class="small"><b>${esc(d)}</b></td>${HY_CRITERIA.map((c,i)=>`<td style="text-align:center"><input type="checkbox" ${req.includes(i)?'checked':''} ${i===0?'disabled':''} onchange="setHyItem('${esc(d)}',${i},this.checked)"></td>`).join('')}</tr>`;}).join('')}
-    </tbody></table></div></div>`;
-}
-function setHyItem(dept,i,on){const cur=hyItems({dept});const L=on?[...new Set([...cur,i])]:cur.filter(x=>x!==i);setS('hyItems',{...(S.settings.hyItems||{}),[dept]:L.sort()});}
 function setS(path,v){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',{},pub);}toast('اتحفظ');}
 function editUser(name){
   const u=name?S.users.find(x=>x.username===name):{username:'',name:'',role:'shift',branch:branches()[0],shift:'Morning',depts:[],active:true};

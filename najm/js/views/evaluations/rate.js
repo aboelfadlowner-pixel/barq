@@ -9,6 +9,7 @@ function vRate(){
   ${closeBarHTML()}
   ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول (اتقفل اليوم، أو اتعلن رجل اليوم، أو اليوم عدّى أكتر من يوم) — أي تعديل عن طريق مدير التشغيل.</div>':''}
   <div class="lock" style="margin-bottom:10px">البصمة ${S.settings.att.on} نجمة · الهايجين نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · مدير التشغيل نجمة · سلوك مثالي ½. كل بند من 0 لـ 2.</div>
+  ${isHy()?'<div class="lock" style="margin-bottom:10px"><b>الهايجين = اللبس:</b> 2 لابس ونضيف · 1 ناقص أو مش نضيف · 0 مش لابس. التيشرت إجباري على الكل، والباقي اختار «مش مطلوب» لو الموظف مش مطلوب منه — والنجمة بتتحسب من المطلوب بس. اختيار «مش مطلوب» بيتفتكر لبكرة.</div>':''}
   ${filterBar({scoped:true})}
   <div class="grid g-emp">${list.map(e=>{
     const s=score(DATE,e.code);const arr=D[field][e.code]||[];const myC=cardsOf(e.code,DATE,DATE,true);
@@ -27,9 +28,10 @@ function vRate(){
 }
 async function setAtt(code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);OLD_VAL={st:D.att[code]??null,time:D.attTime?.[code]??null};mark(D,code);D.att[code]===v?delete D.att[code]:D.att[code]=v;save();render();push('att',k,D.att[code]?{st:D.att[code],time:D.attTime[code]||null}:null);}
 async function bulkAtt(v){if(isOps()&&filtered(true).some(opsClosed)&&!await opsReason())return;const D=day(DATE);const L=filtered(true).filter(e=>!D.att[e.code]);L.forEach(e=>{mark(D,e.code);D.att[e.code]=v;});save();render();for(let i=0;i<L.length;i+=10)await Promise.all(L.slice(i,i+10).map(e=>push('att',{day:DATE,code:e.code,...(opsClosed(e)?{reason:OPS_REASON[DATE]}:{})},{st:v})));toast(`اتسجل الحضور لـ ${L.length} موظف`);}
-async function setCrit(code,i,v){const k=await editKey(code);if(!k)return;const D=day(DATE);mark(D,code);const bag=D[RATE_FIELD[USER.role]];OLD_VAL=bag[code]?[...bag[code]]:null;const a=bag[code]||(bag[code]=isHy()?hyBlank(emp(code)):[null,null,null,null,null]);if(isHy()){const b=hyBlank(emp(code));b.forEach((x,j)=>{if(x===HY_NA)a[j]=HY_NA;else if(a[j]===HY_NA)a[j]=null;});}a[i]=a[i]===v?null:v;save();render();push('rate',k,a.every(x=>x==null||x===HY_NA)?null:a);}
-// الهايجين: البنود المطلوبة من الموظف ده بس، وكل بند بـ 3 اختيارات
-function hyRowsHTML(e,arr){return hyItems(e).map(i=>`<div class="crit" style="flex-wrap:wrap;gap:4px"><span class="small"><b>${HY_CRITERIA[i]}</b>${i===0?' <span class="muted">(إجباري)</span>':''}</span><span class="seg">${HY_LEVELS.map(([v,t])=>`<button style="font-size:11px;padding:3px 6px" class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${t}</button>`).join('')}</span></div>`).join('')+`<div class="small muted">مش مطلوب منه: ${[1,2,3,4].filter(i=>!hyItems(e).includes(i)).map(i=>HY_CRITERIA[i]).join('، ')||'—'}</div>`;}
+async function setCrit(code,i,v){const k=await editKey(code);if(!k)return;const D=day(DATE);mark(D,code);const bag=D[RATE_FIELD[USER.role]];OLD_VAL=bag[code]?[...bag[code]]:null;const a=bag[code]||(bag[code]=isHy()?hyBlank(emp(code)):[null,null,null,null,null]);if(isHy()&&i===0&&v===HY_NA)return;a[i]=a[i]===v?null:v;save();render();push('rate',k,a.every(x=>x==null||x===HY_NA)?null:a);}
+// الهايجين: الخمس بنود جنب كل موظف — التيشرت إجباري، والباقي فيه «مش مطلوب»
+function hyRowsHTML(e,arr){if(!arr||!arr.length)arr=hyBlank(e);   // «مش مطلوب» من آخر مرة بيظهر من الأول
+  return HY_CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}${i===0?' <span class="muted">(إجباري)</span>':''}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}${i===0?'':`<button style="font-size:11px" class="${arr[i]===HY_NA?'on':''}" onclick="setCrit('${e.code}',${i},${HY_NA})">مش مطلوب</button>`}</span></div>`).join('');}
 async function toggleBonus(code){
   const k=await editKey(code);if(!k)return;
   const D=day(DATE);OLD_VAL={v:D.bonus[code]?.v??null,note:D.bonus[code]?.note??null};

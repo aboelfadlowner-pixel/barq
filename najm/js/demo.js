@@ -206,11 +206,12 @@ function demoSeed(){
     for(const d of days){const V=S.kpiVals[d]||(S.kpiVals[d]={});V[deptKey(br,'قسم الكاشير')]={c0:rnd()<.8?0:1,c1:1+Math.round(rnd()*2),c2:8+Math.round(rnd()*2),c3:8+Math.round(rnd()*2),c4:9,c5:rnd()<.7?0:1};
       for(const dept of ['خدمه العملاء','قسم الامن و المراقبه','قسم الخدمات','دليفري','بيكب','قسم الداتا انتري','تسعير','كول سنتر'])V[deptKey(br,dept)]={d0:7+Math.round(rnd()*3)};}}
   // daily ratings for everyone (each employee has his own level so the league spreads out)
+  const DEMO_FOOD=['قسم البقاله','قسم التصنيع','قسم المعمل','قسم الايس كريم','قسم التركي','bakery','قسم البيض','قسم الفاكهه','قسم الرنجه','انتاج معلبات','قسم الجوده'];
   const lvl={};for(const e of activeEmps())lvl[e.code]=.45+rnd()*.5;
   const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
-      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(d<DATE)D.hy[e.code]=(a=>hyBlank(e).map((x,j)=>x===HY_NA?HY_NA:a[j]))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
   // cards
   const staff=activeEmps();const dd=()=>pick(days);

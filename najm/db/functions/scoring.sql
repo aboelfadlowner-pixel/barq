@@ -7,22 +7,13 @@ returns numeric language sql immutable set search_path = public as $$
               else round((select sum(x) from unnest(a) x)::numeric / 10 * 4) / 4 end;
 $$;
 
--- الهايجين (اللبس): −1 = البند مش مطلوب من الموظف ده. النجمة = مجموع البنود المطلوبة ÷ (2 × عددها)، لأقرب ربع
+-- الهايجين (اللبس): −1 = البند مش مطلوب من الموظف ده (مسؤول الهايجين بيختار، والتيشرت إجباري). النجمة = مجموع البنود المطلوبة ÷ (2 × عددها)، لأقرب ربع
 create or replace function public.najm_hy(a smallint[])
 returns numeric language sql immutable set search_path = public as $$
   select case when a is null or coalesce(array_length(a,1),0) < 5 or array_position(a, null) is not null
                    or not exists (select 1 from unnest(a) x where x >= 0) then null
               else round((select sum(x) from unnest(a) x where x >= 0)::numeric
                          / (2 * (select count(*) from unnest(a) x where x >= 0)) * 4) / 4 end;
-$$;
-
--- البنود المطلوبة من موظف في قسم (0 = التيشرت، دايماً مطلوب) — من الإعدادات hyItems
-create or replace function public.najm_hy_items(p_dept text, p_settings jsonb)
-returns int[] language sql immutable set search_path = public as $$
-  select array(select distinct x from (select 0 x union all
-    select (v #>> '{}')::int from jsonb_array_elements(case when jsonb_typeof(p_settings->'hyItems'->p_dept) = 'array'
-                                                          then p_settings->'hyItems'->p_dept else '[]'::jsonb end) v) t
-    where x between 0 and 4 order by x);
 $$;
 
 -- stars (max 5): fingerprint 2 + direct manager 1 + operations 1 + hygiene 1 + exemplary ½
