@@ -52,6 +52,32 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     });
     eq(r, [20, 23, true]);
   });
+  test('رفع المبيعات: معاينة بالمرفوض والمكرر، ونفس الملف مبيترفعش مرتين لمدير الفرع', async () => {
+    const r = await p.evaluate(async () => {
+      USER = { username: 'haitham', role: 'branch', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] };
+      const t = new Date(); t.setDate(t.getDate() + 2); const TMR = ymd(t);   // يوم مفيش فيه مبيعات
+      const rows = [['كود', 'اسم الصنف', 'الكمية'], ['1', 'جبنة', '10'], ['1', 'جبنة', '5'], ['2', 'لبن', 'abc'], ['', '', ''], ['3', 'زبادي', '-2'], ['', 'إجمالي', '13']];
+      const mk = () => { IMP = { rows, H: { row: 0, idx: { code: 0, name: 1, qty: 2 } }, fname: 'f.xlsx', hash: 'h-test-1', branch: 'البيطاش الرئيسي', monthly: false, month: '', date: TMR }; };
+      mk(); const P = parseImpFull(); const before = (S.imports || []).length;
+      await commitImp(); const after1 = (S.imports || []).length; const sold = S.sales[TMR]['البيطاش الرئيسي']['1'].qty;
+      mk(); await commitImp(); const after2 = (S.imports || []).length;
+      delete S.sales[TMR]; USER = null; return [Object.keys(P.out).length, P.bad.length, P.dup, P.neg, after1 - before, sold, after2 - after1];
+    });
+    eq(r, [2, 1, 1, 1, 1, 15, 0]);
+  });
+  test('شيت البصمة: معاينة + الموظفين الناقصين للمراجعة، ونفس الملف مبيترفعش مرتين', async () => {
+    const r = await p.evaluate(async () => {
+      USER = { username: 'mahmoud', role: 'shift', branch: 'البيطاش الرئيسي', name: 'x', shift: 'Morning', depts: [] };
+      const L = filtered(true); const keep = DATE; const y = new Date(); y.setDate(y.getDate() + 1); DATE = ymd(y);   // يوم فاضي
+      ATT_IMP = { fname: 'att.xlsx', hash: 'att-h-1', res: { [L[0].code]: { st: 'on', time: null }, [L[1].code]: { st: 'abs', time: null } }, bad: [], unknown: ['99999'], outScope: [], dup: 0, missing: L.slice(2) };
+      const n0 = (S.imports || []).length; await commitAttendance(); const st = [peekDay(DATE).att[L[0].code], peekDay(DATE).att[L[1].code]];
+      ATT_IMP = { fname: 'att.xlsx', hash: 'att-h-1', res: { [L[2].code]: { st: 'on', time: null } }, bad: [], unknown: [], outScope: [], dup: 0, missing: [] };
+      await commitAttendance(); const third = peekDay(DATE).att[L[2].code];
+      const log = S.imports[0]; delete S.days[DATE]; DATE = keep; USER = null;
+      return [st, third ?? null, (S.imports || []).length - n0, log.note.includes('ناقص')];
+    });
+    eq(r, [['on', 'abs'], null, 1, true]);
+  });
   test('مدير التشغيل يحدد نقط القسم والمطلوب، والتقرير يحسب بيها', async () => {
     await p.evaluate(() => { USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; TG.branch = 'البيطاش الرئيسي'; TG.dept = 'قسم البقاله'; TG.mode = 'edit'; go('target'); });
     ok(await p.evaluate(() => document.querySelector('#main').innerText.includes('نقط القسم للشهر ده')));

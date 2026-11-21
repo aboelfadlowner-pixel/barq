@@ -25,7 +25,7 @@ function vTarget(){
     </div>`;}).join('');
   const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy();
   return `<div class="sec-title"><h2>🎯 التارجت والكابتن — ${monthName(m)}</h2>
-    <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}</div></div>
+    <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}${canUpload?`<button class="btn" onclick="openImports()">📂 الملفات المرفوعة</button>`:''}</div></div>
     <div class="lock" style="margin-bottom:10px"><b>النقط بيحددها مدير التشغيل أول كل شهر:</b> نقط تارجت كل قسم، ونقط كل كابتن، والمطلوب للعشرة الأوائل — والتطبيق بيحسب الباقي لوحده. التارجت بالكميات للقسم كله. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>
     <div class="chips" style="margin-bottom:12px">${(USER?.branch&&!isOps()?[USER.branch]:branches()).map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
     ${ribbonHTML([TG.branch])}

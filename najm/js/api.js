@@ -30,7 +30,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], closes:{}, history:[], empPins:{}
+    appeals:[], closes:{}, history:[], empPins:{}, imports:[]
   };
 }
 
@@ -131,6 +131,7 @@ async function pull(){
     N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved,status:c.status,decidedBy:c.decided_by}));
     N.appeals=(files.appeals||[]).map(a=>({id:a.id,cardId:a.card_id,code:a.code,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note,cardBy:a.card_by,cardDay:a.card_day,cardColor:a.card_color,cardReason:a.card_reason}));
     N.empPins=files.pins||{};
+    N.imports=files.imports||[];
     N.complaints=(files.complaints||[]).map(c=>({id:c.id,date:c.day,code:c.code,note:c.note}));
     N.notes=(files.notes||[]).map(n=>({id:n.id,date:n.day,code:n.code,text:n.body,by:n.by_user}));
     if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],emp_code:(mgrs||[]).find(x=>x.username===u.username)?.emp_code||''}));

@@ -181,6 +181,20 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await save('ops', '0000', 'settings', { reason: 'رجوع' }, st);
   });
 
+  // ---------------- الملفات المرفوعة: سجل + منع التكرار
+  test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
+    const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
+    await save('br', '1111', 'import_log', {}, info);
+    await fails(save('br', '1111', 'import_log', {}, info), /already imported/);
+    await fails(save('br', '1111', 'import_log', { force: true }, info), /already imported/);
+    await save('ops', '0000', 'import_log', { force: true }, info);
+    await fails(save('br', '1111', 'import_log', {}, { ...info, hash: 'x2', branch: 'عين شمس' }), /other branch/);
+    await fails(save('br', '1111', 'import_log', {}, { ...info, kind: 'base_sales', hash: 'x3' }), /not allowed/);
+    const L = (await rpc('select najm_files($1,$2) r', ['br', '1111'])).r.imports;
+    eq([L.length >= 2, L[0].by_user, L.some(i => i.rows_bad === 2)], [true, 'ops', true]);
+    eq((await asAnon(db, 'select count(*)::int n from najm_imports'))[0].n, 0);
+  });
+
   // ---------------- الهايجين = اللبس
   test('الهايجين: التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»، والنجمة من المطلوب بس', async () => {
     await save('ops', '0000', 'user', { username: 'hyg' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '7171' });

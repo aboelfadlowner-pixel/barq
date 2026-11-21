@@ -231,6 +231,27 @@ begin
       on conflict (month, code, sku) do update set name = excluded.name, target = excluded.target, active = excluded.active,
         pts = case when u.role = 'ops' then excluded.pts else najm_captains.pts end,
         by_user = excluded.by_user, updated_at = now(); end if;
+  elsif p_kind = 'import_log' then
+    -- سجل رفع ملف: نفس الملف مبيترفعش مرتين (إلا مدير التشغيل بقصد: force)
+    s := p_data->>'kind';
+    if s not in ('sales', 'base_sales', 'attendance') then raise exception 'najm: bad import kind'; end if;
+    if coalesce(p_data->>'hash', '') = '' then raise exception 'najm: file hash required'; end if;
+    if u.role not in ('ops', 'branch', 'shift') or (s = 'base_sales' and u.role <> 'ops') then
+      raise exception 'najm: not allowed to upload this file' using errcode = '42501'; end if;
+    if u.role <> 'ops' and coalesce(p_data->>'branch', '') <> '' and u.branch is not null and p_data->>'branch' <> u.branch then
+      raise exception 'najm: other branch' using errcode = '42501'; end if;
+    dpt := p_data->>'hash';
+    if exists (select 1 from najm_imports where kind = s and file_hash = dpt) then
+      if u.role = 'ops' and coalesce((p_key->>'force')::boolean, false) then
+        dpt := dpt || '#' || (select count(*) + 1 from najm_imports where kind = s and file_hash like p_data->>'hash' || '%');
+      else
+        raise exception 'najm: file already imported';
+      end if;
+    end if;
+    insert into najm_imports(kind, file_name, file_hash, by_user, branch, day, month, rows_ok, rows_bad, rows_dup, note)
+      values (s, left(p_data->>'file', 200), dpt, u.username, nullif(p_data->>'branch', ''), nullif(p_data->>'day', '')::date,
+              nullif(p_data->>'month', ''), coalesce((p_data->>'ok')::int, 0), coalesce((p_data->>'bad')::int, 0),
+              coalesce((p_data->>'dup')::int, 0), left(p_data->>'note', 500));
   elsif p_kind = 'settings' then
     select data into old from najm_settings where id = 1;   -- السجل: القيمة القديمة والجديدة
     insert into najm_settings(id, data) values (1, p_data)
@@ -298,6 +319,8 @@ begin
                     order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
                     ), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
+    'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports
+                    where u.role = 'ops' or branch is null or branch = u.branch order by at desc limit 100) i), '[]'),
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
                     'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;

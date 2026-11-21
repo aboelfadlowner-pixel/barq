@@ -4,7 +4,7 @@ function vRate(){
   const canAtt=USER.role!=='fresh'&&!isHy();const CL=critList(USER.role);
   const left=list.filter(e=>{const a=D[field][e.code];const done=isHy()?hyScore(a)!=null:!!(a&&a.every(x=>x!=null));return !dayLocked(e)&&peekDay(DATE).att[e.code]!=='abs'&&peekDay(DATE).att[e.code]!=='off'&&!done;});
   return `<div class="sec-title"><h2>تقييم يوم ${esc(DATE)} — ${ROLES[USER.role]}</h2>
-    <div class="row">${canAtt?`<button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button><button class="btn" onclick="bulkAtt('on')">✔️ الباقي في ميعاده</button>`:''}<button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
+    <div class="row">${canAtt?`<button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button><button class="btn" onclick="bulkAtt('on')">✔️ الباقي في ميعاده</button><button class="btn" onclick="openImports('attendance')">📂 الملفات المرفوعة</button>`:''}<button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
   ${left.length?`<div class="card" style="margin-bottom:10px;border-color:#f3c3be;background:var(--red-soft)"><b>⏰ فاضل ${fmt(left.length)} موظف ماكملتش تقييمهم النهارده:</b> <span class="small">${left.slice(0,12).map(e=>esc(e.name.split(' ').slice(0,2).join(' '))).join('، ')}${left.length>12?' …':''}</span></div>`:list.length?'<div class="card" style="margin-bottom:10px;border-color:#bfe3d6;background:var(--green-soft)"><b>✔ خلّصت تقييم فريقك النهارده</b></div>':''}
   ${closeBarHTML()}
   ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول (اتقفل اليوم، أو اتعلن رجل اليوم، أو اليوم عدّى أكتر من يوم) — أي تعديل عن طريق مدير التشغيل.</div>':''}
