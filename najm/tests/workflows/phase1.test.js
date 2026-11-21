@@ -48,6 +48,9 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(await p.evaluate(() => ME), null);
     await p.fill('#l_id', card.code); await p.fill('#l_pin', '1234'); await p.evaluate(() => doLogin()); await p.waitForTimeout(200);
     eq(await p.evaluate(() => ME), card.code);
+    await p.evaluate(() => meLogout()); await p.evaluate(() => openLogin());
+    await p.fill('#l_id', card.code + ' — ' + await p.evaluate(c => emp(c).name, card.code)); await p.fill('#l_pin', '1234'); await p.evaluate(() => doLogin()); await p.waitForTimeout(200);
+    eq(await p.evaluate(() => ME), card.code);   // لو المتصفح كتب «الكود — الاسم» بناخد الكود بس
     ok((await main()).includes('كروتي'));
   });
   test('الموظف يشوف كروته بالسبب واسم المدير ويعترض', async () => {
