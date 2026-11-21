@@ -262,10 +262,25 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const aoa = [['', 'o2'], ['الكود', '125', 'الاسم'], ['الراتب الاساسي', '7171717', 'بدل متغير kpi', '5252525'], H,
       ['Sunday', '1/11/2026', '1', '', '', '4545454', '6363636', '8:00 AM', '8:03 AM', '5:00 PM'], ['Monday', '2/11/2026', '0', '', 'مرضي', '', '', '8:00 AM', '', ''], ['الاجمالى']];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'راتب11'); XLSX.writeFile(wb, inF);
-    execFileSync('node', [path.resolve(__dirname, '../../tools/attendance-sheet.js'), inF, outF], { env: process.env });
-    const out = JSON.parse(fs.readFileSync(outF, 'utf8')); fs.rmSync(dir, { recursive: true });
+    const cF = path.join(dir, 'c.txt');
+    const info = JSON.parse(execFileSync('node', [path.resolve(__dirname, '../../tools/attendance-sheet.js'), inF, outF, '--compact', cF], { env: process.env }).toString().trim().split('\n').pop());
+    const out = JSON.parse(fs.readFileSync(outF, 'utf8')); const payload = fs.readFileSync(cF, 'utf8'); fs.rmSync(dir, { recursive: true });
+    eq([payload, info.md5 === require('crypto').createHash('md5').update(payload).digest('hex')], ['2026-11|125:3', true]);   // الأيام بعد آخر بصمة بتتشال
     eq(out, [{ code: '125', day: '2026-11-01', shift: '8:00 AM', in: '8:03 AM', leave: '' }, { code: '125', day: '2026-11-02', shift: '8:00 AM', in: '', leave: 'مرضي' }]);
-    ok(!['7171717', '5252525', '4545454', '6363636'].some(v => JSON.stringify(out).includes(v)), 'money columns leaked');
+    ok(!['7171717', '5252525', '4545454', '6363636'].some(v => (JSON.stringify(out) + payload).includes(v)), 'money columns leaked');
+  });
+  test('التحديث اليومي بالصيغة الصغيرة: md5 لازم يطابق، والحكم صح، ومن غير أوقات', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 1 offset 11", [B])).rows[0].code;
+    // 1 مارس 2026 أحد · 7 مارس سبت: 0=في ميعاده · 20=تأخير بسيط · 45=كبير · L إجازة · - راحة ثم غياب · x مش مقروء · . مفيش
+    const payload = `2026-04|${x}:0,20,45,L,-,-,0,x,.`;
+    const md5 = require('crypto').createHash('md5').update(payload).digest('hex');
+    await fails(db.query('select najm_att_sync_compact($1,$2,$3)', [payload + '1', md5, 'f']), /checksum mismatch/);
+    await fails(asAnon(db, 'select najm_att_sync_compact($1,$2,$3)', [payload, md5, 'f']), /permission denied/);
+    const r = (await db.query('select najm_att_sync_compact($1,$2,$3) r', [payload, md5, 'حضور ppv-04-2026'])).rows[0].r;
+    const st = Object.fromEntries((await db.query("select to_char(day,'DD') d, att, att_time from najm_ratings where code=$1 and day between '2026-04-01' and '2026-04-30' order by day", [x])).rows.map(r => [r.d, [r.att, r.att_time]]));
+    // 1 أبريل أربعاء: الأسبوع من السبت 28 مارس · 4 أبريل سبت = أسبوع جديد
+    eq(st, { '01': ['on', null], '02': ['late', null], '03': ['vlate', null], '04': ['off', null], '05': ['off', null], '06': ['abs', null], '07': ['on', null] });
+    eq(r.to, '2026-04-07');
   });
 
   // ---------------- الملفات المرفوعة: سجل + منع التكرار

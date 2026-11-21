@@ -13,7 +13,8 @@ $$;
 -- الحكم لكل يوم (نفس قواعد التطبيق): إجازة مكتوبة ← إجازة · بصمة ← في ميعاده / تأخير بسيط / كبير من ميعاد ورديته الحقيقي
 -- (السماح والتأخير البسيط من الإعدادات) · من غير بصمة ولا إجازة ← أول يوم في الأسبوع (من السبت) راحة، والباقي غياب
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
-create or replace function public.najm_att_sync(p_rows jsonb, p_file text)
+drop function if exists public.najm_att_sync(jsonb, text);
+create or replace function public.najm_att_sync(p_rows jsonb, p_file text, p_keep_time boolean default true)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare cfg jsonb; grace int; latemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date;
   today date := (now() at time zone 'Africa/Cairo')::date;
@@ -37,13 +38,13 @@ begin
                            when public.najm_tmin(tin) is not null and public.najm_tmin(shift) is not null then
                              (select case when dd <= grace then 'on' when dd <= latemax then 'late' else 'vlate' end
                               from (select (public.najm_tmin(tin) - public.najm_tmin(shift) + 2160) % 1440 - 720 dd) z)
-                           when public.najm_tmin(tin) is not null then null
+                           when tin is not null then null              -- وقت مش مقروء: بيتساب (مش غياب)
                            else 'noshow' end s,
                       row_number() over (partition by code, day - ((extract(dow from day)::int + 1) % 7),
-                                         (leave is null and public.najm_tmin(tin) is null) order by day) rn
+                                         (leave is null and tin is null) order by day) rn
           from r)
     select code, day, case when s = 'noshow' then case when rn <= woff then 'off' else 'abs' end else s end st,
-           case when public.najm_tmin(tin) is not null then tin end tin
+           case when p_keep_time and public.najm_tmin(tin) is not null then tin end tin
     from c where s is not null;
   select count(*) into skipped from _s s join najm_ratings x on x.day = s.day and x.code = s.code where x.att_src = 'manual';
   insert into najm_ratings(day, code, att, att_time, att_src)
@@ -62,5 +63,27 @@ begin
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;
 -- بتتنادى من التحديث اليومي بس (مش من المتصفح)
-revoke all on function public.najm_att_sync(jsonb, text) from public, anon, authenticated;
-grant execute on function public.najm_att_sync(jsonb, text) to service_role;
+revoke all on function public.najm_att_sync(jsonb, text, boolean) from public, anon, authenticated;
+grant execute on function public.najm_att_sync(jsonb, text, boolean) to service_role;
+
+-- الصيغة الصغيرة للتحديث اليومي (من tools/attendance-sheet.js --compact): «YYYY-MM|كود:يوم1,يوم2,...;...»
+-- كل يوم: دقايق التأخير عن ميعاد الوردية · L إجازة · - من غير بصمة ولا إجازة · x مش مقروء · . مفيش
+-- p_md5 لازم يطابق الـ payload — لو حصل أي غلط في النقل، مفيش حاجة بتتحفظ
+create or replace function public.najm_att_sync_compact(p_payload text, p_md5 text, p_file text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare m text := split_part(p_payload, '|', 1); rows jsonb;
+begin
+  if md5(p_payload) is distinct from p_md5 then raise exception 'najm: payload checksum mismatch'; end if;
+  if m !~ '^\d{4}-\d{2}$' then raise exception 'najm: bad month'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('code', split_part(seg, ':', 1), 'day', ((m || '-01')::date + (t.i - 1)::int)::text,
+           'shift', '0:00',
+           'in', case when t.tok ~ '^\d+$' then (t.tok::int / 60)::text || ':' || lpad((t.tok::int % 60)::text, 2, '0') when t.tok = 'x' then 'x' else '' end,
+           'leave', case when t.tok = 'L' then 'L' else '' end)), '[]'::jsonb)
+    into rows
+  from unnest(string_to_array(split_part(p_payload, '|', 2), ';')) seg,
+       unnest(string_to_array(split_part(seg, ':', 2), ',')) with ordinality t(tok, i)
+  where seg <> '' and t.tok <> '.';
+  return public.najm_att_sync(rows, p_file, false);
+end $$;
+revoke all on function public.najm_att_sync_compact(text, text, text) from public, anon, authenticated;
+grant execute on function public.najm_att_sync_compact(text, text, text) to service_role;
