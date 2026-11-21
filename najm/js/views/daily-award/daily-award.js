@@ -29,7 +29,7 @@ function vDay(){
   }
   return html;
 }
-function confirmWinners(k){
+async function confirmWinners(k){
   const codes=[...document.querySelectorAll('.wchk')].filter(c=>c.dataset.k===k&&c.checked).map(c=>c.value);
   const [b,g]=k.split('|');const W=winnersFor(b,g);
   if(!codes.length){toast('اختار موظف واحد على الأقل');return;}
@@ -38,6 +38,6 @@ function confirmWinners(k){
   const L=activeEmps().filter(e=>e.branch===b&&shiftGroup(e.shift)===g);
   const candidates=rankGroup(DATE,L).slice(0,+S.settings.finalists||4).map(x=>({code:x.e.code,stars:x.s.total,cards:dayCardPts(DATE,x.e.code)}));
   if(!S.winnersMeta)S.winnersMeta={};(S.winnersMeta[DATE]||(S.winnersMeta[DATE]={}))[k]={candidates,approved_by:USER.username,approved_at:new Date().toISOString()};
-  day(DATE).winners[k]=codes;save();render();push('winners',{day:DATE,gkey:k},{codes,candidates});toast('🎉 اتعلن رجل اليوم — اليوم اتقفل');
+  day(DATE).winners[k]=codes;save();render();if(await push('winners',{day:DATE,gkey:k},{codes,candidates})!==false)toast('🎉 اتعلن رجل اليوم — اليوم اتقفل');
 }
 async function clearWinners(k){if(!await askConfirm('إلغاء الإعلان؟'))return;delete day(DATE).winners[k];save();render();push('winners',{day:DATE,gkey:k},null);}

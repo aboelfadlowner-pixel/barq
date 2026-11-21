@@ -24,10 +24,10 @@ function futStats(e){
   const days=R?(R.on_n+R.late_n+R.vlate_n+R.abs_n):0;
   const disc=days?clamp99(35+((R.on_n*100+R.late_n*60+R.vlate_n*30)/days)*0.64):null;
   // السلوك: تنفيذ التعليمات + الإيجابية − الكروت
-  const b=R?avg(R.c1,R.c5):null;
+  const b=R?avg(R.c1,R.c4):null;
   const beh=b!=null?clamp99(35+(b/2*100)*0.64-8*k.y-25*k.r):null;
-  // القدرة الخاصة: سرعة التنفيذ + التطور + السلوك المثالي
-  const s=R?avg(R.c2,R.c4):null;
+  // القدرة الخاصة: تنفيذ التعليمات وسرعتها + التطور + السلوك المثالي
+  const s=R?avg(R.c1,R.c3):null;
   const skill=s!=null?clamp99(35+(s/2*100)*0.64+3*(R.bonus_n||0)):null;
   // المثالية: الكروت الخضرا + السلوك المثالي + رجل اليوم
   const ideal=(R||k.g||ms.wins)?clamp99(55+9*k.g+6*(R?.bonus_n||0)+3*ms.wins-5*k.y-15*k.r):null;

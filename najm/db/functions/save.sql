@@ -20,7 +20,7 @@ begin
   if u.role = 'hygiene' and p_kind <> 'rate' then
     raise exception 'najm: hygiene rates only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate')
+  if p_kind in ('winners','target','base_sales','complaint_decide','complaint_appeal_decide','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -119,15 +119,41 @@ begin
     insert into najm_kpi_vals(day, dkey, vals) values (k_day, p_key->>'dkey', p_data)
     on conflict (day, dkey) do update set vals = excluded.vals, updated_at = now();
   elsif p_kind = 'complaint' then
-    if del then delete from najm_complaints where id = p_key->>'id';
-    else insert into najm_complaints(id, day, code, note, by_user)
-      values (p_key->>'id', (p_data->>'date')::date, p_data->>'code', p_data->>'note', u.username)
-      on conflict (id) do nothing; end if;
+    -- أي مدير بيسجّل شكوى على موظف في نطاقه ← مستنية مراجعة مدير التشغيل (اللي بيسجّلها التشغيل نفسه بتبقى مثبتة)
+    if del then
+      if u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
+      select code into k_code from najm_complaints where id = p_key->>'id';
+      delete from najm_complaints where id = p_key->>'id';
+    else
+      k_code := p_data->>'code';
+      if not public.najm_in_scope(u, k_code) then raise exception 'najm: employee outside your scope' using errcode = '42501'; end if;
+      if coalesce(trim(p_data->>'note'), '') = '' then raise exception 'najm: complaint details required'; end if;
+      insert into najm_complaints(id, day, code, note, by_user, status, decided_by, decided_at)
+        values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'note', u.username,
+                case when u.role = 'ops' then 'proven' else 'pending' end,
+                case when u.role = 'ops' then u.username end, case when u.role = 'ops' then now() end)
+        on conflict (id) do nothing;
+    end if;
+  elsif p_kind = 'complaint_decide' then
+    -- مدير التشغيل: مثبتة (بتتخصم) أو مش مثبتة
+    select code into k_code from najm_complaints where id = p_key->>'id' and status = 'pending';
+    if k_code is null then raise exception 'najm: complaint already decided'; end if;
+    update najm_complaints set status = case when coalesce((p_data->>'proven')::boolean, false) then 'proven' else 'rejected' end,
+      decided_by = u.username, decided_at = now(), decision_note = p_data->>'note' where id = p_key->>'id';
+  elsif p_kind = 'complaint_appeal_decide' then
+    -- اعتراض الموظف على شكوى: القبول بيلغي الخصم (الشكوى بتبقى «مش مثبتة» وبتفضل في السجل)
+    select code into k_code from najm_complaints where id = p_key->>'id' and appeal_status = 'pending';
+    if k_code is null then raise exception 'najm: appeal not found'; end if;
+    update najm_complaints set appeal_status = case when coalesce((p_data->>'accept')::boolean, false) then 'accepted' else 'rejected' end,
+      appeal_note = p_data->>'note', appeal_by = u.username,
+      status = case when coalesce((p_data->>'accept')::boolean, false) then 'rejected' else status end
+      where id = p_key->>'id';
   elsif p_kind = 'note' then
     insert into najm_notes(id, day, code, body, by_user)
       values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'text', u.username)
     on conflict (id) do nothing;
   elsif p_kind = 'employee' then
+    perform set_config('najm.actor', u.username, true);   -- سجل النقل بيعرف مين نقل الموظف
     insert into najm_employees(code, name, branch, dept, job, shift, active)
       values (k_code, p_data->>'name', p_data->>'branch', p_data->>'dept', p_data->>'job', p_data->>'shift',
               coalesce((p_data->>'active')::boolean, true))
@@ -231,10 +257,33 @@ begin
       on conflict (month, code, sku) do update set name = excluded.name, target = excluded.target, active = excluded.active,
         pts = case when u.role = 'ops' then excluded.pts else najm_captains.pts end,
         by_user = excluded.by_user, updated_at = now(); end if;
+  elsif p_kind = 'import_log' then
+    -- سجل رفع ملف: نفس الملف مبيترفعش مرتين (إلا مدير التشغيل بقصد: force)
+    s := p_data->>'kind';
+    if s not in ('sales', 'base_sales', 'attendance') then raise exception 'najm: bad import kind'; end if;
+    if coalesce(p_data->>'hash', '') = '' then raise exception 'najm: file hash required'; end if;
+    if u.role not in ('ops', 'branch', 'shift') or (s = 'base_sales' and u.role <> 'ops') then
+      raise exception 'najm: not allowed to upload this file' using errcode = '42501'; end if;
+    if u.role <> 'ops' and coalesce(p_data->>'branch', '') <> '' and u.branch is not null and p_data->>'branch' <> u.branch then
+      raise exception 'najm: other branch' using errcode = '42501'; end if;
+    dpt := p_data->>'hash';
+    if exists (select 1 from najm_imports where kind = s and file_hash = dpt) then
+      if u.role = 'ops' and coalesce((p_key->>'force')::boolean, false) then
+        dpt := dpt || '#' || (select count(*) + 1 from najm_imports where kind = s and file_hash like p_data->>'hash' || '%');
+      else
+        raise exception 'najm: file already imported';
+      end if;
+    end if;
+    insert into najm_imports(kind, file_name, file_hash, by_user, branch, day, month, rows_ok, rows_bad, rows_dup, note)
+      values (s, left(p_data->>'file', 200), dpt, u.username, nullif(p_data->>'branch', ''), nullif(p_data->>'day', '')::date,
+              nullif(p_data->>'month', ''), coalesce((p_data->>'ok')::int, 0), coalesce((p_data->>'bad')::int, 0),
+              coalesce((p_data->>'dup')::int, 0), left(p_data->>'note', 500));
   elsif p_kind = 'settings' then
+    select data into old from najm_settings where id = 1;   -- السجل: القيمة القديمة والجديدة
     insert into najm_settings(id, data) values (1, p_data)
     on conflict (id) do update set data = excluded.data, updated_at = now();
   elsif p_kind = 'private' then
+    select data into old from najm_private where id = 1;
     insert into najm_private(id, data) values (1, p_data) on conflict (id) do update set data = excluded.data;
   elsif p_kind = 'user' then
     s := lower(trim(p_key->>'username'));
@@ -265,7 +314,7 @@ begin
     values (u.username, p_kind, k_code, k_day, gk,
             case when p_kind in ('sales', 'base_sales', 'emp_pins_generate') then jsonb_build_object('key', p_key)
                  when p_kind in ('user', 'emp_pin') then jsonb_build_object('key', p_key, 'data', case when del then null else p_data - 'pin' end)
-                 when p_kind in ('att', 'rate', 'bonus') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
+                 when p_kind in ('att', 'rate', 'bonus', 'settings', 'private') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
                  else jsonb_build_object('key', p_key, 'data', p_data) end);
 
   if p_kind in ('att','rate','bonus') then
@@ -296,6 +345,8 @@ begin
                     order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
                     ), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
+    'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports
+                    where u.role = 'ops' or branch is null or branch = u.branch order by at desc limit 100) i), '[]'),
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
                     'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;
@@ -303,3 +354,17 @@ end $$;
 grant execute on function public.najm_files(text, text) to anon, authenticated;
 
 alter function public.najm_files(text, text) volatile;
+
+-- سجل تغيير الإعدادات (لمدير التشغيل بس): مين غيّر إيه وإمتى والسبب، بالقيمة القديمة والجديدة
+create or replace function public.najm_settings_log(p_user text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: login required'); end if;
+  if u.role <> 'ops' then return jsonb_build_object('error', 'najm: operations manager only'); end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('at', h.at, 'actor', h.actor, 'actor_name', coalesce(x.name, h.actor), 'kind', h.kind, 'data', h.data) order by h.at desc)
+    from (select * from najm_history where kind in ('settings', 'private') order by at desc limit 60) h
+    left join najm_users x on x.username = h.actor), '[]'::jsonb);
+end $$;
+grant execute on function public.najm_settings_log(text, text) to anon, authenticated;

@@ -40,7 +40,7 @@ function openEmp(code){
        <div class="kv"><span>متوسط النجوم</span><span>${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b></span></div>
        <div class="kv"><span>تقييم الشهر</span><b>${fmt(ms.monthScore)}/100 ${mgr&&ms.cardPts?`<span class="small" style="color:${ms.cardPts<0?'var(--red)':'var(--green)'}">(${ms.cardPts>0?'+':''}${fmt(ms.cardPts)})</span>`:''}</b></div>
        ${mgr?`<div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs)} / ${fmt(ms.late)}</b></div>`:''}
-       <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.pct!=null?barHTML(t.pct,t.pace):''}
+       <div class="kv"><span>تارجت القسم</span><b>${t?.pct!=null?fmt(t.pct)+'% · '+fmt(t.basePoints)+' نقطة':'—'}</b></div>${t?.split?`<div class="small muted">🔀 اتنقل الشهر ده — التارجت متقسم بالأيام: ${t.split.map(x=>esc(x.dept)+' '+Math.round(x.w*100)+'%').join(' · ')}</div>`:''}${t?.pct!=null?barHTML(t.pct,t.pace):''}
        ${caps.map(c=>`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> ${esc(c.name)}</span><b style="color:var(--purple)">${fmt(c.pct)}% · ${fmt(c.points)} ن</b></div>`).join('')}
        <div class="kv"><span>إجمالي النقاط</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}${t?.complaints?` <span class="badge b-red">−${S.settings.complaintPenalty}% شكوى</span>`:''}</b></div>
        ${isOps()&&t?.empPoints!=null&&S.settings.bonusAt100?`<div class="kv"><span>المكافأة (التشغيل فقط)</span><b>${fmt(money(t.empPoints))} ج</b></div>`:''}
@@ -50,11 +50,24 @@ function openEmp(code){
    <div class="grid g-2">
      <div class="card"><h3>🟨🟥🟩 الكروت</h3>${S.cards.filter(c=>c.code===code).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>`<div class="small" style="margin:4px 0"><i class="fcard ${c.color}"></i> <b>${c.date}</b> — ${esc(c.reason)} <span class="muted">(${esc(mgrName(c.by))})</span> ${cardStatus(c)==='approved'?'':`<span class="badge ${CARD_STATUS[cardStatus(c)][1]}">${CARD_STATUS[cardStatus(c)][0]}</span>`}${(S.appeals||[]).some(x=>x.cardId===c.id&&x.status==='pending')?' <span class="badge b-gold">✋ اعتراض</span>':''}</div>`).join('')||'<div class="small muted">مفيش</div>'}</div>
      <div class="card"><h3>⭐ مواقف مثالية</h3>${days.map(d=>({d,b:peekDay(d).bonus[code]})).filter(x=>x.b).map(x=>`<div class="small" style="margin:4px 0"><b>${x.d}</b> — ${esc(x.b.note)}</div>`).join('')||'<div class="small muted">مفيش</div>'}</div>
-     <div class="card"><h3>⚠️ شكاوى العملاء</h3>${S.complaints.filter(c=>c.code===code).map(c=>`<div class="small row" style="justify-content:space-between;margin:4px 0"><span><b>${c.date}</b> — ${esc(c.note)}</span>${isOps()?`<button class="btn sm red" onclick="delComplaint('${c.id}','${code}')">حذف</button>`:''}</div>`).join('')||'<div class="small muted">مفيش</div>'}${isOps()?`<button class="btn sm red" style="margin-top:6px" onclick="addComplaint('${code}')">+ شكوى</button>`:''}</div>
+     <div class="card"><h3>⚠️ شكاوى العملاء</h3>${complaintsHTML(code)}${!isHy()?`<button class="btn sm red" style="margin-top:6px" onclick="addComplaint('${code}')">+ شكوى</button>`:''}</div>
      <div class="card"><h3>📝 ملاحظات الإدارة</h3>${S.notes.filter(n=>n.code===code).map(n=>`<div class="small" style="margin:4px 0"><b>${n.date}</b> (${esc(n.by)}) — ${esc(n.text)}</div>`).join('')||'<div class="small muted">مفيش</div>'}<button class="btn sm" style="margin-top:6px" onclick="addNote('${code}')">+ ملاحظة</button></div>
    </div>`:''}`);
 }
-async function addComplaint(code){const n=await askText('تفاصيل الشكوى:');if(n===null)return;const id=uid(),note=n.trim()||'شكوى ضغط في البيع';S.complaints.push({id,date:DATE,code,note});save();openEmp(code);render();push('complaint',{id},{date:DATE,code,note});}
+// ---------- شكاوى العملاء: المدير بيسجّل ← التشغيل بيراجع (مثبتة / مش مثبتة) ← الموظف يقدر يعترض ----------
+const COMPL_ST={pending:['⏳ مستنية مراجعة التشغيل','b-gold'],proven:['مثبتة — بتتخصم','b-red'],rejected:['مش مثبتة','b-gray']};
+function complaintsHTML(code){const L=S.complaints.filter(c=>c.code===code).sort((a,b)=>b.date.localeCompare(a.date));
+  return L.map(c=>{const st=COMPL_ST[c.status||'proven'];return `<div class="small" style="margin:6px 0;padding-bottom:6px;border-bottom:1px dashed var(--line)"><b>${esc(c.date)}</b> — ${esc(c.note)} <span class="badge ${st[1]}">${st[0]}</span>${c.by?` <span class="muted">(${esc(mgrName(c.by))})</span>`:''}${c.decisionNote?`<div class="muted">قرار التشغيل: ${esc(c.decisionNote)}</div>`:''}
+    ${c.appealStatus?`<div>✋ اعتراض الموظف: ${esc(c.appealBody||'')} <span class="badge ${c.appealStatus==='pending'?'b-gold':c.appealStatus==='accepted'?'b-green':'b-red'}">${c.appealStatus==='pending'?'مستني قرار':c.appealStatus==='accepted'?'اتقبل':'اترفض'}</span></div>`:''}
+    ${isOps()&&(c.status||'proven')==='pending'?`<div class="row" style="gap:4px;margin-top:4px"><button class="btn sm red" onclick="decideComplaint('${c.id}',true)">مثبتة (تتخصم)</button><button class="btn sm" onclick="decideComplaint('${c.id}',false)">مش مثبتة</button></div>`:''}
+    ${isOps()&&c.appealStatus==='pending'?`<div class="row" style="gap:4px;margin-top:4px"><button class="btn sm gold" onclick="decideComplaintAppeal('${c.id}',true)">قبول الاعتراض (يتلغي الخصم)</button><button class="btn sm red" onclick="decideComplaintAppeal('${c.id}',false)">رفض</button></div>`:''}</div>`;}).join('')||'<div class="small muted">مفيش</div>';}
+async function addComplaint(code){const n=await askText(`تفاصيل الشكوى${isOps()?'':' (هتوصل لمدير التشغيل يراجعها قبل الخصم)'}:`);if(n===null)return;const note=n.trim();if(!note){toast('اكتب تفاصيل الشكوى');return;}
+  const id=uid();const c={id,date:DATE,code,note,by:USER.username,status:isOps()?'proven':'pending'};
+  if(await push('complaint',{id},{date:DATE,code,note})===false)return;S.complaints.push(c);save();openEmp(code);render();toast(isOps()?'⚠️ اتسجلت الشكوى (مثبتة)':'⚠️ اتسجلت — مستنية مراجعة التشغيل');}
+async function decideComplaint(id,proven){const c=S.complaints.find(x=>x.id===id);if(!c)return;const note=await askText(proven?'الشكوى مثبتة — ملاحظة (اختياري):':'الشكوى مش مثبتة — السبب:');if(note===null)return;
+  if(await push('complaint_decide',{id,code:c.code},{proven,note:note.trim()})===false)return;Object.assign(c,{status:proven?'proven':'rejected',decidedBy:USER.username,decisionNote:note.trim()});save();RANK_CACHE=null;if($('#modalBg').classList.contains('open'))openEmp(c.code);render();toast('✔ اتسجل القرار');}
+async function decideComplaintAppeal(id,accept){const c=S.complaints.find(x=>x.id===id);if(!c)return;const note=await askText(accept?'قبول الاعتراض (الشكوى هتتلغي) — ملاحظة:':'رفض الاعتراض — السبب:');if(note===null)return;
+  if(await push('complaint_appeal_decide',{id,code:c.code},{accept,note:note.trim()})===false)return;Object.assign(c,{appealStatus:accept?'accepted':'rejected',appealNote:note.trim()});if(accept)c.status='rejected';save();RANK_CACHE=null;if($('#modalBg').classList.contains('open'))openEmp(c.code);render();toast('✔ اتسجل القرار');}
 async function delComplaint(id,code){if(!await askConfirm('حذف؟'))return;S.complaints=S.complaints.filter(c=>c.id!==id);save();openEmp(code);render();push('complaint',{id},null);}
 async function addNote(code){const n=await askText('الملاحظة:');if(!n||!n.trim())return;const id=uid();S.notes.push({id,date:DATE,code,text:n.trim(),by:USER.username});save();openEmp(code);push('note',{id,code},{date:DATE,text:n.trim()});}
 function setPhoto(code){pickFile('image/*',async f=>{try{toast('⏳ بنرفع الصورة…');await savePhoto(code,f);openEmp(code);render();toast('📷 اترفعت الصورة');}catch(e){toast('⚠️ الصورة ماترفعتش');}});}
@@ -75,9 +88,12 @@ function editEmp(code){
 function saveEmp(code){
   const v=id=>$('#'+id).value.trim();const c=code||v('f_code');if(!c||!v('f_name')){toast('الكود والاسم مطلوبين');return;}
   if(!code&&emp(c)){toast('الكود موجود');return;}
-  const e=code?emp(code):{code:c,photo:'',video:''};
+  const e=code?emp(code):{code:c,photo:'',video:''};const was={branch:e.branch,dept:e.dept};
   Object.assign(e,{name:v('f_name'),branch:v('f_branch'),dept:v('f_dept'),job:v('f_job'),shift:v('f_shift'),active:$('#f_active').checked});
-  if(!code)S.employees.push(e);save();closeModal();render();push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active});
+  // النقل بين الفروع / الأقسام بيتسجل (في الداتابيز تلقائي) — التارجت في شهر النقل بيتقسم بالأيام
+  if(code&&(was.branch!==e.branch||was.dept!==e.dept)&&!LIVE)(S.moves||(S.moves=[])).push({code:e.code,day:todayC(),fromBranch:was.branch,fromDept:was.dept,toBranch:e.branch,toDept:e.dept});
+  if(!code)S.employees.push(e);save();closeModal();RANK_CACHE=null;render();
+  push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active}).then(r=>{if(r!==false){toast(code&&(was.branch!==e.branch||was.dept!==e.dept)?'✔ اتنقل الموظف — واتسجل النقل':'✔ اتحفظ');if(LIVE)refresh(true);}});
 }
 function importEmps(){
   pickFile('.xlsx,.xls,.csv',async f=>{
@@ -104,7 +120,7 @@ async function resetEmpPin(code){
   const ok=await push('emp_pin',{code},{pin:p});if(ok!==false)toast(`🔑 الرقم السري الجديد لـ ${e.name.split(' ')[0]}: ${p}`);
 }
 // سجل الموظف (History): التقييمات، الكروت، الاعتراضات، ... — للمديرين في نطاقهم
-const HIST_KIND={att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'تسليم اليوم',day_late:'تأخير تسليم'};
+const HIST_KIND={complaint:'شكوى عميل',complaint_decide:'قرار شكوى',complaint_appeal:'اعتراض على شكوى',complaint_appeal_decide:'قرار اعتراض شكوى',import_log:'رفع ملف',att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'تسليم اليوم',day_late:'تأخير تسليم'};
 async function openHistory(code){
   const e=emp(code);let L;
   if(LIVE){try{L=await sbRpc('najm_history_of',{p_user:USER.username,p_pin:PIN,p_code:code})||[];}catch(x){toast(errMsg(x.message));return;}}

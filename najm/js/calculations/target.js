@@ -8,8 +8,9 @@ function salesAgg(month,branch,upto){
   for(const d of monthDays(month,upto)){const b=S.sales[d]?.[branch];if(!b)continue;for(const[k,v]of Object.entries(b)){(out[k]||(out[k]={name:v.name,qty:0})).qty+=v.qty;}}
   return out;
 }
-const pts=p=>p==null?null:p<50?0:p<85?50:Math.round(p);
-// نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز — القاعدة لسه هتتحدد (دلوقتي: الشرايح 50/85)
+// نقط التارجت من نسبة التحقيق — بالشرايح اللي مدير التشغيل حددها للشهر ده (rules.js)
+const pts=p=>tierPts(p);
+// نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز
 const tgtRatio=p=>p==null?null:(pts(p)||0)/100;
 const tgtCfg=(month,branch,dept)=>S.targets[month]?.[deptKey(branch,dept)]||null;
 function deptProgress(month,branch,dept,upto,empCode){
@@ -51,21 +52,47 @@ function captainsOfEmp(e,month,upto,onlyActive=true){
   return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;const pct=c.target>0?Math.min(cap,sold/c.target*100):null;const p=pts(pct);const man=+c.pts>0;return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,pct,max:man?+c.pts:100*mult,points:p==null?null:man?Math.round(+c.pts*tgtRatio(pct)):p*mult};});
 }
 function captainsIn(month,upto,pred){const out=[];for(const e of activeEmps())if(pred(e))out.push(...captainsOfEmp(e,month,upto));return out;}
-function complaintsOf(code,month){return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month));}
+// شكاوى العملاء المثبتة بس هي اللي بتخصم (اللي لسه بتتراجع أو اتلغت مش بتتحسب)
+const complaintProven=c=>(c.status||'proven')==='proven';
+function complaintsOf(code,month){if(LIVE&&S.complaintCounts&&month===monthOf(DATE))return S.complaintCounts[code]||0;return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month)&&complaintProven(c)).length;}
+// الموظف اللي اتنقل في نص الشهر: كل قسم بعدد الأيام اللي قضاها فيه
+function deptSegments(e,month,upto){
+  const days=monthDays(month,upto);const M=(S.moves||[]).filter(m=>m.code===e.code&&String(m.day).startsWith(month)&&m.day<=(upto||'9999')).sort((a,b)=>String(a.day).localeCompare(String(b.day)));
+  if(!M.length||!days.length)return [{branch:e.branch,dept:e.dept,w:1}];
+  const seg=[];let cur={branch:M[0].fromBranch,dept:M[0].fromDept},from=days[0];
+  for(const m of M){const n=days.filter(d=>d>=from&&d<m.day).length;if(n)seg.push({...cur,n});cur={branch:m.toBranch,dept:m.toDept};from=m.day;}
+  const n=days.filter(d=>d>=from).length;if(n)seg.push({...cur,n});
+  const tot=seg.reduce((a,s)=>a+s.n,0)||1;const out={};
+  for(const s of seg){const k=s.branch+'|'+s.dept;(out[k]||(out[k]={branch:s.branch,dept:s.dept,w:0})).w+=s.n/tot;}
+  return Object.values(out);
+}
+function deptPart(month,branch,dept,upto,code){
+  const dp=deptProgress(month,branch,dept,upto,code);const cfg=tgtCfg(month,branch,dept);const manD=+cfg?.pts>0;
+  const base=dp?.pct==null?(dp?.points??null):manD?Math.round(+cfg.pts*tgtRatio(dp.pct)):dp.points;
+  return {dp,cfg,manD,base,deptMax:dp?(manD?+cfg.pts:100):0};
+}
 function empTarget(e,month,upto){
-  const dp=deptProgress(month,e.branch,e.dept,upto,e.code);
+  const segs=deptSegments(e,month,upto);
+  const P=segs.map(s=>({...deptPart(month,s.branch,s.dept,upto,e.code),w:s.w}));
+  const last=P[P.length-1];
   const caps=captainsOfEmp(e,month,upto);
   const capPts=caps.reduce((a,c)=>a+(c.points||0),0);
-  if(!dp&&!caps.length) return null;
-  const cfg=tgtCfg(month,e.branch,e.dept);const manD=+cfg?.pts>0;
-  const base=dp?.pct==null?(dp?.points??null):manD?Math.round(+cfg.pts*tgtRatio(dp.pct)):dp.points;
-  const deptMax=dp?(manD?+cfg.pts:100):0;const maxPts=deptMax+caps.reduce((a,c)=>a+(c.max||0),0);
-  const need=+cfg?.need>0?+cfg.need:Math.round(maxPts*TGT_G()/100);
-  const cc=complaintsOf(e.code,month).length;
+  if(!P.some(p=>p.dp)&&!caps.length) return null;
+  let dp=last.dp,base=last.base,deptMax=last.deptMax,cfgNeed=+last.cfg?.need>0?+last.cfg.need:null;
+  if(P.length>1){   // متقسم على الأقسام بالأيام
+    const H=P.filter(p=>p.dp);const W=H.reduce((a,p)=>a+p.w,0)||1;const pc=H.filter(p=>p.dp.pct!=null);
+    dp=H.length?{...(last.dp||H[H.length-1].dp),pct:pc.length?pc.reduce((a,p)=>a+p.dp.pct*p.w,0)/pc.reduce((a,p)=>a+p.w,0):null}:null;
+    base=H.some(p=>p.base!=null)?Math.round(H.reduce((a,p)=>a+(p.base||0)*p.w,0)/W):null;
+    deptMax=Math.round(H.reduce((a,p)=>a+p.deptMax*p.w,0)/W);
+    cfgNeed=P.every(p=>+p.cfg?.need>0)?Math.round(P.reduce((a,p)=>a+(+p.cfg.need)*p.w,0)):null;
+  }
+  const maxPts=deptMax+caps.reduce((a,c)=>a+(c.max||0),0);
+  const need=cfgNeed!=null?cfgNeed:Math.round(maxPts*TGT_G()/100);
+  const cc=complaintsOf(e.code,month);
   const raw=(base||0)+capPts;
   const has=base!=null||caps.length>0;
   const empPoints=has?Math.round(cc?raw*(1-S.settings.complaintPenalty/100):raw):null;
-  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc,deptMax,maxPts,need,manual:manD};
+  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc,deptMax,maxPts,need,manual:last.manD,split:P.length>1?segs:null};
 }
 const money=p=>p==null?null:Math.round(p/100*(+S.settings.bonusAt100||0));
 // المسار التاني: التارجت (القسم + الكابتن) — نسبة "على المسار" (مبيعات نص الشهر بتتقارن باللي المفروض لحد النهارده)

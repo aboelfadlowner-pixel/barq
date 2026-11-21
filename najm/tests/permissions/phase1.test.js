@@ -170,6 +170,75 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'rate', { day: ago(1), code: c }, [1, 1, 1, 1, 1]), /day locked/);
   });
 
+  // ---------------- سجل تغيير الإعدادات
+  test('تغيير الإعدادات بيتسجل بالقديم والجديد والسبب، والسجل لمدير التشغيل بس', async () => {
+    const st = (await db.query('select data from najm_settings where id=1')).rows[0].data;
+    await save('ops', '0000', 'settings', { reason: 'تجربة', path: 'graceMin' }, { ...st, graceMin: 17 });
+    const L = (await rpc('select najm_settings_log($1,$2) r', ['ops', '0000'])).r;
+    const h = L.find(x => x.data.key.reason === 'تجربة');
+    eq([h.data.data.graceMin, h.data.old.graceMin === 17, h.actor], [17, false, 'ops']);
+    eq((await rpc('select najm_settings_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
+    await save('ops', '0000', 'settings', { reason: 'رجوع' }, st);
+  });
+
+  // ---------------- شكاوى العملاء: مراجعة + اعتراض
+  test('الشكوى: المدير يسجّل (مستنية) ← التشغيل يثبتها ← الخصم ← الموظف يعترض ← التشغيل يقبل فتتلغي', async () => {
+    const cnt = async () => ((await rpc('select * from najm_public_complaints($1,$2)', [ago(5), D])) || {}).n || 0;
+    const pc = async () => (await asAnon(db, 'select n from najm_public_complaints($1,$2) where code=$3', [ago(5), D, '125']))[0]?.n || 0;
+    await fails(save('br', '1111', 'complaint', { id: 'cp1' }, { date: D, code: '125', note: ' ' }), /details required/);
+    await save('br', '1111', 'complaint', { id: 'cp1' }, { date: D, code: '125', note: 'رد وحش على عميل' });
+    eq([(await db.query("select status from najm_complaints where id='cp1'")).rows[0].status, await pc()], ['pending', 0]);
+    await fails(save('br', '1111', 'complaint_decide', { id: 'cp1' }, { proven: true }), /operations manager only/);
+    await save('ops', '0000', 'complaint_decide', { id: 'cp1' }, { proven: true, note: 'اتأكدنا من الكاميرا' });
+    eq(await pc(), 1);
+    await fails(save('ops', '0000', 'complaint_decide', { id: 'cp1' }, { proven: false }), /already decided/);
+    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '0000', 'cp1', 'مكنتش أنا'])).r.error, 'najm: wrong code or PIN');
+    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '4321', 'cp1', 'مكنتش أنا'])).r.ok, true);
+    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '4321', 'cp1', 'تاني'])).r.error, 'najm: complaint cannot be appealed');
+    const mine = (await rpc('select najm_my_complaints($1,$2) r', ['125', '4321'])).r.complaints;
+    eq([mine.length, mine[0].appeal_status], [1, 'pending']);
+    await save('ops', '0000', 'complaint_appeal_decide', { id: 'cp1' }, { accept: true, note: 'اتراجع الفيديو' });
+    const c = (await db.query("select status, appeal_status from najm_complaints where id='cp1'")).rows[0];
+    eq([c.status, c.appeal_status, await pc()], ['rejected', 'accepted', 0]);
+    await fails(save('br', '1111', 'complaint', { id: 'cp2' }, { date: D, code: '16', note: 'x' }), /outside your scope/);
+  });
+
+  // ---------------- نقل الموظف + التصحيح المالي
+  test('نقل الموظف بيتسجل تلقائي (من مين ولمين ومين نقله)، والتعديل من غير نقل مبيتسجلش', async () => {
+    const e = (await db.query("select * from najm_employees where code='4'")).rows[0];
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: e.dept, job: 'شيف أول', shift: e.shift, active: true });
+    eq((await db.query("select count(*)::int n from najm_emp_moves where code='4'")).rows[0].n, 0);
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: 'قسم الكاشير', job: e.job, shift: e.shift, active: true });
+    const m = (await db.query("select from_dept, to_dept, by_user from najm_emp_moves where code='4'")).rows[0];
+    eq([m.from_dept, m.to_dept, m.by_user], [e.dept, 'قسم الكاشير', 'ops']);
+    eq((await asAnon(db, 'select count(*)::int n from najm_public_moves($1,$2)', [ago(3), D]))[0].n >= 1, true);
+    eq((await asAnon(db, 'select count(*)::int n from najm_emp_moves'))[0].n, 0);
+    await save('ops', '0000', 'employee', { code: '4' }, { name: e.name, branch: e.branch, dept: e.dept, job: e.job, shift: e.shift, active: true });
+  });
+  test('إلغاء صرف جايزة (تصحيح مالي) لازم بسبب، وبيتسجل بالمبلغ القديم', async () => {
+    await rpc('select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', { month: D.slice(0, 7), code: '125', kind: 'gold', ref: 'x', amount: 1500 }]);
+    await fails(asAnon(db, 'select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', null]), /reason required/);
+    await rpc('select najm_payout_save($1,$2,$3,$4)', ['ops', '0000', 'pz1', { undo: true, reason: 'اتصرف للشخص الغلط' }]);
+    const L = (await rpc('select najm_payout_log($1,$2) r', ['ops', '0000'])).r;
+    const u = L.find(h => h.kind === 'payout_undo');
+    eq([+u.data.old.amount, u.data.reason, L.some(h => h.kind === 'payout')], [1500, 'اتصرف للشخص الغلط', true]);
+    eq((await rpc('select najm_payout_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
+  });
+
+  // ---------------- الملفات المرفوعة: سجل + منع التكرار
+  test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
+    const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
+    await save('br', '1111', 'import_log', {}, info);
+    await fails(save('br', '1111', 'import_log', {}, info), /already imported/);
+    await fails(save('br', '1111', 'import_log', { force: true }, info), /already imported/);
+    await save('ops', '0000', 'import_log', { force: true }, info);
+    await fails(save('br', '1111', 'import_log', {}, { ...info, hash: 'x2', branch: 'عين شمس' }), /other branch/);
+    await fails(save('br', '1111', 'import_log', {}, { ...info, kind: 'base_sales', hash: 'x3' }), /not allowed/);
+    const L = (await rpc('select najm_files($1,$2) r', ['br', '1111'])).r.imports;
+    eq([L.length >= 2, L[0].by_user, L.some(i => i.rows_bad === 2)], [true, 'ops', true]);
+    eq((await asAnon(db, 'select count(*)::int n from najm_imports'))[0].n, 0);
+  });
+
   // ---------------- الهايجين = اللبس
   test('الهايجين: التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»، والنجمة من المطلوب بس', async () => {
     await save('ops', '0000', 'user', { username: 'hyg' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '7171' });

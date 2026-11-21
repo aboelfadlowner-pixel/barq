@@ -25,7 +25,7 @@ function vTarget(){
     </div>`;}).join('');
   const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy();
   return `<div class="sec-title"><h2>🎯 التارجت والكابتن — ${monthName(m)}</h2>
-    <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}</div></div>
+    <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}${canUpload?`<button class="btn" onclick="openImports()">📂 الملفات المرفوعة</button>`:''}</div></div>
     <div class="lock" style="margin-bottom:10px"><b>النقط بيحددها مدير التشغيل أول كل شهر:</b> نقط تارجت كل قسم، ونقط كل كابتن، والمطلوب للعشرة الأوائل — والتطبيق بيحسب الباقي لوحده. التارجت بالكميات للقسم كله. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>
     <div class="chips" style="margin-bottom:12px">${(USER?.branch&&!isOps()?[USER.branch]:branches()).map(b=>`<button class="chip ${TG.branch===b?'on':''}" onclick="TG.branch='${esc(b)}';TG.dept='';render()">${esc(b)}</button>`).join('')}</div>
     ${ribbonHTML([TG.branch])}
@@ -97,10 +97,10 @@ function targetEditor(m){
 }
 function addItem(key){const b=baseFor(monthOf(DATE))[key];if(!b)return;DRAFT.items.push({key,name:b.name,target:Math.round(b.qty*(DRAFT.mult||1)*10)/10});render();}
 function applyPreset(p){DRAFT.kpis=PRESETS[p].map(k=>({...k,id:uid()}));render();}
-function saveTarget(){
+async function saveTarget(){
   const m=monthOf(DATE);const key=deptKey(TG.branch,TG.dept);
   const cfg=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.filter(i=>i.target>0)}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
   if(DRAFT.pts>0)cfg.pts=DRAFT.pts;if(DRAFT.need>0)cfg.need=DRAFT.need;
-  (S.targets[m]||(S.targets[m]={}))[key]=cfg;push('target',{month:m,dkey:key},cfg);
-  save();DRAFT=null;TG.mode='view';render();toast('💾 اتحفظ التارجت');
+  (S.targets[m]||(S.targets[m]={}))[key]=cfg;save();DRAFT=null;TG.mode='view';render();
+  if(await push('target',{month:m,dkey:key},cfg)!==false)toast('💾 اتحفظ التارجت');
 }

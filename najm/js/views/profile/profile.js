@@ -35,7 +35,7 @@ function empProfileHTML(e){
         <div class="kv"><span>الكروت</span><span>${cardsHTML(cardCount(e.code,m,DATE))||'<span class="muted">مفيش</span>'}</span></div>
         <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs||0)} / ${fmt(ms.late||0)}</b></div></div>
     </div>
-    ${report}${myCardsHTML()}</div>`;
+    ${report}${myCardsHTML()}${myComplaintsHTML()}</div>`;
 }
 
 // ---------- بروفايل المدير ----------
@@ -92,10 +92,25 @@ function opsPendingHTML(){
   const items=[];
   const red=S.cards.filter(c=>cardStatus(c)==='pending').length;if(red)items.push([`🟥 ${fmt(red)} كارت أحمر مستني موافقتك`,"go('cards')"]);
   const ap=(S.appeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
+  const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);
   const W=peekDay(DATE).winners||{};
   for(const b of branches())for(const g of SHIFT_GROUPS){if(!winnersFor(b,g))continue;if(!activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))continue;
     if(!W[b+'|'+g])items.push([`🏆 رجل اليوم ${esc(b)} · ${GROUP_NAME[g]} مستني اعتمادك`,`F.branch='${esc(b)}';go('day')`]);}
   const late=[];for(const[d,G]of Object.entries(S.closes||{}))for(const[gk,c]of Object.entries(G))if(c&&!c.closed_by&&c.penalty>0&&d>=ymd(new Date(Date.now()-7*864e5)))late.push(`${d} — ${gk.replace('|',' · ')}`);
   if(late.length)items.push([`⏰ ${fmt(late.length)} يوم ماتسلّمش في الميعاد (اتخصم تلقائي): ${esc(late.slice(0,3).join('، '))}`,"go('rate')"]);
   return `<div class="card" style="margin-bottom:12px;border-color:var(--gold)"><h3>📥 مستني قرارك</h3>${items.length?items.map(([t,a])=>`<div class="kv"><span>${t}</span><button class="btn sm" onclick="${a}">افتح</button></div>`).join(''):'<div class="small muted">مفيش حاجة مستنياك 👏</div>'}</div>`;
+}
+
+// ---------- شكاوى العملاء على الموظف + الاعتراض ----------
+function myComplaints(){if(LIVE)return S.myComplaints||[];
+  return (S.complaints||[]).filter(c=>c.code===ME&&((c.status||'proven')==='proven'||c.appealStatus)).map(c=>({id:c.id,day:c.date,note:c.note,status:c.status||'proven',appeal_status:c.appealStatus,appeal_body:c.appealBody,appeal_note:c.appealNote}));}
+function myComplaintsHTML(){const L=myComplaints();if(!L.length)return '';
+  return `<div class="card" style="margin-top:12px"><h3>⚠️ شكاوى العملاء</h3><div class="small muted" style="margin-bottom:6px">الشكوى المثبتة بتخصم ${fmt(S.settings.complaintPenalty)}% من نقط التارجت. لو شايف إنها مش في محلها، اعترض واكتب السبب.</div>
+    ${L.map(c=>`<div class="small" style="margin:6px 0"><b>${esc(c.day)}</b> — ${esc(c.note)} ${c.status==='proven'?'<span class="badge b-red">مثبتة</span>':'<span class="badge b-gray">اتلغت</span>'}
+      ${c.appeal_status?` <span class="badge ${c.appeal_status==='pending'?'b-gold':c.appeal_status==='accepted'?'b-green':'b-red'}">${c.appeal_status==='pending'?'✋ اعتراضك مستني قرار':c.appeal_status==='accepted'?'✔ اعتراضك اتقبل':'اعتراضك اترفض'}</span>${c.appeal_note?` <span class="muted">${esc(c.appeal_note)}</span>`:''}`:c.status==='proven'?` <button class="btn sm" onclick="empComplaintAppeal('${esc(c.id)}')">✋ اعتراض</button>`:''}</div>`).join('')}</div>`;}
+async function empComplaintAppeal(id){
+  const t=await askText('اكتب اعتراضك على الشكوى دي (هيوصل لمدير التشغيل):');if(t===null)return;const body=t.trim();if(body.length<3){toast('اكتب سبب الاعتراض');return;}
+  if(LIVE){try{await sbRpc('najm_emp_complaint_appeal',{p_code:ME,p_pin:MEPIN,p_id:id,p_body:body});}catch(x){toast('⚠️ '+x.message);return;}await refresh(true);}
+  else{const c=S.complaints.find(x=>x.id===id);if(!c)return;Object.assign(c,{appealBody:body,appealStatus:'pending'});save();}
+  render();toast('✋ اعتراضك اتبعت');
 }

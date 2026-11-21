@@ -213,6 +213,11 @@ function demoSeed(){
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
       D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
+  // شكاوى العملاء: واحدة مستنية مراجعة، واحدة مثبتة، وواحدة مثبتة والموظف معترض عليها
+  {const L=activeEmps().filter(e=>e.branch===B);S.complaints=[
+    {id:uid(),date:DATE,code:L[3].code,note:'العميل اشتكى من طريقة الرد',by:'haitham',status:'pending'},
+    {id:uid(),date:DATE,code:L[6].code,note:'تأخير في تجهيز الأوردر',by:'mahmoud',status:'proven',decidedBy:'ops'},
+    {id:uid(),date:DATE,code:L[9].code,note:'وزن غلط في الجبنة',by:'mahmoud',status:'proven',decidedBy:'ops',appealBody:'الميزان كان بايظ والمدير عارف',appealStatus:'pending'}];}
   // cards
   const staff=activeEmps();const dd=()=>pick(days);
   for(let i=0;i<22;i++)S.cards.push({id:uid(),date:dd(),code:pick(staff).code,color:'green',reason:pick(['ساعد في قسم تاني وقت الزحمة','إيجابية مع العملاء','اتنقل لقسم تاني وغطّى']),by:'haitham',approved:true});
