@@ -23,6 +23,8 @@ import { mountDriver } from './screens/driver-screen.js';
 import { mountDelivery } from './screens/delivery-screen.js';
 import { mountReports } from './screens/reports-screen.js';
 import { mountChat } from './screens/chat-screen.js';
+import { mountAttendance } from './screens/attendance-screen.js';
+import { loadMyShift } from './components/shift-chip.js';
 import { startChatWatch } from './components/chat-watch.js';
 import { startDraftKeep } from './draft-keep.js';
 import { startDraftSync } from './drafts-sync.js';
@@ -41,6 +43,7 @@ function parseRoute() {
   if (section === 'driver') return { route: 'driver', param: null };
   if (section === 'delivery') return { route: 'delivery', param: null };
   if (section === 'reports') return { route: 'reports', param: null };
+  if (section === 'attendance') return { route: 'attendance', param: null };
   if (section === 'chat') return { route: 'chat', param: param ? decodeURIComponent(param) : null };
   return { route: 'board', param: null };
 }
@@ -54,6 +57,7 @@ function render() {
   else if (route === 'delivery' && !can(user, 'deliveryReport')) route = 'board';
   else if (route === 'reports' && !can(user, 'reports')) route = 'board';
   else if (route === 'chat' && !can(user, 'chat')) route = 'board';
+  else if (route === 'attendance' && !can(user, 'attendance')) route = 'board';
   else if (route === 'areas' && !can(user, 'manageAreas')) route = 'board';
   else if (route === 'prep' && !can(user, 'prepScreen')) route = 'board';
   else if (route === 'orders' && !can(user, 'ordersLog')) route = 'board';
@@ -78,6 +82,7 @@ function render() {
   else if (route === 'delivery') unmount = mountDelivery(view);
   else if (route === 'reports') unmount = mountReports(view);
   else if (route === 'chat') unmount = mountChat(view, param);
+  else if (route === 'attendance') unmount = mountAttendance(view);
   else unmount = mountBoard(view);
 }
 
@@ -113,6 +118,8 @@ async function startSignedIn(user) {
   startCatalogSync(refreshing);
   // New driver messages: the red number on «الشات», 💬 on the cards, a ring (call center and admin).
   if (can(user, 'chat')) startChatWatch();
+  // «بدء الشيفت» (47): the call-center account's own shift, shown in the top bar.
+  if (can(user, 'shift')) loadMyShift();
 }
 
 /* A driver opens his personal link (#d=<secret>, sent by the admin on WhatsApp): signed in
