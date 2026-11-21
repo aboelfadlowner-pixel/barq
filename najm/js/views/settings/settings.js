@@ -4,7 +4,7 @@ function vSettings(){
   const s=S.settings;
   const num=(path,label,step=1)=>`<label class="small">${label}<br><input class="inp" type="number" step="${step}" style="width:110px" value="${path.split('.').reduce((o,k)=>o[k],s)}" onchange="setS('${path}',+this.value)"></label>`;
   const txt=(path,label,type='text')=>`<label class="small">${label}<br><input class="inp" type="${type}" value="${esc(path.split('.').reduce((o,k)=>o[k],s))}" onchange="setS('${path}',this.value)"></label>`;
-  return `<h2>⚙️ الإعدادات</h2>
+  return `<div class="sec-title"><h2>⚙️ الإعدادات</h2><button class="btn" onclick="openSettingsLog()">📜 سجل التغييرات</button></div>
   <div class="card" style="margin-bottom:12px"><div class="sec-title"><h3>🔐 حسابات المديرين</h3><button class="btn pri sm" onclick="editUser()">+ حساب</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>اسم الدخول</th><th>الاسم</th><th>الدور</th><th>الفرع</th><th>الشيفت</th><th>الأقسام</th><th></th></tr></thead><tbody>
     ${S.users.map(u=>`<tr style="${u.active===false?'opacity:.5':''}"><td><b>${esc(u.username)}</b></td><td><div class="row" style="flex-wrap:nowrap;gap:6px">${u.emp_code&&emp(u.emp_code)?ava(emp(u.emp_code),'sm'):''}${esc(u.name)}</div></td><td>${ROLES[u.role]}</td><td class="small">${esc(u.branch||'الكل')}</td><td class="small">${esc(u.shift||'—')}</td><td class="small">${esc((u.depts||[]).join('، ')||'—')}</td><td><button class="btn sm" onclick="editUser('${esc(u.username)}')">✏️</button></td></tr>`).join('')}
@@ -69,7 +69,7 @@ async function saveRules(now){
   if(i>=0)V[i]=ver;else V.push(ver);V.sort((a,b)=>a.from.localeCompare(b.from));
   RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();
 }
-function setS(path,v,reason){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',reason?{reason,path}:{path},pub);}toast('اتحفظ');}
+function setS(path,v,reason){OLD_VAL=JSON.parse(JSON.stringify(path==='bonusAt100'?{bonusAt100:S.settings.bonusAt100}:S.settings));const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',reason?{reason,path}:{path},pub);}toast('اتحفظ');}
 function editUser(name){
   const u=name?S.users.find(x=>x.username===name):{username:'',name:'',role:'shift',branch:branches()[0],shift:'Morning',depts:[],active:true};
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${name?'تعديل حساب':'حساب جديد'}</h2>
@@ -126,4 +126,22 @@ async function genEmpPins(all){
   if(!rows.length){toast('كل الموظفين عندهم أرقام');return;}
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'أرقام الموظفين');XLSX.writeFile(wb,`najm-pins-${ymd(new Date())}.xlsx`);
   if(LIVE)await refresh(true);render();toast(`🔑 ${rows.length} رقم سري — اتنزّلوا في ملف Excel. وزّعهم واحفظ الملف في مكان آمن.`);
+}
+
+// ---------- سجل تغيير الإعدادات: القديم والجديد ومين غيّر وإمتى والسبب ----------
+const SET_NAME={att:'نجوم البصمة',cards:'نقط الكروت',ruleVersions:'قواعد الشهر',winnersBy:'عدد رجال اليوم',minStarsWinner:'أقل نجوم للترشيح',finalists:'عدد المرشحين',
+  closeStart:'بداية خصم التأخير',lateClosePenalty:'خصم التأخير',closeAfterHours:'ميعاد التسليم (ساعات)',shiftStart:'بداية الشيفتات',graceMin:'سماح البصمة',lateMax:'التأخير البسيط',
+  prizes:'الجوايز',mgrPoints:'نقاط المديرين',mgrWeights:'أوزان المدير المثالي',captainMult:'مضاعف الكابتن',capPct:'أقصى نسبة',defaultMultiplier:'المُضاعِف',complaintPenalty:'خصم الشكوى',
+  checkpoints:'أيام التقرير',freshDepts:'أقسام الفريش',bonusAt100:'مكافأة التارجت',goal:'حد الـ KPI',targetGoal:'المطلوب من التارجت',marketDays:'مدة السوق'};
+const short=v=>{const t=v===undefined?'—':typeof v==='object'?JSON.stringify(v):String(v);return t.length>140?t.slice(0,140)+'…':t;};
+function settingsDiff(o,n){o=o||{};n=n||{};return [...new Set([...Object.keys(o),...Object.keys(n)])].filter(k=>JSON.stringify(o[k])!==JSON.stringify(n[k])).map(k=>({k,name:SET_NAME[k]||k,o:o[k],n:n[k]}));}
+async function openSettingsLog(){
+  let L;
+  if(LIVE){try{L=await sbRpc('najm_settings_log',{p_user:USER.username,p_pin:PIN});}catch(e){toast('⚠️ '+errMsg(e.message));return;}}
+  else L=(S.history||[]).filter(h=>h.kind==='settings'||h.kind==='private');
+  const rows=(L||[]).map(h=>({h,d:settingsDiff(h.data?.old,h.data?.data)})).filter(x=>x.d.length);
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📜 سجل تغيير الإعدادات</h2><div class="small muted" style="margin-bottom:8px">كل تغيير بالقيمة القديمة والجديدة، ومين غيّره، وإمتى، والسبب.</div>
+    ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>إمتى</th><th>مين</th><th>إيه اللي اتغيّر</th><th>كان</th><th>بقى</th><th>السبب</th></tr></thead><tbody>
+    ${rows.map(({h,d})=>d.map((x,i)=>`<tr>${i?'<td></td><td></td>':`<td class="small" rowspan="1">${new Date(h.at).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</td><td class="small">${esc(h.actor_name||h.actor)}</td>`}<td class="small"><b>${esc(x.name)}</b></td><td class="small" style="color:var(--red);max-width:220px;word-break:break-all">${esc(short(x.o))}</td><td class="small" style="color:var(--green);max-width:220px;word-break:break-all">${esc(short(x.n))}</td><td class="small">${i?'':esc(h.data?.key?.reason||'')}</td></tr>`).join('')).join('')}
+    </tbody></table></div>`:'<div class="empty">مفيش تغييرات متسجلة لسه</div>'}`);
 }

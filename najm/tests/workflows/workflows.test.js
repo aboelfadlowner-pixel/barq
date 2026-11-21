@@ -41,6 +41,17 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     });
     eq(r, [true, 5, 0.5, [2, -1, -1, -1, -1], 1, 4]);
   });
+  test('قواعد الشهر: الحفظ بيبدأ من الشهر الجاي وبيظهر في سجل التغييرات', async () => {
+    const r = await p.evaluate(async () => {
+      USER = { username: 'ops', role: 'ops', name: 'مدير التشغيل', branch: '', shift: '', depts: [] }; go('settings');
+      const cm = monthOf(ymd(new Date())), nm = nextMonthOf(cm); RD.minWorkDays = 23;
+      const sv = saveRules(false); await new Promise(r => setTimeout(r, 50)); document.querySelector('#askOk').click(); await sv;
+      const out = [rulesFor(cm).minWorkDays, rulesFor(nm).minWorkDays];
+      await openSettingsLog(); const t = document.querySelector('#modal').innerText; closeModal(); USER = null;
+      return [...out, t.includes('قواعد الشهر')];
+    });
+    eq(r, [20, 23, true]);
+  });
   test('مدير التشغيل يحدد نقط القسم والمطلوب، والتقرير يحسب بيها', async () => {
     await p.evaluate(() => { USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; TG.branch = 'البيطاش الرئيسي'; TG.dept = 'قسم البقاله'; TG.mode = 'edit'; go('target'); });
     ok(await p.evaluate(() => document.querySelector('#main').innerText.includes('نقط القسم للشهر ده')));

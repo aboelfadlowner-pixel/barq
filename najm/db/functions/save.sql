@@ -232,9 +232,11 @@ begin
         pts = case when u.role = 'ops' then excluded.pts else najm_captains.pts end,
         by_user = excluded.by_user, updated_at = now(); end if;
   elsif p_kind = 'settings' then
+    select data into old from najm_settings where id = 1;   -- السجل: القيمة القديمة والجديدة
     insert into najm_settings(id, data) values (1, p_data)
     on conflict (id) do update set data = excluded.data, updated_at = now();
   elsif p_kind = 'private' then
+    select data into old from najm_private where id = 1;
     insert into najm_private(id, data) values (1, p_data) on conflict (id) do update set data = excluded.data;
   elsif p_kind = 'user' then
     s := lower(trim(p_key->>'username'));
@@ -265,7 +267,7 @@ begin
     values (u.username, p_kind, k_code, k_day, gk,
             case when p_kind in ('sales', 'base_sales', 'emp_pins_generate') then jsonb_build_object('key', p_key)
                  when p_kind in ('user', 'emp_pin') then jsonb_build_object('key', p_key, 'data', case when del then null else p_data - 'pin' end)
-                 when p_kind in ('att', 'rate', 'bonus') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
+                 when p_kind in ('att', 'rate', 'bonus', 'settings', 'private') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
                  else jsonb_build_object('key', p_key, 'data', p_data) end);
 
   if p_kind in ('att','rate','bonus') then
@@ -303,3 +305,17 @@ end $$;
 grant execute on function public.najm_files(text, text) to anon, authenticated;
 
 alter function public.najm_files(text, text) volatile;
+
+-- سجل تغيير الإعدادات (لمدير التشغيل بس): مين غيّر إيه وإمتى والسبب، بالقيمة القديمة والجديدة
+create or replace function public.najm_settings_log(p_user text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: login required'); end if;
+  if u.role <> 'ops' then return jsonb_build_object('error', 'najm: operations manager only'); end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('at', h.at, 'actor', h.actor, 'actor_name', coalesce(x.name, h.actor), 'kind', h.kind, 'data', h.data) order by h.at desc)
+    from (select * from najm_history where kind in ('settings', 'private') order by at desc limit 60) h
+    left join najm_users x on x.username = h.actor), '[]'::jsonb);
+end $$;
+grant execute on function public.najm_settings_log(text, text) to anon, authenticated;

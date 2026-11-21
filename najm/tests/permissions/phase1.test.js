@@ -170,6 +170,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'rate', { day: ago(1), code: c }, [1, 1, 1, 1, 1]), /day locked/);
   });
 
+  // ---------------- سجل تغيير الإعدادات
+  test('تغيير الإعدادات بيتسجل بالقديم والجديد والسبب، والسجل لمدير التشغيل بس', async () => {
+    const st = (await db.query('select data from najm_settings where id=1')).rows[0].data;
+    await save('ops', '0000', 'settings', { reason: 'تجربة', path: 'graceMin' }, { ...st, graceMin: 17 });
+    const L = (await rpc('select najm_settings_log($1,$2) r', ['ops', '0000'])).r;
+    const h = L.find(x => x.data.key.reason === 'تجربة');
+    eq([h.data.data.graceMin, h.data.old.graceMin === 17, h.actor], [17, false, 'ops']);
+    eq((await rpc('select najm_settings_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
+    await save('ops', '0000', 'settings', { reason: 'رجوع' }, st);
+  });
+
   // ---------------- الهايجين = اللبس
   test('الهايجين: التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»، والنجمة من المطلوب بس', async () => {
     await save('ops', '0000', 'user', { username: 'hyg' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '7171' });
