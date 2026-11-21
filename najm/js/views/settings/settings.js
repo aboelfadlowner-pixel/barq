@@ -23,7 +23,8 @@ function vSettings(){
    <div class="card"><h3>🔑 الرقم السري للموظفين</h3><div class="small muted" style="margin-bottom:6px">الموظف بيدخل «تقريري» والتصويت والاعتراض بكود البصمة + رقم سري. أول مرة بيدخل بالرقم اللي هنا وبيغيّره بنفسه.</div>
      <div class="small" style="margin-bottom:6px">عندهم رقم: <b>${fmt(Object.keys(S.empPins||{}).length)}</b> من ${fmt(activeEmps().length)} موظف</div>
      <div class="row"><button class="btn pri sm" onclick="genEmpPins(false)">🔑 أرقام للي ملهمش + Excel</button><button class="btn sm red" onclick="genEmpPins(true)">أرقام جديدة للكل</button></div></div>
-   <div class="card"><h3>📈 شرط العشرة الأوائل + تقرير الـ10 أيام</h3><div class="row">${num('goal','حد الـ KPI للعشرة الأوائل')}${num('targetGoal','المطلوب الافتراضي % من نقط التارجت')}<label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">الموظف لازم يعدّي الحدّين مع بعض عشان يدخل العشرة الأوائل وياخد جايزة. وآخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
+   ${rulesCardHTML()}
+   <div class="card"><h3>📈 تقرير الـ10 أيام</h3><div class="row"><label class="small">أيام التقرير<br><input class="inp" style="width:110px" value="${esc((s.checkpoints||[10,20]).join('، '))}" onchange="setS('checkpoints',this.value.split(/[،,\s]+/).map(Number).filter(x=>x>0&&x<31))"></label></div><div class="small muted" style="margin-top:6px">آخر يوم في الشهر بيطلع فيه تقرير دايماً.</div></div>
    <div class="card"><h3>🎯 التارجت والكابتن</h3><div class="row">${num('defaultMultiplier','المُضاعِف',.1)}${num('capPct','أقصى نسبة %')}${num('complaintPenalty','خصم الشكوى %')}${num('captainMult','مضاعف الكابتن ×')}</div></div>
    <div class="card"><h3>🏆 الجوايز (بتظهر للكل)</h3><div class="row">${num('prizes.gold','الكأس الدهبي (ج)')}${num('prizes.silver','الكأس الفضي (ج)')}${num('prizes.bronze','الكأس البرونزي (ج)')}${num('prizes.top10','من 4 لـ 10 (ج)')}${num('prizes.daily','رجل اليوم (ج)')}</div></div>
    <div class="card"><h3>🎖️ نقاط المديرين</h3><div class="row">${num('mgrPoints.rating','لكل نقطة تقييم يومي',.5)}${num('mgrPoints.winner','رجل يوم من فريقه')}${num('mgrPoints.gold','كاس دهبي في فريقه')}${num('mgrPoints.silver','كاس فضي')}${num('mgrPoints.bronze','كاس برونزي')}${num('mgrPoints.top10','من 4 لـ 10')}${num('mgrPoints.red','كارت أحمر في فريقه')}${num('mgrPoints.bonus','مكافأة المدير المثالي (نقاط)')}${num('prizes.manager','المدير المثالي (جنيه)')}${num('marketDays','أيام فتح السوق للعروض')}${num('mgrWeights.ops','وزن تقييم التشغيل %')}${num('mgrWeights.team','وزن أداء الفريق %')}${num('mgrWeights.votes','وزن تصويت الموظفين %')}</div></div>
@@ -32,7 +33,43 @@ function vSettings(){
    <div class="card"><h3>💾 البيانات</h3><div class="row"><button class="btn pri" onclick="exportJSON()">⬇️ نسخة احتياطية</button>${LIVE?'':'<button class="btn" onclick="importJSON()">⬆️ استرجاع</button>'}<button class="btn" onclick="exportXLSX()">📊 Excel للشهر</button>${LIVE?'':'<button class="btn gold" onclick="loadDemo()">🧪 بيانات تجريبية</button>'}</div><div class="small muted" style="margin-top:6px;${LIVE?'display:none':''}">البيانات التجريبية بتملا الشهر بأرقام وهمية وحسابات مديرين تجريبية (haitham/1111 · mahmoud/2222 · islam/3333 · firas/5555).</div></div>
   </div>`;
 }
-function setS(path,v){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',{},pub);}toast('اتحفظ');}
+// ---------- قواعد الشهر (rules.js): مدير التشغيل بيحددها، والتغيير بيبدأ من الشهر الجاي ----------
+let RD=null;   // مسودة القواعد اللي بتتعدّل
+const nextMonthOf=m=>{const [y,mo]=m.split('-').map(Number);return mo===12?`${y+1}-01`:`${y}-${String(mo+1).padStart(2,'0')}`;};
+function rulesCardHTML(){
+  const cm=monthOf(ymd(new Date())),nm=nextMonthOf(cm);const cur=rulesFor(cm),nxt=rulesFor(nm);
+  if(!RD)RD=JSON.parse(JSON.stringify(nxt));
+  const tiers=(R)=>R.ptsTiers.map(t=>`<span style="white-space:nowrap">${fmt(t[0])}٪ = ${fmt(t[1])} نقطة</span>`).join(' · ');
+  const diff=JSON.stringify(cur)!==JSON.stringify(nxt);
+  return `<div class="card" style="grid-column:1/-1;border-color:var(--gold)"><h3>📐 قواعد الشهر (التأهل ونقط التارجت)</h3>
+    <div class="small" style="margin-bottom:8px">شغالة في ${monthName(cm)}: حد الـ KPI <b>${fmt(cur.goal)}</b> · المطلوب من التارجت <b>${fmt(cur.targetGoal)}%</b> · أقل أيام شغل <b>${fmt(cur.minWorkDays)}</b> <br>الشرايح (${cur.ptsMode==='step'?'سلّم':'بالتناسب'}): ${tiers(cur)}</div>
+    ${diff?`<div class="small" style="margin-bottom:8px;color:var(--purple)">من ${monthName(nm)}: حد الـ KPI <b>${fmt(nxt.goal)}</b> · التارجت <b>${fmt(nxt.targetGoal)}%</b> · أيام <b>${fmt(nxt.minWorkDays)}</b> · ${tiers(nxt)} (${nxt.ptsMode==='step'?'سلّم':'بالتناسب'})</div>`:''}
+    <div class="row" style="gap:10px;align-items:flex-end">
+      <label class="small">حد الـ KPI<br><input class="inp" type="number" style="width:90px" value="${RD.goal}" onchange="RD.goal=+this.value"></label>
+      <label class="small">المطلوب من التارجت %<br><input class="inp" type="number" style="width:90px" value="${RD.targetGoal}" onchange="RD.targetGoal=+this.value"></label>
+      <label class="small">أقل أيام شغل للتأهل<br><input class="inp" type="number" style="width:90px" value="${RD.minWorkDays}" onchange="RD.minWorkDays=+this.value"></label>
+      <label class="small">بين الشرايح<br><select class="inp" onchange="RD.ptsMode=this.value"><option value="linear" ${RD.ptsMode!=='step'?'selected':''}>بالتناسب (93% ← 93)</option><option value="step" ${RD.ptsMode==='step'?'selected':''}>سلّم (93% ← نقط 85%)</option></select></label>
+    </div>
+    <div class="small" style="margin:10px 0 4px"><b>شرايح نقط التارجت</b> — أقل من أول شريحة = صفر، وأكتر من آخر شريحة = نقط آخر شريحة:</div>
+    <div class="row" style="gap:6px">${RD.ptsTiers.map((t,i)=>`<span class="row" style="gap:2px;border:1px solid var(--line);border-radius:8px;padding:3px 6px;flex-wrap:nowrap"><input class="inp" type="number" style="width:62px" value="${t[0]}" onchange="RD.ptsTiers[${i}][0]=+this.value">%←<input class="inp" type="number" style="width:62px" value="${t[1]}" onchange="RD.ptsTiers[${i}][1]=+this.value"><button class="btn sm" onclick="RD.ptsTiers.splice(${i},1);render()">✕</button></span>`).join('')}<button class="btn sm" onclick="RD.ptsTiers.push([0,0]);render()">+ شريحة</button></div>
+    <div class="row" style="margin-top:10px;gap:6px"><button class="btn pri sm" onclick="saveRules(false)">💾 حفظ — يبدأ من ${monthName(nm)}</button><button class="btn sm red" onclick="saveRules(true)">طبّق على ${monthName(cm)} (بسبب)</button><button class="btn sm" onclick="RD=null;render()">رجّع</button></div>
+    <div class="small muted" style="margin-top:6px">كل شهر بيتحسب بالقواعد اللي كانت شغالة فيه — التغيير مبيغيّرش نتايج الشهور اللي فاتت ولا الجوايز اللي اتصرفت.</div></div>`;
+}
+async function saveRules(now){
+  const cm=monthOf(ymd(new Date())),from=now?cm:nextMonthOf(cm);
+  const T=RD.ptsTiers.map(t=>[+t[0],+t[1]]).filter(t=>t[0]>0).sort((a,b)=>a[0]-b[0]);
+  if(!T.length||!(RD.minWorkDays>=0)||!(RD.goal>0)){toast('راجع الأرقام');return;}
+  let reason='';
+  if(now){reason=await askText(`تطبيق القواعد الجديدة على ${monthName(cm)} هيغيّر ترتيب ونقط الشهر ده. اكتب السبب:`);if(reason===null)return;reason=reason.trim();if(!reason){toast('لازم تكتب السبب');return;}}
+  else if(!await askConfirm(`حفظ القواعد الجديدة؟ هتبدأ من ${monthName(from)}، و${monthName(cm)} هيفضل بالقواعد الحالية.`))return;
+  const V=[...(S.settings.ruleVersions||[])];
+  if(!V.length)V.push({from:'0000-00',rules:rulesFor(cm)});   // القواعد القديمة للشهور اللي فاتت
+  const rules={...RD,ptsTiers:T};
+  const i=V.findIndex(v=>v.from===from);const ver={from,rules,by:USER.username,at:new Date().toISOString(),...(reason?{reason}:{})};
+  if(i>=0)V[i]=ver;else V.push(ver);V.sort((a,b)=>a.from.localeCompare(b.from));
+  RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();
+}
+function setS(path,v,reason){const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;if(path==='bonusAt100')push('private',{},{bonusAt100:v});else{const {bonusAt100,...pub}=S.settings;push('settings',reason?{reason,path}:{path},pub);}toast('اتحفظ');}
 function editUser(name){
   const u=name?S.users.find(x=>x.username===name):{username:'',name:'',role:'shift',branch:branches()[0],shift:'Morning',depts:[],active:true};
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${name?'تعديل حساب':'حساب جديد'}</h2>

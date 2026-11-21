@@ -8,8 +8,9 @@ function salesAgg(month,branch,upto){
   for(const d of monthDays(month,upto)){const b=S.sales[d]?.[branch];if(!b)continue;for(const[k,v]of Object.entries(b)){(out[k]||(out[k]={name:v.name,qty:0})).qty+=v.qty;}}
   return out;
 }
-const pts=p=>p==null?null:p<50?0:p<85?50:Math.round(p);
-// نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز — القاعدة لسه هتتحدد (دلوقتي: الشرايح 50/85)
+// نقط التارجت من نسبة التحقيق — بالشرايح اللي مدير التشغيل حددها للشهر ده (rules.js)
+const pts=p=>tierPts(p);
+// نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز
 const tgtRatio=p=>p==null?null:(pts(p)||0)/100;
 const tgtCfg=(month,branch,dept)=>S.targets[month]?.[deptKey(branch,dept)]||null;
 function deptProgress(month,branch,dept,upto,empCode){
