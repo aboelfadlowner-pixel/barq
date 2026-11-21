@@ -59,9 +59,10 @@ begin
   end if;
 
   if p_kind = 'att' then
-    insert into najm_ratings(day, code, att, att_time)
-      values (k_day, k_code, case when del then null else p_data->>'st' end, case when del then null else p_data->>'time' end)
-    on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, updated_at = now();
+    -- التعديل بإيد مدير (manual) — التحديث اليومي من الـ Drive مبيكتبش فوقه
+    insert into najm_ratings(day, code, att, att_time, att_src)
+      values (k_day, k_code, case when del then null else p_data->>'st' end, case when del then null else p_data->>'time' end, 'manual')
+    on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, att_src = 'manual', updated_at = now();
   elsif p_kind = 'rate' then
     arr := case when del then null else array(select (case when v = 'null'::jsonb then null else v::text::smallint end)
                                              from jsonb_array_elements(p_data) v) end;
@@ -262,10 +263,10 @@ begin
     if jsonb_typeof(p_data) <> 'array' or jsonb_array_length(p_data) > 1000 then raise exception 'najm: bad attendance rows'; end if;
     if exists (select 1 from jsonb_array_elements(p_data) x where x->>'st' not in ('on','late','vlate','abs','off')) then
       raise exception 'najm: bad attendance status'; end if;
-    insert into najm_ratings(day, code, att, att_time)
-      select (x->>'day')::date, x->>'code', x->>'st', nullif(x->>'time', '')
+    insert into najm_ratings(day, code, att, att_time, att_src)
+      select (x->>'day')::date, x->>'code', x->>'st', nullif(x->>'time', ''), 'sheet'
       from jsonb_array_elements(p_data) x join najm_employees e on e.code = x->>'code' and e.active
-    on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, updated_at = now();
+    on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, att_src = 'sheet', updated_at = now();
     get diagnostics wmax = row_count;
     ret := jsonb_build_object('saved', wmax);
     p_data := jsonb_build_object('rows', jsonb_array_length(p_data), 'saved', wmax,

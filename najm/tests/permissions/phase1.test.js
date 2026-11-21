@@ -236,6 +236,38 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq([h.data.saved, h.data.rows], [2, 3]);
   });
 
+  // ---------------- التحديث اليومي للبصمة من الـ Drive
+  test('التحديث اليومي من الـ Drive: الحكم من ميعاد الوردية، الراحة والغياب، والتعديل اليدوي مبيتكتبش فوقه', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 1 offset 9", [B])).rows[0].code;
+    const base = '2026-03-'; const R = (d, shift, tin, leave) => ({ code: x, day: base + d, shift, in: tin, leave: leave || '' });
+    // 7 مارس 2026 سبت
+    const rows = [R('07', '8:00 AM', '8:05 AM'), R('08', '7:00 AM', '7:25 AM'), R('09', '5:00 PM', '6:10 PM'), R('10', '11:00 PM', '12:05 AM'),
+      R('11', '8:00 ص', '', 'مرضي'), R('12', '8:00 AM', ''), R('13', '8:00 AM', ''), R('14', '8:00 AM', '7:59 AM'), R('20', '8:00 AM', ''),
+      { code: '88888888', day: base + '07', shift: '8:00 AM', in: '8:00 AM', leave: '' }];
+    await fails(asAnon(db, 'select najm_att_sync($1,$2)', [JSON.stringify(rows), 'x']), /permission denied/);
+    const r = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv-03-2026'])).rows[0].r;
+    const st = Object.fromEntries((await db.query("select to_char(day,'DD') d, att, att_src from najm_ratings where code=$1 and day between '2026-03-01' and '2026-03-31' order by day", [x])).rows.map(r => [r.d, r.att]));
+    eq(st, { '07': 'on', '08': 'late', '09': 'vlate', '10': 'vlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' });
+    eq([r.to, r.unknown], ['2026-03-14', ['88888888']]);
+    // مدير التشغيل عدّل يوم الغياب بإيده ← التحديث الجاي مبيرجّعهوش
+    await save('ops', '0000', 'att', { day: base + '13', code: x, reason: 'كان في مأمورية' }, { st: 'on' });
+    const r2 = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv-03-2026'])).rows[0].r;
+    eq([(await db.query("select att, att_src from najm_ratings where code=$1 and day='2026-03-13'", [x])).rows[0].att, r2.manual_kept], ['on', 1]);
+    eq((await db.query("select count(*)::int n from najm_history where kind='att_sync'")).rows[0].n >= 2, true);
+  });
+  test('قارئ الشيت (tools/attendance-sheet.js): بياخد الكود والتاريخ والوردية والدخول والإجازة بس', async () => {
+    const XLSX = require('xlsx'), fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'najm-att-')); const inF = path.join(dir, 'a.xlsx'), outF = path.join(dir, 'a.json');
+    const H = ['اليوم', 'التاريخ', 'ايام الحضور', 'اجازة مدفوعة', 'نوع الاجازه', 'بدل الأجازه', 'جزاء غياب بدون اذن', 'معاد الورديه', 'س الدخول', 'س الخروج'];
+    const aoa = [['', 'o2'], ['الكود', '125', 'الاسم'], ['الراتب الاساسي', '7171717', 'بدل متغير kpi', '5252525'], H,
+      ['Sunday', '1/11/2026', '1', '', '', '4545454', '6363636', '8:00 AM', '8:03 AM', '5:00 PM'], ['Monday', '2/11/2026', '0', '', 'مرضي', '', '', '8:00 AM', '', ''], ['الاجمالى']];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'راتب11'); XLSX.writeFile(wb, inF);
+    execFileSync('node', [path.resolve(__dirname, '../../tools/attendance-sheet.js'), inF, outF], { env: process.env });
+    const out = JSON.parse(fs.readFileSync(outF, 'utf8')); fs.rmSync(dir, { recursive: true });
+    eq(out, [{ code: '125', day: '2026-11-01', shift: '8:00 AM', in: '8:03 AM', leave: '' }, { code: '125', day: '2026-11-02', shift: '8:00 AM', in: '', leave: 'مرضي' }]);
+    ok(!['7171717', '5252525', '4545454', '6363636'].some(v => JSON.stringify(out).includes(v)), 'money columns leaked');
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
