@@ -225,6 +225,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await rpc('select najm_payout_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
   });
 
+  test('شيت الحضور الشهري: مدير التشغيل بس، بيحفظ مرة واحدة، والحالات المسموحة بس', async () => {
+    const rows = [{ day: ago(3), code: '125', st: 'on', time: '8:00 AM' }, { day: ago(3), code: '4', st: 'abs', time: null }, { day: ago(3), code: 'nope', st: 'on' }];
+    await fails(save('br', '1111', 'att_bulk', { reason: 'x' }, rows), /operations manager only/);
+    await fails(save('ops', '0000', 'att_bulk', { reason: 'x' }, [{ day: ago(3), code: '125', st: 'bad' }]), /bad attendance status/);
+    const r = await save('ops', '0000', 'att_bulk', { reason: 'شيت الحضور الشهري' }, rows);
+    eq(r.saved, 2);
+    eq((await db.query('select att, att_time from najm_ratings where day=$1 and code=$2', [ago(3), '125'])).rows[0], { att: 'on', att_time: '8:00 AM' });
+    const h = (await db.query("select data from najm_history where kind='att_bulk' order by id desc limit 1")).rows[0].data;
+    eq([h.data.saved, h.data.rows], [2, 3]);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
