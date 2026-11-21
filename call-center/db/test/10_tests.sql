@@ -2943,3 +2943,100 @@ do $$ declare r jsonb := public.cc_driver_orders(); begin
 end $$;
 reset role;
 rollback;
+
+-- T64 — «الحضور» (47_attendance.sql): call center only; start twice = same shift; end; end with none refused;
+--        a forgotten shift of an earlier day closes at the end of its day («مقفلش»); the admin's page:
+--        orders in the shift, «برا الشيفت», «اشتغل من غير بصمة», who is working now; others refused
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'att1@cc.test'), (gen_random_uuid(), 'att2@cc.test'), (gen_random_uuid(), 'att3@cc.test');
+insert into public.cc_staff (user_id, display_name, role) select id, 'موظف ' || email, 'call_center' from auth.users where email like 'att_@cc.test';
+select set_config('cc.u1', (select id::text from auth.users where email = 'att1@cc.test'), true);
+select set_config('cc.u2', (select id::text from auth.users where email = 'att2@cc.test'), true);
+select set_config('cc.u3', (select id::text from auth.users where email = 'att3@cc.test'), true);
+insert into public.cc_agents (name) values ('موظف 64') on conflict do nothing;
+-- u2 forgot to end a shift two days ago
+insert into public.cc_shifts (user_id, start_at) values (current_setting('cc.u2')::uuid, public.cc_work_day_start() - interval '2 days' + interval '8 hours');
+-- u1: an order before the shift (outside), punch in, an order inside, punch out
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.u1'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare a jsonb; b jsonb; o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 64'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 64-1', 'phone', '01064646401'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 64'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  perform set_config('cc.before', o.id::text, true);
+  if public.cc_shift_mine() is not null then raise exception 'FAIL T64 nothing yet'; end if;
+  a := public.cc_shift_start();
+  b := public.cc_shift_start();                                   -- double tap
+  if a->>'start_at' is null or a->>'start_at' <> b->>'start_at' or public.cc_shift_mine()->>'start_at' <> a->>'start_at' then raise exception 'FAIL T64 start % %', a, b; end if;
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 64'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 64-2', 'phone', '01064646402'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 64'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+  b := public.cc_shift_end();
+  if b->>'end_at' is null or public.cc_shift_mine() is not null then raise exception 'FAIL T64 end %', b; end if;
+  begin perform public.cc_shift_end(); raise exception 'FAIL T64 end twice';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_attendance(current_date, current_date); raise exception 'FAIL T64 call center reads the page';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- the order before the shift: made a little earlier (times inside one transaction are equal)
+update public.cc_orders set created_at = created_at - interval '1 minute' where id::text = current_setting('cc.before');
+update public.cc_shifts set start_at = start_at - interval '30 seconds' where user_id = current_setting('cc.u1')::uuid;
+-- u2 starts today: the forgotten one is closed at the end of its day
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.u2'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_shift_start(); end $$;
+reset role;
+do $$ begin
+  if (select count(*) from public.cc_shifts where user_id = current_setting('cc.u2')::uuid) <> 2
+     or (select count(*) from public.cc_shifts where user_id = current_setting('cc.u2')::uuid and auto_closed
+           and end_at = public.cc_work_day_from(public.cc_work_day_of(start_at) + 1)) <> 1 then
+    raise exception 'FAIL T64 forgotten shift';
+  end if;
+end $$;
+-- u3 makes an order without punching in
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('cc.u3'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  perform public.cc_place_order((select id from public.cc_agents where name = 'موظف 64'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 64-3', 'phone', '01064646403'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 64'),
+         '[{"sku": "T-201", "qty": 1}]', null);
+end $$;
+reset role;
+-- the admin cannot punch; reads the page
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; x jsonb; d date := public.cc_work_day_of(now()); begin
+  begin perform public.cc_shift_start(); raise exception 'FAIL T64 admin punches';
+  exception when insufficient_privilege then null; end;
+  begin perform public.cc_attendance(d, d + 200); raise exception 'FAIL T64 range';
+  exception when invalid_parameter_value then null; end;
+  r := public.cc_attendance(d - 2, d);
+  select e into x from jsonb_array_elements(r->'rows') e where e->>'user_id' = current_setting('cc.u1');
+  if x is null or (x->>'orders')::int <> 1 or (x->>'outside')::int <> 1 or (x->>'open')::boolean or x->>'end_at' is null or (x->>'no_punch')::boolean then
+    raise exception 'FAIL T64 u1 row %', x;
+  end if;
+  select e into x from jsonb_array_elements(r->'rows') e where e->>'user_id' = current_setting('cc.u3');
+  if x is null or not (x->>'no_punch')::boolean or (x->>'outside')::int <> 1 then raise exception 'FAIL T64 no punch %', x; end if;
+  if (select count(*) from jsonb_array_elements(r->'rows') e where e->>'user_id' = current_setting('cc.u2')) <> 2
+     or (select count(*) from jsonb_array_elements(r->'rows') e where e->>'user_id' = current_setting('cc.u2') and (e->>'auto_closed')::boolean) <> 1
+     or (select count(*) from jsonb_array_elements(r->'rows') e where e->>'user_id' = current_setting('cc.u2') and (e->>'open')::boolean) <> 1 then
+    raise exception 'FAIL T64 u2 rows %', r->'rows';
+  end if;
+  select e into x from jsonb_array_elements(r->'now') e where e->>'user_id' = current_setting('cc.u2');
+  if x->>'start_at' is null then raise exception 'FAIL T64 u2 working now %', x; end if;
+  select e into x from jsonb_array_elements(r->'now') e where e->>'user_id' = current_setting('cc.u1');
+  if x->>'start_at' is not null or x->>'last_end' is null then raise exception 'FAIL T64 u1 now %', x; end if;
+  -- an earlier period: only the forgotten shift
+  r := public.cc_attendance(d - 2, d - 2);
+  if jsonb_array_length(r->'rows') <> 1 or not (r->'rows'->0->>'auto_closed')::boolean then raise exception 'FAIL T64 day before %', r->'rows'; end if;
+  raise notice 'PASS T64 الحضور: الكول سنتر بس يبصم، دوستين = شيفت واحد، اللي نسي يقفل يتقفل آخر يومه، صفحة الأدمن (في الشيفت / برا الشيفت / من غير بصمة / شغال دلوقتي)';
+end $$;
+reset role;
+rollback;

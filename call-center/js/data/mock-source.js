@@ -725,7 +725,7 @@ const autoEnd = (sh) => { if (sh.end) return sh.end; const day = workDayIso(sh.s
 const myOpenShift = () => shifts.find((x) => x.userId === demoAccount.id && !x.end && workDayIso(x.start) === workDayIso());
 export const myShift = () => resolve(demoAccount.role === 'call_center' ? (myOpenShift() ? { start: myOpenShift().start, end: null } : null) : undefined);
 export function startShift() {
-  if (myOpenShift()) return Promise.reject(new Error('الشيفت بدأ خلاص'));
+  if (myOpenShift()) return resolve({ start: myOpenShift().start, end: null });   // double tap: the same shift
   const sh = { userId: demoAccount.id, start: new Date().toISOString(), end: null };
   shifts.push(sh);
   return resolve({ start: sh.start, end: null });
