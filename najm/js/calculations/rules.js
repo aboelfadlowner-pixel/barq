@@ -5,7 +5,8 @@
 //   minWorkDays: أقل أيام شغل فعلي في الشهر عشان يدخل العشرة الأوائل
 //   goal       : حد الـ KPI للعشرة الأوائل · targetGoal: المطلوب الافتراضي % من نقط التارجت
 const RULE_KEYS=['ptsTiers','ptsMode','minWorkDays','goal','targetGoal'];
-const RULE_DEF={ptsTiers:[[50,50],[60,60],[70,70],[85,85],[100,100],[110,110],[120,120]],ptsMode:'linear',minWorkDays:20,goal:85,targetGoal:85};
+// الشرايح المعتمدة: أقل من 85% = صفر · من 85% = 50% من نقط وفلوس التارجت · 100% فأكتر = 100% (سلّم)
+const RULE_DEF={ptsTiers:[[85,50],[100,100]],ptsMode:'step',minWorkDays:20,goal:85,targetGoal:85};
 const RULE_NAME={ptsTiers:'شرايح نقط التارجت',ptsMode:'طريقة الحساب بين الشرايح',minWorkDays:'أقل أيام شغل للتأهل',goal:'حد الـ KPI',targetGoal:'المطلوب الافتراضي من نقط التارجت %'};
 function rulesFor(m){
   const V=(S.settings.ruleVersions||[]).filter(v=>v.from<=m).sort((a,b)=>a.from.localeCompare(b.from)).pop();

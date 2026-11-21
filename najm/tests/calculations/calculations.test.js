@@ -22,7 +22,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     }), [0.5, 0.75]);
   });
   test('نقط التارجت بالشرايح: أقل من 50% صفر · بالتناسب · سلّم · الحد الأقصى 120', async () => {
-    eq(await p.evaluate(() => { const r = { ...RULE_DEF }, st = { ...RULE_DEF, ptsMode: 'step' }, c = { ...RULE_DEF, ptsTiers: [[50, 30], [100, 100]] };
+    eq(await p.evaluate(() => { const T = [[50, 50], [60, 60], [70, 70], [85, 85], [100, 100], [110, 110], [120, 120]]; const r = { ...RULE_DEF, ptsTiers: T, ptsMode: 'linear' }, st = { ...RULE_DEF, ptsTiers: T, ptsMode: 'step' }, c = { ...RULE_DEF, ptsTiers: [[50, 30], [100, 100]], ptsMode: 'linear' };
       return [tierPts(49, r), tierPts(50, r), tierPts(93, r), tierPts(130, r), tierPts(93, st), tierPts(75, c), tierPts(null, r)]; }), [0, 50, 93, 120, 85, 65, null]);
   });
   test('قواعد الشهر: التغيير بيبدأ من الشهر الجاي والشهور اللي فاتت بتفضل بقواعدها', async () => {
@@ -77,8 +77,8 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('إغلاق اليوم: آخر ميعاد = بداية الشيفت + 10 ساعات', async () => {
     eq(await ev(() => [closeDeadline('2026-11-10', 'x|Morning').getHours(), closeDeadline('2026-11-10', 'x|Night').getDate()]), [19, 11]);
   });
-  test('نسبة نقط التارجت (الشرايح الافتراضية): أقل من 50% صفر · وبعدها بالنسبة لحد 120%', async () => {
-    eq(await ev(() => [40, 60, 84, 85, 100, 120].map(tgtRatio)), [0, 0.6, 0.84, 0.85, 1, 1.2]);
+  test('نسبة نقط التارجت (الشرايح المعتمدة): أقل من 85% صفر · من 85% نص · 100% فأكتر كامل', async () => {
+    eq(await ev(() => [40, 60, 84, 85, 99, 100, 120].map(tgtRatio)), [0, 0, 0, 0.5, 0.5, 1, 1]);
   });
   test('العشرة الأوائل: لازم الـ KPI والتارجت مع بعض (والأيام مكتملة)', async () => {
     eq(await ev(() => [
