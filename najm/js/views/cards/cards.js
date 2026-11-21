@@ -17,6 +17,7 @@ function vCards(){
     <div class="grid g-3" style="margin-bottom:12px">${['yellow','red','green'].map(c=>`<div class="card"><h3><i class="fcard ${c}"></i> ${CARD[c].t} <span class="badge ${c==='green'?'b-green':'b-red'}">${k[c]>0?'+':''}${k[c]}</span></h3><div class="small muted">${CARD[c].d}${c==='red'?' · بموافقة مدير التشغيل · بيمنعه من رجل اليوم يومها':''}${c==='yellow'?` · كل ${k.yellowsToRed} أصفر في الشهر = أحمر (${k.red}) والصفر بتتلغي`:''}</div><div style="font-size:26px;font-weight:900;margin-top:6px">${fmt(L.filter(x=>x.color===c&&counted(x)).length)}</div></div>`).join('')}</div>
     <div class="lock" style="margin-bottom:12px">الكروت بتأثر على تقييم الموظف (الـ KPI) بس — مش على التارجت ولا الكابتن. مفيش كارت بيتمسح: الملغي والمرفوض بيفضلوا في سجل الموظف، والنقط بتبدأ من جديد كل شهر.</div>
     ${openApp.length?`<div class="card" style="margin-bottom:12px;border-color:#cfc4ff;background:#faf8ff"><h3>✋ اعتراضات مستنية قرار (${fmt(openApp.length)})</h3><div class="tbl-wrap"><table><thead><tr><th>يوم الكارت</th><th>الموظف</th><th>الكارت</th><th>الاعتراض</th><th></th></tr></thead><tbody>${openApp.map(appRow).join('')}</tbody></table></div></div>`:''}
+    ${isOps()?complaintsQueueHTML():''}
     ${pend.length&&isOps()?`<div class="card" style="margin-bottom:12px;border-color:#f3c3be"><h3>⏳ كروت حمرا مستنية موافقتك (${fmt(pend.length)})</h3><div class="tbl-wrap"><table><tbody>${pend.map(row).join('')}</tbody></table></div></div>`:''}
     <div class="card"><h3>كل كروت الشهر</h3><div class="tbl-wrap"><table><thead><tr><th>اليوم</th><th>الموظف</th><th>الكارت</th><th>السبب</th><th>من</th><th>الحالة</th><th></th></tr></thead><tbody>${L.map(row).join('')||'<tr><td colspan="7" class="empty">مفيش كروت</td></tr>'}</tbody></table></div></div>
     ${doneApp.length?`<div class="card" style="margin-top:12px"><h3>📜 اعتراضات اتقرّر فيها</h3><div class="tbl-wrap"><table><tbody>${doneApp.map(appRow).join('')}</tbody></table></div></div>`:''}`;
@@ -30,4 +31,13 @@ async function decideAppeal(id,accept){
   a.status=accept?'accepted':'rejected';a.decidedBy=USER.username;a.note=note.trim();
   if(accept){const c=S.cards.find(x=>x.id===a.cardId);if(c){c.status='overturned';c.approved=false;}}
   save();render();await push('appeal_decide',{id},{accept,note:note.trim()});refresh(true);toast(accept?'✔ اتقبل الاعتراض واتلغى الكارت':'اترفض الاعتراض');
+}
+
+// شكاوى العملاء اللي مستنية قرار مدير التشغيل (مراجعة الشكوى، واعتراضات الموظفين عليها)
+function complaintsQueueHTML(){
+  const P=S.complaints.filter(c=>(c.status||'proven')==='pending'),A=S.complaints.filter(c=>c.appealStatus==='pending');
+  if(!P.length&&!A.length)return '';
+  const row=(c,ap)=>{const e=emp(c.code);return `<tr><td>${esc(c.date)}</td><td><div class="row" style="flex-wrap:nowrap">${e?ava(e,'sm'):''}<b>${esc(e?.name||c.code)}</b></div></td><td class="small">${esc(c.note)}<div class="muted">من ${esc(mgrName(c.by))}</div>${ap?`<div>✋ اعتراض الموظف: ${esc(c.appealBody||'')}</div>`:''}</td>
+    <td><div class="row" style="gap:4px">${ap?`<button class="btn sm gold" onclick="decideComplaintAppeal('${c.id}',true)">قبول (يتلغي الخصم)</button><button class="btn sm red" onclick="decideComplaintAppeal('${c.id}',false)">رفض</button>`:`<button class="btn sm red" onclick="decideComplaint('${c.id}',true)">مثبتة (تتخصم)</button><button class="btn sm" onclick="decideComplaint('${c.id}',false)">مش مثبتة</button>`}</div></td></tr>`;};
+  return `<div class="card" style="margin-bottom:12px;border-color:#f3c3be"><h3>⚠️ شكاوى العملاء مستنية قرارك (${fmt(P.length+A.length)})</h3><div class="small muted" style="margin-bottom:6px">الخصم (−${fmt(S.settings.complaintPenalty)}% من نقط التارجت) على الشكوى المثبتة بس، والموظف يقدر يعترض عليها.</div><div class="tbl-wrap"><table><tbody>${P.map(c=>row(c,false)).join('')}${A.map(c=>row(c,true)).join('')}</tbody></table></div></div>`;
 }

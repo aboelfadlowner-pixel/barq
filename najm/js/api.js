@@ -97,7 +97,7 @@ async function pull(){
     sbRpc('najm_card_points',{p_from:from,p_to:DATE<to?DATE:to}),
     sbRpcAll('najm_card_stats',{p_from:from,p_to:DATE<to?DATE:to},'code'),
   ]);
-  const [dayCards,closes]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to})]);
+  const [dayCards,closes,complCnt]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to}),sbRpc('najm_public_complaints',{p_from:from,p_to:to})]);
   const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull,votes]=await Promise.all([
     sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
     sbRpc('najm_market_list',{}),sbAll('najm_offers','select=*'),
@@ -120,9 +120,11 @@ async function pull(){
   for(const r of full){const x=D(r.day);x.full[r.code]=1;if(r.att)x.att[r.code]=r.att;else delete x.att[r.code];if(r.att_time)x.attTime[r.code]=r.att_time;
     for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};}
   // الموظف الداخل بكوده + رقمه السري: تفاصيل تقييمه هو بس، وكروته كلها
-  if(!USER&&ME&&MEPIN){const [mine,myc]=await Promise.all([sbRpc('najm_my_ratings',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
+  if(!USER&&ME&&MEPIN){const [mine,myc,mycp]=await Promise.all([sbRpc('najm_my_ratings',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
+    N.myComplaints=mycp?.complaints||null;
     for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}
     N.myCards=myc?.cards||null;}
+  N.complaintCounts=Object.fromEntries((complCnt||[]).map(r=>[r.code,r.n]));   // الشكاوى المثبتة (عدد بس) — للترتيب عند الكل
   N.dayCards={};for(const r of dayCards||[])(N.dayCards[r.day]||(N.dayCards[r.day]={}))[r.code]={y:r.yellow,r:r.red,g:r.green};
   N.closes={};for(const c of closes||[])(N.closes[c.day]||(N.closes[c.day]={}))[c.gkey]={...c,penalty:+c.penalty};
   N.cardStats={};for(const r of cstats||[])N.cardStats[r.code]=Object.fromEntries(Object.entries(r).map(([k,v])=>[k,k==='code'?v:v==null?null:+v]));
@@ -132,7 +134,7 @@ async function pull(){
     N.appeals=(files.appeals||[]).map(a=>({id:a.id,cardId:a.card_id,code:a.code,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note,cardBy:a.card_by,cardDay:a.card_day,cardColor:a.card_color,cardReason:a.card_reason}));
     N.empPins=files.pins||{};
     N.imports=files.imports||[];
-    N.complaints=(files.complaints||[]).map(c=>({id:c.id,date:c.day,code:c.code,note:c.note}));
+    N.complaints=(files.complaints||[]).map(c=>({id:c.id,date:c.day,code:c.code,note:c.note,by:c.by_user,status:c.status,decidedBy:c.decided_by,decisionNote:c.decision_note,appealBody:c.appeal_body,appealStatus:c.appeal_status,appealNote:c.appeal_note}));
     N.notes=(files.notes||[]).map(n=>({id:n.id,date:n.day,code:n.code,text:n.body,by:n.by_user}));
     if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],emp_code:(mgrs||[]).find(x=>x.username===u.username)?.emp_code||''}));
   } else N.users=[];

@@ -115,3 +115,32 @@ begin
     where h.code = p_code order by h.at desc limit 300;
 end $$;
 grant execute on function public.najm_history_of(text, text, text) to anon, authenticated;
+
+-- شكاوى العملاء على الموظف (المثبتة واللي اتلغت بعد اعتراض) — مش بتظهر وهي لسه بتتراجع
+create or replace function public.najm_my_complaints(p_code text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare e najm_employees;
+begin
+  select * into e from public.najm_emp_auth(p_code, p_pin);
+  if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  return jsonb_build_object('complaints', coalesce((select jsonb_agg(jsonb_build_object('id', c.id, 'day', c.day, 'note', c.note, 'status', c.status,
+      'appeal_status', c.appeal_status, 'appeal_body', c.appeal_body, 'appeal_note', c.appeal_note) order by c.day desc)
+    from najm_complaints c where c.code = e.code and (c.status = 'proven' or c.appeal_status is not null)), '[]'::jsonb));
+end $$;
+grant execute on function public.najm_my_complaints(text, text) to anon, authenticated;
+
+-- الموظف يعترض على شكوى مثبتة عليه (مرة واحدة) ← بيوصل لمدير التشغيل
+create or replace function public.najm_emp_complaint_appeal(p_code text, p_pin text, p_id text, p_body text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare e najm_employees; c najm_complaints; b text := trim(coalesce(p_body, ''));
+begin
+  select * into e from public.najm_emp_auth(p_code, p_pin);
+  if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  select * into c from najm_complaints where id = p_id and code = e.code;
+  if c.id is null or c.status <> 'proven' or c.appeal_status is not null then return jsonb_build_object('error', 'najm: complaint cannot be appealed'); end if;
+  if length(b) < 3 or length(b) > 500 then return jsonb_build_object('error', 'najm: write the reason (3-500 letters)'); end if;
+  update najm_complaints set appeal_body = b, appeal_status = 'pending', appeal_at = now() where id = c.id;
+  insert into najm_history(actor, kind, code, day, data) values ('emp:' || e.code, 'complaint_appeal', e.code, c.day, jsonb_build_object('complaint', c.id, 'body', b));
+  return jsonb_build_object('ok', true);
+end $$;
+grant execute on function public.najm_emp_complaint_appeal(text, text, text, text) to anon, authenticated;

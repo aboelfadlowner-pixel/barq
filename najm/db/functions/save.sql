@@ -20,7 +20,7 @@ begin
   if u.role = 'hygiene' and p_kind <> 'rate' then
     raise exception 'najm: hygiene rates only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','complaint','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate')
+  if p_kind in ('winners','target','base_sales','complaint_decide','complaint_appeal_decide','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -119,10 +119,35 @@ begin
     insert into najm_kpi_vals(day, dkey, vals) values (k_day, p_key->>'dkey', p_data)
     on conflict (day, dkey) do update set vals = excluded.vals, updated_at = now();
   elsif p_kind = 'complaint' then
-    if del then delete from najm_complaints where id = p_key->>'id';
-    else insert into najm_complaints(id, day, code, note, by_user)
-      values (p_key->>'id', (p_data->>'date')::date, p_data->>'code', p_data->>'note', u.username)
-      on conflict (id) do nothing; end if;
+    -- أي مدير بيسجّل شكوى على موظف في نطاقه ← مستنية مراجعة مدير التشغيل (اللي بيسجّلها التشغيل نفسه بتبقى مثبتة)
+    if del then
+      if u.role <> 'ops' then raise exception 'najm: operations manager only' using errcode = '42501'; end if;
+      select code into k_code from najm_complaints where id = p_key->>'id';
+      delete from najm_complaints where id = p_key->>'id';
+    else
+      k_code := p_data->>'code';
+      if not public.najm_in_scope(u, k_code) then raise exception 'najm: employee outside your scope' using errcode = '42501'; end if;
+      if coalesce(trim(p_data->>'note'), '') = '' then raise exception 'najm: complaint details required'; end if;
+      insert into najm_complaints(id, day, code, note, by_user, status, decided_by, decided_at)
+        values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'note', u.username,
+                case when u.role = 'ops' then 'proven' else 'pending' end,
+                case when u.role = 'ops' then u.username end, case when u.role = 'ops' then now() end)
+        on conflict (id) do nothing;
+    end if;
+  elsif p_kind = 'complaint_decide' then
+    -- مدير التشغيل: مثبتة (بتتخصم) أو مش مثبتة
+    select code into k_code from najm_complaints where id = p_key->>'id' and status = 'pending';
+    if k_code is null then raise exception 'najm: complaint already decided'; end if;
+    update najm_complaints set status = case when coalesce((p_data->>'proven')::boolean, false) then 'proven' else 'rejected' end,
+      decided_by = u.username, decided_at = now(), decision_note = p_data->>'note' where id = p_key->>'id';
+  elsif p_kind = 'complaint_appeal_decide' then
+    -- اعتراض الموظف على شكوى: القبول بيلغي الخصم (الشكوى بتبقى «مش مثبتة» وبتفضل في السجل)
+    select code into k_code from najm_complaints where id = p_key->>'id' and appeal_status = 'pending';
+    if k_code is null then raise exception 'najm: appeal not found'; end if;
+    update najm_complaints set appeal_status = case when coalesce((p_data->>'accept')::boolean, false) then 'accepted' else 'rejected' end,
+      appeal_note = p_data->>'note', appeal_by = u.username,
+      status = case when coalesce((p_data->>'accept')::boolean, false) then 'rejected' else status end
+      where id = p_key->>'id';
   elsif p_kind = 'note' then
     insert into najm_notes(id, day, code, body, by_user)
       values (p_key->>'id', (p_data->>'date')::date, k_code, p_data->>'text', u.username)

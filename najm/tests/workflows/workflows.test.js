@@ -78,6 +78,16 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
     });
     eq(r, [['on', 'abs'], null, 1, true]);
   });
+  test('شكاوى العملاء: المستنية مبتخصمش، والتشغيل يثبتها من تاب الكروت فتخصم', async () => {
+    const r = await p.evaluate(async () => {
+      USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; go('cards');
+      const c = S.complaints.find(x => x.status === 'pending'); const e = emp(c.code);
+      const before = empTarget(e, monthOf(DATE), DATE).complaints; const q = document.querySelector('#main').innerText.includes('شكاوى العملاء مستنية قرارك');
+      const d = decideComplaint(c.id, true); await new Promise(r => setTimeout(r, 50)); document.querySelector('#askOk').click(); await d;
+      const after = empTarget(e, monthOf(DATE), DATE).complaints; USER = null; return [q, before, after, c.status];
+    });
+    eq(r, [true, 0, 1, 'proven']);
+  });
   test('مدير التشغيل يحدد نقط القسم والمطلوب، والتقرير يحسب بيها', async () => {
     await p.evaluate(() => { USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; TG.branch = 'البيطاش الرئيسي'; TG.dept = 'قسم البقاله'; TG.mode = 'edit'; go('target'); });
     ok(await p.evaluate(() => document.querySelector('#main').innerText.includes('نقط القسم للشهر ده')));

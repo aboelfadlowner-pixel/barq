@@ -52,7 +52,9 @@ function captainsOfEmp(e,month,upto,onlyActive=true){
   return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;const pct=c.target>0?Math.min(cap,sold/c.target*100):null;const p=pts(pct);const man=+c.pts>0;return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,pct,max:man?+c.pts:100*mult,points:p==null?null:man?Math.round(+c.pts*tgtRatio(pct)):p*mult};});
 }
 function captainsIn(month,upto,pred){const out=[];for(const e of activeEmps())if(pred(e))out.push(...captainsOfEmp(e,month,upto));return out;}
-function complaintsOf(code,month){return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month));}
+// شكاوى العملاء المثبتة بس هي اللي بتخصم (اللي لسه بتتراجع أو اتلغت مش بتتحسب)
+const complaintProven=c=>(c.status||'proven')==='proven';
+function complaintsOf(code,month){if(LIVE&&S.complaintCounts&&month===monthOf(DATE))return S.complaintCounts[code]||0;return S.complaints.filter(c=>c.code===code&&c.date.startsWith(month)&&complaintProven(c)).length;}
 function empTarget(e,month,upto){
   const dp=deptProgress(month,e.branch,e.dept,upto,e.code);
   const caps=captainsOfEmp(e,month,upto);
@@ -62,7 +64,7 @@ function empTarget(e,month,upto){
   const base=dp?.pct==null?(dp?.points??null):manD?Math.round(+cfg.pts*tgtRatio(dp.pct)):dp.points;
   const deptMax=dp?(manD?+cfg.pts:100):0;const maxPts=deptMax+caps.reduce((a,c)=>a+(c.max||0),0);
   const need=+cfg?.need>0?+cfg.need:Math.round(maxPts*TGT_G()/100);
-  const cc=complaintsOf(e.code,month).length;
+  const cc=complaintsOf(e.code,month);
   const raw=(base||0)+capPts;
   const has=base!=null||caps.length>0;
   const empPoints=has?Math.round(cc?raw*(1-S.settings.complaintPenalty/100):raw):null;

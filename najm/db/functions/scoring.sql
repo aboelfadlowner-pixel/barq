@@ -159,3 +159,11 @@ language sql stable security definer set search_path = public as $$
   group by day, code;
 $$;
 grant execute on function public.najm_public_day_cards(date, date) to anon, authenticated;
+
+-- عدد شكاوى العملاء المثبتة على كل موظف (من غير تفاصيل) — عشان الترتيب يبقى واحد عند الكل
+create or replace function public.najm_public_complaints(p_from date, p_to date)
+returns table(code text, n int)
+language sql stable security definer set search_path = public as $$
+  select code, count(*)::int from najm_complaints where status = 'proven' and day between p_from and p_to and p_to - p_from <= 62 group by code;
+$$;
+grant execute on function public.najm_public_complaints(date, date) to anon, authenticated;
