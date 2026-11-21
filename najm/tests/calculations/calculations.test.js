@@ -21,6 +21,9 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [mgrStar(D, 'a', { dept: 'قسم الكاشير' }).mgr, mgrStar(D, 'a', { dept: 'قسم البقاله' }).mgr];
     }), [0.5, 0.75]);
   });
+  test('نجمة الهايجين (اللبس) من البنود المطلوبة بس', async () => {
+    eq(await p.evaluate(() => [hyScore([2, -1, -1, -1, -1]), hyScore([2, 2, 2, 2, 0]), hyScore([1, -1, 2, -1, -1]), hyScore([2, -1, null, -1, -1]), hyScore([-1, -1, -1, -1, -1])]), [1, 0.75, 0.75, null, null]);
+  });
   test('نجوم اليوم: الأساسي من 5 (البصمة + المدير + التشغيل + الهايجين) + ½ مثالي Bonus فوقه', async () => {
     eq(await ev(() => {
       const code = activeEmps().find(e => !isFresh(e)).code, d = '2099-01-01', D = day(d), full = [2, 2, 2, 2, 2];

@@ -50,8 +50,8 @@ const login = async (p, u, pin) => { await p.click('#roleBtn'); await p.fill('#l
   });
   test('الهايجين يدخل ويحفظ تقييمه في الداتابيز', async () => {
     const p = await page(); await login(p, 'hy', '7777');
-    const code = await p.evaluate(() => (filtered(true).find(e => !dayLocked(e) && e.code !== '125') || {}).code);
-    await p.evaluate(c => [0, 1, 2, 3, 4].forEach(i => setCrit(c, i, i % 2 ? 1 : 2)), code);
+    const code = await p.evaluate(() => (filtered(true).find(e => !dayLocked(e) && e.code !== '125' && e.dept === 'قسم البقاله') || {}).code);
+    await p.evaluate(async c => { for (const i of [0, 1, 2, 3, 4]) await setCrit(c, i, i % 2 ? 1 : 2); }, code);
     await p.waitForTimeout(1500);
     eq((await db.query('select hy from najm_ratings where day=$1 and code=$2', [D, code])).rows[0]?.hy, [2, 1, 2, 1, 2]);
   });

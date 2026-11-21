@@ -210,7 +210,7 @@ function demoSeed(){
   const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
-      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);D.hy[e.code]=crit(e.code);if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+      D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);D.hy[e.code]=(a=>hyBlank(e).map((x,j)=>x===HY_NA?HY_NA:a[j]))(crit(e.code));if(isFresh(e))D.fr[e.code]=crit(e.code);if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
   // cards
   const staff=activeEmps();const dd=()=>pick(days);

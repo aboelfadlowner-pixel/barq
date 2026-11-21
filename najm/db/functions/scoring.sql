@@ -7,13 +7,31 @@ returns numeric language sql immutable set search_path = public as $$
               else round((select sum(x) from unnest(a) x)::numeric / 10 * 4) / 4 end;
 $$;
 
+-- الهايجين (اللبس): −1 = البند مش مطلوب من الموظف ده. النجمة = مجموع البنود المطلوبة ÷ (2 × عددها)، لأقرب ربع
+create or replace function public.najm_hy(a smallint[])
+returns numeric language sql immutable set search_path = public as $$
+  select case when a is null or coalesce(array_length(a,1),0) < 5 or array_position(a, null) is not null
+                   or not exists (select 1 from unnest(a) x where x >= 0) then null
+              else round((select sum(x) from unnest(a) x where x >= 0)::numeric
+                         / (2 * (select count(*) from unnest(a) x where x >= 0)) * 4) / 4 end;
+$$;
+
+-- البنود المطلوبة من موظف في قسم (0 = التيشرت، دايماً مطلوب) — من الإعدادات hyItems
+create or replace function public.najm_hy_items(p_dept text, p_settings jsonb)
+returns int[] language sql immutable set search_path = public as $$
+  select array(select distinct x from (select 0 x union all
+    select (v #>> '{}')::int from jsonb_array_elements(case when jsonb_typeof(p_settings->'hyItems'->p_dept) = 'array'
+                                                          then p_settings->'hyItems'->p_dept else '[]'::jsonb end) v) t
+    where x between 0 and 4 order by x);
+$$;
+
 -- stars (max 5): fingerprint 2 + direct manager 1 + operations 1 + hygiene 1 + exemplary ½
 create or replace function public.najm_score(r public.najm_ratings, p_dept text, p_settings jsonb)
 returns jsonb language plpgsql stable set search_path = public as $$
 declare
   fresh boolean := p_dept = any (array(select jsonb_array_elements_text(coalesce(p_settings->'freshDepts','["قسم البقاله"]'::jsonb))));
   a numeric; b numeric := public.najm_crit(r.br); s numeric := public.najm_crit(r.sh);
-  f numeric := public.najm_crit(r.fr); o numeric := public.najm_crit(r.ops); h numeric := public.najm_crit(r.hy);
+  f numeric := public.najm_crit(r.fr); o numeric := public.najm_crit(r.ops); h numeric := public.najm_hy(r.hy);
   m numeric; mc boolean; tot numeric; anyv boolean;
 begin
   a := case when r.att is null or r.att = 'off' then null
