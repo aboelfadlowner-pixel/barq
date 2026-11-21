@@ -19,7 +19,8 @@ function empLoginForm(title,desc){
 // local (demo / offline) PINs: {code:{pin,must}}
 const localEmpPin=c=>S.empPins?.[c];
 async function doLogin(){
-  const id=$('#l_id').value.trim(),pin=$('#l_pin').value.trim();
+  // لو المتصفح كتب «85 — الاسم» في خانة الكود، بناخد الكود بس
+  const id=$('#l_id').value.split(/[—–-]/)[0].trim(),pin=$('#l_pin').value.trim();
   if(!id||!pin){toast('اكتب الكود والرقم السري');return;}
   const bad='الكود أو الرقم السري غلط — بعد 5 محاولات غلط الحساب بيتقفل 15 دقيقة';
   let r;
