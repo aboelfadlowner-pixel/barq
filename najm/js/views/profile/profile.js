@@ -83,7 +83,7 @@ function mgrProfileHTML(u,self){
       </tbody></table></div><div class="small muted" style="margin-top:6px">وبروفايل أي موظف من «🗂️ ملفات الموظفين» أو بالضغط على اسمه في أي مكان.</div></div>`;
   }
   return `<div style="max-width:980px;margin:0 auto">${head}${tasks}${pend}<div class="grid g-2">${league}${team}${given}${mgrs}</div>
-    ${self?`<div class="row" style="margin-top:10px"><button class="btn sm" onclick="openLogin()">خروج</button></div>`:''}</div>`;
+    ${self?`<div class="row" style="margin-top:10px"><button class="btn sm" onclick="mgrChangePin()">🔑 تغيير الرقم السري</button><button class="btn sm" onclick="openLogin()">خروج</button></div>`:''}</div>`;
 }
 function openMgrProfile(un){const u=(S.mgrs||S.users||[]).find(x=>x.username===un);if(!u)return;openModal(`<button class="x" onclick="closeModal()">✕</button>${mgrProfileHTML(u,false)}`);}
 
@@ -114,3 +114,13 @@ async function empComplaintAppeal(id){
   else{const c=S.complaints.find(x=>x.id===id);if(!c)return;Object.assign(c,{appealBody:body,appealStatus:'pending'});save();}
   render();toast('✋ اعتراضك اتبعت');
 }
+
+// المدير بيغيّر رقمه السري بنفسه (اختياري)
+async function mgrChangePin(){
+  const np=await askText('الرقم السري الجديد (من 4 لـ 6 أرقام):');if(np===null)return;const v=np.trim();
+  if(!/^\d{4,6}$/.test(v)){toast('الرقم السري لازم يكون من 4 لـ 6 أرقام');return;}
+  if(v===PIN||(!LIVE&&S.users.find(u=>u.username===USER.username)?.pin===v)){toast('اختار رقم مختلف عن القديم');return;}
+  if(LIVE){try{await sbRpc('najm_my_pin',{p_user:USER.username,p_pin:PIN,p_new:v});}catch(x){toast('⚠️ '+(/4-6/.test(x.message)?'الرقم السري لازم يكون من 4 لـ 6 أرقام':'ماتغيّرش — جرّب تاني'));return;}
+    PIN=v;try{sessionStorage.setItem('najm-user',JSON.stringify({...USER,pin:PIN}))}catch(e){}}
+  else{const u=S.users.find(x=>x.username===USER.username);if(u){u.pin=v;save();}}
+  toast('✔ اتغيّر الرقم السري');}

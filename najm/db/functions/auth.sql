@@ -99,3 +99,18 @@ begin
   return r || jsonb_build_object('kind', 'emp');
 end $$;
 grant execute on function public.najm_login_any(text, text) to anon, authenticated;
+
+-- المدير بيغيّر رقمه السري بنفسه (اختياري) — لازم الرقم القديم
+create or replace function public.najm_my_pin(p_user text, p_pin text, p_new text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  if coalesce(p_new, '') !~ '^\d{4,6}$' then raise exception 'najm: PIN must be 4-6 digits'; end if;
+  update najm_users set salt = md5(random()::text) where username = u.username;
+  update najm_users set pin_hash = encode(sha256(convert_to(salt || p_new, 'UTF8')), 'hex'), updated_at = now() where username = u.username;
+  insert into najm_history(actor, kind, data) values (u.username, 'my_pin', '{}'::jsonb);
+  return jsonb_build_object('ok', true);
+end $$;
+grant execute on function public.najm_my_pin(text, text, text) to anon, authenticated;

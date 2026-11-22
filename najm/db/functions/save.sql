@@ -318,11 +318,17 @@ begin
                 coalesce((p_data->>'active')::boolean, true), md5(random()::text), '!')
       on conflict (username) do update set name = excluded.name, role = excluded.role, branch = excluded.branch,
         shift = excluded.shift, depts = excluded.depts, active = excluded.active, updated_at = now();
-      if coalesce(p_data->>'pin','') <> '' then
+      -- حساب جديد من غير رقم سري (أو «رقم جديد»): السيستم بيطلّع رقم مؤقت (4 أرقام) بيرجع للتشغيل مرة واحدة يديه للمدير،
+      -- والمدير يقدر يغيّره بنفسه بعد كده (najm_my_pin) — مش إجباري
+      dpt := coalesce(nullif(p_data->>'pin', ''),
+                      case when coalesce((p_data->>'resetPin')::boolean, false) or (select pin_hash from najm_users where username = s) = '!'
+                           then lpad((floor(random() * 10000))::int::text, 4, '0') end);
+      if dpt is not null then
+        if dpt !~ '^\d{4,6}$' then raise exception 'najm: PIN must be 4-6 digits'; end if;
         update najm_users set salt = md5(random()::text) where username = s;
-        update najm_users set pin_hash = encode(sha256(convert_to(salt || (p_data->>'pin'), 'UTF8')), 'hex') where username = s;
-      elsif (select pin_hash from najm_users where username = s) = '!' then
-        raise exception 'najm: PIN required for a new user';
+        update najm_users set pin_hash = encode(sha256(convert_to(salt || dpt, 'UTF8')), 'hex') where username = s;
+        delete from najm_login_fails where username = s;
+        if coalesce(p_data->>'pin', '') = '' then ret := jsonb_build_object('pin', dpt); end if;
       end if;
     end if;
   else
