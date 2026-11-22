@@ -333,6 +333,26 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
 
   // ---------------- الدخول بكود البصمة للكل
+  test('حساب مدير من غير رقم سري: السيستم بيطلّع رقم مؤقت، والمدير يغيّره بنفسه (اختياري)، والتشغيل يعمل رقم جديد', async () => {
+    const r = await save('ops', '0000', 'user', { username: 'tmpmgr' }, { name: 'مدير مؤقت', role: 'shift', branch: B, shift: 'Morning' });
+    ok(/^\d{4}$/.test(r.pin), 'temp pin');
+    const login = async pin => (await rpc('select najm_login_any($1,$2) r', ['tmpmgr', pin])).r;
+    eq((await login(r.pin)).kind, 'mgr');
+    // المدير بيغيّره: لازم القديم صح، والجديد 4-6 أرقام
+    eq((await rpc('select najm_my_pin($1,$2,$3) r', ['tmpmgr', '9998', '5555'])).r.error, 'najm: wrong username or PIN');
+    await fails(asAnon(db, 'select najm_my_pin($1,$2,$3)', ['tmpmgr', r.pin, '12']), /4-6 digits/);
+    eq((await rpc('select najm_my_pin($1,$2,$3) r', ['tmpmgr', r.pin, '5555'])).r.ok, true);
+    eq((await login('5555')).kind, 'mgr');
+    // التعديل من غير رقم مبيغيّرش الرقم، و«رقم مؤقت جديد» بيبطّل القديم
+    eq((await save('ops', '0000', 'user', { username: 'tmpmgr' }, { name: 'مدير مؤقت', role: 'shift', branch: B, shift: 'Morning' })), null);
+    const r2 = await save('ops', '0000', 'user', { username: 'tmpmgr' }, { name: 'مدير مؤقت', role: 'shift', branch: B, shift: 'Morning', resetPin: true });
+    ok(/^\d{4}$/.test(r2.pin), 'reset pin');
+    eq((await login(r2.pin)).kind, 'mgr');
+    // الرقم مبيتسجلش في السجل
+    ok(!JSON.stringify((await db.query("select data from najm_history where kind in ('user','my_pin')")).rows).includes(r2.pin), 'pin in history');
+    await fails(save('br', '1111', 'user', { username: 'x2' }, { name: 'x', role: 'shift' }), /operations manager only/);
+  });
+
   test('الدخول بكود البصمة: المدير المربوط بكوده بيدخل كمدير بس، والموظف كموظف', async () => {
     const c = (await db.query("select code from najm_employees where branch='عين شمس' order by code limit 1 offset 7")).rows[0].code;
     await save('ops', '0000', 'user', { username: 'mx' }, { name: 'مدير تجربة', role: 'branch', branch: 'عين شمس', pin: '5555' });

@@ -93,9 +93,9 @@ function editUser(name){
     <label>الفرع<br><select class="inp" id="u_branch"><option value="">كل الفروع</option>${branches().map(b=>`<option ${b===u.branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
     <label>الشيفت (لمدير الشيفت)<br><select class="inp" id="u_shift"><option value="">—</option>${Object.values(SH).map(s=>`<option ${s===u.shift?'selected':''}>${s}</option>`).join('')}</select></label>
     <label>الأقسام (لمدير الفريش)<br><input class="inp" id="u_depts" autocomplete="off" value="${esc((u.depts||[]).join('، '))}" placeholder="قسم البقاله"></label>
-    <label>الرقم السري ${name?'(سيبه فاضي لو مش هتغيّره)':''}<br><input class="inp" id="u_pin" type="password" inputmode="numeric" autocomplete="new-password"></label>
+    <label>الرقم السري ${name?'(سيبه فاضي لو مش هتغيّره)':'(اختياري — لو فاضي السيستم بيطلّع رقم مؤقت تديه للمدير)'}<br><input class="inp" id="u_pin" type="password" inputmode="numeric" autocomplete="new-password"></label>
     <label><input type="checkbox" id="u_active" ${u.active!==false?'checked':''}> الحساب شغّال</label>
-   </div><div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveUser('${esc(name||'')}')">💾 حفظ</button>${name&&name!==USER.username?`<button class="btn red" onclick="delUser('${esc(name)}')">حذف</button>`:''}</div>`);
+   </div><div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveUser('${esc(name||'')}')">💾 حفظ</button>${name&&name!==USER.username?`<button class="btn" onclick="resetUserPin('${esc(name)}')">🔑 رقم مؤقت جديد</button><button class="btn red" onclick="delUser('${esc(name)}')">حذف</button>`:''}</div>`);
 }
 function userFromEmp(){const c=($('#u_emp').value.split('—')[0]||'').trim();const e=emp(c);if(!e)return;
   if(!$('#u_name').value)$('#u_name').value=e.name;$('#u_name').value=e.name;$('#u_branch').value=e.branch;if(Object.values(SH).includes(e.shift))$('#u_shift').value=e.shift;}
@@ -105,14 +105,26 @@ async function saveUser(name){
   if(emp(ec0)&&S.users.some(x=>x.emp_code===ec0&&x.username!==un)){toast('الكود ده مربوط بحساب مدير تاني');return;}
   let u=S.users.find(x=>x.username===un);
   if(!name&&u){toast('اسم الدخول موجود');return;}
-  if(!u&&!g('u_pin')){toast('حط رقم سري');return;}
+  if(g('u_pin')&&!/^\d{4,6}$/.test(g('u_pin'))){toast('الرقم السري من 4 لـ 6 أرقام');return;}
   if(!u){u={username:un};S.users.push(u);}
   const ec=(g('u_emp').split('—')[0]||'').trim();
   Object.assign(u,{name:g('u_name'),role:g('u_role'),branch:g('u_branch'),shift:g('u_shift'),depts:g('u_depts').split(/[،,]/).map(x=>x.trim()).filter(Boolean),active:$('#u_active').checked,emp_code:emp(ec)?ec:''});
-  if(g('u_pin'))u.pin=g('u_pin');
+  const isNew=!u.pin&&!name;if(g('u_pin'))u.pin=g('u_pin');
+  const tmp=!LIVE&&isNew&&!g('u_pin')?newTmpPin():null;if(tmp)u.pin=tmp;
   save();closeModal();render();
-  if(await push('user',{username:un},{name:u.name,role:u.role,branch:u.branch,shift:u.shift,depts:u.depts,active:u.active,pin:g('u_pin')||''})!==false){await pushM('user_emp',{username:un},{emp_code:u.emp_code||''});toast('💾 اتحفظ الحساب');refresh(true);}
+  const r=await push('user',{username:un},{name:u.name,role:u.role,branch:u.branch,shift:u.shift,depts:u.depts,active:u.active,pin:g('u_pin')||''});
+  if(r!==false){await pushM('user_emp',{username:un},{emp_code:u.emp_code||''});const pin=r?.pin||tmp;if(pin)showTmpPin(u,pin);else toast('💾 اتحفظ الحساب');refresh(true);}
 }
+// الرقم المؤقت: بيظهر للتشغيل مرة واحدة بس يديه للمدير — والمدير يقدر يغيّره من «صفحتي» (مش إجباري)
+const newTmpPin=()=>String(Math.floor(Math.random()*10000)).padStart(4,'0');
+function showTmpPin(u,pin){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>🔑 الرقم السري لـ ${esc(u.name)}</h2>
+  <div style="font-size:40px;font-weight:900;letter-spacing:8px;text-align:center;margin:14px 0">${esc(pin)}</div>
+  <div class="small">الدخول بـ <b>كود البصمة ${esc(u.emp_code||u.username)}</b> + الرقم ده. ادّيه للمدير بإيدك — الرقم ده مش هيظهر تاني، ولو نسيه اعمله «رقم مؤقت جديد».</div>
+  <div class="small muted" style="margin-top:6px">المدير يقدر يغيّره لرقم بتاعه من «صفحتي» ← «تغيير الرقم السري» (اختياري).</div>`);}
+async function resetUserPin(n){if(!await askConfirm('رقم سري مؤقت جديد للحساب ده؟ الرقم القديم هيبطل.'))return;const u=S.users.find(x=>x.username===n);if(!u)return;
+  const tmp=LIVE?null:newTmpPin();if(tmp){u.pin=tmp;save();}
+  const r=await push('user',{username:n},{name:u.name,role:u.role,branch:u.branch,shift:u.shift,depts:u.depts,active:u.active!==false,resetPin:true});
+  if(r!==false){closeModal();showTmpPin(u,r?.pin||tmp);}}
 async function delUser(n){if(!await askConfirm('حذف الحساب؟'))return;S.users=S.users.filter(u=>u.username!==n);save();closeModal();render();push('user',{username:n},null);}
 async function loadDemo(){
   if(!await askConfirm('هيتملى الشهر الحالي ببيانات تجريبية على الجهاز ده بس. تكمل؟'))return;
