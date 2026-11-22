@@ -94,3 +94,58 @@ begin
 end $$;
 revoke all on function public.najm_att_sync_compact(text, text, text) from public, anon, authenticated;
 grant execute on function public.najm_att_sync_compact(text, text, text) to service_role;
+
+-- الموظفين من نفس شيت البصمة (راس كل بلوك): الكود · الاسم · القسم · الوظيفة · الفرع — مفيش فلوس
+-- موظف جديد بيتضاف (الشيفت من أكتر ميعاد وردية متكرر)، واللي اتغيّر اسمه أو قسمه أو وظيفته أو فرعه بيتعدّل (والنقل بيتسجل).
+-- قيم زي «#N/A» أو «لا يوجد» أو فرع مش عندنا بتتساب وبترجع في التقرير. الموظف الموقوف مبيرجعش لوحده.
+create or replace function public.najm_emp_sync(p_rows jsonb, p_file text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare cfg jsonb; x jsonb; e najm_employees; c text; nm text; dp text; jb text; br text; sh text; t int;
+  mo int; bf int; bt int; ni int; added jsonb := '[]'; upd jsonb := '[]'; skip jsonb := '[]'; ch jsonb;
+  bad text[] := array['', '#N/A', '#REF!', '#VALUE!', 'لا يوجد', '-'];
+begin
+  select data into cfg from najm_settings where id = 1;
+  mo := coalesce(public.najm_tmin(cfg->'shiftStart'->>'Morning'), 420);
+  bf := coalesce(public.najm_tmin(cfg->'shiftStart'->>'Between'), 780);
+  bt := coalesce(public.najm_tmin(cfg->>'betweenTo'), 960);
+  ni := coalesce(public.najm_tmin(cfg->'shiftStart'->>'Night'), 1020);
+  perform set_config('najm.actor', 'sheet', true);
+  for x in select * from jsonb_array_elements(coalesce(p_rows, '[]')) loop
+    c := trim(x->>'code'); nm := trim(coalesce(x->>'name', '')); dp := trim(coalesce(x->>'dept', ''));
+    jb := trim(coalesce(x->>'job', '')); br := trim(coalesce(x->>'branch', ''));
+    if c !~ '^\d+$' or nm = any(bad) then continue; end if;
+    select * into e from najm_employees where code = c;
+    if br <> all(bad) and br not in (select distinct branch from najm_employees where branch is not null) then
+      skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'فرع مش عندنا: ' || br); br := '';
+      if e.code is null then continue; end if;
+    end if;
+    if e.code is null then
+      if br = any(bad) then skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'من غير فرع'); continue; end if;
+      -- اللي مابصمش في آخر أسبوع مبيتضافش (غالبًا ساب) — بيرجع في التقرير
+      if coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7 then
+        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'مابصمش آخر أسبوع'); continue; end if;
+      t := public.najm_tmin(x->>'shiftTime');
+      sh := case when t is null then 'Morning' when t between bf and bt then 'Between'
+                 when t >= ni or t < mo - 120 then 'Night' else 'Morning' end;
+      insert into najm_employees(code, name, branch, dept, job, shift, active)
+        values (c, nm, br, nullif(case when dp = any(bad) then '' else dp end, ''), nullif(case when jb = any(bad) then '' else jb end, ''), sh, true);
+      added := added || jsonb_build_object('code', c, 'name', nm, 'branch', br, 'dept', dp, 'shift', sh);
+    else
+      ch := '{}';
+      if nm <> coalesce(e.name, '') then ch := ch || jsonb_build_object('name', nm); end if;
+      if dp <> all(bad) and dp <> coalesce(e.dept, '') then ch := ch || jsonb_build_object('dept', dp); end if;
+      if jb <> all(bad) and jb <> coalesce(e.job, '') then ch := ch || jsonb_build_object('job', jb); end if;
+      if br <> all(bad) and br <> coalesce(e.branch, '') then ch := ch || jsonb_build_object('branch', br); end if;
+      if ch <> '{}' then
+        update najm_employees set name = coalesce(ch->>'name', name), dept = coalesce(ch->>'dept', dept), job = coalesce(ch->>'job', job),
+          branch = coalesce(ch->>'branch', branch), updated_at = now() where code = c;
+        upd := upd || jsonb_build_object('code', c, 'changes', ch, 'active', e.active);
+      end if;
+    end if;
+  end loop;
+  insert into najm_history(actor, kind, data)
+    values ('system', 'emp_sync', jsonb_build_object('file', p_file, 'added', added, 'updated', upd, 'skipped', skip));
+  return jsonb_build_object('added', added, 'updated', upd, 'skipped', skip);
+end $$;
+revoke all on function public.najm_emp_sync(jsonb, text) from public, anon, authenticated;
+grant execute on function public.najm_emp_sync(jsonb, text) to service_role;
