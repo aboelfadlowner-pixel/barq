@@ -7,6 +7,7 @@
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'IBM Plex Sans Arabic','Cairo',Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+button,input,select,textarea{font-family:inherit;color:var(--ink)}   /* الأزرار مبتورثش اللون والخط — من غيرها الكلام بيختفي في الوضع الغامق */
 button,input,select,textarea{font-family:inherit;font-size:14px}
 header{background:linear-gradient(120deg,#0b4a3d,#13806a);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:20}
 header h1{margin:0;font-size:19px;font-weight:900;flex:1;min-width:180px}

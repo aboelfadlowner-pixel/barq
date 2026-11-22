@@ -27,7 +27,7 @@ function vRate(){
       ${R?.carried&&R.arr?`<div class="row small" style="justify-content:space-between;color:var(--muted);margin:2px 0">🔁 مكمّل من تقييم ${R.from?`يوم ${esc(R.from.slice(8))}`:'قبل كده'}${rateStale(DATE,field,e.code)?`<button class="btn sm" onclick="confirmRate('${e.code}')">✔ تأكيد</button>`:''}</div>`:''}
       ${isHy()?hyRowsHTML(e,arr):field?CL.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')
         +(withPray?`<div class="crit"><span class="small">🕌 الصلاة <span class="muted">(كل ${RATE_EVERY} أيام · ½ نجمة)</span></span><span class="seg">${[[2,'ملتزم'],[1,'بيقطع'],[0,'مبيصليش']].map(([v,t])=>`<button style="font-size:12px" class="${arr[4]===v?'on':''}" onclick="setCrit('${e.code}',4,${v})">${t}</button>`).join('')}</span></div>`:''):''}
-      ${isOps()?camRowsHTML(e,D):''}
+      ${isOps()?camSummaryHTML(e,D):''}
       <div class="row" style="justify-content:space-between;margin-top:6px"><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>
         ${isHy()?`<span class="small">🧼 الهايجين ${fmt(s.hy,2)}</span>`:`<span class="row" style="gap:4px">${isOps()?`<button class="btn sm ${medal?'gold':''}" onclick="giveMedal('${e.code}')">${medal?'🏅 واخد الوسام':'🏅 وسام برق'}</button>`:''}<button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ مثالي':'+ ½ مثالي'}</button></span>`}</div>
       <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · هايجين ${fmt(s.hy,2)} · صلاة ${fmt(s.pray,2)} · كاميرات ${fmt(s.cam,2)}</div>
@@ -46,6 +46,9 @@ const camPresent=e=>{const st=peekDay(DATE).att[e.code];return st!=='abs'&&st!==
 function camRowsHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];
   return `<div class="crit"><span class="small">🕌 الصلاة <span class="muted">(كاميرات · ¼)</span></span><span class="seg">${[[1,'صلّى'],[0,'ماصلّاش']].map(([v,t])=>`<button class="${pv===v?'on':''}" onclick="setCam('pray','${e.code}',${v})">${t}</button>`).join('')}</span></div>
   <div class="crit"><span class="small">☕ البريك <span class="muted">(كاميرات · ¼)</span></span><span class="seg">${[[1,'التزم'],[0,'كسر البريك']].map(([v,t])=>`<button class="${bv===v?'on':''}" onclick="setCam('brk','${e.code}',${v})">${t}</button>`).join('')}</span></div>`;}
+// مدير التشغيل بيشوف اللي الكاميرات سجلته بس (مش بيقيّم)
+function camSummaryHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];if(pv==null&&bv==null)return '<div class="small muted">📹 الكاميرات: لسه ماتقيّمش</div>';
+  return `<div class="small">📹 الكاميرات: الصلاة <b>${pv==null?'—':pv?'صلّى':'ماصلّاش'}</b> · البريك <b>${bv==null?'—':bv?'التزم':'كسر البريك'}</b></div>`;}
 function vRateCams(){
   const D=peekDay(DATE);const list=filtered(true).filter(camPresent);
   const left=list.filter(e=>!dayLocked(e)&&(D.pray?.[e.code]==null||D.brk?.[e.code]==null));
