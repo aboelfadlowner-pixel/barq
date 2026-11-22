@@ -72,17 +72,12 @@ async function saveRules(now){
   RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();
 }
 // فترات التأخير (بالدقايق من بداية الوردية) — كل فترة «من / لحد»، وحدود الفترات مربوطة ببعض فمفيش فجوة
-function attBandsHTML(){const st=S.settings;const g=+st.graceMin,l=+st.lateMax,v=+(st.vlateMax??60);
-  const inp=(val,on)=>`<input class="inp" type="number" min="0" step="1" style="width:70px" value="${val}" onchange="${on}">`;
-  const row=(name,stars,from,to)=>`<tr><td><b>${name}</b></td><td>${from}</td><td>${to}</td><td>${stars}</td></tr>`;
-  return `<h3 style="margin:12px 0 4px">⏱️ فترات التأخير (بالدقايق من بداية الوردية)</h3>
-  <div class="tbl-wrap"><table><thead><tr><th>الحالة</th><th>من</th><th>لحد</th><th>النجوم</th></tr></thead><tbody>
-    ${row('في ميعاده',fmt(st.att.on,2),'0',inp(g,"setBand('graceMin',+this.value)"))}
-    ${row('تأخير بسيط',fmt(st.att.late,2),inp(g+1,"setBand('graceMin',+this.value-1)"),inp(l,"setBand('lateMax',+this.value)"))}
-    ${row('تأخير كبير',fmt(st.att.vlate,2),inp(l+1,"setBand('lateMax',+this.value-1)"),inp(v,"setBand('vlateMax',+this.value)"))}
-    ${row('تأخير فوق الحد',fmt(st.att.xlate??0,2),inp(v+1,"setBand('vlateMax',+this.value-1)"),'<span class="muted">وأكتر</span>')}
-  </tbody></table></div>
-  <div class="small muted" style="margin-top:6px">كل موظف بيتحسب على ميعاد ورديته هو في شيت البصمة. «فوق الحد» = حاضر (مش غياب) ونجوم بصمته ${fmt(st.att.xlate??0)}. لما تغيّر «من» فترة، «لحد» اللي قبلها بيتظبط لوحده.</div>`;}
+// التأخير الكبير فترة «من / لحد» (بالدقايق من بداية الوردية) — «من» مربوطة بـ «تأخير بسيط لحد» فمفيش فجوة، وبعد «لحد» = فوق الحد (من غير نجوم بصمة)
+function attBandsHTML(){const st=S.settings;const l=+st.lateMax,v=+(st.vlateMax??60);
+  const inp=(label,val,on)=>`<label class="small">${label}<br><input class="inp" type="number" min="0" step="1" style="width:110px" value="${val}" onchange="${on}"></label>`;
+  return `<div class="row" style="margin-top:8px">${inp('سماح (دقيقة)',st.graceMin,"setBand('graceMin',+this.value)")}${inp('تأخير بسيط لحد',l,"setBand('lateMax',+this.value)")}</div>
+  <div class="row" style="margin-top:8px;align-items:flex-end"><b class="small" style="padding-bottom:10px">تأخير كبير:</b>${inp('من (دقيقة)',l+1,"setBand('lateMax',+this.value-1)")}${inp('لحد (دقيقة)',v,"setBand('vlateMax',+this.value)")}</div>
+  <div class="small muted" style="margin-top:6px">أي تأخير أكتر من ${fmt(v)} دقيقة = «فوق الحد»: حاضر (مش غياب) ونجوم بصمته ${fmt(st.att.xlate??0,2)}. وكل موظف بيتحسب على ميعاد ورديته هو في شيت البصمة.</div>`;}
 function setBand(key,val){const st=S.settings;const b={graceMin:+st.graceMin,lateMax:+st.lateMax,vlateMax:+(st.vlateMax??60)};b[key]=val;
   if(!(Number.isFinite(val)&&val>=0&&b.graceMin<b.lateMax&&b.lateMax<b.vlateMax)){toast('الفترات لازم تكون ورا بعض: في ميعاده < بسيط < كبير');render();return;}
   setS(key,val);render();}
