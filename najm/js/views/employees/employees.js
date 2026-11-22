@@ -32,7 +32,7 @@ function openEmp(code){
      <div style="flex:1;min-width:200px"><h2 style="margin:0">${esc(e.name)}</h2>
        <div class="muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
        <div class="row" style="margin-top:6px;gap:6px">${R.company[code]?`<span class="badge b-blue">#${fmt(R.branch[code])} في الفرع</span><span class="badge b-blue">#${fmt(R.company[code])} في المؤسسة من ${fmt(R.total)}</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins)} مرة رجل اليوم</span>${(t=>t?`<span class="badge b-gold">${CUP_NAME[t]}${cash()?` · ${fmt(prizes()[t])} ج`:''}</span>`:'')(cupOf(prizeRank(code)))}${cardsHTML(ms.cards)}</div></div>
-     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="setTitle('${code}')">🏷️ لقب</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button><button class="btn sm" onclick="resetEmpPin('${code}')">🔑 رقم سري</button></div>`:''}${mgr?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="openHistory('${code}')">📜 السجل</button></div>`:''}
+     ${isOps()?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="setPhoto('${code}')">📷 صورة</button><button class="btn sm" onclick="setVideo('${code}')">🎬 فيديو</button><button class="btn sm" onclick="setTitle('${code}')">🏷️ لقب</button><button class="btn sm" onclick="editEmp('${code}')">✏️</button><button class="btn sm" onclick="resetEmpPin('${code}')">🔑 ${S.empPins?.[code]?'رقم سري جديد':'حط رقم سري'}</button>${S.empPins?.[code]?`<button class="btn sm" onclick="removeEmpPin('${code}')">🔓 شيل الرقم السري</button>`:''}</div>`:''}${mgr?`<div class="row" style="gap:6px;align-self:flex-start"><button class="btn sm" onclick="openHistory('${code}')">📜 السجل</button></div>`:''}
    </div>
    ${media}
    <div class="grid g-2" style="margin-bottom:12px">
@@ -112,12 +112,14 @@ function importEmps(){
   });
 }
 
-// مدير التشغيل يحط رقم سري جديد لموظف (نسيه مثلاً) — الموظف بيغيّره أول ما يدخل
+// الموظف بيدخل بكود البصمة بس. مدير التشغيل يقدر يحط رقم سري لموظف معين (بيحتاجه بعد كده في الدخول، وبيفتحله التصويت والاعتراض)
+async function removeEmpPin(code){const e=emp(code);if(!await askConfirm(`شيل الرقم السري من ${e.name}؟ هيدخل بكود البصمة بس، ومش هيقدر يصوّت أو يعترض.`))return;
+  if(!LIVE){delete S.empPins[code];save();}if(await push('emp_pin',{code},null)!==false){if(LIVE)delete S.empPins[code];toast('🔓 اتشال الرقم السري');render();}}
 async function resetEmpPin(code){
   const e=emp(code);const p=String(Math.floor(Math.random()*10000)).padStart(4,'0');
   if(!await askConfirm(`رقم سري جديد لـ ${e.name}: ${p} — ابلغه بيه، وهو هيغيّره أول ما يدخل. تأكيد؟`))return;
   if(!LIVE){S.empPins[code]={pin:p,must:true};save();}
-  const ok=await push('emp_pin',{code},{pin:p});if(ok!==false)toast(`🔑 الرقم السري الجديد لـ ${e.name.split(' ')[0]}: ${p}`);
+  const ok=await push('emp_pin',{code},{pin:p});if(ok!==false){if(LIVE)(S.empPins||(S.empPins={}))[code]=true;toast(`🔑 الرقم السري الجديد لـ ${e.name.split(' ')[0]}: ${p}`);render();}
 }
 // سجل الموظف (History): التقييمات، الكروت، الاعتراضات، ... — للمديرين في نطاقهم
 const HIST_KIND={complaint:'شكوى عميل',complaint_decide:'قرار شكوى',complaint_appeal:'اعتراض على شكوى',complaint_appeal_decide:'قرار اعتراض شكوى',import_log:'رفع ملف',att:'البصمة',rate:'تقييم',bonus:'تصرف مثالي',card:'كارت',card_approve:'قرار كارت أحمر',appeal:'اعتراض',appeal_decide:'قرار اعتراض',note:'ملاحظة',complaint:'شكوى',captain:'كابتن',media:'صورة / لقب',employee:'بيانات الموظف',emp_pin:'رقم سري',emp_pin_change:'غيّر رقمه السري',winners:'رجل اليوم',day_close:'تسليم اليوم',day_late:'تأخير تسليم'};

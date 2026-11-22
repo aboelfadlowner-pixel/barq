@@ -129,7 +129,7 @@ async function pull(){
     for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};
     const cf=r.score?.carry;if(cf?.length)(x.carry||(x.carry={}))[r.code]=cf;if(r.score?.pray!=null)x.pray[r.code]=+r.score.pray;}
   // الموظف الداخل بكوده + رقمه السري: تفاصيل تقييمه هو بس، وكروته كلها
-  if(!USER&&ME&&MEPIN){const [mine,myc,mycp]=await Promise.all([sbRpc('najm_my_ratings2',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
+  if(!USER&&ME&&MEPIN!=null){const [mine,myc,mycp]=await Promise.all([sbRpc('najm_my_ratings2',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
     N.myComplaints=mycp?.complaints||null;
     for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.pray!=null)x.pray[ME]=+r.pray;if(r.carry?.length)x.carry[ME]=r.carry;if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}
     N.myCards=myc?.cards||null;}

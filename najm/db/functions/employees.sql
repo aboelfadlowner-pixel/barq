@@ -11,6 +11,9 @@ begin
   select * into p from najm_emp_pins where code = c;
   select * into e from najm_employees where code = c and active;
   -- المدير بيدخل كمدير بس (مش كموظف)
+  if e.code is not null and p.code is null and not exists (select 1 from najm_users where active and emp_code = c) then
+    return e;   -- الموظف بيدخل بكود البصمة بس — الرقم السري للي مدير التشغيل حاطله رقم بس
+  end if;
   if e.code is null or p.code is null or exists (select 1 from najm_users where active and emp_code = c)
      or p.pin_hash <> encode(sha256(convert_to(p.salt || coalesce(p_pin, ''), 'UTF8')), 'hex') then
     insert into najm_login_fails(username, fails) values (un, 1)
@@ -24,6 +27,13 @@ begin
 end $$;
 revoke all on function public.najm_emp_auth(text, text) from public, anon, authenticated;
 
+-- التصويت والاعتراضات وتغيير الرقم: للموظف اللي ليه رقم سري بس (كود البصمة لوحده معروف لزمايله)
+create or replace function public.najm_emp_has_pin(p_code text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from najm_emp_pins where code = trim(coalesce(p_code, '')));
+$$;
+revoke all on function public.najm_emp_has_pin(text) from public, anon, authenticated;
+
 -- دخول الموظف. الغلط بيرجع {error} (مش exception) عشان المحاولة الغلط تفضل متحسوبة
 create or replace function public.najm_emp_login(p_code text, p_pin text)
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
@@ -32,7 +42,7 @@ begin
   select * into e from public.najm_emp_auth(p_code, p_pin);
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
   return jsonb_build_object('code', e.code, 'name', e.name, 'branch', e.branch, 'dept', e.dept,
-    'must_change', (select must_change from najm_emp_pins where code = e.code));
+    'must_change', coalesce((select must_change from najm_emp_pins where code = e.code), false), 'has_pin', public.najm_emp_has_pin(e.code));
 end $$;
 grant execute on function public.najm_emp_login(text, text) to anon, authenticated;
 
@@ -43,6 +53,7 @@ declare e najm_employees; s text := md5(random()::text);
 begin
   select * into e from public.najm_emp_auth(p_code, p_pin);
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  if not public.najm_emp_has_pin(e.code) then return jsonb_build_object('error', 'najm: PIN required'); end if;
   if coalesce(p_new, '') !~ '^\d{4,6}$' then return jsonb_build_object('error', 'najm: PIN must be 4-6 digits'); end if;
   if p_new = p_pin then return jsonb_build_object('error', 'najm: choose a different PIN'); end if;
   update najm_emp_pins set salt = s, pin_hash = encode(sha256(convert_to(s || p_new, 'UTF8')), 'hex'),
@@ -91,6 +102,7 @@ declare e najm_employees; k najm_cards; b text := trim(coalesce(p_body, ''));
 begin
   select * into e from public.najm_emp_auth(p_code, p_pin);
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  if not public.najm_emp_has_pin(e.code) then return jsonb_build_object('error', 'najm: PIN required'); end if;
   select * into k from najm_cards where id = p_card and code = e.code;
   if k.id is null or k.status not in ('approved', 'pending') then return jsonb_build_object('error', 'najm: card cannot be appealed'); end if;
   if length(b) < 3 or length(b) > 500 then return jsonb_build_object('error', 'najm: write the reason (3-500 letters)'); end if;
@@ -136,6 +148,7 @@ declare e najm_employees; c najm_complaints; b text := trim(coalesce(p_body, '')
 begin
   select * into e from public.najm_emp_auth(p_code, p_pin);
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  if not public.najm_emp_has_pin(e.code) then return jsonb_build_object('error', 'najm: PIN required'); end if;
   select * into c from najm_complaints where id = p_id and code = e.code;
   if c.id is null or c.status <> 'proven' or c.appeal_status is not null then return jsonb_build_object('error', 'najm: complaint cannot be appealed'); end if;
   if length(b) < 3 or length(b) > 500 then return jsonb_build_object('error', 'najm: write the reason (3-500 letters)'); end if;
