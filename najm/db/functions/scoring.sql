@@ -42,8 +42,7 @@ begin
   if new.ops is null then v := public.najm_prev_rate(new.code, new.day, 'ops'); if v is not null then new.ops := v; new.carry := array_append(array_remove(new.carry, 'ops'), 'ops'); end if; end if;
   return new;
 end $$;
-drop trigger if exists najm_carry_fill_trg on public.najm_ratings;
-create trigger najm_carry_fill_trg before insert on public.najm_ratings for each row execute function public.najm_carry_fill();
+create or replace trigger najm_carry_fill_trg before insert on public.najm_ratings for each row execute function public.najm_carry_fill();
 
 -- المدير قيّم (أو عدّل أو مسح) بند في يوم ← الأيام اللي بعده اللي ماشية على التقييم القديم بتاخد الجديد، لحد أول يوم متقيّم بإيد
 create or replace function public.najm_carry_forward(p_code text, p_day date, p_f text)
