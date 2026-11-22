@@ -143,6 +143,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     for (const [u, pin] of [['br', '1111'], ['ops', '0000']]) await save(u, pin, 'rate', { day: D, code: c }, [2, 2, 2, 2]);
     await save('ops', '0000', 'att', { day: D, code: c, reason: 'x' }, { st: 'on' });
     await db.query("update najm_ratings set sh='{2,2,2,2,2}', hy='{2,2,2,2,2}' where day=$1 and code=$2", [D, c]);
+    await save('br', '1111', 'pray', { day: D, code: c }, { v: 1 });
     await save('ops', '0000', 'bonus', { day: D, code: c, reason: 'x' }, { v: 0.5, note: 'ساعد زميله' });
     const r = (await db.query('select (najm_score(r, e.dept, (select data from najm_settings where id=1))) s from najm_ratings r join najm_employees e on e.code=r.code where r.day=$1 and r.code=$2', [D, c])).rows[0].s;
     eq([+r.base, +r.total], [5, 5.5]);
@@ -163,7 +164,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('ops', '0000', 'rate', { day: ago(1), code: c }, [2, 2, 2, 2]), /reason required/);
     await save('ops', '0000', 'rate', { day: ago(1), code: c, reason: 'اتقيّم غلط' }, [2, 2, 2, 2]);
     const h = (await db.query("select data from najm_history where kind='rate' and code=$1 order by id desc limit 1", [c])).rows[0].data;
-    eq([h.old, h.data, h.key.reason], [[1, 1, 1, 1, 1], [2, 2, 2, 2, 2], 'اتقيّم غلط']);
+    eq([h.old, h.data, h.key.reason], [[1, 1, 1, 1, 1], [2, 2, 2, 2], 'اتقيّم غلط']);
   });
   test('مدير الفرع ميقدرش يعدّل بعد اعتماد رجل اليوم', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1 offset 5", [B])).rows[0].code;
@@ -330,16 +331,25 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const c = (await db.query("select code from najm_employees where branch=$1 and active and dept <> 'قسم البقاله' order by code limit 1 offset 25", [B])).rows[0].code;
     await save('ops', '0000', 'att', { day: D, code: c, reason: 'اختبار' }, { st: 'on' });
     await save('ops', '0000', 'rate', { day: D, code: c }, [2, 2, 2, 2]);
-    await fails(save('br', '1111', 'pray', { day: D, code: c }, { v: 2 }), /bad prayer value/);
-    await fails(save('hyg', '7171', 'pray', { day: D, code: c }, { v: 1 }), /hygiene rates only|prayer is recorded/);
-    const r = await save('br', '1111', 'pray', { day: D, code: c }, { v: 1 });
+    await fails(save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 2 }), /bad prayer value/);
+    await fails(save('hy', '7777', 'pray', { day: D, code: c }, { v: 1 }), /hygiene rates only|prayer is recorded|wrong username/);
+    const r = await save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 1 });
     eq([r.score.ops_star, r.score.pray_star, r.row.pray], [0.5, 0.5, 1]);
-    const r0 = await save('br', '1111', 'pray', { day: D, code: c }, { v: 0 });
+    const r0 = await save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 0 });
     eq(r0.score.pray_star, 0);
     await save('ops', '0000', 'att', { day: D, code: c, reason: 'اختبار' }, { st: 'abs' });
     eq((await db.query("select public.najm_score(r, 'x', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, D])).rows[0].s.pray_star, null);
     // التقييم القديم اللي فيه 5 بنود بيتحسب بأول 4
-    eq((await db.query("select public.najm_crit(array[2,2,2,2,0]::smallint[]) a, public.najm_crit(array[2,2,1,1]::smallint[]) b")).rows[0], { a: '1', b: '0.75' });
+    eq((await db.query("select public.najm_crit(array[2,2,2,2,0]::smallint[])::float8 a, public.najm_crit(array[2,2,1,1]::smallint[])::float8 b")).rows[0], { a: 1, b: 0.75 });
+  });
+
+  test('التحديث اليومي: النهارده لسه شغال — اللي بصم بيتسجل، واللي لسه مابصمش مبيتحسبش غياب ولا راحة', async () => {
+    const [a, b] = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 2 offset 30", [B])).rows.map(r => r.code);
+    const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
+    const rows = [{ code: a, day: T, shift: '7:00 AM', in: '7:02 AM', leave: '' }, { code: b, day: T, shift: '5:00 PM', in: '', leave: '' }];
+    await db.query('select najm_att_sync($1,$2)', [JSON.stringify(rows), 'today-test']);
+    const st = Object.fromEntries((await db.query('select code, att from najm_ratings where day=$1 and code = any($2)', [T, [a, b]])).rows.map(r => [r.code, r.att]));
+    eq([st[a], st[b] ?? null], ['on', null]);
   });
 
   // ---------------- الملفات المرفوعة: سجل + منع التكرار

@@ -39,6 +39,7 @@ begin
                              (select case when dd <= grace then 'on' when dd <= latemax then 'late' when dd <= vlatemax then 'vlate' else 'xlate' end
                               from (select (public.najm_tmin(tin) - public.najm_tmin(shift) + 2160) % 1440 - 720 dd) z)
                            when tin is not null then null              -- وقت مش مقروء: بيتساب (مش غياب)
+                           when day >= today then null                -- النهارده لسه شغال: اللي مابصمش لسه مبيتحسبش غياب ولا راحة
                            else 'noshow' end s,
                       row_number() over (partition by code, day - ((extract(dow from day)::int + 1) % 7),
                                          (leave is null and tin is null) order by day) rn

@@ -26,7 +26,7 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
   test('الهايجين بيقيّم في عمود الهايجين بس', async () => {
     await save('hy', '7777', 'rate', { day: D, code: '125' }, [2, 1, 2, 1, 2]);
     const r = (await db.query('select hy, br from najm_ratings where day=$1 and code=$2', [D, '125'])).rows[0];
-    eq([r.hy, r.br], [[2, 1, 2, 1, 2], [2, 2, 2, 2, 2]]);
+    eq([r.hy, r.br], [[2, 1, 2, 1, 2], [2, 2, 2, 2]]);
   });
   test('الهايجين ميقدرش يسجّل بصمة ولا يدّي كروت', async () => {
     await fails(save('hy', '7777', 'att', { day: D, code: '125' }, { st: 'on' }), /hygiene rates only/);
