@@ -7,9 +7,9 @@ function defaultState(){
   return {
     v:2,
     settings:{
-      att:{on:2, late:1.2, vlate:0.4, abs:0},
-      shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'},
-      graceMin:10, lateMax:30, finalists:4, winnersPerShift:2,
+      att:{on:2, late:1.2, vlate:0.4, xlate:0, abs:0},
+      shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'}, betweenTo:'16:00',   // Between فترة: أي بداية بين shiftStart.Between و betweenTo
+      graceMin:10, lateMax:30, vlateMax:60, finalists:4, winnersPerShift:2,
       capPct:120, complaintPenalty:50, bonusAt100:0, defaultMultiplier:2,
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:10, yellowsToRed:3},
@@ -114,6 +114,7 @@ async function pull(){
   if(USER){[full,files]=await Promise.all([sbRpcAll('najm_full_scores',{p_user:USER.username,p_pin:PIN,p_from:from,p_to:to},'day,code'),sbRpc('najm_files',{p_user:USER.username,p_pin:PIN})]);}
   const N=defaultState();
   N.settings=Object.assign(N.settings,st?.[0]?.data||{});
+  N.settings.att={...defaultState().settings.att,...(st?.[0]?.data?.att||{})};   // نجوم أي حالة جديدة (زي فوق الحد) بتاخد الافتراضي لحد ما تتحدد
   if(files?.private?.bonusAt100!=null)N.settings.bonusAt100=files.private.bonusAt100;
   N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||'',title:e.title||''}));
   N.targets={[m]:Object.fromEntries(tg.map(r=>[r.dkey,r.cfg]))};

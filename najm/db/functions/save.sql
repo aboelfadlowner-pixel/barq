@@ -267,7 +267,7 @@ begin
   elsif p_kind = 'att_bulk' then
     -- شيت الحضور الشهري (مدير التشغيل): كل سطر {day, code, st, time} — بيتسجل كله مرة واحدة
     if jsonb_typeof(p_data) <> 'array' or jsonb_array_length(p_data) > 1000 then raise exception 'najm: bad attendance rows'; end if;
-    if exists (select 1 from jsonb_array_elements(p_data) x where x->>'st' not in ('on','late','vlate','abs','off')) then
+    if exists (select 1 from jsonb_array_elements(p_data) x where x->>'st' not in ('on','late','vlate','xlate','abs','off')) then
       raise exception 'najm: bad attendance status'; end if;
     insert into najm_ratings(day, code, att, att_time, att_src)
       select (x->>'day')::date, x->>'code', x->>'st', nullif(x->>'time', ''), 'sheet'

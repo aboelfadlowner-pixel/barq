@@ -2,7 +2,7 @@
 // ---------- month summary & ranks ----------
 function monthSummary(e,month,upto){
   const days=monthDays(month,upto);let n=0,sum=0,wins=0,abs=0,late=0,worked=0,off=0;
-  for(const d of days){const s=score(d,e.code);if(WORK_ST.includes(s.st))worked++;if(s.st==='off')off++;if(s.st==='abs')abs++;if(s.st==='late'||s.st==='vlate')late++;if(s.total!=null&&s.st!=='abs'){n++;sum+=s.total;}if(isWinner(d,e.code))wins++;}
+  for(const d of days){const s=score(d,e.code);if(WORK_ST.includes(s.st))worked++;if(s.st==='off')off++;if(s.st==='abs')abs++;if(s.st==='late'||s.st==='vlate'||s.st==='xlate')late++;if(s.total!=null&&s.st!=='abs'){n++;sum+=s.total;}if(isWinner(d,e.code))wins++;}
   const avg=n?sum/n:null;const cards=cardCount(e.code,month,upto);const cp=cardPts(cards);
   // الـ KPI بالنقط: كل يوم بنجومه (5 نجوم = نقط يوم كامل ≈ 19.2) + ½ المثالي + الكروت (+10 / −5 / −20)
   // الفلوس = النقط لحد أقصى الشهر (500)، والزيادة بتعلّي الترتيب بس · النسبة % = النقط ÷ نقط الأيام اللي اتحسبت (الغياب بيتحسب صفر)

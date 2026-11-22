@@ -14,7 +14,7 @@ function progressOf(e,cp,goal){
   const m=cp.m,upto=cp.date;const ms=monthSummary(e,m,upto);const max=S.settings.att.on||2;
   let n=0,sumT=0,att=0,attLate=0,mgr=0,mgrMiss=0,ops=0,opsMiss=0,hy=0,hyMiss=0,bon=0;const tech=[0,0,0,0,0],techN=[0,0,0,0,0],hyc=[0,0,0,0,0],hyN=[0,0,0,0,0];let detail=false;
   for(const d of monthDays(m,upto)){const s=score(d,e.code);if(s.total==null||s.st==='abs')continue;n++;sumT+=s.total;
-    att+=s.att??0;if(s.st==='late'||s.st==='vlate')attLate++;
+    att+=s.att??0;if(s.st==='late'||s.st==='vlate'||s.st==='xlate')attLate++;
     if(s.pub){continue;}detail=true;
     if(s.mgr==null)mgrMiss++;mgr+=s.mgr||0;if(s.ops==null)opsMiss++;ops+=s.ops||0;if(s.hy==null)hyMiss++;hy+=s.hy||0;bon+=s.bonus||0;
     const D=peekDay(d);for(const f of ['br','sh','fr','ops']){const a=D[f]?.[e.code];if(a&&a.length===5)a.forEach((v,i)=>{if(v!=null){tech[i]+=v;techN[i]++;}});}

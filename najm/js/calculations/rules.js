@@ -26,7 +26,7 @@ function tierPts(p,r=RULES()){
   return 0;
 }
 // أيام الشغل الفعلي (في ميعاده / تأخير) — الإجازة والغياب مش بيتحسبوا
-const WORK_ST=['on','late','vlate'];
+const WORK_ST=['on','late','vlate','xlate'];
 // الإجازات المسموحة في الشهر للمؤهل = الإجازة الأسبوعية × عدد الأسابيع (لأعلى)
 const allowedOff=(m,r=RULES())=>(+r.weeklyOff||0)*Math.ceil(daysInMonth(m)/7);
 // نقط اليوم الكامل (5 نجوم) — مثلاً 500 ÷ 26 ≈ 19.2

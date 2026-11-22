@@ -11,6 +11,8 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   });
   test('وقت البصمة ← حالة (سماح 10 دقايق، تأخير بسيط لحد 30)', async () => {
     eq(await ev(() => { const e = { shift: 'Morning' }; return ['09:05', '09:25', '09:50', '08:40'].map(t => attFromTime(e, t)); }), ['on', 'late', 'vlate', 'on']);
+    // «تأخير كبير لحد» (60 دقيقة افتراضي): بعده «فوق الحد» = حاضر من غير نجوم بصمة
+    eq(await ev(() => { const e = { shift: 'Morning' }, k = S.settings.vlateMax; const a = ['10:00', '10:01'].map(t => attFromTime(e, t)); S.settings.vlateMax = 90; const b = attFromTime(e, '10:01'); S.settings.vlateMax = k; return [...a, b, attStar('xlate'), WORK_ST.includes('xlate')]; }), ['vlate', 'xlate', 'vlate', 0, true]);
   });
   test('بنود التقييم: 5 بنود من 0 لـ 2 = نجمة، والناقص مايتحسبش', async () => {
     eq(await ev(() => [crit([2, 2, 2, 2, 2]), crit([1, 1, 1, 1, 1]), crit([2, 2, 1, 2, 2]), crit([2, 2, null, 2, 2]), crit(null)]), [1, 0.5, 1, null, null]);
@@ -82,7 +84,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const P = parseMonthSheet(rows); DATE = keep;
       const st = Object.fromEntries(P.recs.filter(r => r.code === code).map(r => [r.day.slice(8), r.st]));
       return [st, P.unknown, P.rest, P.to, isMonthSheet(rows), ['7171717', '5252525', '4545454', '6363636'].some(x => JSON.stringify(P).includes(x))];
-    }), [{ '07': 'on', '08': 'late', '09': 'vlate', '10': 'vlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' }, ['99999999'], 1, '2026-11-14', true, false]);
+    }), [{ '07': 'on', '08': 'late', '09': 'xlate', '10': 'xlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' }, ['99999999'], 1, '2026-11-14', true, false]);
   });
   test('نجمة الهايجين (اللبس) من البنود المطلوبة بس', async () => {
     eq(await p.evaluate(() => [hyScore([2, -1, -1, -1, -1]), hyScore([2, 2, 2, 2, 0]), hyScore([1, -1, 2, -1, -1]), hyScore([2, -1, null, -1, -1]), hyScore([-1, -1, -1, -1, -1])]), [1, 0.75, 0.75, null, null]);
