@@ -214,6 +214,10 @@ function demoSeed(){
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
       /* تقييم المديرين كل 4 أيام (وأحيانًا تعديل في النص) — الباقي بيكمّل لوحده */if(isRateDay(d)||rnd()<.06){const c4=()=>crit(e.code).slice(0,4);const pl=prayL(e.code);D.br[e.code]=[...c4(),pl];D.sh[e.code]=[...c4(),pl];if(isFresh(e))D.fr[e.code]=c4();}if(d<DATE){const pl=prayL(e.code);(D.pray||(D.pray={}))[e.code]=pl===2?1:pl===0?0:rnd()<.6?1:0;(D.brk||(D.brk={}))[e.code]=rnd()<lvl[e.code]+.25?1:0;}if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
+  // تنبيهات شيت البصمة للتجربة
+  {const L=activeEmps().filter(e=>e.branch===B);const y=days[Math.max(0,days.length-3)];S.alerts=[
+    {id:1,kind:'sheet_changed',code:null,day:DATE,created_at:new Date().toISOString(),data:{count:2,rows:[{code:L[4].code,day:y,old:'abs',new:'on'},{code:L[7].code,day:y,old:'late',new:'on'}]}},
+    {id:2,kind:'comeback',code:L[9].code,day:days[days.length-1],created_at:new Date().toISOString(),data:{name:L[9].name,gap:9,branch:B,active:true}}];}
   // تعارض صلاة واحد للتجربة: المدير قال «ملتزم» والكاميرات سجّلت يوم ماصلّاش
   {const y=days[days.length-2];const x=y&&activeEmps().find(e=>e.branch===B&&prayL(e.code)===2&&S.days[y]?.pray?.[e.code]===1);if(x)S.days[y].pray[x.code]=0;}
   // وسام برق لموظفين اتنين الشهر ده

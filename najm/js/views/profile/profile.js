@@ -93,6 +93,7 @@ function opsPendingHTML(){
   const red=S.cards.filter(c=>cardStatus(c)==='pending').length;if(red)items.push([`🟥 ${fmt(red)} كارت أحمر مستني موافقتك`,"go('cards')"]);
   const ap=(S.appeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
   const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);
+  for(const a of (S.alerts||[]).filter(a=>!a.seen_at))items.push([alertTxt(a),`openAlert(${+a.id})`]);
   const pc=prayConflicts();if(pc.length)items.push([`🕌 ${fmt(pc.length)} تعارض في الصلاة بين الكاميرات والمدير — اعتمد رأي مين`,"openPrayConflicts()"]);
   const W=peekDay(DATE).winners||{};
   for(const b of branches())for(const g of SHIFT_GROUPS){if(!winnersFor(b,g))continue;if(!activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))continue;
@@ -151,3 +152,16 @@ function openPrayConflicts(){const L=prayConflicts();
     <div class="row" style="gap:6px"><button class="btn sm pri" onclick="decidePray('${x.e.code}','${x.cycle}','cams',${x.cam})">📹 اعتمد رأي الكاميرات</button><button class="btn sm" onclick="decidePray('${x.e.code}','${x.cycle}','mgr',null)">🧑‍💼 اعتمد رأي المدير</button></div></div>`).join('')||'<div class="empty">مفيش تعارض 👏</div>'}`);}
 async function decidePray(code,cycle,decision,level){(S.prayReviews||(S.prayReviews={}))[code+'|'+cycle]={decision,level};save();
   if(await push('pray_review',{code,cycle},{decision,level})!==false){toast('✔ اتعتمد');openPrayConflicts();render();}}
+
+// ---------- تنبيهات شيت البصمة (من التحديث الدوري 7 و9 و11 بالليل و1 الفجر) ----------
+function alertTxt(a){const d=a.data||{};
+  if(a.kind==='sheet_changed')return `🚨 شيت البصمة اتغيّر في أيام فاتت (${fmt(d.count||0)} يوم) — في حاجة غلط، اتواصل مع الـ HR`;
+  if(a.kind==='comeback')return `🔁 ${esc(d.name||a.code)} (${esc(a.code)}) رجع يبصم ${esc(a.day)} بعد ${fmt(d.gap)} يوم من غير بصمة${d.active===false?' — وهو موقوف في السيستم':''}`;
+  return esc(a.kind);}
+function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  const rows=a.kind==='sheet_changed'?`<div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>الكود</th><th>الموظف</th><th>اليوم</th><th>كان</th><th>بقى</th></tr></thead><tbody>${(d.rows||[]).map(r=>`<tr><td>${esc(r.code)}</td><td class="small">${esc(emp(r.code)?.name||'')}</td><td class="small">${esc(r.day)}</td><td>${ATT[r.old]||esc(r.old||'—')}</td><td>${ATT[r.new]||esc(r.new||'—')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="small muted" style="margin-top:6px">النتيجة دي اتغيّرت لأن الشيت نفسه اتعدّل بعد ما اتسجل. لو التعديل مش مظبوط، اتواصل مع الـ HR يرجّعوه — والتحديث الجاي هيسجل اللي في الشيت.</div>`
+    :`<div class="small">مابصمش ${fmt(d.gap)} يوم، ورجع يبصم يوم ${esc(a.day)}.${d.active===false?' <b>وهو موقوف في السيستم</b> — لو رجع الشغل فعلاً شغّله من «ملفات الموظفين».':''} اتأكد من الـ HR إيه اللي حصل (إجازة طويلة؟ ساب ورجع؟).</div>`;
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${a.kind==='sheet_changed'?'🚨 شيت البصمة اتغيّر':'🔁 موظف رجع يبصم'}</h2><div class="small muted" style="margin-bottom:8px">${esc(new Date(a.created_at||Date.now()).toLocaleString('ar-EG'))}</div>${rows}
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتواصلت / اتشاف</button></div>`);}
+async function alertSeen(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(a){a.seen_at=new Date().toISOString();a.seen_by=USER.username;}save();closeModal();render();push('alert_seen',{id},{});}

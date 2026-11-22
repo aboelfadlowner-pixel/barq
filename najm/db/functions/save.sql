@@ -24,7 +24,7 @@ begin
   if u.role = 'cameras' and p_kind not in ('pray', 'brk') then
     raise exception 'najm: cameras record prayer and break only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review')
+  if p_kind in ('winners','target','base_sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -112,6 +112,9 @@ begin
       insert into najm_ratings(day, code, brk) values (k_day, k_code, case when del then null else (p_data->>'v')::smallint end)
       on conflict (day, code) do update set brk = excluded.brk, updated_at = now();
     end if;
+  elsif p_kind = 'alert_seen' then
+    -- مدير التشغيل شاف التنبيه (اتواصل مع الـ HR مثلاً)
+    update najm_alerts set seen_by = u.username, seen_at = now() where id = (p_key->>'id')::bigint;
   elsif p_kind = 'medal' then
     -- وسام برق: مدير التشغيل بيديه لموظف أداؤه مميز — مرة واحدة في الشهر (+100 نقطة من الإعدادات)
     s := to_char(coalesce(k_day, today), 'YYYY-MM');

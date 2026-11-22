@@ -30,7 +30,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[]
+    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[]
   };
 }
 
@@ -157,6 +157,7 @@ async function pull(){
   N.voteCounts={};for(const v of votes||[])N.voteCounts[v.username]={votes:v.votes,ips:v.ips};
   N.mgrDaily={};for(const r of mgrPtsRows||[])(N.mgrDaily[r.day]||(N.mgrDaily[r.day]={}))[r.username]=r.pts;
   N.mgrCrit={};for(const r of mgrFull||[])(N.mgrCrit[r.day]||(N.mgrCrit[r.day]={}))[r.username]=r.crit;
+  N.alerts=USER?.role==='ops'?((await sbRpc('najm_alerts_list',{p_user:USER.username,p_pin:PIN}).catch(()=>[]))||[]):[];   // تنبيهات شيت البصمة
   N.payouts=USER?.role==='ops'?((await sbRpc('najm_payouts_list',{p_user:USER.username,p_pin:PIN,p_month:m}).catch(()=>[]))||[]):[];
   N.ledger=(ledger||[]).map(l=>({...l,points:+l.points}));N.market=market||[];N.offers=(offers||[]).map(o=>({...o,points:+o.points}));
   S=N;RANK_CACHE=null;SALES_CACHE={};LAST_PULL=new Date();

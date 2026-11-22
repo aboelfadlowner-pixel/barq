@@ -398,6 +398,39 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await rpc('select najm_login_any($1,$2) r', ['br', ''])).r.error, 'najm: wrong code or PIN');
   });
 
+  test('التنبيهات: الشيت اتغيّر في يوم فات ← تنبيه لمدير التشغيل · موظف رجع يبصم بعد 7 أيام · الموظف الجديد بيتضاف بعد أسبوع دخول + خروج', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and active and shift='Morning' order by code limit 1 offset 33", [B])).rows[0].code;
+    const y = ago(3);
+    const run = async inT => db.query('select najm_att_sync($1,$2) r', [JSON.stringify([{ code: x, day: y, shift: '8:00 AM', in: inT, leave: '' }]), 'alerts-test']);
+    await run('8:02 AM');
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 0);
+    await run('8:02 AM');   // نفس النتيجة ← مفيش تنبيه
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 0);
+    const r = (await run('9:40 AM')).rows[0].r;   // الشيت اتعدّل ليوم فات
+    eq(r.changed_past_days, 1);
+    const al = (await db.query("select data from najm_alerts where kind='sheet_changed'")).rows[0].data;
+    eq([al.count, al.rows[0].code, al.rows[0].old, al.rows[0].new], [1, x, 'on', 'xlate']);
+    // تغيير إعدادات التأخير بس (من غير ما الشيت يتغيّر) مبيعملش تنبيه
+    await run('9:40 AM');
+    eq((await db.query("select (data->>'count')::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 1);
+    // رجع يبصم بعد غياب + الجديد محتاج أسبوع دخول + خروج
+    const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
+    const rows = [{ code: x, name: 'رجع', dept: '', job: '', branch: B, backGap: 9, backDay: T },
+                  { code: '99101', name: 'جديد كمّل', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 6 },
+                  { code: '99102', name: 'جديد لسه', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 3 }];
+    const es = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'f'])).rows[0].r;
+    eq([es.added.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
+    await db.query('select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']);   // التنبيه مرة واحدة
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='comeback' and code=$1", [x])).rows[0].n, 1);
+    // مدير التشغيل بس بيشوفها، وبيعلّم «اتشاف»
+    const L = (await rpc('select najm_alerts_list($1,$2) r', ['ops', '0000'])).r;
+    eq(L.length >= 2, true);
+    eq((await rpc('select najm_alerts_list($1,$2) r', ['br', '1111'])).r, []);
+    await save('ops', '0000', 'alert_seen', { id: L[0].id }, {});
+    eq((await db.query('select seen_by from najm_alerts where id=$1', [L[0].id])).rows[0].seen_by, 'ops');
+    eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

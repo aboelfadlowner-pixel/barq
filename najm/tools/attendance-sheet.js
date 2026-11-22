@@ -1,8 +1,8 @@
 // نجم أبو الفضل — قراءة شيت الحضور الشهري (ملف الحسابات) للتحديث اليومي من الـ Drive
-// بياخد من كل موظف 4 حاجات بس لكل يوم: الكود · التاريخ · معاد الورديه · س الدخول · نوع الاجازه
+// بياخد من كل موظف لكل يوم بس: الكود · التاريخ · معاد الورديه · س الدخول · س الخروج (للعدّ بس) · نوع الاجازه
 // وأي عمود تاني (الراتب، بدل الـ KPI، الجزاءات، السلف، الإضافي...) مبيتقريش خالص.
 // الاستخدام:  node attendance-sheet.js <file.xlsx> <out.json> [--compact <payload.txt>] [--emps <emps.json>]
-// --emps: بيانات الموظف من راس كل بلوك بس: الكود · الاسم · القسم · الوظيفة · الفرع (+ أكتر ميعاد وردية متكرر) — من غير أي فلوس   (محتاج: npm i --no-save xlsx@0.18.5)
+// --emps: بيانات الموظف من راس كل بلوك بس: الكود · الاسم · القسم · الوظيفة · الفرع (+ أكتر ميعاد وردية متكرر، وأيام «دخول + خروج» في آخر أسبوع، والرجوع بعد غياب) — من غير أي فلوس   (محتاج: npm i --no-save xlsx@0.18.5)
 // --compact: صيغة صغيرة للتحديث اليومي «YYYY-MM|كود:يوم1,يوم2,...;كود:...» — كل يوم: دقايق التأخير عن ميعاد الوردية (0 لو بدري)
 //            أو L إجازة أو - من غير بصمة ولا إجازة أو x مش مقروء / فرق أكتر من 4 ساعات عن ميعاد الوردية (للمراجعة) — ومعاها md5 عشان الداتابيز تتأكد إنها وصلت زي ما هي
 const XLSX = require('xlsx');
@@ -21,7 +21,7 @@ function sheetDate(v) {
   return null;
 }
 const wb = XLSX.readFile(inFile);
-const out = []; let blocks = 0; const EMPS = {};
+const out = []; let blocks = 0; const EMPS = {}; const OUTS = new Set();
 for (const name of wb.SheetNames) {
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
   for (let i = 0; i < rows.length; i++) {
@@ -30,7 +30,7 @@ for (const name of wb.SheetNames) {
     let h = -1; for (let k = i + 1; k < Math.min(i + 6, rows.length); k++) if (rows[k].some(c => norm(c) === norm('معاد الورديه'))) { h = k; break; }
     if (h < 0) continue;
     const H = rows[h].map(norm); const ix = n => H.indexOf(norm(n));
-    const c = { date: ix('التاريخ'), leave: ix('نوع الاجازه'), shift: ix('معاد الورديه'), in: ix('س الدخول') };
+    const c = { date: ix('التاريخ'), leave: ix('نوع الاجازه'), shift: ix('معاد الورديه'), in: ix('س الدخول'), out: ix('س الخروج') };
     if (c.date < 0 || c.shift < 0 || c.in < 0) continue;
     blocks++;
     // راس البلوك: «الاسم / القسم / الوظيفة / الفرع» والقيمة في أول خانة مليانة بعد العنوان
@@ -42,6 +42,7 @@ for (const name of wb.SheetNames) {
     for (let k = h + 1; k < rows.length && k < h + 40; k++) {
       const day = sheetDate(rows[k][c.date]); if (!day) break;
       out.push({ code, day, shift: String(rows[k][c.shift] ?? '').trim(), in: String(rows[k][c.in] ?? '').trim(), leave: c.leave >= 0 ? String(rows[k][c.leave] ?? '').trim() : '' });
+      if (c.out >= 0 && /\d:\d\d/.test(String(rows[k][c.out] ?? ''))) OUTS.add(code + '|' + day);   // بصمة الخروج — بنعدّ أيام «دخول + خروج» بس (مبتتحفظش)
     }
     i = h;
   }
@@ -51,7 +52,14 @@ if (empsFile) {
   // أكتر ميعاد وردية متكرر للموظف (للشيفت لو موظف جديد)
   const cnt = {}, lastIn = {}; for (const r of out) if (r.shift && r.in) { const m = cnt[r.code] || (cnt[r.code] = {}); m[r.shift] = (m[r.shift] || 0) + 1; if (!lastIn[r.code] || r.day > lastIn[r.code]) lastIn[r.code] = r.day; }
   // lastIn: آخر يوم بصمة — الموظف الجديد بيتضاف بس لو بصم في آخر أسبوع (اللي وقف قبل كده غالبًا ساب)
-  const L = Object.values(EMPS).filter(e => e.name).map(e => ({ ...e, shiftTime: Object.entries(cnt[e.code] || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || '', lastIn: lastIn[e.code] || '' }));
+  // آخر يوم في الملف فيه بصمات · fullWeek = أيام «دخول + خروج» في آخر 7 أيام (6 = شغال) · رجوع بعد غياب: آخر فترة من غير بصمة 7 أيام أو أكتر وبعدها رجع يبصم
+  const hasIn = r => /\d:\d\d/.test(r.in);
+  const fileLast = out.filter(hasIn).reduce((a, r) => r.day > a ? r.day : a, '');
+  const back = (code) => { const D = [...new Set(out.filter(r => r.code === code && hasIn(r)).map(r => r.day))].sort(); let best = null;
+    for (let i = 1; i < D.length; i++) { const gap = Math.round((new Date(D[i]) - new Date(D[i - 1])) / 864e5) - 1; if (gap >= 7) best = { backGap: gap, backDay: D[i] }; } return best || {}; };
+  const week = (code) => { if (!fileLast) return 0; let n = 0; for (let i = 0; i < 7; i++) { const d = new Date(fileLast); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10);
+      if (OUTS.has(code + '|' + k) && out.some(r => r.code === code && r.day === k && hasIn(r))) n++; } return n; };
+  const L = Object.values(EMPS).filter(e => e.name).map(e => ({ ...e, shiftTime: Object.entries(cnt[e.code] || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || '', lastIn: lastIn[e.code] || '', fullWeek: week(e.code), ...back(e.code) }));
   fs.writeFileSync(empsFile, JSON.stringify(L));
 }
 const withIn = new Set(out.filter(r => /\d{1,2}:\d{2}/.test(r.in)).map(r => r.code)).size;
