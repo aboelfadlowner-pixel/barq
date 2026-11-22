@@ -116,7 +116,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       await setCrit(c, 1, 2);   // التعديل بيبدأ من التقييم المكمّل
       return [cyc, before, btn, after, JSON.stringify(peekDay(DATE).sh[c])];
     });
-    eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1,2]'], '[2,2,2,1,2]']);
+    eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1]'], '[2,2,2,1]']);
   });
   test('فترات التأخير: «من / لحد» لكل حالة مربوطة ببعض، والترتيب الغلط مبيتحفظش', async () => {
     await as(OPS); await p.evaluate(() => go('settings'));

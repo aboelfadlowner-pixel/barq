@@ -14,8 +14,8 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
   const D = today();
 
   test('الرقم السري الغلط مرفوض', () => fails(save('ops', '9999', 'att', { day: D, code: '125' }, { st: 'on' }), /wrong username or PIN/));
-  test('مدير الفرع يقيّم موظف فرعه', async () => { await save('br', '1111', 'rate', { day: D, code: '125' }, [2, 2, 2, 2, 2]); });
-  test('مدير الفرع ميقدرش يقيّم موظف فرع تاني', () => fails(save('br', '1111', 'rate', { day: D, code: '16' }, [2, 2, 2, 2, 2]), /outside your scope/));
+  test('مدير الفرع يقيّم موظف فرعه', async () => { await save('br', '1111', 'rate', { day: D, code: '125' }, [2, 2, 2, 2]); });
+  test('مدير الفرع ميقدرش يقيّم موظف فرع تاني', () => fails(save('br', '1111', 'rate', { day: D, code: '16' }, [2, 2, 2, 2]), /outside your scope/));
   test('مدير الفرع ميقدرش يغيّر الإعدادات', () => fails(save('br', '1111', 'settings', {}, {}), /operations manager only/));
   test('البصمة من الشيت: المدير ميقدرش يغيّرها، والتشغيل بس بسبب', async () => {
     await fails(save('br', '1111', 'att', { day: D, code: '125' }, { st: 'on' }), /attendance comes from the fingerprint sheet/);

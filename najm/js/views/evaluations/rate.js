@@ -13,7 +13,7 @@ function vRate(){
     ${stale.length?`<div class="row" style="justify-content:space-between;margin-top:6px"><span class="small">🔁 ${fmt(stale.length)} موظف ماشيين على تقييم الدورة اللي فاتت — عدّل اللي اتغير، أو أكّد نفس التقييم</span><button class="btn sm gold" onclick="confirmRates()">✔ تأكيد الكل بنفس التقييم (${fmt(stale.length)})</button></div>`:''}</div>`}
   ${closeBarHTML()}
   ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول (اتقفل اليوم، أو اتعلن رجل اليوم، أو اليوم عدّى أكتر من يوم) — أي تعديل عن طريق مدير التشغيل.</div>':''}
-  <div class="lock" style="margin-bottom:10px">البصمة ${S.settings.att.on} نجمة · الهايجين نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · مدير التشغيل نجمة · سلوك مثالي ½. كل بند من 0 لـ 2 — وتقييم المديرين كل ${RATE_EVERY} أيام.</div>
+  <div class="lock" style="margin-bottom:10px">البصمة ${S.settings.att.on} نجمة · الهايجين نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · مدير التشغيل ½ · الصلاة ½ (كل يوم) · سلوك مثالي ½ فوق الـ 5. كل بند من 0 لـ 2 — وتقييم المديرين كل ${RATE_EVERY} أيام.</div>
   ${filterBar({scoped:true})}
   <div class="grid g-emp">${list.map(e=>{
     const s=score(DATE,e.code);const R=isHy()?null:rateOf(DATE,field,e.code,true);const arr=(isHy()?D[field][e.code]:R.arr)||[];const myC=cardsOf(e.code,DATE,DATE,true);
@@ -24,9 +24,10 @@ function vRate(){
       ${D.attTime?.[e.code]?`<div class="small muted">وقت البصمة: ${esc(D.attTime[e.code])}</div>`:''}${canAtt?'<div class="small muted" style="margin-bottom:4px">البصمة من الشيت أوتوماتيك — غيّرها بس في حالة استثنائية (بسبب)</div>':''}
       ${R?.carried&&R.arr?`<div class="row small" style="justify-content:space-between;color:var(--muted);margin:2px 0">🔁 مكمّل من تقييم ${R.from?`يوم ${esc(R.from.slice(8))}`:'قبل كده'}${rateStale(DATE,field,e.code)?`<button class="btn sm" onclick="confirmRate('${e.code}')">✔ تأكيد</button>`:''}</div>`:''}
       ${isHy()?hyRowsHTML(e,arr):CL.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')}
+      ${canPray()&&!isHy()?`<div class="crit"><span class="small">🕌 الصلاة <span class="muted">(كل يوم · ½ نجمة)</span></span><span class="seg">${[[1,'صلّى'],[0,'ماصلّاش']].map(([v,t])=>`<button class="${D.pray?.[e.code]===v?'on':''}" onclick="setPray('${e.code}',${v})">${t}</button>`).join('')}</span></div>`:''}
       <div class="row" style="justify-content:space-between;margin-top:6px"><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>
         ${isHy()?`<span class="small">🧼 الهايجين ${fmt(s.hy,2)}</span>`:`<button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ مثالي':'+ ½ مثالي'}</button>`}</div>
-      <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · تشغيل ${fmt(s.ops,2)} · هايجين ${fmt(s.hy,2)}</div>
+      <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · تشغيل ${fmt(s.ops,2)} · هايجين ${fmt(s.hy,2)} · صلاة ${fmt(s.pray,2)}</div>
       ${isHy()?'':`<div class="row" style="margin-top:6px;gap:6px">${['yellow','red','green'].map(c=>`<button class="cardbtn" onclick="giveCard('${e.code}','${c}')"><i class="fcard ${c}"></i>${CARD[c].t.split(' ')[1]}</button>`).join('')}
         ${myC.map(c=>`<span class="badge ${c.color==='red'?'b-red':c.color==='green'?'b-green':'b-gold'}" title="${esc(c.reason)}">${cardStatus(c)==='approved'?'':'⏳ '}<i class="fcard ${c.color}"></i></span>`).join('')}</div>`}
     </div>`;}).join('')||'<div class="empty">مفيش موظفين في نطاقك</div>'}</div>`;
@@ -39,16 +40,16 @@ async function setAtt(code,v){if(!isOps())return;const D=day(DATE);if(D.att[code
 async function setCrit(code,i,v){const k=await editKey(code);if(!k)return;const D=day(DATE);mark(D,code);const f=RATE_FIELD[USER.role];const bag=D[f];
   // تقييم المديرين: التعديل بيبدأ من التقييم المكمّل (مش من الأول)، وبيكمّل هو كمان على الأيام اللي بعده
   const cur=isHy()?bag[code]:rateOf(DATE,f,code,true).arr;OLD_VAL=cur?[...cur]:null;if(isHy()&&i===0&&v===HY_NA)return;
-  const a=cur?[...cur]:isHy()?hyBlank(emp(code)):[null,null,null,null,null];a[i]=a[i]===v?null:v;
+  const a=cur?[...cur].slice(0,isHy()?5:CRITERIA.length):isHy()?hyBlank(emp(code)):CRITERIA.map(()=>null);a[i]=a[i]===v?null:v;
   const empty=a.every(x=>x==null||x===HY_NA);dropCarry(D,code,f);if(empty)delete bag[code];else bag[code]=a;save();render();push('rate',k,empty?null:a);}
 function dropCarry(D,code,f){const c=D.carry?.[code];if(c){const n=c.filter(x=>x!==f);if(n.length)D.carry[code]=n;else delete D.carry[code];}}
 // نفس التقييم للدورة الجديدة (مش إجباري — من غيره التقييم القديم بيفضل مكمّل)
 async function confirmRate(code){const k=await editKey(code);if(!k)return;const f=RATE_FIELD[USER.role];const a=rateOf(DATE,f,code,true).arr;if(!a)return;const D=day(DATE);mark(D,code);OLD_VAL=[...a];
-  D[f][code]=[...a];dropCarry(D,code,f);save();render();if(await push('rate',k,a)!==false)toast('✔ اتأكد التقييم');}
+  const a4=a.slice(0,CRITERIA.length);D[f][code]=[...a4];dropCarry(D,code,f);save();render();if(await push('rate',k,a4)!==false)toast('✔ اتأكد التقييم');}
 async function confirmRates(){const f=RATE_FIELD[USER.role];const L=filtered(true).filter(e=>!dayLocked(e)&&peekDay(DATE).att[e.code]!=='abs'&&peekDay(DATE).att[e.code]!=='off'&&rateStale(DATE,f,e.code));if(!L.length)return;
   if(!await askConfirm(`تأكيد نفس التقييم لـ ${L.length} موظف في الدورة دي؟ (أي حد اتغير عدّله الأول)`))return;
   if(isOps()&&L.some(opsClosed)&&!await opsReason())return;
-  const D=day(DATE);const items=L.map(e=>({e,a:[...rateOf(DATE,f,e.code,true).arr]}));for(const {e,a} of items){mark(D,e.code);D[f][e.code]=a;dropCarry(D,e.code,f);}save();render();
+  const D=day(DATE);const items=L.map(e=>({e,a:[...rateOf(DATE,f,e.code,true).arr].slice(0,CRITERIA.length)}));for(const {e,a} of items){mark(D,e.code);D[f][e.code]=a;dropCarry(D,e.code,f);}save();render();
   let fail=0;for(let i=0;i<items.length;i+=10){const R=await Promise.all(items.slice(i,i+10).map(({e,a})=>push('rate',{day:DATE,code:e.code,...(opsClosed(e)?{reason:OPS_REASON[DATE]}:{})},a)));fail+=R.filter(x=>x===false).length;}
   toast(fail?`⚠️ اتأكد ${items.length-fail} بس من ${items.length}`:`✔ اتأكد التقييم لـ ${items.length} موظف`);}
 // الهايجين: الخمس بنود جنب كل موظف — التيشرت إجباري، والباقي فيه «مش مطلوب»
@@ -69,3 +70,8 @@ async function giveCard(code,color){
   if(await push('card',{id,code},{date:DATE,color,reason:r.trim()})===false)return;
   toast(approved?'اتسجل الكارت':'🟥 الكارت الأحمر مستني موافقة مدير التشغيل');
 }
+
+// الصلاة: مدير الشيفت (أو الفرع أو التشغيل) كل يوم — صلّى ½ نجمة · ماصلّاش 0 · الدوسة التانية بتشيل الاختيار
+const canPray=()=>['shift','branch','ops'].includes(USER?.role);
+async function setPray(code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);OLD_VAL=D.pray[code]??null;mark(D,code);
+  const nv=D.pray[code]===v?null:v;if(nv==null)delete D.pray[code];else D.pray[code]=nv;save();render();push('pray',k,nv==null?null:{v:nv});}
