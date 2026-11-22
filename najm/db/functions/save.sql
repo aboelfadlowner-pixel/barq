@@ -51,8 +51,12 @@ begin
       raise exception 'najm: reason required for a closed day' using errcode = '42501';
     end if;
   end if;
-  if p_kind = 'att' and u.role = 'fresh' then
-    raise exception 'najm: attendance is entered by branch/shift managers' using errcode = '42501';
+  -- البصمة من شيت الحضور (التحديث اليومي) — المديرين بيشوفوها بس. التشغيل بس يعدّل حالة استثنائية، وبسبب مكتوب
+  if p_kind = 'att' and u.role <> 'ops' then
+    raise exception 'najm: attendance comes from the fingerprint sheet' using errcode = '42501';
+  end if;
+  if p_kind = 'att' and coalesce(trim(p_key->>'reason'), '') = '' then
+    raise exception 'najm: reason required for an attendance change' using errcode = '42501';
   end if;
   if p_kind in ('sales','kpi') and u.role <> 'ops' and u.branch is not null and u.branch <> p_key->>'branch' then
     raise exception 'najm: other branch' using errcode = '42501';

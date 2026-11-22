@@ -17,6 +17,11 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
   test('مدير الفرع يقيّم موظف فرعه', async () => { await save('br', '1111', 'rate', { day: D, code: '125' }, [2, 2, 2, 2, 2]); });
   test('مدير الفرع ميقدرش يقيّم موظف فرع تاني', () => fails(save('br', '1111', 'rate', { day: D, code: '16' }, [2, 2, 2, 2, 2]), /outside your scope/));
   test('مدير الفرع ميقدرش يغيّر الإعدادات', () => fails(save('br', '1111', 'settings', {}, {}), /operations manager only/));
+  test('البصمة من الشيت: المدير ميقدرش يغيّرها، والتشغيل بس بسبب', async () => {
+    await fails(save('br', '1111', 'att', { day: D, code: '125' }, { st: 'on' }), /attendance comes from the fingerprint sheet/);
+    await fails(save('ops', '0000', 'att', { day: D, code: '125' }, { st: 'on' }), /reason required/);
+    await save('ops', '0000', 'att', { day: D, code: '125', reason: 'جهاز البصمة عطلان' }, { st: 'on' });
+  });
   test('مدير الفرع ميقدرش يعدّل يوم قديم', () => fails(save('br', '1111', 'att', { day: '2020-01-01', code: '125' }, { st: 'on' }), /day locked/));
   test('الهايجين بيقيّم في عمود الهايجين بس', async () => {
     await save('hy', '7777', 'rate', { day: D, code: '125' }, [2, 1, 2, 1, 2]);

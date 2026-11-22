@@ -62,7 +62,7 @@ async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/$
   return v;}
 async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=await sbRpc(fn,args,`?order=${order}&limit=1000&offset=${off}`);out=out.concat(d||[]);if(!d||d.length<1000)break;off+=1000;}return out;}
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
-const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
+const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance comes from/.test(m)?'البصمة بتيجي من الشيت — التعديل لمدير التشغيل بس':/reason required/.test(m)?'لازم تكتب السبب':'⚠️ ماتحفظش: '+m;
 // الحفظ: مفيش «اتحفظ» غير بعد ما الداتابيز تأكد. لو النت فاصل بيقول «ماتحفظش» ويرجّع الشاشة للي في الداتابيز،
 // ولو في حاجة لسه بتتحفظ والصفحة بتتقفل ← تحذير
 let PENDING=0;
