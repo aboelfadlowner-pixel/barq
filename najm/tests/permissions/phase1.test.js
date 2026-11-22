@@ -347,9 +347,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const [a, b] = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 2 offset 30", [B])).rows.map(r => r.code);
     const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
     const rows = [{ code: a, day: T, shift: '7:00 AM', in: '7:02 AM', leave: '' }, { code: b, day: T, shift: '5:00 PM', in: '', leave: '' }];
+    await db.query("update najm_employees set shift='Morning' where code=$1", [a]);
     await db.query('select najm_att_sync($1,$2)', [JSON.stringify(rows), 'today-test']);
     const st = Object.fromEntries((await db.query('select code, att from najm_ratings where day=$1 and code = any($2)', [T, [a, b]])).rows.map(r => [r.code, r.att]));
-    eq([st[a], st[b] ?? null], ['on', null]);
+    eq([st[a], st[b] ?? null], ['on', null]);   // مفيش بصمات شيفت ليل في الشيت ← النهارده مش كامل
+    // الشيت فيه بصمة شيفت ليل النهارده + الساعة عدّت بداية الليل بساعتين ← اللي مابصمش بيتحسب (راحة أو غياب)
+    const n = (await db.query("select code from najm_employees where branch=$1 and active and shift='Night' and code not in ($2,$3) order by code limit 1", [B, a, b])).rows[0].code;
+    await db.query("update najm_employees set shift='Night' where code=$1", [b]);
+    await db.query('select najm_att_sync($1,$2)', [JSON.stringify([...rows, { code: n, day: T, shift: '5:00 PM', in: '5:01 PM', leave: '' }]), 'today-test-2']);
+    const late = (await db.query("select (now() at time zone 'Africa/Cairo')::time >= time '19:00' x")).rows[0].x;
+    const sb = (await db.query('select att from najm_ratings where day=$1 and code=$2', [T, b])).rows[0]?.att ?? null;
+    ok(late ? ['off', 'abs'].includes(sb) : sb === null, 'today no-show: ' + sb + ' late=' + late);
   });
 
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
