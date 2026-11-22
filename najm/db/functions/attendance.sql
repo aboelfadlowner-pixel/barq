@@ -15,7 +15,7 @@ $$;
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date;
+declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean;
   today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select data into cfg from najm_settings where id = 1;
@@ -30,6 +30,11 @@ begin
   if lastd is null then return jsonb_build_object('saved', 0, 'note', 'مفيش بصمات في الملف'); end if;
   select array_agg(distinct code) into unk from _r r where not exists (select 1 from najm_employees e where e.code = r.code and e.active)
     and (public.najm_tmin(r.tin) is not null or r.leave is not null);
+  -- النهارده بيتحسب كامل (الغياب والراحة كمان) بس لو: الساعة عدّت بداية شيفت الليل بساعتين، والشيت فيه بصمات شيفت الليل النهارده
+  -- (يعني الشيت متحدّث بعد ما كل الشيفتات بدأت) — غير كده اللي مابصمش النهارده بيفضل فاضي لحد التحديث الجاي
+  done_today := (now() at time zone 'Africa/Cairo')::time >= (coalesce(public.najm_tmin(cfg->'shiftStart'->>'Night'), 1020) + 120) * interval '1 minute'
+    and exists (select 1 from _r r join najm_employees e on e.code = r.code
+                where r.day = today and e.shift = 'Night' and public.najm_tmin(r.tin) is not null);
   create temp table _s on commit drop as
     with r as (select * from _r where day <= lastd
                  and code in (select code from _r where day <= lastd and (public.najm_tmin(tin) is not null or leave is not null))
@@ -39,7 +44,7 @@ begin
                              (select case when dd <= grace then 'on' when dd <= latemax then 'late' when dd <= vlatemax then 'vlate' else 'xlate' end
                               from (select (public.najm_tmin(tin) - public.najm_tmin(shift) + 2160) % 1440 - 720 dd) z)
                            when tin is not null then null              -- وقت مش مقروء: بيتساب (مش غياب)
-                           when day >= today then null                -- النهارده لسه شغال: اللي مابصمش لسه مبيتحسبش غياب ولا راحة
+                           when day >= today and not done_today then null   -- النهارده لسه شغال: اللي مابصمش لسه مبيتحسبش غياب ولا راحة
                            else 'noshow' end s,
                       row_number() over (partition by code, day - ((extract(dow from day)::int + 1) % 7),
                                          (leave is null and tin is null) order by day) rn
