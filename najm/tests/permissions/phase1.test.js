@@ -247,7 +247,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(asAnon(db, 'select najm_att_sync($1,$2)', [JSON.stringify(rows), 'x']), /permission denied/);
     const r = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv-03-2026'])).rows[0].r;
     const st = Object.fromEntries((await db.query("select to_char(day,'DD') d, att, att_src from najm_ratings where code=$1 and day between '2026-03-01' and '2026-03-31' order by day", [x])).rows.map(r => [r.d, r.att]));
-    eq(st, { '07': 'on', '08': 'late', '09': 'vlate', '10': 'vlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' });
+    eq(st, { '07': 'on', '08': 'late', '09': 'xlate', '10': 'xlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' });
     eq([r.to, r.unknown], ['2026-03-14', ['88888888']]);
     // مدير التشغيل عدّل يوم الغياب بإيده ← التحديث الجاي مبيرجّعهوش
     await save('ops', '0000', 'att', { day: base + '13', code: x, reason: 'كان في مأمورية' }, { st: 'on' });

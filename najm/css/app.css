@@ -75,7 +75,7 @@ input.inp,select.inp,textarea.inp{border:1px solid var(--line);border-radius:8px
 .seg button:first-child{border-inline-start:0}
 .seg button.on{background:var(--brand);color:#fff}
 .seg.att button.on[data-v=abs]{background:var(--red)}
-.seg.att button.on[data-v=late],.seg.att button.on[data-v=vlate]{background:var(--gold);color:#3a2a00}
+.seg.att button.on[data-v=late],.seg.att button.on[data-v=vlate],.seg.att button.on[data-v=xlate]{background:var(--gold);color:#3a2a00}
 .seg.att button.on[data-v=off]{background:#8a90a0}
 table{width:100%;border-collapse:collapse}
 th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle}

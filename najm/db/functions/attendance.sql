@@ -15,12 +15,13 @@ $$;
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare cfg jsonb; grace int; latemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date;
+declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date;
   today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select data into cfg from najm_settings where id = 1;
   grace := coalesce((cfg->>'graceMin')::int, 10);
   latemax := coalesce((cfg->>'lateMax')::int, 30);
+  vlatemax := coalesce(nullif(cfg->>'vlateMax', '')::int, 60);   -- بعده: «فوق الحد» (حاضر من غير نجوم بصمة)
   woff := coalesce((cfg->'ruleVersions'->-1->'rules'->>'weeklyOff')::int, (cfg->>'weeklyOff')::int, 1);
   create temp table _r on commit drop as
     select x->>'code' as code, (x->>'day')::date as day, nullif(trim(x->>'shift'), '') as shift, nullif(trim(x->>'in'), '') as tin, nullif(trim(x->>'leave'), '') as leave
@@ -35,7 +36,7 @@ begin
                  and code in (select code from najm_employees where active)),
     c as (select r.*, case when leave is not null then 'off'
                            when public.najm_tmin(tin) is not null and public.najm_tmin(shift) is not null then
-                             (select case when dd <= grace then 'on' when dd <= latemax then 'late' else 'vlate' end
+                             (select case when dd <= grace then 'on' when dd <= latemax then 'late' when dd <= vlatemax then 'vlate' else 'xlate' end
                               from (select (public.najm_tmin(tin) - public.najm_tmin(shift) + 2160) % 1440 - 720 dd) z)
                            when tin is not null then null              -- وقت مش مقروء: بيتساب (مش غياب)
                            else 'noshow' end s,
@@ -58,7 +59,7 @@ begin
   insert into najm_history(actor, kind, data)
     values ('system', 'att_sync', jsonb_build_object('file', p_file, 'from', d1, 'to', lastd, 'saved', n, 'manual_kept', skipped, 'unknown', to_jsonb(unk)));
   return jsonb_build_object('saved', n, 'manual_kept', skipped, 'from', d1, 'to', lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
-    'on', (select count(*) from _s where st = 'on'), 'late', (select count(*) from _s where st in ('late', 'vlate')),
+    'on', (select count(*) from _s where st = 'on'), 'late', (select count(*) from _s where st in ('late', 'vlate', 'xlate')),
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;
 -- بتتنادى من التحديث اليومي بس (مش من المتصفح)

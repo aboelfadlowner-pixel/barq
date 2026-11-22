@@ -10,9 +10,10 @@ function vSettings(){
     ${S.users.map(u=>`<tr style="${u.active===false?'opacity:.5':''}"><td><b>${esc(u.username)}</b></td><td><div class="row" style="flex-wrap:nowrap;gap:6px">${u.emp_code&&emp(u.emp_code)?ava(emp(u.emp_code),'sm'):''}${esc(u.name)}</div></td><td>${ROLES[u.role]}</td><td class="small">${esc(u.branch||'الكل')}</td><td class="small">${esc(u.shift||'—')}</td><td class="small">${esc((u.depts||[]).join('، ')||'—')}</td><td><button class="btn sm" onclick="editUser('${esc(u.username)}')">✏️</button></td></tr>`).join('')}
     </tbody></table></div><div class="small muted" style="margin-top:6px">الموظفين بيدخلوا من غير حساب ويشوفوا النجوم والترتيب والتارجت بس.</div></div>
   <div class="grid g-2">
-   <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.abs','غياب',.25)}</div>
+   <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.xlate','تأخير فوق الحد',.25)}${num('att.abs','غياب',.25)}</div>
      <div class="row" style="margin-top:8px">${txt('shiftStart.Morning','بداية Morning','time')}${txt('shiftStart.Between','بداية Between','time')}${txt('shiftStart.Night','بداية Night','time')}</div>
-     <div class="row" style="margin-top:8px">${num('graceMin','سماح (دقيقة)')}${num('lateMax','تأخير بسيط لحد')}</div></div>
+     <div class="row" style="margin-top:8px">${num('graceMin','سماح (دقيقة)')}${num('lateMax','تأخير بسيط لحد')}${num('vlateMax','تأخير كبير لحد')}</div>
+     <div class="small muted" style="margin-top:6px">بالدقايق من بداية الوردية: لحد السماح «في ميعاده» · بعده لحد «تأخير بسيط لحد» بسيط · بعده لحد «تأخير كبير لحد» كبير · وأي تأخير أكتر من كده «فوق الحد» ونجوم بصمته ${fmt(S.settings.att?.xlate??0)} (حاضر مش غايب).</div></div>
    <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر في الشهر = أحمر')}</div><div class="small muted" style="margin-top:6px">الحساب الرسمي في الداتابيز بنفس القيم دي. الكروت بتأثر على الـ KPI بس.</div></div>
    <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد المرشحين اللي بيظهروا')}${num('minStarsWinner','أقل نجوم للترشيح',.25)}</div>
      <div class="small" style="margin:8px 0 4px"><b>عدد رجال اليوم لكل فرع</b> (Between بيتحسب مع الليل):</div>

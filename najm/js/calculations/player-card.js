@@ -8,7 +8,7 @@ const clamp99=v=>Math.max(30,Math.min(99,Math.round(v)));
 function cardRaw(code,month,upto){
   if(LIVE&&S.cardStats)return S.cardStats[code]||null;
   let on=0,late=0,vlate=0,abs=0,bonus=0;const sum=[0,0,0,0,0],cnt=[0,0,0,0,0];
-  for(const d of monthDays(month,upto)){const D=peekDay(d);const st=D.att[code];if(st==='on')on++;else if(st==='late')late++;else if(st==='vlate')vlate++;else if(st==='abs')abs++;
+  for(const d of monthDays(month,upto)){const D=peekDay(d);const st=D.att[code];if(st==='on')on++;else if(st==='late')late++;else if(st==='vlate'||st==='xlate')vlate++;else if(st==='abs')abs++;
     if(D.bonus[code])bonus++;for(const f of ['br','sh','fr','ops']){const a=D[f][code];if(a&&a.length===5&&a.every(x=>x!=null))a.forEach((x,i)=>{sum[i]+=x;cnt[i]++;});}}
   const c=sum.map((s,i)=>cnt[i]?s/cnt[i]:null);
   if(!on&&!late&&!vlate&&!abs&&c.every(x=>x==null))return null;

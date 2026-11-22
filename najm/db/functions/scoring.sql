@@ -74,7 +74,7 @@ begin
   if r.att in ('abs', 'off') then b := null; s := null; f := null; o := null; end if;
   a := case when r.att is null or r.att = 'off' then null
             else coalesce((p_settings->'att'->>r.att)::numeric,
-                          case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;
+                          case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;   -- xlate (فوق الحد) = 0 إلا لو اتغيّر من الإعدادات
   if fresh then
     m := case when b is null and s is null and f is null then null
               else round((coalesce(b,0) + coalesce(s,0) + coalesce(f,0)) / 3 * 4) / 4 end;
@@ -141,7 +141,7 @@ language sql stable security definer set search_path = public as $$
       and not (a.f = any(coalesce(r.carry, '{}'))))
   select r.code,
     count(*) filter (where att = 'on')::int, count(*) filter (where att = 'late')::int,
-    count(*) filter (where att = 'vlate')::int, count(*) filter (where att = 'abs')::int,
+    count(*) filter (where att in ('vlate', 'xlate'))::int, count(*) filter (where att = 'abs')::int,
     (select avg(arr[1]) from crit where crit.code = r.code), (select avg(arr[2]) from crit where crit.code = r.code),
     (select avg(arr[3]) from crit where crit.code = r.code), (select avg(arr[4]) from crit where crit.code = r.code),
     (select avg(arr[5]) from crit where crit.code = r.code),
