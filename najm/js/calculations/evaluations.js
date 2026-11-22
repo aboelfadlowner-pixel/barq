@@ -1,7 +1,7 @@
 // نجم أبو الفضل — التقييم الفني: البنود من 0 لـ 2 ونجمة المدير المباشر
 const q25=x=>Math.round(x*4)/4;
-// 5 criteria, each 0..2 → one star (rounded to a quarter); incomplete rating = no star yet
-function crit(arr){if(!arr||arr.length<5||arr.some(v=>v==null))return null;return q25(arr.reduce((a,b)=>a+b,0)/10);}
+// 4 بنود (0 لـ 2) ← نجمة لأقرب ربع — التقييم الناقص لسه من غير نجمة (القديم اللي فيه 5 بيتحسب بأول 4)
+function crit(arr){if(!arr||arr.length<4)return null;const a=arr.slice(0,4);if(a.some(v=>v==null))return null;return q25(a.reduce((x,y)=>x+y,0)/8);}
 const isFresh=e=>(S.settings.freshDepts||[]).includes(e?.dept);
 // direct manager star: half branch manager + half shift manager; in fresh-food departments a third each with the fresh-food manager
 // تقييم المديرين كل 4 أيام (1، 5، 9، … 29): التقييم بيكمّل لوحده على الأيام اللي بعده لحد ما المدير يعدّله
@@ -24,7 +24,7 @@ function rateOf(d,f,code,show){
   return own?{arr:own,carried:true,from:null}:{arr:null,carried:false,from:null};
 }
 const rateArr=(d,f,code)=>rateOf(d,f,code).arr;
-const rateDone=(d,f,code)=>{const a=f==='hy'?peekDay(d).hy?.[code]:rateOf(d,f,code,true).arr;return f==='hy'?hyScore(a)!=null:!!(a&&a.length===5&&a.every(x=>x!=null));};
+const rateDone=(d,f,code)=>{const a=f==='hy'?peekDay(d).hy?.[code]:rateOf(d,f,code,true).arr;return f==='hy'?hyScore(a)!=null:crit(a)!=null;};
 // التقييم محتاج مراجعة في الدورة دي: ماشي على تقييم من دورة قبل كده (المدير يعدّله أو يدوس تأكيد — مش إجباري)
 const rateStale=(d,f,code)=>{if(!CARRY_FIELDS.includes(f))return false;const r=rateOf(d,f,code,true);return !!r.arr&&r.carried&&(r.from==null||r.from<cycleStart(d));};
 function mgrStar(d,code,e){

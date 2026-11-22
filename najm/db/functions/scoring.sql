@@ -1,10 +1,11 @@
 -- نجم أبو الفضل — الحسابات: نجوم اليوم، الدرجات، الكروت، المبيعات، تقرير الموظف — النسخة الحالية من كل دالة (create or replace)
 
 -- ---------------------------------------------------------------- scoring (single source of truth)
+-- 4 بنود (0 لـ 2) ← نجمة لأقرب ربع. التقييمات القديمة اللي فيها 5 بنود (الخامس كان الصلاة) بتتحسب بأول 4 بس
 create or replace function public.najm_crit(a smallint[])
 returns numeric language sql immutable set search_path = public as $$
-  select case when a is null or coalesce(array_length(a,1),0) < 5 or array_position(a, null) is not null then null
-              else round((select sum(x) from unnest(a) x)::numeric / 10 * 4) / 4 end;
+  select case when a is null or coalesce(array_length(a,1),0) < 4 or array_position(a[1:4], null) is not null then null
+              else round((select sum(x) from unnest(a[1:4]) x)::numeric / 8 * 4) / 4 end;
 $$;
 
 -- الهايجين (اللبس): −1 = البند مش مطلوب من الموظف ده (مسؤول الهايجين بيختار، والتيشرت إجباري). النجمة = مجموع البنود المطلوبة ÷ (2 × عددها)، لأقرب ربع
@@ -61,17 +62,19 @@ begin
 end $$;
 revoke all on function public.najm_carry_forward(text, date, text) from public, anon, authenticated;
 
--- stars (max 5): fingerprint 2 + direct manager 1 + operations 1 + hygiene 1 + exemplary ½
+-- stars (max 5): fingerprint 2 + direct manager 1 + operations ½ + hygiene 1 + prayer ½ + exemplary ½ (bonus above the 5)
 create or replace function public.najm_score(r public.najm_ratings, p_dept text, p_settings jsonb)
 returns jsonb language plpgsql stable set search_path = public as $$
 declare
   fresh boolean := p_dept = any (array(select jsonb_array_elements_text(coalesce(p_settings->'freshDepts','["قسم البقاله"]'::jsonb))));
   a numeric; b numeric := public.najm_crit(r.br); s numeric := public.najm_crit(r.sh);
   f numeric := public.najm_crit(r.fr); o numeric := public.najm_crit(r.ops); h numeric := public.najm_hy(r.hy);
-  m numeric; mc boolean; tot numeric; anyv boolean;
+  m numeric; mc boolean; tot numeric; anyv boolean; pr numeric;
 begin
   -- يوم غياب أو راحة: مفيش نجوم مديرين (التقييم المكمّل من الأيام اللي قبله مبيتحسبش فيه)
   if r.att in ('abs', 'off') then b := null; s := null; f := null; o := null; end if;
+  o := o / 2;                                                   -- مدير التشغيل: نص نجمة
+  pr := case when r.att in ('abs', 'off') or r.pray is null then null else r.pray * 0.5 end;   -- الصلاة: نص نجمة
   a := case when r.att is null or r.att = 'off' then null
             else coalesce((p_settings->'att'->>r.att)::numeric,
                           case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;   -- xlate (فوق الحد) = 0 إلا لو اتغيّر من الإعدادات
@@ -84,11 +87,12 @@ begin
               else round((coalesce(b,0) + coalesce(s,0)) / 2 * 4) / 4 end;
     mc := b is not null and s is not null;
   end if;
-  anyv := a is not null or m is not null or o is not null or h is not null or coalesce(r.bonus,0) > 0;
+  anyv := a is not null or m is not null or o is not null or h is not null or pr is not null or coalesce(r.bonus,0) > 0;
   -- الأساسي من 5، والتصرف المثالي (½) Bonus منفصل فوقه
-  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) + coalesce(r.bonus,0) end;
+  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0) + coalesce(pr,0)) + coalesce(r.bonus,0) end;
   return jsonb_build_object('att', r.att, 'att_star', a, 'mgr_star', m, 'ops_star', o, 'hy_star', h, 'bonus', coalesce(r.bonus,0),
-    'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) end, 'complete', a is not null and mc and o is not null,
+    'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0) + coalesce(pr,0)) end, 'complete', a is not null and mc and o is not null and pr is not null,
+    'pray', r.pray, 'pray_star', pr,
     'parts', jsonb_build_object('br', b, 'sh', s, 'fr', f), 'fresh', fresh, 'carry', to_jsonb(coalesce(r.carry, '{}')));
 end $$;
 
@@ -137,14 +141,14 @@ language sql stable security definer set search_path = public as $$
   with r as (select * from najm_ratings where day between p_from and p_to),
   crit as (
     select r.code, a.arr from r cross join lateral (values (r.br, 'br'), (r.sh, 'sh'), (r.fr, 'fr'), (r.ops, 'ops')) a(arr, f)
-    where a.arr is not null and array_position(a.arr, null) is null and array_length(a.arr, 1) = 5
+    where a.arr is not null and array_position(a.arr[1:4], null) is null and array_length(a.arr, 1) >= 4
       and not (a.f = any(coalesce(r.carry, '{}'))))
   select r.code,
     count(*) filter (where att = 'on')::int, count(*) filter (where att = 'late')::int,
     count(*) filter (where att in ('vlate', 'xlate'))::int, count(*) filter (where att = 'abs')::int,
     (select avg(arr[1]) from crit where crit.code = r.code), (select avg(arr[2]) from crit where crit.code = r.code),
     (select avg(arr[3]) from crit where crit.code = r.code), (select avg(arr[4]) from crit where crit.code = r.code),
-    (select avg(arr[5]) from crit where crit.code = r.code),
+    avg(r.pray) filter (where r.pray is not null) * 2,   -- c5 = الصلاة (0 لـ 2)
     count(*) filter (where coalesce(bonus, 0) > 0)::int
   from r group by r.code;
 $$;

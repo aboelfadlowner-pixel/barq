@@ -11,7 +11,7 @@ function todayStarsHTML(code){
   if(s.total==null)return '<div class="small muted">لسه متقيّمتش النهارده.</div>';
   if(s.pub)return `<div class="kv"><span>المجموع</span><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span></div>`;
   const row=(t,v,max)=>`<div class="kv"><span>${t}</span><b>${v==null?'<span class="muted">لسه</span>':fmt(v,2)+' / '+max}</b></div>`;
-  return `${row('🖐️ البصمة',s.att,fmt(S.settings.att?.on??2))}${row('🧑‍💼 مديرك المباشر',s.mgr,1)}${row('👑 مدير التشغيل',s.ops,1)}${row('🧼 الهايجين',s.hy,1)}
+  return `${row('🖐️ البصمة',s.att,fmt(S.settings.att?.on??2))}${row('🧑‍💼 مديرك المباشر',s.mgr,1)}${row('👑 مدير التشغيل',s.ops,'½')}${row('🧼 الهايجين',s.hy,1)}${row('🕌 الصلاة',s.pray,'½')}
     ${s.bonus?`<div class="kv"><span>⭐ تصرف مثالي (Bonus)</span><b style="color:var(--green)">+${fmt(s.bonus)}</b></div>`:''}
     <div class="kv" style="border-top:1px solid var(--line);padding-top:6px"><span><b>المجموع</b></span><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span></div>`;
 }

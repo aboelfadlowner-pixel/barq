@@ -24,10 +24,10 @@ begin
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
-  if p_kind in ('att','rate','bonus','note','card','captain') and not public.najm_in_scope(u, k_code) then
+  if p_kind in ('att','rate','bonus','pray','note','card','captain') and not public.najm_in_scope(u, k_code) then
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
-  if p_kind in ('att','rate','bonus') and u.role <> 'ops' and (
+  if p_kind in ('att','rate','bonus','pray') and u.role <> 'ops' and (
        k_day < (now() at time zone 'Africa/Cairo')::date - 1
     or k_day > (now() at time zone 'Africa/Cairo')::date
     or exists (select 1 from najm_winners w join najm_employees e on e.code = k_code
@@ -38,9 +38,10 @@ begin
   end if;
   -- مراحل اليوم: مفتوح ← مراجعة (المدير سلّم) ← اعتماد رجل اليوم ← مغلق. تعديل التشغيل في يوم مغلق (أو قديم) لازم بسبب،
   -- والسجل بيحفظ القيمة القديمة والجديدة
-  if p_kind in ('att','rate','bonus') then
+  if p_kind in ('att','rate','bonus','pray') then
     select * into r from najm_ratings where day = k_day and code = k_code;
     old := case p_kind when 'att' then jsonb_build_object('st', r.att, 'time', r.att_time)
+                       when 'pray' then to_jsonb(r.pray)
                        when 'bonus' then jsonb_build_object('v', r.bonus, 'note', r.bonus_note)
                        else to_jsonb(case u.role when 'branch' then r.br when 'shift' then r.sh when 'fresh' then r.fr
                                                  when 'hygiene' then r.hy else r.ops end) end;
@@ -82,9 +83,9 @@ begin
       -- تقييم المديرين (فرع / شيفت / فريش / تشغيل): بيكمّل على الأيام اللي بعده لحد ما يتعدّل.
       -- المسح بيرجّع اليوم ده لآخر تقييم قبله
       rf := case u.role when 'branch' then 'br' when 'shift' then 'sh' when 'fresh' then 'fr' else 'ops' end;
-      if arr is not null and (coalesce(array_length(arr, 1), 0) <> 5
+      if arr is not null and (coalesce(array_length(arr, 1), 0) <> 4
           or exists (select 1 from unnest(arr) x where x is not null and x not between 0 and 2)) then
-        raise exception 'najm: bad rating';
+        raise exception 'najm: bad rating';   -- 4 بنود (الصلاة بقت لوحدها)
       end if;
       carr := coalesce(arr, public.najm_prev_rate(k_code, k_day, rf));
       execute format('insert into najm_ratings(day, code, %1$I, carry) values ($1, $2, $3, $4)
@@ -93,6 +94,12 @@ begin
         using k_day, k_code, carr, case when arr is null and carr is not null then array[rf] else '{}'::text[] end;
       perform public.najm_carry_forward(k_code, k_day, rf);
     end if;
+  elsif p_kind = 'pray' then
+    -- الصلاة: مدير الشيفت (أو الفرع أو التشغيل) بيسجل كل يوم — 1 صلّى · 0 ماصلّاش
+    if u.role not in ('shift', 'branch', 'ops') then raise exception 'najm: prayer is recorded by shift/branch managers' using errcode = '42501'; end if;
+    if not del and coalesce(p_data->>'v', '') not in ('0', '1') then raise exception 'najm: bad prayer value'; end if;
+    insert into najm_ratings(day, code, pray) values (k_day, k_code, case when del then null else (p_data->>'v')::smallint end)
+    on conflict (day, code) do update set pray = excluded.pray, updated_at = now();
   elsif p_kind = 'bonus' then
     insert into najm_ratings(day, code, bonus, bonus_note)
       values (k_day, k_code, case when del then null else least(0.5, (p_data->>'v')::numeric) end,
@@ -340,15 +347,15 @@ begin
     values (u.username, p_kind, k_code, k_day, gk,
             case when p_kind in ('sales', 'base_sales', 'emp_pins_generate') then jsonb_build_object('key', p_key)
                  when p_kind in ('user', 'emp_pin') then jsonb_build_object('key', p_key, 'data', case when del then null else p_data - 'pin' end)
-                 when p_kind in ('att', 'rate', 'bonus', 'settings', 'private') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
+                 when p_kind in ('att', 'rate', 'bonus', 'pray', 'settings', 'private') then jsonb_build_object('key', p_key, 'data', p_data, 'old', old)
                  else jsonb_build_object('key', p_key, 'data', p_data) end);
 
-  if p_kind in ('att','rate','bonus') then
+  if p_kind in ('att','rate','bonus','pray') then
     select * into r from najm_ratings where day = k_day and code = k_code;
     select dept into dpt from najm_employees where code = k_code;
     select data into st from najm_settings where id = 1;
     return jsonb_build_object('row', jsonb_build_object('att', r.att, 'att_time', r.att_time, 'br', r.br, 'sh', r.sh,
-      'fr', r.fr, 'ops', r.ops, 'hy', r.hy, 'bonus', r.bonus, 'bonus_note', r.bonus_note), 'score', public.najm_score(r, dpt, st));
+      'fr', r.fr, 'ops', r.ops, 'hy', r.hy, 'pray', r.pray, 'bonus', r.bonus, 'bonus_note', r.bonus_note), 'score', public.najm_score(r, dpt, st));
   end if;
   return ret;
 end $$;

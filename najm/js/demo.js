@@ -211,7 +211,7 @@ function demoSeed(){
   const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
-      /* تقييم المديرين كل 4 أيام (وأحيانًا تعديل في النص) — الباقي بيكمّل لوحده */if(isRateDay(d)||rnd()<.06){D.br[e.code]=crit(e.code);D.sh[e.code]=crit(e.code);D.ops[e.code]=crit(e.code);if(isFresh(e))D.fr[e.code]=crit(e.code);}if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+      /* تقييم المديرين كل 4 أيام (وأحيانًا تعديل في النص) — الباقي بيكمّل لوحده */if(isRateDay(d)||rnd()<.06){const c4=()=>crit(e.code).slice(0,4);D.br[e.code]=c4();D.sh[e.code]=c4();D.ops[e.code]=c4();if(isFresh(e))D.fr[e.code]=c4();}(D.pray||(D.pray={}))[e.code]=rnd()<lvl[e.code]+.15?1:0;if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
   // شكاوى العملاء: واحدة مستنية مراجعة، واحدة مثبتة، وواحدة مثبتة والموظف معترض عليها
   {const L=activeEmps().filter(e=>e.branch===B);S.complaints=[

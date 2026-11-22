@@ -9,7 +9,7 @@ function cardRaw(code,month,upto){
   if(LIVE&&S.cardStats)return S.cardStats[code]||null;
   let on=0,late=0,vlate=0,abs=0,bonus=0;const sum=[0,0,0,0,0],cnt=[0,0,0,0,0];
   for(const d of monthDays(month,upto)){const D=peekDay(d);const st=D.att[code];if(st==='on')on++;else if(st==='late')late++;else if(st==='vlate'||st==='xlate')vlate++;else if(st==='abs')abs++;
-    if(D.bonus[code])bonus++;for(const f of ['br','sh','fr','ops']){const a=D[f][code];if(a&&a.length===5&&a.every(x=>x!=null))a.forEach((x,i)=>{sum[i]+=x;cnt[i]++;});}}
+    if(D.bonus[code])bonus++;for(const f of ['br','sh','fr','ops']){const a=D[f][code];if(crit(a)!=null)a.slice(0,4).forEach((x,i)=>{sum[i]+=x;cnt[i]++;});}if(D.pray?.[code]!=null){sum[4]+=D.pray[code]*2;cnt[4]++;}}
   const c=sum.map((s,i)=>cnt[i]?s/cnt[i]:null);
   if(!on&&!late&&!vlate&&!abs&&c.every(x=>x==null))return null;
   return {on_n:on,late_n:late,vlate_n:vlate,abs_n:abs,c1:c[0],c2:c[1],c3:c[2],c4:c[3],c5:c[4],bonus_n:bonus};

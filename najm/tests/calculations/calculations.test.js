@@ -54,7 +54,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const e = activeEmps()[0]; const m = '2026-05', keepD = S.days, keepC = S.cards, keepL = LIVE; S.days = {}; S.cards = []; LIVE = false;
       const days = monthDays(m, m + '-31'); const D = d => day(d);
       // 26 يوم 5 نجوم + ½ مثالي في يومين + كارت أخضر ← فوق الـ 500 (الفلوس 500 والنقط أكتر)
-      days.slice(0, 26).forEach((d, i) => { const x = D(d); x.att[e.code] = 'on'; x.br[e.code] = x.sh[e.code] = x.ops[e.code] = x.hy[e.code] = [2, 2, 2, 2, 2]; if (isFresh(e)) x.fr[e.code] = [2, 2, 2, 2, 2]; if (i < 2) x.bonus[e.code] = { v: .5, note: 'x' }; });
+      days.slice(0, 26).forEach((d, i) => { const x = D(d); x.att[e.code] = 'on'; x.br[e.code] = x.sh[e.code] = x.ops[e.code] = x.hy[e.code] = [2, 2, 2, 2, 2]; x.pray[e.code] = 1; if (isFresh(e)) x.fr[e.code] = [2, 2, 2, 2, 2]; if (i < 2) x.bonus[e.code] = { v: .5, note: 'x' }; });
       S.cards = [{ id: 'g', date: days[3], code: e.code, color: 'green', reason: 'x', by: 'ops', approved: true, status: 'approved' }];
       const a = monthSummary(e, m, m + '-31');
       // غياب يومين
@@ -92,9 +92,9 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('نجوم اليوم: الأساسي من 5 (البصمة + المدير + التشغيل + الهايجين) + ½ مثالي Bonus فوقه', async () => {
     eq(await ev(() => {
       const code = activeEmps().find(e => !isFresh(e)).code, d = '2099-01-01', D = day(d), full = [2, 2, 2, 2, 2];
-      D.full[code] = 1; D.att[code] = 'on'; D.br[code] = full; D.sh[code] = full; D.ops[code] = full; D.hy[code] = full; D.bonus[code] = { v: .5 };
-      const s = score(d, code); delete S.days[d]; return [s.att, s.mgr, s.ops, s.hy, s.base, s.total, s.complete];
-    }), [2, 1, 1, 1, 5, 5.5, true]);
+      D.full[code] = 1; D.att[code] = 'on'; D.br[code] = full; D.sh[code] = full; D.ops[code] = full; D.hy[code] = full; D.pray[code] = 1; D.bonus[code] = { v: .5 };
+      const s = score(d, code); D.pray[code] = 0; const s0 = score(d, code); delete S.days[d]; return [s.att, s.mgr, s.ops, s.hy, s.pray, s.base, s.total, s.complete, s0.base];
+    }), [2, 1, 0.5, 1, 0.5, 5, 5.5, true, 4.5]);   // التشغيل ½ · الصلاة ½ (ماصلّاش = 0)
   });
   test('الكروت: الأخضر +10 · الأصفر −5 · الأحمر −20 · كل 3 صفر = أحمر (والصفر التلاتة بتتلغي)', async () => {
     eq(await ev(() => [cardPts({ y: 1, r: 0, g: 0 }), cardPts({ y: 2, r: 0, g: 0 }), cardPts({ y: 3, r: 0, g: 0 }), cardPts({ y: 4, r: 0, g: 0 }), cardPts({ y: 0, r: 0, g: 1 }), cardPts({ y: 3, r: 1, g: 2 })]), [-5, -10, -20, -25, 10, -20]);
