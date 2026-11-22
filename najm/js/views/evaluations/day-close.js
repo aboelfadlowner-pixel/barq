@@ -21,7 +21,7 @@ function closeBarHTML(){
 }
 async function closeDay(gk){
   const L=filtered(true).filter(e=>groupKey(e)===gk);const D=peekDay(DATE);const field=RATE_FIELD[USER.role];
-  const miss=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off'&&!((D[field][e.code]||[]).every(x=>x!=null)&&(D[field][e.code]||[]).length===5)).length;
+  const miss=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off'&&!rateDone(DATE,field,e.code)).length;
   if(!await askConfirm(`تسليم يوم ${DATE} — ${gk.replace('|',' · ')} للمراجعة؟${miss?` (فاضل ${miss} موظف ماكملتش تقييمهم)`:''} بعد التسليم مش هتقدر تعدّل.`))return;
   const now=new Date();const dl=closeDeadline(DATE,gk);const lateM=minsLate(now,dl);
   const pen=now>dl&&closeOn()&&DATE>=S.settings.closeStart?+S.settings.lateClosePenalty:0;

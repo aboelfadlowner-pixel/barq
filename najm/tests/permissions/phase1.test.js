@@ -283,6 +283,28 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq(r.to, '2026-04-07');
   });
 
+  // ---------------- تقييم المديرين كل 4 أيام
+  test('تقييم المديرين كل 4 أيام: بيكمّل لوحده، والتعديل بيمشي لقدام لحد أول يوم متقيّم، والغياب من غير نجوم مديرين', async () => {
+    const c = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 1 offset 17", [B])).rows[0].code;
+    const k = d => ({ day: d, code: c, reason: 'اختبار' });
+    const row = async d => (await db.query('select ops, carry from najm_ratings where code=$1 and day=$2', [c, d])).rows[0];
+    await save('ops', '0000', 'rate', k('2025-03-01'), [2, 2, 2, 2, 2]);
+    // أيام جديدة (من البصمة) بتاخد آخر تقييم
+    await db.query("insert into najm_ratings(day, code, att) values ('2025-03-02',$1,'on'),('2025-03-03',$1,'abs'),('2025-03-04',$1,'on')", [c]);
+    eq([(await row('2025-03-02')).ops, (await row('2025-03-02')).carry], [[2, 2, 2, 2, 2], ['ops']]);
+    // يوم 5 اتقيّم بإيد ← مبيتأثرش بتعديل يوم 2
+    await save('ops', '0000', 'rate', k('2025-03-05'), [1, 1, 1, 1, 1]);
+    await save('ops', '0000', 'rate', k('2025-03-02'), [0, 0, 0, 0, 0]);
+    eq([(await row('2025-03-02')).carry, (await row('2025-03-04')).ops, (await row('2025-03-05')).ops], [[], [0, 0, 0, 0, 0], [1, 1, 1, 1, 1]]);
+    // الغياب: مفيش نجوم مديرين حتى لو التقييم مكمّل
+    const sc = async d => (await db.query("select public.najm_score(r, 'قسم الكاشير', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, d])).rows[0].s;
+    eq([(await sc('2025-03-03')).ops_star, (await sc('2025-03-04')).ops_star, (await sc('2025-03-04')).carry], [null, 0, ['ops']]);
+    // مسح تعديل يوم 2 ← يرجع لتقييم يوم 1 ويكمّل لقدام
+    await save('ops', '0000', 'rate', k('2025-03-02'), null);
+    eq([(await row('2025-03-02')).ops, (await row('2025-03-02')).carry, (await row('2025-03-04')).ops], [[2, 2, 2, 2, 2], ['ops'], [2, 2, 2, 2, 2]]);
+    await fails(save('ops', '0000', 'rate', k('2025-03-06'), [3, 2, 2, 2, 2]), /bad rating/);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

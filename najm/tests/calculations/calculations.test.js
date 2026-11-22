@@ -17,8 +17,8 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   });
   test('المدير المباشر: نص الفرع ونص الشيفت · وفي الفريش تلت لكل واحد', async () => {
     eq(await ev(() => {
-      const D = { br: { a: [2, 2, 2, 2, 2] }, sh: { a: [0, 0, 0, 0, 0] }, fr: { a: [2, 2, 2, 2, 2] } };
-      return [mgrStar(D, 'a', { dept: 'قسم الكاشير' }).mgr, mgrStar(D, 'a', { dept: 'قسم البقاله' }).mgr];
+      const keep = S.days; S.days = { '2026-05-02': { att: {}, br: { a: [2, 2, 2, 2, 2] }, sh: { a: [0, 0, 0, 0, 0] }, fr: { a: [2, 2, 2, 2, 2] }, ops: {}, hy: {}, bonus: {} } };
+      const r = [mgrStar('2026-05-02', 'a', { dept: 'قسم الكاشير' }).mgr, mgrStar('2026-05-02', 'a', { dept: 'قسم البقاله' }).mgr]; S.days = keep; return r;
     }), [0.5, 0.75]);
   });
   test('نقط التارجت بالشرايح: أقل من 50% صفر · بالتناسب · سلّم · الحد الأقصى 120', async () => {

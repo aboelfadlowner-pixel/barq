@@ -102,6 +102,22 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq([h.data.key.reason, Array.isArray(h.data.old)], ['اتسجل غلط', true]);
     await p.evaluate(() => { DATE = todayC(); });
   });
+  test('تقييم المديرين كل 4 أيام: الدورات 1/5/9…، التقييم بيكمّل، و«تأكيد» بيثبّته للدورة الجديدة', async () => {
+    await as(MAHMOUD); await p.evaluate(() => go('rate'));
+    const r = await p.evaluate(async () => {
+      const cyc = [cycleStart('2026-11-01'), cycleStart('2026-11-08'), cycleEnd('2026-11-29'), isRateDay('2026-11-13'), isRateDay('2026-11-14')];
+      const e = filtered(true)[0]; const c = e.code;
+      for (let i = 0; i <= 12; i++) { const D = day(shiftDay(DATE, -i)); delete D.sh[c]; delete D.carry[c]; }
+      const old = shiftDay(cycleStart(DATE), -1); day(old).sh[c] = [2, 1, 2, 1, 2]; day(DATE).att[c] = 'on';
+      const before = [rateOf(DATE, 'sh', c, true).carried, rateStale(DATE, 'sh', c), rateDone(DATE, 'sh', c), score(DATE, c).parts.sh];
+      render(); const btn = !!document.querySelector(`#rc-${c} button[onclick^="confirmRate"]`);
+      await confirmRate(c);
+      const after = [rateStale(DATE, 'sh', c), JSON.stringify(peekDay(DATE).sh[c])];
+      await setCrit(c, 1, 2);   // التعديل بيبدأ من التقييم المكمّل
+      return [cyc, before, btn, after, JSON.stringify(peekDay(DATE).sh[c])];
+    });
+    eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1,2]'], '[2,2,2,1,2]']);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
