@@ -1,12 +1,15 @@
 // نجم أبو الفضل — قراءة شيت الحضور الشهري (ملف الحسابات) للتحديث اليومي من الـ Drive
 // بياخد من كل موظف 4 حاجات بس لكل يوم: الكود · التاريخ · معاد الورديه · س الدخول · نوع الاجازه
 // وأي عمود تاني (الراتب، بدل الـ KPI، الجزاءات، السلف، الإضافي...) مبيتقريش خالص.
-// الاستخدام:  node attendance-sheet.js <file.xlsx> <out.json> [--compact <payload.txt>]   (محتاج: npm i --no-save xlsx@0.18.5)
+// الاستخدام:  node attendance-sheet.js <file.xlsx> <out.json> [--compact <payload.txt>] [--emps <emps.json>]
+// --emps: بيانات الموظف من راس كل بلوك بس: الكود · الاسم · القسم · الوظيفة · الفرع (+ أكتر ميعاد وردية متكرر) — من غير أي فلوس   (محتاج: npm i --no-save xlsx@0.18.5)
 // --compact: صيغة صغيرة للتحديث اليومي «YYYY-MM|كود:يوم1,يوم2,...;كود:...» — كل يوم: دقايق التأخير عن ميعاد الوردية (0 لو بدري)
 //            أو L إجازة أو - من غير بصمة ولا إجازة أو x مش مقروء / فرق أكتر من 4 ساعات عن ميعاد الوردية (للمراجعة) — ومعاها md5 عشان الداتابيز تتأكد إنها وصلت زي ما هي
 const XLSX = require('xlsx');
 const fs = require('fs');
-const [, , inFile, outFile, flag, compactFile] = process.argv;
+const [, , inFile, outFile] = process.argv;
+const argOf = f => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : null; };
+const compactFile = argOf('--compact'), empsFile = argOf('--emps'), flag = compactFile ? '--compact' : null;
 if (!inFile || !outFile) { console.error('usage: node attendance-sheet.js <file.xlsx> <out.json>'); process.exit(2); }
 
 const norm = s => String(s ?? '').trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
@@ -18,7 +21,7 @@ function sheetDate(v) {
   return null;
 }
 const wb = XLSX.readFile(inFile);
-const out = []; let blocks = 0;
+const out = []; let blocks = 0; const EMPS = {};
 for (const name of wb.SheetNames) {
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
   for (let i = 0; i < rows.length; i++) {
@@ -30,6 +33,12 @@ for (const name of wb.SheetNames) {
     const c = { date: ix('التاريخ'), leave: ix('نوع الاجازه'), shift: ix('معاد الورديه'), in: ix('س الدخول') };
     if (c.date < 0 || c.shift < 0 || c.in < 0) continue;
     blocks++;
+    // راس البلوك: «الاسم / القسم / الوظيفة / الفرع» والقيمة في أول خانة مليانة بعد العنوان
+    const after = lab => { const j = rows[i].findIndex(x => norm(x) === norm(lab)); if (j < 0) return '';
+      for (let k = j + 1; k < j + 8; k++) { const v = String(rows[i][k] ?? '').trim(); if (!v) continue;
+        if (['الاسم', 'القسم', 'الوظيفه', 'الفرع', 'تاريخ التعيين'].includes(norm(v))) return ''; return v; } return ''; };   // الخانة الفاضية متاخدش قيمة العنوان اللي بعدها
+    const id = { code, name: after('الاسم'), dept: after('القسم'), job: after('الوظيفة'), branch: after('الفرع') };
+    if (!EMPS[code] || (!EMPS[code].name && id.name)) EMPS[code] = id;
     for (let k = h + 1; k < rows.length && k < h + 40; k++) {
       const day = sheetDate(rows[k][c.date]); if (!day) break;
       out.push({ code, day, shift: String(rows[k][c.shift] ?? '').trim(), in: String(rows[k][c.in] ?? '').trim(), leave: c.leave >= 0 ? String(rows[k][c.leave] ?? '').trim() : '' });
@@ -38,6 +47,13 @@ for (const name of wb.SheetNames) {
   }
 }
 fs.writeFileSync(outFile, JSON.stringify(out));
+if (empsFile) {
+  // أكتر ميعاد وردية متكرر للموظف (للشيفت لو موظف جديد)
+  const cnt = {}, lastIn = {}; for (const r of out) if (r.shift && r.in) { const m = cnt[r.code] || (cnt[r.code] = {}); m[r.shift] = (m[r.shift] || 0) + 1; if (!lastIn[r.code] || r.day > lastIn[r.code]) lastIn[r.code] = r.day; }
+  // lastIn: آخر يوم بصمة — الموظف الجديد بيتضاف بس لو بصم في آخر أسبوع (اللي وقف قبل كده غالبًا ساب)
+  const L = Object.values(EMPS).filter(e => e.name).map(e => ({ ...e, shiftTime: Object.entries(cnt[e.code] || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || '', lastIn: lastIn[e.code] || '' }));
+  fs.writeFileSync(empsFile, JSON.stringify(L));
+}
 const withIn = new Set(out.filter(r => /\d{1,2}:\d{2}/.test(r.in)).map(r => r.code)).size;
 console.log(JSON.stringify({ blocks, rows: out.length, employeesWithCheckIn: withIn }));
 

@@ -305,6 +305,27 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('ops', '0000', 'rate', k('2025-03-06'), [3, 2, 2, 2, 2]), /bad rating/);
   });
 
+  test('الموظفين من شيت البصمة: الجديد بيتضاف بشيفته، والمتغيّر بيتعدّل (والنقل بيتسجل)، والقيم الغلط بتتساب', async () => {
+    const x = (await db.query("select code, dept from najm_employees where branch=$1 and active order by code limit 1 offset 21", [B])).rows[0];
+    const rows = [
+      { code: '99001', name: 'موظف جديد صبح', dept: 'قسم البقاله', job: 'شيف', branch: B, shiftTime: '7:00 AM', lastIn: D },
+      { code: '99002', name: 'موظف جديد بيتوين', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '2:00 PM', lastIn: D },
+      { code: '99003', name: 'موظف جديد ليل', dept: '#N/A', job: '', branch: B, shiftTime: '11:00 PM', lastIn: D },
+      { code: '99006', name: 'ساب من زمان', dept: 'x', job: 'y', branch: B, shiftTime: '7:00 AM', lastIn: '2020-01-01' },
+      { code: '99004', name: 'فرع غريب', dept: 'x', job: 'y', branch: 'فرع مش موجود', shiftTime: '' },
+      { code: '99005', name: '', dept: 'x', job: 'y', branch: B, shiftTime: '' },
+      { code: x.code, name: 'اسم متعدّل', dept: 'قسم الكاشير', job: '#N/A', branch: 'لا يوجد', shiftTime: '' },
+    ];
+    await fails(asAnon(db, 'select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']), /permission denied/);
+    const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv'])).rows[0].r;
+    const E = Object.fromEntries((await db.query("select code, name, dept, job, branch, shift from najm_employees where code = any($1)", [['99001', '99002', '99003', '99004', '99005', x.code]])).rows.map(e => [e.code, e]));
+    eq([E['99001'].shift, E['99002'].shift, E['99003'].shift, E['99003'].dept, !!E['99004'], !!E['99005']], ['Morning', 'Between', 'Night', null, false, false]);
+    eq([E[x.code].name, E[x.code].dept, E[x.code].branch], ['اسم متعدّل', 'قسم الكاشير', B]);
+    eq(r.added.length, 3);
+    ok(r.skipped.some(s => s.code === '99004') && r.skipped.some(s => s.code === '99006') && r.skipped.filter(s => s.code === '99004').length === 1, 'skips reported once');
+    eq((await db.query("select by_user, to_dept from najm_emp_moves where code=$1 order by id desc limit 1", [x.code])).rows[0], { by_user: 'sheet', to_dept: 'قسم الكاشير' });
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
