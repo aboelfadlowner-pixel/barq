@@ -93,7 +93,7 @@ function editUser(name){
     <label>الفرع<br><select class="inp" id="u_branch"><option value="">كل الفروع</option>${branches().map(b=>`<option ${b===u.branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
     <label>الشيفت (لمدير الشيفت)<br><select class="inp" id="u_shift"><option value="">—</option>${Object.values(SH).map(s=>`<option ${s===u.shift?'selected':''}>${s}</option>`).join('')}</select></label>
     <label>الأقسام (لمدير الفريش)<br><input class="inp" id="u_depts" autocomplete="off" value="${esc((u.depts||[]).join('، '))}" placeholder="قسم البقاله"></label>
-    <label>الرقم السري ${name?'(سيبه فاضي لو مش هتغيّره)':'(اختياري — لو فاضي السيستم بيطلّع رقم مؤقت تديه للمدير)'}<br><input class="inp" id="u_pin" type="password" inputmode="numeric" autocomplete="new-password"></label>
+    <label>الرقم السري ${name?'(سيبه فاضي لو مش هتغيّره)':'(اختياري — لو فاضي السيستم بيطلّع رقم مؤقت تديه للمدير)'}<br><input class="inp" id="u_pin" type="text" inputmode="numeric" autocomplete="off" name="najm-tmp-pin" data-lpignore="true" style="-webkit-text-security:disc" maxlength="6"></label>
     <label><input type="checkbox" id="u_active" ${u.active!==false?'checked':''}> الحساب شغّال</label>
    </div><div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveUser('${esc(name||'')}')">💾 حفظ</button>${name&&name!==USER.username?`<button class="btn" onclick="resetUserPin('${esc(name)}')">🔑 رقم مؤقت جديد</button><button class="btn red" onclick="delUser('${esc(name)}')">حذف</button>`:''}</div>`);
 }
