@@ -95,11 +95,11 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   });
   test('تعديل التشغيل في يوم مغلق بيطلب سبب، وبيتسجل مع القيمة القديمة', async () => {
     await p.evaluate(() => { const y = new Date(); y.setDate(y.getDate() - 3); DATE = ymd(y); USER = { username: 'ops', name: 'مدير التشغيل', role: 'ops', branch: '', shift: '', depts: [] }; });
-    const code = await p.evaluate(() => activeEmps().find(e => peekDay(DATE).ops[e.code]).code);
-    await p.evaluate(c => { setCrit(c, 0, 0); }, code); await answer('اتسجل غلط');
+    const code = await p.evaluate(() => activeEmps().find(e => peekDay(DATE).pray?.[e.code] != null).code);
+    await p.evaluate(c => { setCam('pray', c, peekDay(DATE).pray[c] ? 0 : 1); }, code); await answer('اتسجل غلط');
     await p.waitForTimeout(200);
-    const h = await p.evaluate(c => S.history.find(x => x.kind === 'rate' && x.code === c), code);
-    eq([h.data.key.reason, Array.isArray(h.data.old)], ['اتسجل غلط', true]);
+    const h = await p.evaluate(c => S.history.find(x => x.kind === 'pray' && x.code === c), code);
+    eq([h.data.key.reason, typeof h.data.old], ['اتسجل غلط', 'number']);
     await p.evaluate(() => { DATE = todayC(); });
   });
   test('تقييم المديرين كل 4 أيام: الدورات 1/5/9…، التقييم بيكمّل، و«تأكيد» بيثبّته للدورة الجديدة', async () => {
@@ -116,7 +116,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       await setCrit(c, 1, 2);   // التعديل بيبدأ من التقييم المكمّل
       return [cyc, before, btn, after, JSON.stringify(peekDay(DATE).sh[c])];
     });
-    eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1]'], '[2,2,2,1]']);
+    eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1,2]'], '[2,2,2,1,2]']);
   });
   test('فترات التأخير: «من / لحد» لكل حالة مربوطة ببعض، والترتيب الغلط مبيتحفظش', async () => {
     await as(OPS); await p.evaluate(() => go('settings'));

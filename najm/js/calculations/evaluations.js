@@ -24,7 +24,7 @@ function rateOf(d,f,code,show){
   return own?{arr:own,carried:true,from:null}:{arr:null,carried:false,from:null};
 }
 const rateArr=(d,f,code)=>rateOf(d,f,code).arr;
-const rateDone=(d,f,code)=>{const a=f==='hy'?peekDay(d).hy?.[code]:rateOf(d,f,code,true).arr;return f==='hy'?hyScore(a)!=null:crit(a)!=null;};
+const rateDone=(d,f,code)=>{const a=f==='hy'?peekDay(d).hy?.[code]:rateOf(d,f,code,true).arr;return f==='hy'?hyScore(a)!=null:crit(a)!=null&&(!['br','sh'].includes(f)||a[4]!=null);};
 // التقييم محتاج مراجعة في الدورة دي: ماشي على تقييم من دورة قبل كده (المدير يعدّله أو يدوس تأكيد — مش إجباري)
 const rateStale=(d,f,code)=>{if(!CARRY_FIELDS.includes(f))return false;const r=rateOf(d,f,code,true);return !!r.arr&&r.carried&&(r.from==null||r.from<cycleStart(d));};
 function mgrStar(d,code,e){

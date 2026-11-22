@@ -192,7 +192,7 @@ function demoSeed(){
   const mg=(username,code,role,branch,shift,pin,depts=[])=>{const e=emp(code);return {username,name:e?e.name:username,role,branch,shift,depts,pin,active:true,emp_code:code};};
   S.users.push(mg('haitham','278','branch',B,'','1111'),mg('mahmoud','189','shift',B,'Morning','2222'),mg('islam','65','shift',B,'Night','3333'),
     mg('firas','44','fresh',B,'','5555',['قسم البقاله']),mg('abdelrahman','74','branch',A,'','6666'),
-    mg('yasser','62','hygiene',B,'','7777'),mg('bothaina','226','hygiene',A,'','8888'));
+    mg('yasser','62','hygiene',B,'','7777'),mg('bothaina','226','hygiene',A,'','8888'),mg('cam','20','cameras',B,'','4444'));
   const m=monthOf(DATE),pm=prevMonth(m),days=monthDays(m,DATE);
   // products and sales (kilos/units)
   let k=1;const cat={};const base={[B]:{},[A]:{}};
@@ -208,11 +208,16 @@ function demoSeed(){
   // daily ratings for everyone (each employee has his own level so the league spreads out)
   const DEMO_FOOD=['قسم البقاله','قسم التصنيع','قسم المعمل','قسم الايس كريم','قسم التركي','bakery','قسم البيض','قسم الفاكهه','قسم الرنجه','انتاج معلبات','قسم الجوده'];
   const lvl={};for(const e of activeEmps())lvl[e.code]=.45+rnd()*.5;
+  const prayL=c=>lvl[c]>.75?2:lvl[c]>.5?1:0;   // صلاة كل موظف ثابتة طول الشهر (عشان التعارض مع الكاميرات يبقى قليل وواقعي)
   const crit=c=>Array.from({length:5},()=>{const r=rnd();return r<lvl[c]?2:r<lvl[c]+.35?1:0;});
   for(const d of days){const D=day(d);
     for(const e of activeEmps()){const r=rnd();D.att[e.code]=r<.05?'abs':r<.05+(1-lvl[e.code])*.3?'late':r<.2?'off':'on';if(D.att[e.code]==='abs'||D.att[e.code]==='off')continue;
-      /* تقييم المديرين كل 4 أيام (وأحيانًا تعديل في النص) — الباقي بيكمّل لوحده */if(isRateDay(d)||rnd()<.06){const c4=()=>crit(e.code).slice(0,4);D.br[e.code]=c4();D.sh[e.code]=c4();D.ops[e.code]=c4();if(isFresh(e))D.fr[e.code]=c4();}(D.pray||(D.pray={}))[e.code]=rnd()<lvl[e.code]+.15?1:0;if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
+      /* تقييم المديرين كل 4 أيام (وأحيانًا تعديل في النص) — الباقي بيكمّل لوحده */if(isRateDay(d)||rnd()<.06){const c4=()=>crit(e.code).slice(0,4);const pl=prayL(e.code);D.br[e.code]=[...c4(),pl];D.sh[e.code]=[...c4(),pl];if(isFresh(e))D.fr[e.code]=c4();}if(d<DATE){const pl=prayL(e.code);(D.pray||(D.pray={}))[e.code]=pl===2?1:pl===0?0:rnd()<.6?1:0;(D.brk||(D.brk={}))[e.code]=rnd()<lvl[e.code]+.25?1:0;}if(d<DATE)D.hy[e.code]=(a=>a.map((x,j)=>j===0||DEMO_FOOD.includes(e.dept)||(j===2&&/كاشير|العملاء|vip/.test(e.dept))?x:HY_NA))(crit(e.code));/* الهايجين النهارده فاضي عشان تجرّب */if(rnd()<.025)D.bonus[e.code]={v:.5,note:pick(['ساعد زميله وقت الزحمة','رجّع محفظة عميل نسيها','غطّى شيفت زميل تعبان','نضّف القسم بعد الشيفت'])};}
   }
+  // تعارض صلاة واحد للتجربة: المدير قال «ملتزم» والكاميرات سجّلت يوم ماصلّاش
+  {const y=days[days.length-2];const x=y&&activeEmps().find(e=>e.branch===B&&prayL(e.code)===2&&S.days[y]?.pray?.[e.code]===1);if(x)S.days[y].pray[x.code]=0;}
+  // وسام برق لموظفين اتنين الشهر ده
+  {const L=activeEmps().filter(e=>e.branch===B);S.medals=[{code:L[2].code,month:m,day:days[Math.min(3,days.length-1)],note:'ساعد في الجرد طول الليل'},{code:L[11].code,month:m,day:days[0],note:'خدمة عميل مميزة'}];}
   // شكاوى العملاء: واحدة مستنية مراجعة، واحدة مثبتة، وواحدة مثبتة والموظف معترض عليها
   {const L=activeEmps().filter(e=>e.branch===B);S.complaints=[
     {id:uid(),date:DATE,code:L[3].code,note:'العميل اشتكى من طريقة الرد',by:'haitham',status:'pending'},

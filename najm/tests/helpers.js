@@ -26,7 +26,7 @@ const ok = (v, msg = 'expected true') => { if (!v) throw new Error(msg); };
 // ---- browser: the app from disk; Supabase blocked (demo) or answered by a local database (integration)
 async function browser() { return chromium.launch(); }
 async function openApp(b, { query = '?demo=1', supabase = null, viewport = { width: 1280, height: 900 } } = {}) {
-  const ctx = await b.newContext({ viewport });
+  const ctx = await b.newContext({ viewport, timezoneId: 'Africa/Cairo' });   // التطبيق بيشتغل بتوقيت القاهرة
   const errors = [];
   await ctx.route('**/xlsx.full.min.js', r => r.fulfill({ path: require.resolve('xlsx/dist/xlsx.full.min.js'), contentType: 'application/javascript' }));
   await ctx.route('https://fonts.googleapis.com/**', r => r.abort());
