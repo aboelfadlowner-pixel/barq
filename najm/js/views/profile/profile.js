@@ -43,7 +43,7 @@ function rateLeft(u){
   const f=RATE_FIELD[u.role];if(!f)return null;const D=peekDay(DATE);
   const L=u.role==='ops'?activeEmps():activeEmps().filter(e=>inScopeOf(u,e));
   const need=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off');
-  const left=need.filter(e=>{const a=D[f]?.[e.code];return !(a&&a.length===5&&a.every(x=>x!=null));}).length;
+  const left=need.filter(e=>!rateDone(DATE,f,e.code)).length;
   return {left,total:need.length};
 }
 function mgrProfileHTML(u,self){

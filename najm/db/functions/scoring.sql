@@ -16,6 +16,51 @@ returns numeric language sql immutable set search_path = public as $$
                          / (2 * (select count(*) from unnest(a) x where x >= 0)) * 4) / 4 end;
 $$;
 
+-- ---------------------------------------------------------------- تقييم المديرين كل 4 أيام (1، 5، 9، 13، 17، 21، 25، 29)
+-- التقييم بيكمّل لوحده على الأيام اللي بعده لحد ما المدير يعدّله (البصمة والهايجين والبونص بيتغيروا كل يوم)
+-- آخر تقييم للبند ده قبل اليوم (في آخر 40 يوم)
+create or replace function public.najm_prev_rate(p_code text, p_day date, p_f text)
+returns smallint[] language sql stable set search_path = public as $$
+  select case p_f
+    when 'br'  then (select br  from najm_ratings where code = p_code and day < p_day and day >= p_day - 40 and br  is not null order by day desc limit 1)
+    when 'sh'  then (select sh  from najm_ratings where code = p_code and day < p_day and day >= p_day - 40 and sh  is not null order by day desc limit 1)
+    when 'fr'  then (select fr  from najm_ratings where code = p_code and day < p_day and day >= p_day - 40 and fr  is not null order by day desc limit 1)
+    when 'ops' then (select ops from najm_ratings where code = p_code and day < p_day and day >= p_day - 40 and ops is not null order by day desc limit 1)
+  end;
+$$;
+revoke all on function public.najm_prev_rate(text, date, text) from public, anon, authenticated;
+
+-- أي يوم جديد للموظف (من البصمة أو الهايجين أو أي حاجة) بياخد آخر تقييم للمديرين
+create or replace function public.najm_carry_fill()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v smallint[];
+begin
+  new.carry := coalesce(new.carry, '{}');
+  if new.br is null then v := public.najm_prev_rate(new.code, new.day, 'br'); if v is not null then new.br := v; new.carry := array_append(array_remove(new.carry, 'br'), 'br'); end if; end if;
+  if new.sh is null then v := public.najm_prev_rate(new.code, new.day, 'sh'); if v is not null then new.sh := v; new.carry := array_append(array_remove(new.carry, 'sh'), 'sh'); end if; end if;
+  if new.fr is null then v := public.najm_prev_rate(new.code, new.day, 'fr'); if v is not null then new.fr := v; new.carry := array_append(array_remove(new.carry, 'fr'), 'fr'); end if; end if;
+  if new.ops is null then v := public.najm_prev_rate(new.code, new.day, 'ops'); if v is not null then new.ops := v; new.carry := array_append(array_remove(new.carry, 'ops'), 'ops'); end if; end if;
+  return new;
+end $$;
+create or replace trigger najm_carry_fill_trg before insert on public.najm_ratings for each row execute function public.najm_carry_fill();
+
+-- المدير قيّم (أو عدّل أو مسح) بند في يوم ← الأيام اللي بعده اللي ماشية على التقييم القديم بتاخد الجديد، لحد أول يوم متقيّم بإيد
+create or replace function public.najm_carry_forward(p_code text, p_day date, p_f text)
+returns void language plpgsql security definer set search_path = public as $$
+declare nxt date; v smallint[];
+begin
+  if p_f not in ('br', 'sh', 'fr', 'ops') then return; end if;
+  execute format('select %1$I from najm_ratings where code = $1 and day = $2', p_f) into v using p_code, p_day;
+  execute format('select min(day) from najm_ratings where code = $1 and day > $2 and %1$I is not null and not (%1$L = any(coalesce(carry, ''{}'')))', p_f)
+    into nxt using p_code, p_day;
+  execute format('update najm_ratings set %1$I = $3,
+                    carry = array_remove(coalesce(carry, ''{}''), %1$L) || case when $3 is null then ''{}''::text[] else array[%1$L] end, updated_at = now()
+                  where code = $1 and day > $2 and ($4::date is null or day < $4) and day <= $2 + 40
+                    and (%1$I is null or %1$L = any(coalesce(carry, ''{}'')))', p_f)
+    using p_code, p_day, v, nxt;
+end $$;
+revoke all on function public.najm_carry_forward(text, date, text) from public, anon, authenticated;
+
 -- stars (max 5): fingerprint 2 + direct manager 1 + operations 1 + hygiene 1 + exemplary ½
 create or replace function public.najm_score(r public.najm_ratings, p_dept text, p_settings jsonb)
 returns jsonb language plpgsql stable set search_path = public as $$
@@ -25,6 +70,8 @@ declare
   f numeric := public.najm_crit(r.fr); o numeric := public.najm_crit(r.ops); h numeric := public.najm_hy(r.hy);
   m numeric; mc boolean; tot numeric; anyv boolean;
 begin
+  -- يوم غياب أو راحة: مفيش نجوم مديرين (التقييم المكمّل من الأيام اللي قبله مبيتحسبش فيه)
+  if r.att in ('abs', 'off') then b := null; s := null; f := null; o := null; end if;
   a := case when r.att is null or r.att = 'off' then null
             else coalesce((p_settings->'att'->>r.att)::numeric,
                           case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;
@@ -42,7 +89,7 @@ begin
   tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) + coalesce(r.bonus,0) end;
   return jsonb_build_object('att', r.att, 'att_star', a, 'mgr_star', m, 'ops_star', o, 'hy_star', h, 'bonus', coalesce(r.bonus,0),
     'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0)) end, 'complete', a is not null and mc and o is not null,
-    'parts', jsonb_build_object('br', b, 'sh', s, 'fr', f), 'fresh', fresh);
+    'parts', jsonb_build_object('br', b, 'sh', s, 'fr', f), 'fresh', fresh, 'carry', to_jsonb(coalesce(r.carry, '{}')));
 end $$;
 
 revoke all on function public.najm_score(public.najm_ratings, text, jsonb) from public, anon, authenticated;
@@ -89,8 +136,9 @@ returns table(code text, on_n int, late_n int, vlate_n int, abs_n int, c1 numeri
 language sql stable security definer set search_path = public as $$
   with r as (select * from najm_ratings where day between p_from and p_to),
   crit as (
-    select r.code, a.arr from r cross join lateral (values (r.br), (r.sh), (r.fr), (r.ops)) a(arr)
-    where a.arr is not null and array_position(a.arr, null) is null and array_length(a.arr, 1) = 5)
+    select r.code, a.arr from r cross join lateral (values (r.br, 'br'), (r.sh, 'sh'), (r.fr, 'fr'), (r.ops, 'ops')) a(arr, f)
+    where a.arr is not null and array_position(a.arr, null) is null and array_length(a.arr, 1) = 5
+      and not (a.f = any(coalesce(r.carry, '{}'))))
   select r.code,
     count(*) filter (where att = 'on')::int, count(*) filter (where att = 'late')::int,
     count(*) filter (where att = 'vlate')::int, count(*) filter (where att = 'abs')::int,

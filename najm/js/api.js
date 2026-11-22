@@ -62,7 +62,7 @@ async function sbRpc(fn,args,qs=''){const r=await fetch(`${SB_URL}/rest/v1/rpc/$
   return v;}
 async function sbRpcAll(fn,args,order){let out=[],off=0;while(true){const d=await sbRpc(fn,args,`?order=${order}&limit=1000&offset=${off}`);out=out.concat(d||[]);if(!d||d.length<1000)break;off+=1000;}return out;}
 async function sbAll(table,q){let out=[],off=0;while(true){const d=await sbGet(`${table}?${q}&limit=1000&offset=${off}`);out=out.concat(d);if(d.length<1000)break;off+=1000;}return out;}
-const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance is entered/.test(m)?'البصمة بيسجلها مدير الفرع أو الشيفت':'⚠️ ماتحفظش: '+m;
+const errMsg=m=>/wrong username|login required/.test(m)?'اسم الدخول أو الرقم السري غلط — أو الحساب اتقفل 15 دقيقة بعد 5 محاولات غلط':/day locked/.test(m)?'🔒 اليوم ده اتقفل (اتعلن رجل اليوم أو عدّى أكتر من يوم) — التعديل عن طريق مدير التشغيل':/deadline passed/.test(m)?'⏰ ميعاد العروض في السوق خلص':/outside your scope|other branch/.test(m)?'الموظف ده مش في نطاقك':/operations manager only/.test(m)?'دي صلاحية مدير التشغيل بس':/attendance comes from/.test(m)?'البصمة بتيجي من الشيت — التعديل لمدير التشغيل بس':/reason required/.test(m)?'لازم تكتب السبب':'⚠️ ماتحفظش: '+m;
 // الحفظ: مفيش «اتحفظ» غير بعد ما الداتابيز تأكد. لو النت فاصل بيقول «ماتحفظش» ويرجّع الشاشة للي في الداتابيز،
 // ولو في حاجة لسه بتتحفظ والصفحة بتتقفل ← تحذير
 let PENDING=0;
@@ -121,11 +121,12 @@ async function pull(){
   N.salesSum={month:m,upto:DATE,data:salesSum||{}};N.salesDays={};for(const r of salesDays)(N.salesDays[r.branch]||(N.salesDays[r.branch]=[])).push(r.day);
   N.baseSales={[pm]:Object.fromEntries(base.map(r=>[r.branch,r.items]))};
   for(const r of kpi)(N.kpiVals[r.day]||(N.kpiVals[r.day]={}))[r.dkey]=r.vals;
-  const D=d=>N.days[d]||(N.days[d]={att:{},attTime:{},br:{},sh:{},fr:{},ops:{},hy:{},bonus:{},winners:{},pub:{},full:{}});
+  const D=d=>N.days[d]||(N.days[d]={att:{},attTime:{},br:{},sh:{},fr:{},ops:{},hy:{},bonus:{},winners:{},pub:{},full:{},carry:{}});
   N.winnersMeta={};for(const w of win){D(w.day).winners[w.gkey]=w.codes;(N.winnersMeta[w.day]||(N.winnersMeta[w.day]={}))[w.gkey]={candidates:w.candidates,approved_by:w.approved_by,approved_at:w.approved_at};}
   for(const r of pub){const x=D(r.day);x.pub[r.code]={att:r.att,total:r.total==null?null:+r.total,complete:r.complete,bonus:r.has_bonus};if(r.att)x.att[r.code]=r.att;}
   for(const r of full){const x=D(r.day);x.full[r.code]=1;if(r.att)x.att[r.code]=r.att;else delete x.att[r.code];if(r.att_time)x.attTime[r.code]=r.att_time;
-    for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};}
+    for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};
+    const cf=r.score?.carry;if(cf?.length)(x.carry||(x.carry={}))[r.code]=cf;}
   // الموظف الداخل بكوده + رقمه السري: تفاصيل تقييمه هو بس، وكروته كلها
   if(!USER&&ME&&MEPIN){const [mine,myc,mycp]=await Promise.all([sbRpc('najm_my_ratings',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
     N.myComplaints=mycp?.complaints||null;

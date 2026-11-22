@@ -41,7 +41,7 @@ async function commitAttendance(){
   for(const c of codes){mark(D,c);D.att[c]=I.res[c].st;if(I.res[c].time)D.attTime[c]=I.res[c].time;}
   save();render();toast('⏳ بنحفظ البصمة…');
   let fail=0;
-  for(let i=0;i<codes.length;i+=10){const R=await Promise.all(codes.slice(i,i+10).map(c=>push('att',{day:DATE,code:c},{st:D.att[c],time:D.attTime[c]||null})));fail+=R.filter(x=>x===false).length;}
+  for(let i=0;i<codes.length;i+=10){const R=await Promise.all(codes.slice(i,i+10).map(c=>push('att',{day:DATE,code:c,reason:'رفع شيت البصمة يدوي'},{st:D.att[c],time:D.attTime[c]||null})));fail+=R.filter(x=>x===false).length;}
   ATT_IMP=null;
   // مبنقولش «اتسجل» غير للي اتحفظ فعلاً
   toast(fail?`⚠️ اتحفظ ${fmt(codes.length-fail)} بس من ${fmt(codes.length)} — جرّب تاني`:`✔ اتسجل حضور ${fmt(codes.length)} موظف`);

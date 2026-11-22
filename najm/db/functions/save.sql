@@ -7,7 +7,7 @@ declare
   k_day date := nullif(p_key->>'day','')::date;
   k_code text := p_key->>'code';
   del boolean := p_data is null or p_data = 'null'::jsonb;
-  arr smallint[];
+  arr smallint[]; carr smallint[]; rf text;
   r najm_ratings; st jsonb; dpt text; s text;
   gk text := p_key->>'gkey'; dl timestamptz; pen numeric; own text[]; ret jsonb; er record; a najm_card_appeals; k najm_cards;
   old jsonb; wl jsonb; wmax int; today date := (now() at time zone 'Africa/Cairo')::date;
@@ -51,8 +51,12 @@ begin
       raise exception 'najm: reason required for a closed day' using errcode = '42501';
     end if;
   end if;
-  if p_kind = 'att' and u.role = 'fresh' then
-    raise exception 'najm: attendance is entered by branch/shift managers' using errcode = '42501';
+  -- البصمة من شيت الحضور (التحديث اليومي) — المديرين بيشوفوها بس. التشغيل بس يعدّل حالة استثنائية، وبسبب مكتوب
+  if p_kind = 'att' and u.role <> 'ops' then
+    raise exception 'najm: attendance comes from the fingerprint sheet' using errcode = '42501';
+  end if;
+  if p_kind = 'att' and coalesce(trim(p_key->>'reason'), '') = '' then
+    raise exception 'najm: reason required for an attendance change' using errcode = '42501';
   end if;
   if p_kind in ('sales','kpi') and u.role <> 'ops' and u.branch is not null and u.branch <> p_key->>'branch' then
     raise exception 'najm: other branch' using errcode = '42501';
@@ -66,16 +70,7 @@ begin
   elsif p_kind = 'rate' then
     arr := case when del then null else array(select (case when v = 'null'::jsonb then null else v::text::smallint end)
                                              from jsonb_array_elements(p_data) v) end;
-    if u.role = 'branch' then
-      insert into najm_ratings(day, code, br) values (k_day, k_code, arr)
-      on conflict (day, code) do update set br = excluded.br, updated_at = now();
-    elsif u.role = 'shift' then
-      insert into najm_ratings(day, code, sh) values (k_day, k_code, arr)
-      on conflict (day, code) do update set sh = excluded.sh, updated_at = now();
-    elsif u.role = 'fresh' then
-      insert into najm_ratings(day, code, fr) values (k_day, k_code, arr)
-      on conflict (day, code) do update set fr = excluded.fr, updated_at = now();
-    elsif u.role = 'hygiene' then
+    if u.role = 'hygiene' then
       -- اللبس: 5 بنود — التيشرت إجباري (0 لـ 2)، والباقي 0 لـ 2 أو −1 «مش مطلوب»
       if arr is not null and (coalesce(array_length(arr, 1), 0) <> 5 or coalesce(arr[1], 0) not between 0 and 2
           or exists (select 1 from generate_series(2, 5) i where coalesce(arr[i], 0) not between -1 and 2)) then
@@ -84,8 +79,19 @@ begin
       insert into najm_ratings(day, code, hy) values (k_day, k_code, arr)
       on conflict (day, code) do update set hy = excluded.hy, updated_at = now();
     else
-      insert into najm_ratings(day, code, ops) values (k_day, k_code, arr)
-      on conflict (day, code) do update set ops = excluded.ops, updated_at = now();
+      -- تقييم المديرين (فرع / شيفت / فريش / تشغيل): بيكمّل على الأيام اللي بعده لحد ما يتعدّل.
+      -- المسح بيرجّع اليوم ده لآخر تقييم قبله
+      rf := case u.role when 'branch' then 'br' when 'shift' then 'sh' when 'fresh' then 'fr' else 'ops' end;
+      if arr is not null and (coalesce(array_length(arr, 1), 0) <> 5
+          or exists (select 1 from unnest(arr) x where x is not null and x not between 0 and 2)) then
+        raise exception 'najm: bad rating';
+      end if;
+      carr := coalesce(arr, public.najm_prev_rate(k_code, k_day, rf));
+      execute format('insert into najm_ratings(day, code, %1$I, carry) values ($1, $2, $3, $4)
+                      on conflict (day, code) do update set %1$I = excluded.%1$I,
+                        carry = array_remove(coalesce(najm_ratings.carry, ''{}''), %1$L) || $4, updated_at = now()', rf)
+        using k_day, k_code, carr, case when arr is null and carr is not null then array[rf] else '{}'::text[] end;
+      perform public.najm_carry_forward(k_code, k_day, rf);
     end if;
   elsif p_kind = 'bonus' then
     insert into najm_ratings(day, code, bonus, bonus_note)
