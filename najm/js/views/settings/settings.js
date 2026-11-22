@@ -12,8 +12,7 @@ function vSettings(){
   <div class="grid g-2">
    <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.xlate','تأخير فوق الحد',.25)}${num('att.abs','غياب',.25)}</div>
      <div class="row" style="margin-top:8px">${txt('shiftStart.Morning','بداية Morning','time')}${txt('shiftStart.Between','Between من','time')}${txt('betweenTo','Between لحد','time')}${txt('shiftStart.Night','بداية Night','time')}</div>
-     <div class="row" style="margin-top:8px">${num('graceMin','سماح (دقيقة)')}${num('lateMax','تأخير بسيط لحد')}${num('vlateMax','تأخير كبير لحد')}</div>
-     <div class="small muted" style="margin-top:6px">كل موظف بيتحسب على ميعاد ورديته هو في شيت البصمة — والـ Between فترة: أي ميعاد بداية بين «Between من» و«Between لحد». بالدقايق من بداية الوردية: لحد السماح «في ميعاده» · بعده لحد «تأخير بسيط لحد» بسيط · بعده لحد «تأخير كبير لحد» كبير · وأي تأخير أكتر من كده «فوق الحد» ونجوم بصمته ${fmt(S.settings.att?.xlate??0)} (حاضر مش غايب).</div></div>
+     ${attBandsHTML()}</div>
    <div class="card"><h3>🟨🟥🟩 الكروت</h3><div class="row">${num('cards.yellow','أصفر')}${num('cards.red','أحمر')}${num('cards.green','أخضر')}${num('cards.yellowsToRed','كام أصفر في الشهر = أحمر')}</div><div class="small muted" style="margin-top:6px">الحساب الرسمي في الداتابيز بنفس القيم دي. الكروت بتأثر على الـ KPI بس.</div></div>
    <div class="card"><h3>🏆 رجل اليوم</h3><div class="row">${num('finalists','عدد المرشحين اللي بيظهروا')}${num('minStarsWinner','أقل نجوم للترشيح',.25)}</div>
      <div class="small" style="margin:8px 0 4px"><b>عدد رجال اليوم لكل فرع</b> (Between بيتحسب مع الليل):</div>
@@ -72,6 +71,21 @@ async function saveRules(now){
   if(i>=0)V[i]=ver;else V.push(ver);V.sort((a,b)=>a.from.localeCompare(b.from));
   RD=null;setS('ruleVersions',V,reason||`قواعد جديدة من ${from}`);render();
 }
+// فترات التأخير (بالدقايق من بداية الوردية) — كل فترة «من / لحد»، وحدود الفترات مربوطة ببعض فمفيش فجوة
+function attBandsHTML(){const st=S.settings;const g=+st.graceMin,l=+st.lateMax,v=+(st.vlateMax??60);
+  const inp=(val,on)=>`<input class="inp" type="number" min="0" step="1" style="width:70px" value="${val}" onchange="${on}">`;
+  const row=(name,stars,from,to)=>`<tr><td><b>${name}</b></td><td>${from}</td><td>${to}</td><td>${stars}</td></tr>`;
+  return `<h3 style="margin:12px 0 4px">⏱️ فترات التأخير (بالدقايق من بداية الوردية)</h3>
+  <div class="tbl-wrap"><table><thead><tr><th>الحالة</th><th>من</th><th>لحد</th><th>النجوم</th></tr></thead><tbody>
+    ${row('في ميعاده',fmt(st.att.on,2),'0',inp(g,"setBand('graceMin',+this.value)"))}
+    ${row('تأخير بسيط',fmt(st.att.late,2),inp(g+1,"setBand('graceMin',+this.value-1)"),inp(l,"setBand('lateMax',+this.value)"))}
+    ${row('تأخير كبير',fmt(st.att.vlate,2),inp(l+1,"setBand('lateMax',+this.value-1)"),inp(v,"setBand('vlateMax',+this.value)"))}
+    ${row('تأخير فوق الحد',fmt(st.att.xlate??0,2),inp(v+1,"setBand('vlateMax',+this.value-1)"),'<span class="muted">وأكتر</span>')}
+  </tbody></table></div>
+  <div class="small muted" style="margin-top:6px">كل موظف بيتحسب على ميعاد ورديته هو في شيت البصمة. «فوق الحد» = حاضر (مش غياب) ونجوم بصمته ${fmt(st.att.xlate??0)}. لما تغيّر «من» فترة، «لحد» اللي قبلها بيتظبط لوحده.</div>`;}
+function setBand(key,val){const st=S.settings;const b={graceMin:+st.graceMin,lateMax:+st.lateMax,vlateMax:+(st.vlateMax??60)};b[key]=val;
+  if(!(Number.isFinite(val)&&val>=0&&b.graceMin<b.lateMax&&b.lateMax<b.vlateMax)){toast('الفترات لازم تكون ورا بعض: في ميعاده < بسيط < كبير');render();return;}
+  setS(key,val);render();}
 function setS(path,v,reason){OLD_VAL=JSON.parse(JSON.stringify(path==='bonusAt100'?{bonusAt100:S.settings.bonusAt100}:S.settings));const ks=path.split('.');let o=S.settings;while(ks.length>1)o=o[ks.shift()];o[ks[0]]=v;save();RANK_CACHE=null;const p=path==='bonusAt100'?push('private',{},{bonusAt100:v}):(({bonusAt100,...pub})=>push('settings',reason?{reason,path}:{path},pub))(S.settings);p.then(r=>{if(r!==false)toast('اتحفظ');});}
 function editUser(name){
   const u=name?S.users.find(x=>x.username===name):{username:'',name:'',role:'shift',branch:branches()[0],shift:'Morning',depts:[],active:true};

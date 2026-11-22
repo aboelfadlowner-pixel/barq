@@ -118,6 +118,12 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     });
     eq(r, [['2026-11-01', '2026-11-05', '2026-11-30', true, false], [true, true, true, 0.75], true, [false, '[2,1,2,1,2]'], '[2,2,2,1,2]']);
   });
+  test('فترات التأخير: «من / لحد» لكل حالة مربوطة ببعض، والترتيب الغلط مبيتحفظش', async () => {
+    await as(OPS); await p.evaluate(() => go('settings'));
+    eq(await p.evaluate(() => { const k = { ...S.settings }; setBand('lateMax', 20); const a = [S.settings.graceMin, S.settings.lateMax, S.settings.vlateMax]; setBand('vlateMax', 15);
+      const r = [a, S.settings.vlateMax, attFromTime({ shift: 'Morning' }, '09:21'), attFromTime({ shift: 'Morning' }, '09:20')]; Object.assign(S.settings, k); render(); return r; }),
+      [[10, 20, 60], 60, 'vlate', 'late']);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
