@@ -8,7 +8,7 @@ declare e najm_employees; u najm_users; m text := to_char(now() at time zone 'Af
   ip text := split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1);
 begin
   select * into e from public.najm_emp_auth(p_code, p_pin);
-  if e.code is null then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
+  if e.code is null or not public.najm_emp_has_pin(e.code) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;   -- التصويت بالرقم السري بس
   if coalesce(length(p_device),0) < 16 then return jsonb_build_object('ok', false, 'error', 'device'); end if;
   select * into u from najm_users where username = p_manager and active and role not in ('ops','hygiene') and (branch is null or branch = e.branch);
   if u.username is null then return jsonb_build_object('ok', false, 'error', 'manager'); end if;

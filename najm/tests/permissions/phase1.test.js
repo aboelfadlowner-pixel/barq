@@ -360,6 +360,25 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     ok(late ? ['off', 'abs'].includes(sb) : sb === null, 'today no-show: ' + sb + ' late=' + late);
   });
 
+  test('الموظف بيدخل بكود البصمة بس — والرقم السري لو التشغيل حطه بس، وهو اللي بيفتح التصويت والاعتراض', async () => {
+    const c = (await db.query("select code from najm_employees e where branch=$1 and active and not exists (select 1 from najm_emp_pins p where p.code=e.code) and not exists (select 1 from najm_users u where u.emp_code=e.code) order by code limit 1 offset 40", [B])).rows[0].code;
+    const login = async pin => (await rpc('select najm_login_any($1,$2) r', [c, pin])).r;
+    const r = await login('');
+    eq([r.kind, r.code, r.has_pin], ['emp', c, false]);
+    eq((await rpc('select najm_emp_appeal($1,$2,$3,$4) r', [c, '', 'x', 'سبب'])).r.error, 'najm: PIN required');
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', [c, '', 'device-0123456789abcdef', 'br'])).r.error, 'pin');
+    eq((await rpc('select najm_emp_set_pin($1,$2,$3) r', [c, '', '1234'])).r.error, 'najm: PIN required');
+    // التشغيل بيحط رقم ← لازم في الدخول
+    await save('ops', '0000', 'emp_pin', { code: c }, { pin: '4321' });
+    eq((await login('')).error, 'najm: wrong code or PIN');
+    eq([(await login('4321')).kind, (await login('4321')).has_pin], ['emp', true]);
+    // وبيتشال ← يرجع بالكود بس
+    await save('ops', '0000', 'emp_pin', { code: c }, null);
+    eq((await login('')).kind, 'emp');
+    // المدير لسه لازم رقمه
+    eq((await rpc('select najm_login_any($1,$2) r', ['br', ''])).r.error, 'najm: wrong code or PIN');
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

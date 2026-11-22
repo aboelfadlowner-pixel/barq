@@ -10,9 +10,9 @@ async function openLogin(){
 }
 function loginFields(big){const fs=big?'font-size:20px;':'';
   return `<label>كود البصمة<br><input class="inp" id="l_id" inputmode="numeric" style="width:100%;${fs}" autocomplete="username"></label><br><br>
-    <label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%;${fs}" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
+    <label>الرقم السري <span class="muted small">(للمديرين — والموظف لو مدير التشغيل اداله رقم)</span><br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%;${fs}" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
     <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>
-    <div class="small muted" style="margin-top:10px">الرقم السري بتاخده من مدير التشغيل أول مرة. 5 محاولات غلط ← الحساب بيتقفل 15 دقيقة.</div>`;}
+    <div class="small muted" style="margin-top:10px">الموظف بيدخل بكود البصمة بس. 5 محاولات رقم سري غلط ← الحساب بيتقفل 15 دقيقة.</div>`;}
 function empLoginForm(title,desc){
   return `<div class="card login" style="max-width:520px;margin:20px auto"><h2>${title}</h2><div class="muted" style="margin-bottom:10px">${desc}</div>${loginFields(true)}</div>`;
 }
@@ -21,13 +21,13 @@ const localEmpPin=c=>S.empPins?.[c];
 async function doLogin(){
   // لو المتصفح كتب «85 — الاسم» في خانة الكود، بناخد الكود بس
   const id=$('#l_id').value.split(/[—–-]/)[0].trim(),pin=$('#l_pin').value.trim();
-  if(!id||!pin){toast('اكتب الكود والرقم السري');return;}
+  if(!id){toast('اكتب كود البصمة');return;}
   const bad='الكود أو الرقم السري غلط — بعد 5 محاولات غلط الحساب بيتقفل 15 دقيقة';
   let r;
   if(LIVE){try{r=await sbRpc('najm_login_any',{p_id:id,p_pin:pin});}catch(x){toast(/wrong code/.test(x.message)?bad:'⚠️ مش قادر أوصل لقاعدة البيانات');return;}}
   else{const u=S.users.find(x=>x.active!==false&&(x.username===id.toLowerCase()||(x.emp_code&&x.emp_code===id)));
     if(u)r=u.pin===pin?{kind:'mgr',...u}:null;
-    else{const p=localEmpPin(id),e=emp(id);r=e&&e.active&&p&&p.pin===pin?{kind:'emp',code:id,must_change:!!p.must}:null;}}
+    else{const p=localEmpPin(id),e=emp(id);r=e&&e.active&&(!p||p.pin===pin)?{kind:'emp',code:id,must_change:!!p?.must,has_pin:!!p}:null;}}
   if(!r){toast(bad);return;}
   closeModal();
   if(r.kind==='mgr'){
@@ -38,11 +38,11 @@ async function doLogin(){
     if(LIVE){toast('⏳ بنحمّل بيانات فريقك…');await refresh();await seedEmployeesIfEmpty();}
     render();toast('أهلاً '+r.name);return;
   }
-  ME=String(r.code);MEPIN=pin;meSave();VIEW='me';
+  ME=String(r.code);MEPIN=pin;ME_HASPIN=!!r.has_pin;meSave();VIEW='me';
   if(LIVE){toast('⏳ بنجهّز صفحتك…');await refresh(true);}render();
   if(r.must_change)meChangePin(true);
 }
-function meLogout(){ME=null;MEPIN=null;meSave();VOTER=null;VIEW='dash';render();}
+function meLogout(){ME=null;MEPIN=null;ME_HASPIN=false;meSave();VOTER=null;VIEW='dash';render();}
 async function meChangePin(first){
   const p=await askText(first?'أول مرة: اختار رقم سري جديد ليك (4 لـ 6 أرقام)':'الرقم السري الجديد (4 لـ 6 أرقام)');if(p===null)return;const np=p.trim();
   if(!/^\d{4,6}$/.test(np)){toast('الرقم السري لازم يكون من 4 لـ 6 أرقام');return meChangePin(first);}
