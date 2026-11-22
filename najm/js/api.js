@@ -8,7 +8,7 @@ function defaultState(){
     v:2,
     settings:{
       att:{on:2, late:1.2, vlate:0.4, xlate:0, abs:0},
-      shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'},
+      shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'}, betweenTo:'16:00',   // Between فترة: أي بداية بين shiftStart.Between و betweenTo
       graceMin:10, lateMax:30, vlateMax:60, finalists:4, winnersPerShift:2,
       capPct:120, complaintPenalty:50, bonusAt100:0, defaultMultiplier:2,
       freshDepts:['قسم البقاله'],

@@ -8,4 +8,5 @@ const toMin=t=>{const m=String(t).match(/(\d{1,2}):(\d{2})/);if(!m)return null;l
 function attFromDiff(d){const s=S.settings;const vm=s.vlateMax==null||s.vlateMax===''?null:+s.vlateMax;
   return d<=s.graceMin?'on':d<=s.lateMax?'late':vm==null||d<=vm?'vlate':'xlate';}
 function attFromShift(shiftT,inT){const a=toMin(shiftT),b=toMin(inT);if(a==null||b==null)return null;let d=b-a;if(d<-720)d+=1440;if(d>720)d-=1440;return attFromDiff(d);}
-function attFromTime(e,tm){return attFromDiff(toMin(tm)-toMin(S.settings.shiftStart[e.shift]||'09:00'));}
+// من غير ميعاد وردية في الشيت: الـ Between فترة، فالتأخير بيتحسب بعد آخرها
+function attFromTime(e,tm){const st=e.shift==='Between'?(S.settings.betweenTo||S.settings.shiftStart.Between):S.settings.shiftStart[e.shift];return attFromDiff(toMin(tm)-toMin(st||'09:00'));}
