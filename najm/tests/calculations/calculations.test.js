@@ -62,6 +62,28 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [Math.round(dayPts(m) * 10) / 10, a.kpiPts, a.kpiMoney, b.kpiPts < a.kpiPts - 38, b.kpiMoney, b.monthScore < 100];
     }), [19.2, 514, 500, true, 472, true]);
   });
+  test('شيت الحضور الشهري: بياخد الكود والوردية والدخول والإجازة بس، والراحة أول يوم غياب في الأسبوع', async () => {
+    eq(await p.evaluate(() => {
+      const keep = DATE; DATE = '2026-11-30';
+      const code = activeEmps()[0].code;
+      const H = ['اليوم', 'التاريخ', 'ايام الحضور', 'اجازة مدفوعة', 'نوع الاجازه', 'بدل الأجازه', 'جزاء غياب بدون اذن', 'معاد الورديه', 'س الدخول', 'س الخروج'];
+      const row = (dd, leave, shift, inT) => ['Day', dd + '/11/2026', '', '', leave, '4545454', '6363636', shift, inT, ''];
+      const rows = [['الكود', code, 'الاسم'], ['الراتب الاساسي', '7171717', 'بدل متغير kpi', '5252525'], H,
+        row(7, '', '8:00 AM', '8:05 AM'),      // سبت: في ميعاده (سماح)
+        row(8, '', '7:00 AM', '7:25 AM'),      // تأخير بسيط
+        row(9, '', '5:00 PM', '6:10 PM'),      // تأخير كبير
+        row(10, '', '11:00 PM', '12:05 AM'),   // وردية بعد نص الليل: ساعة و5 دقايق = تأخير كبير
+        row(11, 'مرضي', '8:00 AM', ''),        // إجازة
+        row(12, '', '8:00 AM', ''),            // من غير بصمة: راحة الأسبوع
+        row(13, '', '8:00 AM', ''),            // من غير بصمة تاني نفس الأسبوع: غياب
+        row(14, '', '8:00 AM', '8:00 AM'),     // أسبوع جديد
+        row(20, '', '8:00 AM', ''),            // آخر يوم في الملف فيه بصمة = 14 ← ده بيتشال
+        ['الاجمالى'], ['الكود', '99999999', 'الاسم'], ['اليوم'], H, row(7, '', '8:00 AM', '8:00 AM')];
+      const P = parseMonthSheet(rows); DATE = keep;
+      const st = Object.fromEntries(P.recs.filter(r => r.code === code).map(r => [r.day.slice(8), r.st]));
+      return [st, P.unknown, P.rest, P.to, isMonthSheet(rows), ['7171717', '5252525', '4545454', '6363636'].some(x => JSON.stringify(P).includes(x))];
+    }), [{ '07': 'on', '08': 'late', '09': 'vlate', '10': 'vlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' }, ['99999999'], 1, '2026-11-14', true, false]);
+  });
   test('نجمة الهايجين (اللبس) من البنود المطلوبة بس', async () => {
     eq(await p.evaluate(() => [hyScore([2, -1, -1, -1, -1]), hyScore([2, 2, 2, 2, 0]), hyScore([1, -1, 2, -1, -1]), hyScore([2, -1, null, -1, -1]), hyScore([-1, -1, -1, -1, -1])]), [1, 0.75, 0.75, null, null]);
   });

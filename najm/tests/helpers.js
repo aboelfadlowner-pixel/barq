@@ -44,7 +44,7 @@ async function openApp(b, { query = '?demo=1', supabase = null, viewport = { wid
 // ---- local Postgres built from db/ (same order as production)
 const DB_FILES = [
   ...require('fs').readdirSync(path.resolve(__dirname, '../db/migrations')).filter(f => f.endsWith('.sql')).sort().map(f => 'migrations/' + f),
-  'functions/auth.sql', 'functions/close.sql', 'functions/employees.sql', 'functions/scoring.sql', 'functions/save.sql',
+  'functions/auth.sql', 'functions/close.sql', 'functions/attendance.sql', 'functions/employees.sql', 'functions/scoring.sql', 'functions/save.sql',
   'functions/league.sql', 'functions/votes.sql', 'functions/payouts.sql',
   'policies/rls.sql', 'policies/storage.sql',
   'seed/defaults.sql',
@@ -52,6 +52,7 @@ const DB_FILES = [
 const SUPABASE_STUB = `
 do $$ begin create role anon; exception when others then null; end $$;
 do $$ begin create role authenticated; exception when others then null; end $$;
+do $$ begin create role service_role; exception when others then null; end $$;
 create schema if not exists storage;
 create table if not exists storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 create table if not exists storage.objects(id serial, bucket_id text, name text);

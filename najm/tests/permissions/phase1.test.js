@@ -225,6 +225,64 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await rpc('select najm_payout_log($1,$2) r', ['br', '1111'])).r.error, 'najm: operations manager only');
   });
 
+  test('شيت الحضور الشهري: مدير التشغيل بس، بيحفظ مرة واحدة، والحالات المسموحة بس', async () => {
+    const rows = [{ day: ago(3), code: '125', st: 'on', time: '8:00 AM' }, { day: ago(3), code: '4', st: 'abs', time: null }, { day: ago(3), code: 'nope', st: 'on' }];
+    await fails(save('br', '1111', 'att_bulk', { reason: 'x' }, rows), /operations manager only/);
+    await fails(save('ops', '0000', 'att_bulk', { reason: 'x' }, [{ day: ago(3), code: '125', st: 'bad' }]), /bad attendance status/);
+    const r = await save('ops', '0000', 'att_bulk', { reason: 'شيت الحضور الشهري' }, rows);
+    eq(r.saved, 2);
+    eq((await db.query('select att, att_time from najm_ratings where day=$1 and code=$2', [ago(3), '125'])).rows[0], { att: 'on', att_time: '8:00 AM' });
+    const h = (await db.query("select data from najm_history where kind='att_bulk' order by id desc limit 1")).rows[0].data;
+    eq([h.data.saved, h.data.rows], [2, 3]);
+  });
+
+  // ---------------- التحديث اليومي للبصمة من الـ Drive
+  test('التحديث اليومي من الـ Drive: الحكم من ميعاد الوردية، الراحة والغياب، والتعديل اليدوي مبيتكتبش فوقه', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 1 offset 9", [B])).rows[0].code;
+    const base = '2026-03-'; const R = (d, shift, tin, leave) => ({ code: x, day: base + d, shift, in: tin, leave: leave || '' });
+    // 7 مارس 2026 سبت
+    const rows = [R('07', '8:00 AM', '8:05 AM'), R('08', '7:00 AM', '7:25 AM'), R('09', '5:00 PM', '6:10 PM'), R('10', '11:00 PM', '12:05 AM'),
+      R('11', '8:00 ص', '', 'مرضي'), R('12', '8:00 AM', ''), R('13', '8:00 AM', ''), R('14', '8:00 AM', '7:59 AM'), R('20', '8:00 AM', ''),
+      { code: '88888888', day: base + '07', shift: '8:00 AM', in: '8:00 AM', leave: '' }];
+    await fails(asAnon(db, 'select najm_att_sync($1,$2)', [JSON.stringify(rows), 'x']), /permission denied/);
+    const r = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv-03-2026'])).rows[0].r;
+    const st = Object.fromEntries((await db.query("select to_char(day,'DD') d, att, att_src from najm_ratings where code=$1 and day between '2026-03-01' and '2026-03-31' order by day", [x])).rows.map(r => [r.d, r.att]));
+    eq(st, { '07': 'on', '08': 'late', '09': 'vlate', '10': 'vlate', '11': 'off', '12': 'off', '13': 'abs', '14': 'on' });
+    eq([r.to, r.unknown], ['2026-03-14', ['88888888']]);
+    // مدير التشغيل عدّل يوم الغياب بإيده ← التحديث الجاي مبيرجّعهوش
+    await save('ops', '0000', 'att', { day: base + '13', code: x, reason: 'كان في مأمورية' }, { st: 'on' });
+    const r2 = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv-03-2026'])).rows[0].r;
+    eq([(await db.query("select att, att_src from najm_ratings where code=$1 and day='2026-03-13'", [x])).rows[0].att, r2.manual_kept], ['on', 1]);
+    eq((await db.query("select count(*)::int n from najm_history where kind='att_sync'")).rows[0].n >= 2, true);
+  });
+  test('قارئ الشيت (tools/attendance-sheet.js): بياخد الكود والتاريخ والوردية والدخول والإجازة بس', async () => {
+    const XLSX = require('xlsx'), fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'najm-att-')); const inF = path.join(dir, 'a.xlsx'), outF = path.join(dir, 'a.json');
+    const H = ['اليوم', 'التاريخ', 'ايام الحضور', 'اجازة مدفوعة', 'نوع الاجازه', 'بدل الأجازه', 'جزاء غياب بدون اذن', 'معاد الورديه', 'س الدخول', 'س الخروج'];
+    const aoa = [['', 'o2'], ['الكود', '125', 'الاسم'], ['الراتب الاساسي', '7171717', 'بدل متغير kpi', '5252525'], H,
+      ['Sunday', '1/11/2026', '1', '', '', '4545454', '6363636', '8:00 AM', '8:03 AM', '5:00 PM'], ['Monday', '2/11/2026', '0', '', 'مرضي', '', '', '8:00 AM', '', ''], ['الاجمالى']];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'راتب11'); XLSX.writeFile(wb, inF);
+    const cF = path.join(dir, 'c.txt');
+    const info = JSON.parse(execFileSync('node', [path.resolve(__dirname, '../../tools/attendance-sheet.js'), inF, outF, '--compact', cF], { env: process.env }).toString().trim().split('\n').pop());
+    const out = JSON.parse(fs.readFileSync(outF, 'utf8')); const payload = fs.readFileSync(cF, 'utf8'); fs.rmSync(dir, { recursive: true });
+    eq([payload, info.md5 === require('crypto').createHash('md5').update(payload).digest('hex')], ['2026-11|125:3', true]);   // الأيام بعد آخر بصمة بتتشال
+    eq(out, [{ code: '125', day: '2026-11-01', shift: '8:00 AM', in: '8:03 AM', leave: '' }, { code: '125', day: '2026-11-02', shift: '8:00 AM', in: '', leave: 'مرضي' }]);
+    ok(!['7171717', '5252525', '4545454', '6363636'].some(v => (JSON.stringify(out) + payload).includes(v)), 'money columns leaked');
+  });
+  test('التحديث اليومي بالصيغة الصغيرة: md5 لازم يطابق، والحكم صح، ومن غير أوقات', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 1 offset 11", [B])).rows[0].code;
+    // 1 مارس 2026 أحد · 7 مارس سبت: 0=في ميعاده · 20=تأخير بسيط · 45=كبير · L إجازة · - راحة ثم غياب · x مش مقروء · . مفيش
+    const payload = `2026-04|${x}:0,20,45,L,-,-,0,x,.`;
+    const md5 = require('crypto').createHash('md5').update(payload).digest('hex');
+    await fails(db.query('select najm_att_sync_compact($1,$2,$3)', [payload + '1', md5, 'f']), /checksum mismatch/);
+    await fails(asAnon(db, 'select najm_att_sync_compact($1,$2,$3)', [payload, md5, 'f']), /permission denied/);
+    const r = (await db.query('select najm_att_sync_compact($1,$2,$3) r', [payload, md5, 'حضور ppv-04-2026'])).rows[0].r;
+    const st = Object.fromEntries((await db.query("select to_char(day,'DD') d, att, att_time from najm_ratings where code=$1 and day between '2026-04-01' and '2026-04-30' order by day", [x])).rows.map(r => [r.d, [r.att, r.att_time]]));
+    // 1 أبريل أربعاء: الأسبوع من السبت 28 مارس · 4 أبريل سبت = أسبوع جديد
+    eq(st, { '01': ['on', null], '02': ['late', null], '03': ['vlate', null], '04': ['off', null], '05': ['off', null], '06': ['abs', null], '07': ['on', null] });
+    eq(r.to, '2026-04-07');
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };
