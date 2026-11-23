@@ -14,7 +14,7 @@ import { esc, on } from '../utils/dom.js';
 import {
   formatAddress, formatDateTime, formatRelative, formatWeight, housingLabel, isSameWorkDay, isValidPhone, normalizePhone,
 } from '../utils/format.js';
-import { computeTotals } from '../utils/pricing.js';
+import { totalsOf } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
@@ -308,7 +308,7 @@ function mountProfile(view, customerId) {
                   <td class="col-opt">${o.items.length}</td>
                   <td class="col-opt">${esc(o.address.areaName)}</td>
                   <td class="col-opt">${esc(o.employee || '')}</td>
-                  <td>${money(computeTotals(o.items, o.deliveryFee).total)}</td>
+                  <td>${money(totalsOf(o).total)}</td>
                   <td>${orderStateChip(o)}</td>
                 </tr>`).join('') : '<tr><td colspan="7" class="table-empty">لا توجد طلبات من مركز الاتصال بعد</td></tr>'}</tbody>
             </table>

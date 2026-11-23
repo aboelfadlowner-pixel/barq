@@ -5,7 +5,7 @@ import { catalog } from '../catalog.js';
 import { getState, loadDraftFromOrder, loadDraftForEdit } from '../store.js';
 import { esc, on, copyText } from '../utils/dom.js';
 import { formatAddress, formatDateTime, formatTime, dayLabel, isSameWorkDay } from '../utils/format.js';
-import { computeTotals, lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
+import { totalsOf, discountLabel, lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from '../components/icons.js';
 import { money, statusChip, orderStateChip, totalsRows, estimateNote } from '../components/chips.js';
@@ -41,7 +41,7 @@ export function mountOrderDetails(view, orderId) {
         </div></div>`;
       return;
     }
-    const t = computeTotals(order.items, order.deliveryFee);
+    const t = totalsOf(order);
     const a = order.address;
 
     view.innerHTML = `
@@ -96,6 +96,7 @@ export function mountOrderDetails(view, orderId) {
             </div>
             <div class="details-totals">
               <div class="totals-box">${totalsRows(t, { detailed: true })}${t.estimated ? estimateNote() : ''}</div>
+              ${(order.feeRemoved > 0 || t.discount > 0) ? `<div class="adj-info"><span>💸</span><div><strong>${[order.feeRemoved > 0 ? 'رسوم التوصيل متشالة' : '', t.discount > 0 ? discountLabel(t.discountSpec) : ''].filter(Boolean).join(' + ')}</strong><div class="muted">السبب: ${esc(order.adjustReason || '—')}${order.adjustBy ? ` · ${esc(order.adjustBy)}` : ''}${order.adjustAt ? ` · ${esc(formatDateTime(order.adjustAt))}` : ''}</div></div></div>` : ''}
             </div>
           </div>
 

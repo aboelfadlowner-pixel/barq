@@ -14,7 +14,7 @@ import { esc, on } from '../utils/dom.js';
 import { formatRelative, formatTime, formatWeight, housingLabel, inWorkDay } from '../utils/format.js';
 import { icon } from '../components/icons.js';
 import { confirmDialog, openModal, showToast } from '../components/modal.js';
-import { modifiersText } from '../utils/pricing.js';
+import { modifiersText, adjustLines } from '../utils/pricing.js';
 import { getState } from '../store.js';
 import { askRemove, askReplace, askWeight } from '../components/prep-adjust.js';
 
@@ -139,6 +139,7 @@ function prepCard(o, busy, checks = {}) {
       </div>` : ''}
       <ul class="po-items">${o.items.map((it, i) => itemLine(it, i, o, checks, canTick)).join('')}</ul>
       ${o.note ? `<div class="po-note">${icon('note')}<span>${esc(o.note)}</span></div>` : ''}
+      ${adjustLines(o).map((x) => `<div class="po-adjust po-adjust-${x.kind}"><span class="po-adj-ico">${x.kind === 'fee' ? '🚚' : '💸'}</span><div><strong>${esc(x.text)}</strong>${x.reason ? `<div class="muted">${esc(x.reason)}</div>` : ''}</div></div>`).join('')}
       ${a.areaName === PICKUP && a.street === PICKUP ? `<div class="po-addr">${icon('home')}<div><strong>العميل هيستلم من الفرع</strong></div></div>` : `
       <div class="po-addr">${icon('pin')}<div><strong>${esc(a.areaName)}</strong> · ${esc(a.street)}
         ${housingLabel(a.housingType) ? ` · ${esc(housingLabel(a.housingType))}` : ''}${a.notes ? `<div class="muted">${esc(a.notes)}</div>` : ''}</div></div>`}
