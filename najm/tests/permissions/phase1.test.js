@@ -442,6 +442,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await db.query('select photo_pos from najm_employees where code=$1', [c])).rows[0].photo_pos, null);
   });
 
+  test('المدير مبيتقيّمش (اللي ليه حساب مدير)، ومدير الفريش من غير أقسام بيشوف أقسام الفريش من الإعدادات', async () => {
+    const m = (await db.query("select emp_code from najm_users where role='branch' and coalesce(emp_code,'')<>'' limit 1")).rows[0]?.emp_code;
+    if (m) { await fails(save('ops', '0000', 'pray', { day: D, code: m, reason: 'x' }, { v: 1 }), /managers are not rated/);
+             await fails(save('ops', '0000', 'bonus', { day: D, code: m, reason: 'x' }, { v: 0.5, note: 'x' }), /managers are not rated/); }
+    await save('ops', '0000', 'user', { username: 'fr1' }, { name: 'فريش', role: 'fresh', branch: B, pin: '5151', depts: [] });
+    const g = (await db.query("select code from najm_employees where branch=$1 and active and dept='قسم البقاله' and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') limit 1", [B])).rows[0].code;
+    const o = (await db.query("select code from najm_employees where branch=$1 and active and dept<>'قسم البقاله' limit 1", [B])).rows[0].code;
+    await fails(save('fr1', '5151', 'rate', { day: D, code: o }, [2, 2, 2, 2]), /outside your scope/);
+    await save('fr1', '5151', 'rate', { day: D, code: g }, [2, 2, 2, 2]);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

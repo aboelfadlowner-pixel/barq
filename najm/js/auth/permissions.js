@@ -1,15 +1,20 @@
 // نجم أبو الفضل — الصلاحيات: مين يشوف ويقيّم مين، وقفل اليوم
+// مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
+const freshDepts=u=>(u?.depts&&u.depts.length)?u.depts:(S.settings.freshDepts||[]);
+// اللي ليه حساب مدير مبيتقيّمش (المدير بيقيّم موظفين) — بيفضل في رجل اليوم والعامل المثالي
+const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code));
+const ratable=e=>!isMgrEmp(e.code);
 function inScope(e){
   if(!USER) return false; if(USER.role==='ops') return true;
   if(USER.branch&&e.branch!==USER.branch) return false;
   if(USER.role==='shift'&&shiftGroup(e.shift)!==shiftGroup(USER.shift)) return false;   // Between مع الليل
-  if(USER.role==='fresh'&&!(USER.depts||[]).includes(e.dept)) return false;
+  if(USER.role==='fresh'&&!freshDepts(USER).includes(e.dept)) return false;
   return true;
 }
 function deptInScope(branch,dept){
   if(!USER) return false; if(USER.role==='ops') return true;
   if(USER.branch&&branch!==USER.branch) return false;
-  if(USER.role==='fresh'&&!(USER.depts||[]).includes(dept)) return false;
+  if(USER.role==='fresh'&&!freshDepts(USER).includes(dept)) return false;
   return true;
 }
 // ---------- Rating (managers) ----------

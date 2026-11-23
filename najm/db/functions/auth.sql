@@ -49,7 +49,9 @@ returns boolean language sql stable security definer set search_path = public as
     else exists (select 1 from najm_employees e where e.code = p_code
       and (u.branch is null or e.branch = u.branch)
       and (u.role <> 'shift' or public.najm_shift_group(e.shift) = public.najm_shift_group(u.shift))
-      and (u.role <> 'fresh' or e.dept = any (coalesce(u.depts, array[]::text[])))) end;
+      -- مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
+      and (u.role <> 'fresh' or e.dept = any (case when coalesce(array_length(u.depts, 1), 0) > 0 then u.depts
+            else array(select jsonb_array_elements_text(coalesce((select data->'freshDepts' from najm_settings where id = 1), '["قسم البقاله"]'::jsonb))) end))) end;
 $$;
 
 revoke all on function public.najm_in_scope(public.najm_users, text) from public, anon, authenticated;

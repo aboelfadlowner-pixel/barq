@@ -20,7 +20,7 @@ function closeBarHTML(){
     <div class="small muted" style="margin-top:6px">مفتوح: بتقيّم ← مراجعة: سلّمت يومك والتقييم اتقفل عليك ← اعتماد رجل اليوم: مدير التشغيل بيختار ← مغلق: أي تعديل بعد كده لمدير التشغيل بس بسبب. التأخير في التسليم بيتخصم منك تلقائي (${closeOn()?`−${fmt(S.settings.lateClosePenalty)} نقطة`:'الخصم لسه مش شغال — مدير التشغيل بيحدد تاريخ البداية'}).</div></div>`;
 }
 async function closeDay(gk){
-  const L=filtered(true).filter(e=>groupKey(e)===gk);const D=peekDay(DATE);const field=RATE_FIELD[USER.role];
+  const L=filtered(true).filter(ratable).filter(e=>groupKey(e)===gk);const D=peekDay(DATE);const field=RATE_FIELD[USER.role];
   const miss=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off'&&!rateDone(DATE,field,e.code)).length;
   if(!await askConfirm(`تسليم يوم ${DATE} — ${gk.replace('|',' · ')} للمراجعة؟${miss?` (فاضل ${miss} موظف ماكملتش تقييمهم)`:''} بعد التسليم مش هتقدر تعدّل.`))return;
   const now=new Date();const dl=closeDeadline(DATE,gk);const lateM=minsLate(now,dl);

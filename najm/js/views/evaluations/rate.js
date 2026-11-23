@@ -1,7 +1,7 @@
 // نجم أبو الفضل — تاب تقييم اليوم (المديرين والهايجين)
 function vRate(){
   if(isCam())return vRateCams();
-  const list=filtered(true);const D=peekDay(DATE);const field=isOps()?null:RATE_FIELD[USER.role];
+  const list=filtered(true).filter(ratable);const D=peekDay(DATE);const field=isOps()?null:RATE_FIELD[USER.role];
   /* البصمة من الشيت — المديرين بيشوفوها بس، والتشغيل بيعدّل استثناء بسبب */const canAtt=isOps();const CL=critList(USER.role);const withPray=hasPrayItem();
   const off=e=>D.att[e.code]==='abs'||D.att[e.code]==='off';
   const left=field?list.filter(e=>!dayLocked(e)&&!off(e)&&!rateDone(DATE,field,e.code)):[];
@@ -50,7 +50,7 @@ function camRowsHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];
 function camSummaryHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];if(pv==null&&bv==null)return '<div class="small muted">📹 الكاميرات: لسه ماتقيّمش</div>';
   return `<div class="small">📹 الكاميرات: الصلاة <b>${pv==null?'—':pv?'صلّى':'ماصلّاش'}</b> · البريك <b>${bv==null?'—':bv?'التزم':'كسر البريك'}</b></div>`;}
 function vRateCams(){
-  const D=peekDay(DATE);const list=filtered(true).filter(camPresent);
+  const D=peekDay(DATE);const list=filtered(true).filter(ratable).filter(camPresent);
   const left=list.filter(e=>!dayLocked(e)&&(D.pray?.[e.code]==null||D.brk?.[e.code]==null));
   return `<div class="sec-title"><h2>الكاميرات — يوم ${esc(DATE)}</h2><div class="row"><button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
   <div class="card" style="margin-bottom:10px;border-color:var(--red);background:var(--red-soft)"><b>⚠️ تنبيه</b><div class="small" style="margin-top:4px">${CAM_NOTE}</div></div>
@@ -87,7 +87,7 @@ function dropCarry(D,code,f){const c=D.carry?.[code];if(c){const n=c.filter(x=>x
 // نفس التقييم للدورة الجديدة (مش إجباري — من غيره التقييم القديم بيفضل مكمّل)
 async function confirmRate(code){const k=await editKey(code);if(!k)return;const f=RATE_FIELD[USER.role];const a=rateOf(DATE,f,code,true).arr;if(!a)return;const D=day(DATE);mark(D,code);OLD_VAL=[...a];
   const a4=a.slice(0,critLen());D[f][code]=[...a4];dropCarry(D,code,f);save();render();if(await push('rate',k,a4)!==false)toast('✔ اتأكد التقييم');}
-async function confirmRates(){const f=RATE_FIELD[USER.role];const L=filtered(true).filter(e=>!dayLocked(e)&&peekDay(DATE).att[e.code]!=='abs'&&peekDay(DATE).att[e.code]!=='off'&&rateStale(DATE,f,e.code));if(!L.length)return;
+async function confirmRates(){const f=RATE_FIELD[USER.role];const L=filtered(true).filter(ratable).filter(e=>!dayLocked(e)&&peekDay(DATE).att[e.code]!=='abs'&&peekDay(DATE).att[e.code]!=='off'&&rateStale(DATE,f,e.code));if(!L.length)return;
   if(!await askConfirm(`تأكيد نفس التقييم لـ ${L.length} موظف في الدورة دي؟ (أي حد اتغير عدّله الأول)`))return;
   if(isOps()&&L.some(opsClosed)&&!await opsReason())return;
   const D=day(DATE);const items=L.map(e=>({e,a:[...rateOf(DATE,f,e.code,true).arr].slice(0,critLen())}));for(const {e,a} of items){mark(D,e.code);D[f][e.code]=a;dropCarry(D,e.code,f);}save();render();
