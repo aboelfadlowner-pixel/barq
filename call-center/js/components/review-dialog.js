@@ -1,10 +1,10 @@
 /* Order review before confirmation. Re-renders live if the draft changes. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
-import { bind, getState, setOrderNote, resetDraft, currentDeliveryFee } from '../store.js';
+import { bind, getState, setOrderNote, resetDraft, draftTotals } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress } from '../utils/format.js';
-import { computeTotals, lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
+import { lineTotal, quantityLabel, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { openModal, showToast } from './modal.js';
@@ -28,7 +28,7 @@ export function openReviewDialog() {
   let saving = false;
 
   const render = (_, s) => {
-    const t = computeTotals(s.cart, currentDeliveryFee(s));
+    const t = draftTotals(s);
     const missing = missingFields(s);
     const area = s.address ? catalog.areasById.get(s.address.areaId) : null;
 
@@ -123,10 +123,10 @@ export function openReviewDialog() {
     btn.innerHTML = `${icon('check')}جارٍ الحفظ…`;
     try {
       const order = s.editing
-        ? await ds.editOrder({ orderId: s.editing.orderId, cart: s.cart, address: s.address, orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType })
+        ? await ds.editOrder({ orderId: s.editing.orderId, cart: s.cart, address: s.address, orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType, adjust: s.adjust })
         : await ds.createOrder({
           requestId: s.requestId, cart: s.cart, customer: s.customer, address: s.address,
-          orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType,
+          orderNote: s.orderNote.trim(), agent: s.agent, orderType: s.orderType, adjust: s.adjust,
         });
       m.close();
       resetDraft();

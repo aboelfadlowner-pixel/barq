@@ -7,7 +7,7 @@
  * ===================================================================== */
 import * as mock from './mock-data.js';
 import { normalizePhone, isSameWorkDay, workDayIso } from '../utils/format.js';
-import { computeTotals, lineTotal } from '../utils/pricing.js';
+import { totalsOf, lineTotal } from '../utils/pricing.js';
 
 const clone = (v) => structuredClone(v);
 const resolve = (v) => Promise.resolve(clone(v));
@@ -261,7 +261,7 @@ export function orderLog({ from = null, to = null, status = '', agents = [], q =
     && (!text || o.number.toLowerCase().includes(text) || o.customer.name.toLowerCase().includes(text)
       || (digits.length >= 3 && normalizePhone(o.customer.phone).includes(digits))));
   const live = list.filter((o) => o.status !== 'cancelled');
-  return resolve({ count: list.length, sum: live.reduce((t, o) => t + computeTotals(o.items, o.deliveryFee).total, 0),
+  return resolve({ count: list.length, sum: live.reduce((t, o) => t + totalsOf(o).total, 0),
     cancelled: list.length - live.length, orders: list.slice(offset, offset + limit) });
 }
 
@@ -276,7 +276,7 @@ export const getBackup = () => backupExport();
 export const backupExport = () => resolve({
   made_at: new Date().toISOString(),
   orders: orders.map((o) => ({ order_no: o.number, created_at: o.createdAt, status: o.status, customer_name: o.customer.name,
-    customer_phone: o.customer.phone, area_name: o.address.areaName, street: o.address.street, total: computeTotals(o.items, o.deliveryFee).total,
+    customer_phone: o.customer.phone, area_name: o.address.areaName, street: o.address.street, total: totalsOf(o).total,
     delivery_fee: o.deliveryFee, agent_name: o.employee })),
   order_items: orders.flatMap((o) => o.items.map((it) => ({ order_no: o.number, product_name: it.name, qty: it.qty ?? null, weight_grams: it.grams ?? null }))),
   customers: customers.map((c) => ({ name: c.name, phone: c.phones[0], phone2: c.phones[1] || null })),
@@ -829,7 +829,7 @@ export function deliveryReport(from, to) {
     .sort((a, b) => b.outAt.localeCompare(a.outAt))
     .map((o) => ({ id: o.id, number: o.number, createdAt: o.createdAt, areaName: o.address.areaName, atCashierAt: o.atCashierAt,
       outAt: o.outAt, driverId: o.driverUserId ?? null, driver: o.driver || '', tripId: o.tripId ?? null, ...deliveryOf(o),
-      total: o.total ?? computeTotals(o.items, o.deliveryFee ?? 0).total, deliveryFee: o.deliveryFee ?? 0 })));
+      total: o.total ?? totalsOf(o).total, deliveryFee: o.deliveryFee ?? 0 })));
 }
 export const photoUrl = (path) => resolve(path);
 export const listPhones = () => resolve(new Map(staff.filter((s) => s.phone).map((s) => [s.id, s.phone])));
@@ -841,7 +841,20 @@ export function ackEdit(orderId) {
 }
 
 /* Edit (demo): same rules as the database — until «على الكاشير»; kept lines keep their price. */
-export function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery' }) {
+/* 48: «خصم» + «بدون رسوم توصيل» of a draft → what the order keeps (the reason is required). */
+function checkAdjust(adjust, cart) {
+  const a = adjust || {};
+  const discount = a.discount && a.discount.value > 0 ? { kind: a.discount.kind === 'percent' ? 'percent' : 'amount', value: Number(a.discount.value) } : null;
+  const noFee = !!a.noFee;
+  if (discount) {
+    const sub = totalsOf({ items: cart, deliveryFee: 0 }).subtotal;
+    if (discount.kind === 'percent' && discount.value > 100) return { error: 'نسبة الخصم غير صحيحة' };
+    if (discount.kind === 'amount' && discount.value > sub) return { error: 'الخصم أكبر من أصناف الطلب' };
+  }
+  return { discount, noFee };
+}
+
+export function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery', adjust = null }) {
   const o = orders.find((x) => x.id === orderId);
   if (!o) return Promise.reject(new Error('الطلب غير موجود'));
   if (o.status === 'cancelled') return Promise.reject(new Error('هذا الطلب ملغي ولا يمكن تعديله'));
@@ -871,6 +884,12 @@ export function editOrder({ orderId, cart, address, orderNote, agent, orderType 
     || (address.housingType || '') !== (o.address.housingType || '') || (address.notes || '') !== (o.address.notes || ''));
   if (addrChanged && !wasPickup) changes.push({ kind: 'address', name: 'العنوان', to: { area: area?.name, street: address.street } });
   if ((orderNote || '') !== (o.note || '')) changes.push({ kind: 'order_note', name: 'ملاحظات الطلب', to: orderNote || '' });
+  // 48: «خصم» / «بدون رسوم توصيل»
+  const adj = checkAdjust(adjust, cart);
+  if (adj.error) return Promise.reject(new Error(adj.error));
+  const dSame = JSON.stringify(o.discount ?? null) === JSON.stringify(adj.discount);
+  if (!dSame) changes.push({ kind: 'discount', name: 'الخصم', to: adj.discount ? (adj.discount.kind === 'percent' ? `${adj.discount.value}%` : `${adj.discount.value} ج.م`) : 'اتشال' });
+  if (!!o.feeRemoved !== adj.noFee) changes.push({ kind: 'fee_off', name: 'رسوم التوصيل', to: adj.noFee ? 'متشالة' : 'رجعت' });
   if (!changes.length) return Promise.reject(new Error('لا يوجد أي تغيير في الطلب'));
   o.items = priced.map(({ lineId, ...l }) => ({ ...l, price: oldBy.get(l.productId)?.price ?? l.price }));
   if (pickup) Object.assign(o, { type: 'pickup', deliveryFee: 0, address: { id: null, label: 'استلام من الفرع', areaId: null, areaName: 'استلام من الفرع', street: 'استلام من الفرع', housingType: '', notes: '' } });
@@ -881,6 +900,12 @@ export function editOrder({ orderId, cart, address, orderNote, agent, orderType 
     o.type = 'delivery';
   }
   o.note = orderNote || '';
+  // the fee taken off, or put back (the area's fee)
+  const areaNow = pickup ? null : areas.find((a) => a.id === o.address.areaId);
+  if (!pickup && adj.noFee) { if (!o.feeRemoved) o.feeRemoved = o.deliveryFee || areaNow?.fee || 0; o.deliveryFee = 0; }
+  else if (!pickup && o.feeRemoved) { o.deliveryFee = o.feeRemoved; o.feeRemoved = 0; }
+  if (pickup) o.feeRemoved = 0;
+  Object.assign(o, { discount: adj.discount, adjustBy: adj.discount || adj.noFee ? (agent?.name || '') : '', adjustAt: adj.discount || adj.noFee ? new Date().toISOString() : null });
   Object.assign(o, { editCount: (o.editCount || 0) + 1, editedAt: new Date().toISOString(), editedBy: agent?.name || '', editChanges: changes, editSeenAt: null });
   return resolve(o);
 }
@@ -890,7 +915,9 @@ export const getOrder = (id) => resolve(orders.find((o) => o.id === id) ?? null)
 /* DEMO ONLY — keeps the order in memory. Does not send or save anything. */
 export function createOrder(draft) {
   const { cart, customer, address, orderNote, agent } = draft;
-  const pickup = draft.orderType === 'pickup';   // 39_order_type.sql: no address, no fee
+  const pickup = draft.orderType === 'pickup';
+  const adj = checkAdjust(draft.adjust, cart);
+  if (adj.error) return Promise.reject(new Error(adj.error));   // 39_order_type.sql: no address, no fee
   if (!agent || !agents.some((a) => a.id === agent.id && a.active)) {
     return Promise.reject(new Error('اختر اسمك من قائمة الموظفين أولًا'));
   }
@@ -931,7 +958,9 @@ export function createOrder(draft) {
     paymentMethod: 'cash',
     customer: { id: cust.id, name: cust.name, phone: customer.phone, phone2: customer.phone2 || '' },
     address: pickup ? { id: null, label: 'استلام من الفرع', areaId: null, areaName: 'استلام من الفرع', street: 'استلام من الفرع', housingType: '', notes: '' } : { ...addrFields, id: addrId, areaName: area.name },
-    deliveryFee: pickup ? 0 : area.fee,
+    deliveryFee: pickup ? 0 : (adj.noFee ? 0 : area.fee),
+    feeRemoved: !pickup && adj.noFee ? area.fee : 0,
+    discount: adj.discount, adjustBy: adj.discount || adj.noFee ? agent.name : '', adjustAt: adj.discount || adj.noFee ? now : null,
     items,
     note: orderNote || '',
     status: mock.orderStatuses[0].id,
@@ -982,7 +1011,7 @@ export function report(from, to) {
   const pf = new Date(from); pf.setDate(pf.getDate() - len);
   const prevFrom = day(pf);
   const inRange = (o, a, b) => { const d = day(o.createdAt); return d >= a && d <= b; };
-  const tot = (o) => computeTotals(o.items, o.deliveryFee).total;
+  const tot = (o) => totalsOf(o).total;
   const sum = (list) => {
     const ok = list.filter((o) => o.status !== 'cancelled');
     const sales = ok.reduce((t, o) => t + tot(o), 0);
@@ -1031,7 +1060,7 @@ export function reportOps(from, to) {
   const areas = new Map(); const items = new Map(); const mods = new Map();
   for (const o of ok) {
     const a = areas.get(o.address.areaName) ?? { name: o.address.areaName || 'بدون منطقة', orders: 0, sales: 0, fees: 0 };
-    a.orders += 1; a.sales += computeTotals(o.items, o.deliveryFee).total; a.fees += o.deliveryFee || 0; areas.set(a.name, a);
+    a.orders += 1; a.sales += totalsOf(o).total; a.fees += o.deliveryFee || 0; areas.set(a.name, a);
     const seen = new Set();
     for (const it of o.items) {
       const p = items.get(it.productId) ?? { name: it.name, sku: it.productId, orders: 0, qty: 0, kg: 0, sales: 0 };

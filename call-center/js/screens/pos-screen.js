@@ -2,8 +2,7 @@
 import { bind, getState, setState } from '../store.js';
 import { discardDraft } from '../drafts-sync.js';
 import { isTypingTarget, on } from '../utils/dom.js';
-import { computeTotals } from '../utils/pricing.js';
-import { currentDeliveryFee } from '../store.js';
+import { draftTotals } from '../store.js';
 import { icon } from '../components/icons.js';
 import { money } from '../components/chips.js';
 import { mountProductGrid, getVisibleProducts, selectProduct } from '../components/product-grid.js';
@@ -66,7 +65,7 @@ export function mountPos(view) {
 
     // Tablet bottom bar
     bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null }), ({ cart }, s) => {
-      const t = computeTotals(cart, currentDeliveryFee(s));
+      const t = draftTotals(s);
       const bar = root.querySelector('[data-open-cart]');
       bar.innerHTML = `${icon('cart')}<span>السلة (${cart.length})</span>
         <span class="total">${t.estimated ? '≈ ' : ''}${money(t.total)}</span>${icon('chevronLeft')}`;

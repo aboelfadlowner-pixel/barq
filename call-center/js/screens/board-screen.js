@@ -3,12 +3,12 @@
    then «الطلبات المغلقة» (delivered; 43_board_closed.sql) — cancelled orders are only in «الطلبات» — plus "طلب جديد لمركز الاتصال". Checks for changes every few seconds. */
 import * as ds from '../data/data-source.js';
 import { catalog } from '../catalog.js';
-import { getState, resetDraft, currentDeliveryFee } from '../store.js';
+import { getState, resetDraft, draftTotals } from '../store.js';
 import { esc, on } from '../utils/dom.js';
 import { keepColumnScroll } from '../components/pager.js';
 import { formatRelative, inWorkDay, normalizeArabic, normalizePhone, workDayStart } from '../utils/format.js';
 import { can } from '../permissions.js';
-import { computeTotals } from '../utils/pricing.js';
+import { computeTotals, totalsOf } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
 import { STAGES, PREP_REFRESH_MS } from '../constants.js';
@@ -69,7 +69,7 @@ function matches(o) {
 }
 
 function orderCard(o) {
-  const t = computeTotals(o.items, o.deliveryFee);
+  const t = totalsOf(o);
   return `
     <a class="o-card" href="#/orders/${encodeURIComponent(o.id)}" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
       <div class="o-head">
@@ -94,7 +94,7 @@ function orderCard(o) {
         : o.stage === 'out' && o.driver === 'استلام من الفرع' ? `<div class="o-row o-driver">${icon('home')}<span><strong>العميل استلم من الفرع</strong></span></div>`
         : o.stage === 'out' && o.driver ? `<div class="o-row o-driver">${icon('user')}<span>الطيار: <strong>${esc(o.driver)}</strong></span></div>` : ''}
       <div class="o-row">${icon('headset')}<span>${esc(o.employee)}</span></div>
-      <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}</div>
+      <div class="o-total">${money(t.total)}${t.estimated ? ' <span class="est">تقريبي</span>' : ''}${t.discount > 0 ? ' <span class="tag tag-warn" title="خصم على الطلب">💸 خصم</span>' : ''}${t.feeRemoved > 0 ? ' <span class="tag tag-info" title="رسوم التوصيل متشالة">🚚 بدون رسوم</span>' : ''}</div>
     </a>`;
 }
 
@@ -109,7 +109,7 @@ function stageSince(o) {
    everyone's with the employee's name (look only). The one open on this screen is marked. */
 const draftTotal = (d) => {
   const fee = d.address?.areaId ? catalog.areasById.get(d.address.areaId)?.fee ?? null : null;
-  return computeTotals(d.cart || [], fee).total;
+  return computeTotals(d.cart || [], d.adjust?.noFee ? 0 : fee, d.adjust?.discount ?? null).total;
 };
 function dbDraftCard(d, openId) {
   const x = d.data || {};
@@ -135,7 +135,7 @@ function dbDraftCard(d, openId) {
 function draftCard() {
   const s = getState();
   if (!s.customer && !s.cart.length) return '';
-  const t = computeTotals(s.cart, currentDeliveryFee(s));
+  const t = draftTotals(s);
   return `
     <div class="o-card o-draft">
       <div class="o-head"><strong>طلب قيد الإنشاء</strong><span class="status tone-amber">مسودة</span></div>

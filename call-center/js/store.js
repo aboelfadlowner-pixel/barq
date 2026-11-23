@@ -1,6 +1,7 @@
 /* App state: a tiny observable store plus the order-draft actions. */
 import { catalog, productModifiers } from './catalog.js';
 import { MAX_PIECE_QTY } from './constants.js';
+import { computeTotals } from './utils/pricing.js';
 
 /* One id per draft: sending the same draft again (double click, retry after a
    network error) returns the same order instead of creating a second one. */
@@ -18,6 +19,7 @@ const emptyDraft = () => ({
   address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
   orderType: 'delivery',   // «توصيل» | «pickup» = استلام من الفرع (39_order_type.sql)
+  adjust: { noFee: false, discount: null },   // «بدون رسوم توصيل» + «خصم» ({ kind: 'percent'|'amount', value }) (48)
   editing: null,    // editing a sent order: { orderId, number } (until «على الكاشير»)
 });
 
@@ -64,11 +66,22 @@ export function bind(selector, render) {
 }
 
 /* ---------- Derived ---------- */
-export function currentDeliveryFee(s = state) {
+/* The area's fee, before «بدون رسوم توصيل». */
+export function areaFee(s = state) {
   if (s.orderType === 'pickup') return 0;   // استلام من الفرع: no delivery fee
   if (!s.address?.areaId) return null;
   return catalog.areasById.get(s.address.areaId)?.fee ?? null;
 }
+export function currentDeliveryFee(s = state) {
+  const fee = areaFee(s);
+  return fee != null && s.adjust?.noFee ? 0 : fee;
+}
+/* The totals of the order being written: items, fee (or fee taken off), discount. */
+export function draftTotals(s = state) {
+  const removed = s.adjust?.noFee ? (areaFee(s) || 0) : 0;
+  return computeTotals(s.cart, currentDeliveryFee(s), s.adjust?.discount ?? null, removed);
+}
+export const hasAdjust = (s = state) => !!(s.adjust?.noFee || s.adjust?.discount?.value > 0);
 
 /* ---------- Cart actions ---------- */
 let seq = 0;
@@ -118,6 +131,7 @@ export const setCustomer = (customer, address) => setState({ customer, address }
 export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });
 export const setOrderType = (orderType, address = undefined) => setState(address === undefined ? { orderType } : { orderType, address });
+export const setAdjust = (adjust) => setState({ adjust: { noFee: false, discount: null, ...adjust } });
 
 export function resetDraft() {
   setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
@@ -141,6 +155,7 @@ export function loadDraftForEdit(order) {
     address: order.type === 'pickup' ? null : { ...address, isNew: false },
     orderType: order.type === 'pickup' ? 'pickup' : 'delivery',
     orderNote: order.note || '',
+    adjust: { noFee: !!order.feeRemoved, discount: order.discount ?? null },
     editing: { orderId: order.id, number: order.number },
   });
 }

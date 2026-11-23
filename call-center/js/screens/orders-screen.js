@@ -6,7 +6,7 @@ import { catalog } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { dayLabel, formatTime, workDayStart } from '../utils/format.js';
 import { pagerNav } from '../components/pager.js';
-import { computeTotals } from '../utils/pricing.js';
+import { totalsOf } from '../utils/pricing.js';
 import { icon } from '../components/icons.js';
 import { money, orderStateChip } from '../components/chips.js';
 import { getState } from '../store.js';
@@ -102,7 +102,7 @@ export function mountOrders(view) {
 
     const list = orders;
     $('[data-body]').innerHTML = list.length ? list.map((o) => {
-      const t = computeTotals(o.items, o.deliveryFee);
+      const t = totalsOf(o);
       return `
         <tr tabindex="0" data-id="${esc(o.id)}" aria-label="فتح الطلب ${esc(o.number)}">
           <td><strong class="ltr-inline">${esc(o.number)}</strong></td>

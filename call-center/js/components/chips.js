@@ -28,7 +28,8 @@ export function totalsRows(t, { detailed = false } = {}) {
     ${detailed && t.estimated && t.fixed > 0 ? `<div class="trow sub"><span>أصناف بسعر ثابت</span>${money(t.fixed)}</div>` : ''}
     ${detailed && t.estimated ? `<div class="trow sub"><span>أصناف بالوزن (تقريبي)</span>${money(t.weighted)}</div>` : ''}
     <div class="trow"><span>المجموع (${t.count} ${t.count === 1 ? 'صنف' : 'أصناف'})</span>${money(t.subtotal)}</div>
-    <div class="trow"><span>رسوم التوصيل</span>${feeCell}</div>
+    ${t.feeRemoved > 0 ? `<div class="trow fee-off"><span>رسوم التوصيل</span><span><s class="muted">${money(t.feeRemoved)}</s> <strong>متشالة</strong></span></div>` : `<div class="trow"><span>رسوم التوصيل</span>${feeCell}</div>`}
+    ${t.discount > 0 ? `<div class="trow disc"><span>${t.discountSpec?.kind === 'percent' ? `خصم ${t.discountSpec.value}%` : 'خصم'}</span><span>− ${money(t.discount)}</span></div>` : ''}
     <div class="trow total"><span>${t.estimated ? 'الإجمالي التقريبي' : 'الإجمالي'}</span>${money(t.total)}</div>`;
 }
 

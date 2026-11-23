@@ -10,7 +10,7 @@ import { esc, on } from '../utils/dom.js';
 import {
   formatAddress, formatMoney, formatTime, formatDateTime, normalizePhone, isValidPhone,
 } from '../utils/format.js';
-import { computeTotals } from '../utils/pricing.js';
+import { totalsOf } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, statusChip } from './chips.js';
 import { openModal, showToast } from './modal.js';
@@ -466,7 +466,7 @@ async function openRecentOrders(customer, parent) {
     title: `${icon('list')} آخر طلبات ${esc(customer.name)}`,
     size: 'sm',
     body: list.length ? `<div class="recent-list">${list.map((o) => {
-      const t = computeTotals(o.items, o.deliveryFee);
+      const t = totalsOf(o);
       return `
         <a class="recent-row" href="#/orders/${encodeURIComponent(o.id)}" data-go>
           <div><strong class="ltr-inline">${esc(o.number)}</strong> ${statusChip(o.status)}
