@@ -11,8 +11,8 @@ function cropPortrait(file){return new Promise((res,rej)=>{const r=new FileReade
   const sc=Math.max(W/img.width,H/img.height);const w=img.width*sc,h=img.height*sc;x.drawImage(img,(W-w)/2,(H-h)/2.6,w,h);c.toBlob(b=>res({blob:b,url:c.toDataURL('image/jpeg',.88)}),'image/jpeg',.88);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
 async function savePhoto(code,file){
   const {blob,url}=await cropPortrait(file);
-  if(LIVE){const u=await uploadMedia(code,blob,'jpg');emp(code).photo=u;noteMedia(code,'photo',u);await push('media',{code},{photo:u});}
-  else{emp(code).photo=url;save();}
+  if(LIVE){const u=await uploadMedia(code,blob,'jpg');emp(code).photo=u;emp(code).photoPos='';noteMedia(code,'photo',u);noteMedia(code,'photoPos','');await push('media',{code},{photo:u,photo_pos:''});}
+  else{emp(code).photo=url;emp(code).photoPos='';save();}
 }
 function bulkPhotos(){
   const f=$('#filePick');f.value='';f.accept='image/*';f.multiple=true;

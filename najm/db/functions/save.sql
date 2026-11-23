@@ -219,6 +219,7 @@ begin
       photo = case when p_data ? 'photo' then nullif(p_data->>'photo','') else photo end,
       video = case when p_data ? 'video' then nullif(p_data->>'video','') else video end,
       title = case when p_data ? 'title' then nullif(p_data->>'title','') else title end,
+      photo_pos = case when p_data ? 'photo_pos' then nullif(p_data->>'photo_pos','') else photo_pos end,
       updated_at = now()
     where code = k_code;
   elsif p_kind = 'card' then
