@@ -32,7 +32,7 @@ const MONEY = /جنيه|[\d٠-٩][\d٠-٩٬,]*\s*ج(?![؀-ۿ])/;
   test('الهايجين: الخمس بنود جنب كل موظف، والتيشرت إجباري، و«مش مطلوب» مبيتحسبش', async () => {
     const r = await p.evaluate(async () => {
       USER = { username: 'yasser', role: 'hygiene', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] }; go('rate');
-      const sec = filtered(true).find(x => x.dept === 'قسم الامن و المراقبه'); delete day(DATE).hy[sec.code];
+      const sec = filtered(true).filter(ratable).find(x => x.dept === 'قسم الامن و المراقبه'); delete day(DATE).hy[sec.code];
       const card = document.querySelector('#rc-' + sec.code).innerText; const rows = document.querySelectorAll('#rc-' + sec.code + ' .crit').length;
       await setCrit(sec.code, 0, 2); const a = [...day(DATE).hy[sec.code]]; const st = hyStar(day(DATE), sec.code);   // «مش مطلوب» من امبارح بيتفتكر
       await setCrit(sec.code, 1, 0); const half = hyStar(day(DATE), sec.code);                                         // الإيبرون بقى مطلوب ومش لابسه ← 2 من 4

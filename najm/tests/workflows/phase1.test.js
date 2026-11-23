@@ -106,7 +106,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     await as(MAHMOUD); await p.evaluate(() => go('rate'));
     const r = await p.evaluate(async () => {
       const cyc = [cycleStart('2026-11-01'), cycleStart('2026-11-08'), cycleEnd('2026-11-29'), isRateDay('2026-11-13'), isRateDay('2026-11-14')];
-      const e = filtered(true)[0]; const c = e.code;
+      const e = filtered(true).filter(ratable)[0]; const c = e.code;
       for (let i = 0; i <= 12; i++) { const D = day(shiftDay(DATE, -i)); delete D.sh[c]; delete D.carry[c]; }
       const old = shiftDay(cycleStart(DATE), -1); day(old).sh[c] = [2, 1, 2, 1, 2]; day(DATE).att[c] = 'on';
       const before = [rateOf(DATE, 'sh', c, true).carried, rateStale(DATE, 'sh', c), rateDone(DATE, 'sh', c), score(DATE, c).parts.sh];
@@ -134,6 +134,16 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [true, '12.0,-8.0,1.60', true, 1]);
     await as(MAHMOUD);
     eq(await p.evaluate(() => futCard(Object.assign({}, activeEmps()[0], { photo: 'x' }), 'lg').includes('photoEditor(')), false);
+  });
+  test('اللي ليه حساب مدير مبيظهرش في قوايم التقييم (بيفضل في رجل اليوم والعامل المثالي)، ومدير الفريش من غير أقسام بيشوف البقاله', async () => {
+    const r = await p.evaluate(() => { const m = S.users.find(u => u.role === 'branch' && u.emp_code); const e = emp(m.emp_code);
+      USER = { username: 'haitham', role: 'branch', branch: e.branch, name: 'x', shift: '', depts: [] }; go('rate');
+      const inList = filtered(true).filter(ratable).some(x => x.code === e.code), inAll = filtered(true).some(x => x.code === e.code);
+      USER = { username: 'f', role: 'fresh', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] };
+      const fresh = filtered(true).filter(ratable); const onlyGrocery = fresh.length > 0 && fresh.every(x => x.dept === 'قسم البقاله');
+      return [inList, inAll, isMgrEmp(e.code), onlyGrocery]; });
+    eq(r, [false, true, true, true]);
+    await as(MAHMOUD);
   });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
