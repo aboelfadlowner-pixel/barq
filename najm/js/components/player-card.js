@@ -7,7 +7,7 @@ function futCard(e,cls=''){
   return `<div class="fc ${ed} ${cls}">${ed==='neon'?'<div class="fc-flame">🔥 في الفورمة</div>':''}<div class="fc-frame"></div><div class="fc-body">
     <div class="fc-ovr"><b>${f.ovr??'—'}</b><span>${esc(posOf(e))}</span></div>
     <div class="fc-bdg">${B.map(x=>`<i title="${esc(x.t)}">${x.i}${x.n?`<sub>${x.n}</sub>`:''}</i>`).join('')}</div>
-    <div class="fc-halo"></div><div class="fc-ph">${ph}</div>${ed==='icon'?laurelSVG():''}
+    <div class="fc-halo"></div><div class="fc-ph${e.photo?' has':''}">${ph}</div>${ed==='icon'?laurelSVG():''}
     <div class="fc-low">${title?`<div class="fc-title">${esc(title)}</div>`:''}
       <div class="fc-name">${esc(e.name.split(' ').slice(0,2).join(' '))}</div>
       <div class="fc-icons"><span>${brIcon} ${esc(e.branch.replace('الرئيسي','').trim())}</span><i></i><img src="${ed==='neon'?LOGO_WHITE:LOGO_HEAD}" alt=""><i></i><span>${esc(e.code)}</span></div>

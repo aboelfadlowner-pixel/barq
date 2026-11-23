@@ -34,6 +34,12 @@
 .fc-ph{position:absolute;top:7%;left:20%;width:60%;height:51%;z-index:2;display:flex;align-items:flex-end;justify-content:center}
 .fc-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 12%;-webkit-mask-image:linear-gradient(to bottom,#000 74%,transparent 99%);mask-image:linear-gradient(to bottom,#000 74%,transparent 99%);border-radius:50% 50% 0 0}
 .fc.icon .fc-ph img{filter:sepia(.65) saturate(.85) contrast(1.05)}
+/* لو للموظف صورة: بتملى نص الكارت اللي فوق (بنفس حدود الكارت) وبتتلاشى عند الاسم — من غير صورة بيفضل الحرف في الدايرة */
+.fc-ph.has{top:0;left:0;width:100%;height:64%;clip-path:polygon(7% 6%,20% 0,80% 0,93% 6%,100% 19%,100% 100%,0 100%,0 19%)}
+.fc-ph.has img{border-radius:0;object-position:50% 10%;-webkit-mask-image:linear-gradient(to bottom,#000 72%,transparent 100%);mask-image:linear-gradient(to bottom,#000 72%,transparent 100%)}
+.fc-body:has(.fc-ph.has) .fc-halo{display:none}
+.fc-body:has(.fc-ph.has) .fc-ovr{text-shadow:0 1px 6px rgba(255,255,255,.95),0 0 2px rgba(255,255,255,.8)}
+.fc-body:has(.fc-ph.has) .fc-ovr b{text-shadow:0 2px 8px rgba(255,255,255,.95)}
 .fc-ini{width:70%;aspect-ratio:1;margin-bottom:10%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:4em;font-weight:900;background:rgba(0,0,0,.14)}
 .fc.neon .fc-ini{background:rgba(255,255,255,.12)}
 .fc-laurel{position:absolute;top:6%;left:9%;width:82%;aspect-ratio:1;z-index:3;pointer-events:none}
