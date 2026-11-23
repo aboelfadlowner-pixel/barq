@@ -145,6 +145,15 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [false, true, true, true]);
     await as(MAHMOUD);
   });
+  test('هيد الكاشير: بيشوف كاشيرات فرعه بس، وبيسجّل باند فبتزيد النقط على التارجت من 85%', async () => {
+    const r = await p.evaluate(async () => { USER = { username: 'hcash', role: 'headcashier', branch: 'البيطاش الرئيسي', name: 'x', shift: '', depts: [] }; go('rate');
+      const L = filtered(true).filter(ratable); const only = L.length > 0 && L.every(e => e.dept === 'قسم الكاشير' && e.branch === 'البيطاش الرئيسي');
+      const e = L[0]; const m = monthOf(DATE); S.cashierEvents = []; await addCashierEvent(e.code, 'smile'); await addCashierEvent(e.code, 'no_receipt'); await addCashierEvent(e.code, 'smile');
+      const net = cashierPts(e.code, m); const html = document.querySelector('#main').innerText;
+      return [only, net, html.includes('الكاشيرات'), cashierBands().length]; });
+    eq(r, [true, 20, true, 8]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

@@ -30,7 +30,7 @@ function empProfileHTML(e){
       <div class="card"><h3>⭐ نجومك النهارده (${esc(DATE)})</h3>${todayStarsHTML(e.code)}</div>
       <div class="card"><h3>📅 ${monthName(m)}</h3>
         <div class="kv"><span>متوسط النجوم</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b>`:'—'}</span></div>
-        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${kpiTxt(ms)} من ${fmt(ms.kpiMax||500)}</b></div>${ms.medal?`<div class="kv"><span>🏅 وسام برق</span><b style="color:var(--green)">+${fmt(ms.medal)} نقطة</b></div>`:''}
+        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${kpiTxt(ms)} من ${fmt(ms.kpiMax||500)}</b></div>${isCashierEmp(e)&&cashierPts(e.code,m)?`<div class="kv"><span>🧾 باندات الكاشير</span><b style="color:${cashierPts(e.code,m)>0?'var(--green)':'var(--red)'}">${cashierPts(e.code,m)>0?'+':''}${fmt(cashierPts(e.code,m))} نقطة</b></div>`:''}${ms.medal?`<div class="kv"><span>🏅 وسام برق</span><b style="color:var(--green)">+${fmt(ms.medal)} نقطة</b></div>`:''}
         <div class="kv"><span>🎯 نقط التارجت</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}</b></div>
         <div class="kv"><span>الكروت</span><span>${cardsHTML(cardCount(e.code,m,DATE))||'<span class="muted">مفيش</span>'}</span></div>
         <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs||0)} / ${fmt(ms.late||0)}</b></div></div>

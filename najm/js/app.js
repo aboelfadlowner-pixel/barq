@@ -10,16 +10,16 @@ const TABS=[
   // مين يشوف إيه: الزائر (الترتيب ورجل اليوم والعامل المثالي) · الموظف بكوده · المديرين · التشغيل كل حاجة
   ['dash','لوحة الفروع',()=>true],
   ['me','صفحتي',()=>true],
-  ['rate',()=>isCam()?'الكاميرات':isOps()?'الموظفين':'تقييم اليوم',()=>isMgr()],
+  ['rate',()=>isCam()?'الكاميرات':isHC()?'الكاشيرات':isOps()?'الموظفين':'تقييم اليوم',()=>isMgr()],
   ['day','رجل اليوم',()=>true],
   ['month','العامل المثالي',()=>true],
   ['players','كروت اللاعبين',()=>!isGuest()],
-  ['progress','تقارير التقدّم',()=>isMgr()&&!isHy()&&!isCam()],
+  ['progress','تقارير التقدّم',()=>isMgr()&&!isHy()&&!isLimited()],
   ['vote','صوّت لمديرك',()=>isEmp()],
-  ['league','المديرين والسوق',()=>isMgr()&&!isCam()],
+  ['league','المديرين والسوق',()=>isMgr()&&!isLimited()],
   ['target',()=>isEmp()?'تارجت قسمي':'التارجت والكابتن',()=>!isGuest()],
-  ['cards','الكروت',()=>isMgr()&&!isHy()&&!isCam()],
-  ['emps','ملفات الموظفين',()=>isMgr()&&!isHy()&&!isCam()],
+  ['cards','الكروت',()=>isMgr()&&!isHy()&&!isLimited()],
+  ['emps','ملفات الموظفين',()=>isMgr()&&!isHy()&&!isLimited()],
   ['settings','الإعدادات',()=>isOps()],
   ['screens','شاشة الفرع',()=>isMgr()],
 ];
@@ -44,7 +44,7 @@ const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.d
   if(TVQ!==null){saved=null;tvInit(TVQ);}
   const dp=$('#dayPick');dp.value=DATE;dp.onchange=()=>{if(dp.value){DATE=dp.value;RANK_CACHE=null;LIVE?refresh():render();}};
   render();
-  if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · الدخول بكود البصمة: التشغيل <b>ops / 0000</b> · مدير البيطاش <b>278 / 1111</b> · مدير الصبح <b>189 / 2222</b> · مدير الليل <b>65 / 3333</b> · الهايجين <b>62 / 7777</b> · الكاميرات <b>20 / 4444</b> · أي موظف تاني <b>كوده / 1234</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
+  if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · الدخول بكود البصمة: التشغيل <b>ops / 0000</b> · مدير البيطاش <b>278 / 1111</b> · مدير الصبح <b>189 / 2222</b> · مدير الليل <b>65 / 3333</b> · الهايجين <b>62 / 7777</b> · الكاميرات <b>20 / 4444</b> · هيد الكاشير <b>21 / 4545</b> · أي موظف تاني <b>كوده / 1234</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
   try{
     if(saved?.pin){const u=await sbRpc('najm_login',{p_user:saved.username,p_pin:saved.pin});if(u){USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]};PIN=saved.pin;}}
     await pull();LIVE=true;

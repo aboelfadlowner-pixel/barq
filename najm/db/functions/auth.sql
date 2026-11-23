@@ -49,6 +49,8 @@ returns boolean language sql stable security definer set search_path = public as
     else exists (select 1 from najm_employees e where e.code = p_code
       and (u.branch is null or e.branch = u.branch)
       and (u.role <> 'shift' or public.najm_shift_group(e.shift) = public.najm_shift_group(u.shift))
+      -- هيد الكاشير: كاشيرات فرعه بس (قسم الكاشير)
+      and (u.role <> 'headcashier' or e.dept = coalesce((select data->>'cashierDept' from najm_settings where id = 1), 'قسم الكاشير'))
       -- مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
       and (u.role <> 'fresh' or e.dept = any (case when coalesce(array_length(u.depts, 1), 0) > 0 then u.depts
             else array(select jsonb_array_elements_text(coalesce((select data->'freshDepts' from najm_settings where id = 1), '["قسم البقاله"]'::jsonb))) end))) end;
@@ -129,3 +131,16 @@ begin
                    where a.seen_at is null or a.created_at > now() - interval '30 days'), '[]'::jsonb);
 end $$;
 grant execute on function public.najm_alerts_list(text, text) to anon, authenticated;
+
+-- أحداث الكاشيرات بالتفصيل (هيد الكاشير في نطاقه + التشغيل)
+create or replace function public.najm_cashier_events_list(p_user text, p_pin text, p_month text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  if u.role not in ('headcashier', 'ops') then return '[]'::jsonb; end if;
+  return coalesce((select jsonb_agg(to_jsonb(v) order by v.day desc, v.created_at desc)
+                   from najm_cashier_events v where to_char(v.day, 'YYYY-MM') = p_month and public.najm_in_scope(u, v.code)), '[]'::jsonb);
+end $$;
+grant execute on function public.najm_cashier_events_list(text, text, text) to anon, authenticated;
