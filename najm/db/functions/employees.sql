@@ -170,3 +170,16 @@ begin
     where r.code = e.code and r.day between p_from and p_to;
 end $$;
 grant execute on function public.najm_my_ratings2(text, text, date, date) to anon, authenticated;
+
+-- تفاصيل تقييم الموظف هو بس + الصلاة والبريك (الكاميرات)
+create or replace function public.najm_my_ratings3(p_code text, p_pin text, p_from date, p_to date)
+returns table(day date, att text, br smallint[], sh smallint[], fr smallint[], hy smallint[], pray smallint, brk smallint, bonus numeric, carry text[])
+language plpgsql volatile security definer set search_path = public as $$
+declare e najm_employees;
+begin
+  select * into e from public.najm_emp_auth(p_code, p_pin);
+  if e.code is null or p_to - p_from > 31 then return; end if;
+  return query select r.day, r.att, r.br, r.sh, r.fr, r.hy, r.pray, r.brk, r.bonus, r.carry from najm_ratings r
+    where r.code = e.code and r.day between p_from and p_to;
+end $$;
+grant execute on function public.najm_my_ratings3(text, text, date, date) to anon, authenticated;

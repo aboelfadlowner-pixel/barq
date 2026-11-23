@@ -11,7 +11,7 @@ function todayStarsHTML(code){
   if(s.total==null)return '<div class="small muted">لسه متقيّمتش النهارده.</div>';
   if(s.pub)return `<div class="kv"><span>المجموع</span><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span></div>`;
   const row=(t,v,max)=>`<div class="kv"><span>${t}</span><b>${v==null?'<span class="muted">لسه</span>':fmt(v,2)+' / '+max}</b></div>`;
-  return `${row('🖐️ البصمة',s.att,fmt(S.settings.att?.on??2))}${row('🧑‍💼 مديرك المباشر',s.mgr,1)}${row('👑 مدير التشغيل',s.ops,'½')}${row('🧼 الهايجين',s.hy,1)}${row('🕌 الصلاة',s.pray,'½')}
+  return `${row('🖐️ البصمة',s.att,fmt(S.settings.att?.on??2))}${row('🧑‍💼 مديرك المباشر',s.mgr,1)}${row('🧼 الهايجين',s.hy,1)}${row('🕌 الصلاة (المدير)',s.pray,'½')}${row('📹 الكاميرات (صلاة + بريك)',s.cam,'½')}
     ${s.bonus?`<div class="kv"><span>⭐ تصرف مثالي (Bonus)</span><b style="color:var(--green)">+${fmt(s.bonus)}</b></div>`:''}
     <div class="kv" style="border-top:1px solid var(--line);padding-top:6px"><span><b>المجموع</b></span><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span></div>`;
 }
@@ -30,7 +30,7 @@ function empProfileHTML(e){
       <div class="card"><h3>⭐ نجومك النهارده (${esc(DATE)})</h3>${todayStarsHTML(e.code)}</div>
       <div class="card"><h3>📅 ${monthName(m)}</h3>
         <div class="kv"><span>متوسط النجوم</span><span>${ms.avg!=null?`${starsHTML(ms.avg)} <b>${fmt(ms.avg,2)}</b>`:'—'}</span></div>
-        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${kpiTxt(ms)} من ${fmt(ms.kpiMax||500)}</b></div>
+        <div class="kv"><span>🧑‍💼 الـ KPI</span><b>${kpiTxt(ms)} من ${fmt(ms.kpiMax||500)}</b></div>${ms.medal?`<div class="kv"><span>🏅 وسام برق</span><b style="color:var(--green)">+${fmt(ms.medal)} نقطة</b></div>`:''}
         <div class="kv"><span>🎯 نقط التارجت</span><b>${t?.empPoints!=null?fmt(t.empPoints)+' نقطة':'—'}</b></div>
         <div class="kv"><span>الكروت</span><span>${cardsHTML(cardCount(e.code,m,DATE))||'<span class="muted">مفيش</span>'}</span></div>
         <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs||0)} / ${fmt(ms.late||0)}</b></div></div>
@@ -40,7 +40,7 @@ function empProfileHTML(e){
 
 // ---------- بروفايل المدير ----------
 function rateLeft(u){
-  const f=RATE_FIELD[u.role];if(!f)return null;const D=peekDay(DATE);
+  const f=u.role==='ops'?null:RATE_FIELD[u.role];if(!f)return null;const D=peekDay(DATE);
   const L=u.role==='ops'?activeEmps():activeEmps().filter(e=>inScopeOf(u,e));
   const need=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off');
   const left=need.filter(e=>!rateDone(DATE,f,e.code)).length;
@@ -93,6 +93,8 @@ function opsPendingHTML(){
   const red=S.cards.filter(c=>cardStatus(c)==='pending').length;if(red)items.push([`🟥 ${fmt(red)} كارت أحمر مستني موافقتك`,"go('cards')"]);
   const ap=(S.appeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
   const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);
+  for(const a of (S.alerts||[]).filter(a=>!a.seen_at))items.push([alertTxt(a),`openAlert(${+a.id})`]);
+  const pc=prayConflicts();if(pc.length)items.push([`🕌 ${fmt(pc.length)} تعارض في الصلاة بين الكاميرات والمدير — اعتمد رأي مين`,"openPrayConflicts()"]);
   const W=peekDay(DATE).winners||{};
   for(const b of branches())for(const g of SHIFT_GROUPS){if(!winnersFor(b,g))continue;if(!activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))continue;
     if(!W[b+'|'+g])items.push([`🏆 رجل اليوم ${esc(b)} · ${GROUP_NAME[g]} مستني اعتمادك`,`F.branch='${esc(b)}';go('day')`]);}
@@ -128,3 +130,38 @@ async function mgrChangePin(){
 
 // التصويت والاعتراض للموظف اللي مدير التشغيل اداله رقم سري بس (كود البصمة لوحده معروف لزمايله)
 function needPin(){if(ME_HASPIN)return true;toast('ده محتاج رقم سري — اطلبه من مدير التشغيل');return false;}
+
+// ---------- تعارض الصلاة: المدير (كل 4 أيام) × الكاميرات (كل يوم) ← مدير التشغيل بيعتمد ----------
+// رأي الكاميرات في الدورة: صلّى كل الأيام = ملتزم · مصلاش خالص = مبيصليش · مرة ومرة = بيقطع (من يومين على الأقل)
+// «بيقطع» عند المدير مش تعارض (المدير شايف أكتر من الكاميرات)
+function prayConflicts(){const out=[];const m=monthOf(DATE);const T=DATE;
+  for(const e of activeEmps()){for(let st=m+'-01';st<=T&&st.startsWith(m);st=shiftDay(cycleStart(st),RATE_EVERY)){
+      const cs=cycleStart(st),ce=cycleEnd(st);const days=[];for(let d=cs;d<=ce&&d<=T;d=shiftDay(d,1))days.push(d);
+      const P=days.map(d=>peekDay(d).pray?.[e.code]).filter(v=>v!=null);if(P.length<2)continue;
+      const lv=prayLevelRaw(days[days.length-1],e.code);if(lv==null)continue;
+      const ones=P.filter(v=>v===1).length;const cam=ones===P.length?2:ones===0?0:1;
+      // تعارض: المدير قال «ملتزم» والكاميرات سجّلت يوم ماصلّاش · أو قال «مبيصليش» والكاميرات شافته بيصلي نص الأيام أو أكتر
+      const zeros=P.length-ones;const clash=(lv===2&&zeros>0)||(lv===0&&ones>=Math.ceil(P.length/2));
+      if(clash&&!(S.prayReviews||{})[e.code+'|'+cs])out.push({e,cycle:cs,end:ce,lv,cam,ones,n:P.length});}}
+  return out;}
+const prayLevelRaw=(d,code)=>{const sh=rateArr(d,'sh',code),br=rateArr(d,'br',code);return sh?.[4]??br?.[4]??null;};
+function openPrayConflicts(){const L=prayConflicts();
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>🕌 تعارض الصلاة</h2><div class="small muted" style="margin-bottom:8px">المدير بيقيّم الصلاة كل ${RATE_EVERY} أيام، والكاميرات كل يوم. لما يختلفوا انت اللي بتعتمد — ورأي الكاميرات بيتحسب على الدورة كلها.</div>
+  ${L.map(x=>`<div class="card" style="margin-bottom:8px"><b>${esc(x.e.name)}</b> <span class="small muted">· ${esc(x.e.branch)} · من ${esc(x.cycle.slice(8))} لـ ${esc(x.end.slice(8))}</span>
+    <div class="small" style="margin:4px 0">المدير: <b>${PRAY_LVL[x.lv]}</b> · الكاميرات: <b>${PRAY_LVL[x.cam]}</b> (صلّى ${fmt(x.ones)} من ${fmt(x.n)} يوم)</div>
+    <div class="row" style="gap:6px"><button class="btn sm pri" onclick="decidePray('${x.e.code}','${x.cycle}','cams',${x.cam})">📹 اعتمد رأي الكاميرات</button><button class="btn sm" onclick="decidePray('${x.e.code}','${x.cycle}','mgr',null)">🧑‍💼 اعتمد رأي المدير</button></div></div>`).join('')||'<div class="empty">مفيش تعارض 👏</div>'}`);}
+async function decidePray(code,cycle,decision,level){(S.prayReviews||(S.prayReviews={}))[code+'|'+cycle]={decision,level};save();
+  if(await push('pray_review',{code,cycle},{decision,level})!==false){toast('✔ اتعتمد');openPrayConflicts();render();}}
+
+// ---------- تنبيهات شيت البصمة (من التحديث الدوري 7 و9 و11 بالليل و1 الفجر) ----------
+function alertTxt(a){const d=a.data||{};
+  if(a.kind==='sheet_changed')return `🚨 شيت البصمة اتغيّر في أيام فاتت (${fmt(d.count||0)} يوم) — في حاجة غلط، اتواصل مع الـ HR`;
+  if(a.kind==='comeback')return `🔁 ${esc(d.name||a.code)} (${esc(a.code)}) رجع يبصم ${esc(a.day)} بعد ${fmt(d.gap)} يوم من غير بصمة${d.active===false?' — وهو موقوف في السيستم':''}`;
+  return esc(a.kind);}
+function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  const rows=a.kind==='sheet_changed'?`<div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>الكود</th><th>الموظف</th><th>اليوم</th><th>كان</th><th>بقى</th></tr></thead><tbody>${(d.rows||[]).map(r=>`<tr><td>${esc(r.code)}</td><td class="small">${esc(emp(r.code)?.name||'')}</td><td class="small">${esc(r.day)}</td><td>${ATT[r.old]||esc(r.old||'—')}</td><td>${ATT[r.new]||esc(r.new||'—')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="small muted" style="margin-top:6px">النتيجة دي اتغيّرت لأن الشيت نفسه اتعدّل بعد ما اتسجل. لو التعديل مش مظبوط، اتواصل مع الـ HR يرجّعوه — والتحديث الجاي هيسجل اللي في الشيت.</div>`
+    :`<div class="small">مابصمش ${fmt(d.gap)} يوم، ورجع يبصم يوم ${esc(a.day)}.${d.active===false?' <b>وهو موقوف في السيستم</b> — لو رجع الشغل فعلاً شغّله من «ملفات الموظفين».':''} اتأكد من الـ HR إيه اللي حصل (إجازة طويلة؟ ساب ورجع؟).</div>`;
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${a.kind==='sheet_changed'?'🚨 شيت البصمة اتغيّر':'🔁 موظف رجع يبصم'}</h2><div class="small muted" style="margin-bottom:8px">${esc(new Date(a.created_at||Date.now()).toLocaleString('ar-EG'))}</div>${rows}
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتواصلت / اتشاف</button></div>`);}
+async function alertSeen(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(a){a.seen_at=new Date().toISOString();a.seen_by=USER.username;}save();closeModal();render();push('alert_seen',{id},{});}

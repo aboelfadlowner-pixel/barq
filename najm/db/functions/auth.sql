@@ -114,3 +114,16 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 grant execute on function public.najm_my_pin(text, text, text) to anon, authenticated;
+
+-- تنبيهات مدير التشغيل (تغيير في شيت البصمة · موظف رجع يبصم) — اللي ماتشافتش + آخر 30 يوم
+create or replace function public.najm_alerts_list(p_user text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  if u.role <> 'ops' then return '[]'::jsonb; end if;
+  return coalesce((select jsonb_agg(to_jsonb(a) order by a.created_at desc) from najm_alerts a
+                   where a.seen_at is null or a.created_at > now() - interval '30 days'), '[]'::jsonb);
+end $$;
+grant execute on function public.najm_alerts_list(text, text) to anon, authenticated;

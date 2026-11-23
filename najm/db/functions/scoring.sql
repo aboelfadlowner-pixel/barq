@@ -62,19 +62,26 @@ begin
 end $$;
 revoke all on function public.najm_carry_forward(text, date, text) from public, anon, authenticated;
 
--- stars (max 5): fingerprint 2 + direct manager 1 + operations ½ + hygiene 1 + prayer ½ + exemplary ½ (bonus above the 5)
+-- stars (max 5): البصمة 2 + المدير المباشر 1 + الهايجين 1 + صلاة المدير ½ (كل 4 أيام) + الكاميرات ½ (الصلاة ¼ + البريك ¼ كل يوم)
+-- + التصرف المثالي ½ Bonus فوق الـ 5. مدير التشغيل مبقاش بيقيّم الموظفين (بيدي «وسام برق» +100 نقطة في الشهر)
 create or replace function public.najm_score(r public.najm_ratings, p_dept text, p_settings jsonb)
 returns jsonb language plpgsql stable set search_path = public as $$
 declare
   fresh boolean := p_dept = any (array(select jsonb_array_elements_text(coalesce(p_settings->'freshDepts','["قسم البقاله"]'::jsonb))));
   a numeric; b numeric := public.najm_crit(r.br); s numeric := public.najm_crit(r.sh);
-  f numeric := public.najm_crit(r.fr); o numeric := public.najm_crit(r.ops); h numeric := public.najm_hy(r.hy);
-  m numeric; mc boolean; tot numeric; anyv boolean; pr numeric;
+  f numeric := public.najm_crit(r.fr); h numeric := public.najm_hy(r.hy);
+  m numeric; mc boolean; tot numeric; anyv boolean; lv smallint; pl numeric; cm numeric; off boolean := r.att in ('abs', 'off');
 begin
-  -- يوم غياب أو راحة: مفيش نجوم مديرين (التقييم المكمّل من الأيام اللي قبله مبيتحسبش فيه)
-  if r.att in ('abs', 'off') then b := null; s := null; f := null; o := null; end if;
-  o := o / 2;                                                   -- مدير التشغيل: نص نجمة
-  pr := case when r.att in ('abs', 'off') or r.pray is null then null else r.pray * 0.5 end;   -- الصلاة: نص نجمة
+  -- يوم غياب أو راحة: مفيش نجوم مديرين ولا صلاة ولا كاميرات
+  if off then b := null; s := null; f := null; end if;
+  -- صلاة المدير (البند الخامس عند مدير الشيفت، ولو مفيش ← مدير الفرع): 2 ملتزم ½ · 1 بيقطع ¼ · 0 مبيصليش
+  -- ولو مدير التشغيل اعتمد رأي الكاميرات في الدورة دي (تعارض) ← قراره هو اللي بيتحسب
+  select v.level into lv from najm_pray_reviews v
+    where v.code = r.code and v.decision = 'cams' and v.cycle = r.day - ((extract(day from r.day)::int - 1) % 4);
+  lv := coalesce(lv, r.sh[5], r.br[5]);
+  pl := case when off or lv is null then null else lv * 0.25 end;
+  -- الكاميرات: صلّى ¼ + التزم بالبريك ¼
+  cm := case when off or (r.pray is null and r.brk is null) then null else coalesce(r.pray, 0) * 0.25 + coalesce(r.brk, 0) * 0.25 end;
   a := case when r.att is null or r.att = 'off' then null
             else coalesce((p_settings->'att'->>r.att)::numeric,
                           case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;   -- xlate (فوق الحد) = 0 إلا لو اتغيّر من الإعدادات
@@ -87,12 +94,13 @@ begin
               else round((coalesce(b,0) + coalesce(s,0)) / 2 * 4) / 4 end;
     mc := b is not null and s is not null;
   end if;
-  anyv := a is not null or m is not null or o is not null or h is not null or pr is not null or coalesce(r.bonus,0) > 0;
+  anyv := a is not null or m is not null or h is not null or pl is not null or cm is not null or coalesce(r.bonus,0) > 0;
   -- الأساسي من 5، والتصرف المثالي (½) Bonus منفصل فوقه
-  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0) + coalesce(pr,0)) + coalesce(r.bonus,0) end;
-  return jsonb_build_object('att', r.att, 'att_star', a, 'mgr_star', m, 'ops_star', o, 'hy_star', h, 'bonus', coalesce(r.bonus,0),
-    'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(o,0) + coalesce(h,0) + coalesce(pr,0)) end, 'complete', a is not null and mc and o is not null and pr is not null,
-    'pray', r.pray, 'pray_star', pr,
+  tot := case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(h,0) + coalesce(pl,0) + coalesce(cm,0)) + coalesce(r.bonus,0) end;
+  return jsonb_build_object('att', r.att, 'att_star', a, 'mgr_star', m, 'hy_star', h, 'bonus', coalesce(r.bonus,0),
+    'total', tot, 'base', case when anyv then least(5, coalesce(a,0) + coalesce(m,0) + coalesce(h,0) + coalesce(pl,0) + coalesce(cm,0)) end,
+    'complete', a is not null and mc and pl is not null and r.pray is not null and r.brk is not null,
+    'pray_lvl', lv, 'pray_star', pl, 'pray', r.pray, 'brk', r.brk, 'cam_star', cm,
     'parts', jsonb_build_object('br', b, 'sh', s, 'fr', f), 'fresh', fresh, 'carry', to_jsonb(coalesce(r.carry, '{}')));
 end $$;
 
@@ -229,3 +237,44 @@ language sql stable security definer set search_path = public as $$
   order by day, id;
 $$;
 grant execute on function public.najm_public_moves(date, date) to anon, authenticated;
+
+-- وسام برق (+نقط) — للكل: الكود واليوم بس
+create or replace function public.najm_public_medals(p_month text)
+returns table(code text, day date)
+language sql stable security definer set search_path = public as $$
+  select code, day from najm_medals where month = p_month;
+$$;
+grant execute on function public.najm_public_medals(text) to anon, authenticated;
+
+-- خصومات التارجت (تلاعب في تقييم الكاميرات مثلاً) — للكل: الكود ومجموع النسبة بس (من غير السبب)
+create or replace function public.najm_public_penalties(p_month text)
+returns table(code text, pct numeric)
+language sql stable security definer set search_path = public as $$
+  select code, least(100, sum(pct)) from najm_tgt_penalties where month = p_month group by code;
+$$;
+grant execute on function public.najm_public_penalties(text) to anon, authenticated;
+
+-- موظف الكاميرات: كام (موظف × يوم) حاضر في فرعه ماتقيّمش (الصلاة أو البريك فاضي) — لخصم التارجت
+-- النهارده مبيتحسبش (لسه شغال)
+create or replace function public.najm_cam_missing(p_month text)
+returns table(code text, missed int)
+language sql stable security definer set search_path = public as $$
+  select u.emp_code, count(r.*)::int
+  from najm_users u
+  join najm_employees e on e.active and (u.branch is null or e.branch = u.branch)
+  join najm_ratings r on r.code = e.code and to_char(r.day, 'YYYY-MM') = p_month
+                     and r.day < (now() at time zone 'Africa/Cairo')::date
+                     and r.att in ('on', 'late', 'vlate', 'xlate') and (r.pray is null or r.brk is null)
+  where u.role = 'cameras' and u.active and coalesce(u.emp_code, '') <> ''
+    and not exists (select 1 from najm_users x where x.active and x.emp_code = e.code)
+  group by u.emp_code;
+$$;
+grant execute on function public.najm_cam_missing(text) to anon, authenticated;
+
+-- قرارات مدير التشغيل في تعارض الصلاة (الكاميرات × المدير) — للكل (الكود والدورة والقرار بس)
+create or replace function public.najm_public_pray_reviews(p_month text)
+returns table(code text, cycle date, decision text, level smallint)
+language sql stable security definer set search_path = public as $$
+  select code, cycle, decision, level from najm_pray_reviews where to_char(cycle, 'YYYY-MM') = p_month;
+$$;
+grant execute on function public.najm_public_pray_reviews(text) to anon, authenticated;

@@ -91,8 +91,9 @@ function empTarget(e,month,upto){
   const cc=complaintsOf(e.code,month);
   const raw=(base||0)+capPts;
   const has=base!=null||caps.length>0;
-  const empPoints=has?Math.round(cc?raw*(1-S.settings.complaintPenalty/100):raw):null;
-  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc,deptMax,maxPts,need,manual:last.manD,split:P.length>1?segs:null};
+  const pp=tgtPenaltyPct(e.code,month);   // خصم (تلاعب / تقييم كاميرات ناقص)
+  const empPoints=has?Math.round((cc?raw*(1-S.settings.complaintPenalty/100):raw)*(1-pp/100)):null;
+  return {...(dp||{pct:null,pace:null}),basePoints:base,caps,capPts,empPoints,complaints:cc,penaltyPct:pp,deptMax,maxPts,need,manual:last.manD,split:P.length>1?segs:null};
 }
 const money=p=>p==null?null:Math.round(p/100*(+S.settings.bonusAt100||0));
 // المسار التاني: التارجت (القسم + الكابتن) — نسبة "على المسار" (مبيعات نص الشهر بتتقارن باللي المفروض لحد النهارده)
@@ -106,5 +107,6 @@ function tgtOf(t,month,upto){
   const any=dPts!=null||cPts.some(v=>v!=null);
   let v=any?(dPts||0)+cPts.reduce((a,b)=>a+(b||0),0):null;
   if(v!=null&&t.complaints)v=Math.round(v*(1-S.settings.complaintPenalty/100));
+  if(v!=null&&t.penaltyPct)v=Math.round(v*(1-t.penaltyPct/100));
   return {v,need:t.need,max:t.maxPts,dept,dPts,cPts,pace,type:t.type,t};
 }

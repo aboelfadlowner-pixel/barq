@@ -129,21 +129,24 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   test('الأيام اللي محدش قفلها ← خصم تلقائي على المسؤول من غير التشغيل', async () => {
     const r = (await db.query("select username, count(*)::int n, sum(points)::int p from najm_mgr_ledger where id like 'late|%' group by username order by username")).rows;
     // صبح: 3 أيام فاتوا (ago3, ago2, ago1) · ليل: 3 (ago2 اتعلّم متأخر تلقائي وبعدين المدير قفله — الخصم مرة واحدة)
-    eq(r, [{ username: 'shm', n: 3, p: -15 }, { username: 'shn', n: 3, p: -15 }]);
-    eq((await db.query("select count(*)::int n from najm_history where kind='day_late'")).rows[0].n, 6);
+    // آخر ميعاد لليل = بداية الشيفت + 10 ساعات (3 الفجر) — قبل 3 الفجر بتوقيت القاهرة يوم امبارح بالليل لسه ماعدّاش
+    const early = (await db.query("select extract(hour from now() at time zone 'Africa/Cairo') < 3 x")).rows[0].x, nn = early ? 2 : 3;
+    eq(r, [{ username: 'shm', n: 3, p: -15 }, { username: 'shn', n: nn, p: -5 * nn }]);
+    eq((await db.query("select count(*)::int n from najm_history where kind='day_late'")).rows[0].n, 3 + nn);
   });
   test('الخصم مبيتكررش لنفس اليوم', async () => {
     await save('br', '1111', 'note', { id: 'n1', code: '125' }, { date: D, text: 'x' });
-    eq((await db.query("select count(*)::int n from najm_mgr_ledger where id like 'late|%'")).rows[0].n, 6);
+    const early = (await db.query("select extract(hour from now() at time zone 'Africa/Cairo') < 3 x")).rows[0].x;
+    eq((await db.query("select count(*)::int n from najm_mgr_ledger where id like 'late|%'")).rows[0].n, early ? 5 : 6);
   });
 
   // ---------------- التصرف المثالي ½ فوق الـ 5 · رجل اليوم (سجل المرشحين + الحد) · تعديل التشغيل في يوم مغلق بسبب
   test('التصرف المثالي نص نجمة فوق الـ 5 (الأساسي 5 + ½ = 5.5)', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and dept<>'قسم البقاله' and shift='Night' limit 1 offset 3", [B])).rows[0].code;
-    for (const [u, pin] of [['br', '1111'], ['ops', '0000']]) await save(u, pin, 'rate', { day: D, code: c }, [2, 2, 2, 2]);
+    await save('br', '1111', 'rate', { day: D, code: c }, [2, 2, 2, 2, 2]);
     await save('ops', '0000', 'att', { day: D, code: c, reason: 'x' }, { st: 'on' });
     await db.query("update najm_ratings set sh='{2,2,2,2,2}', hy='{2,2,2,2,2}' where day=$1 and code=$2", [D, c]);
-    await save('br', '1111', 'pray', { day: D, code: c }, { v: 1 });
+    for (const k of ['pray', 'brk']) await save('ops', '0000', k, { day: D, code: c, reason: 'x' }, { v: 1 });
     await save('ops', '0000', 'bonus', { day: D, code: c, reason: 'x' }, { v: 0.5, note: 'ساعد زميله' });
     const r = (await db.query('select (najm_score(r, e.dept, (select data from najm_settings where id=1))) s from najm_ratings r join najm_employees e on e.code=r.code where r.day=$1 and r.code=$2', [D, c])).rows[0].s;
     eq([+r.base, +r.total], [5, 5.5]);
@@ -160,11 +163,11 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
   test('بعد اعتماد رجل اليوم (اليوم مغلق): تعديل التشغيل لازم بسبب، والسجل فيه القديم والجديد', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1 offset 5", [B])).rows[0].code;
-    await db.query("insert into najm_ratings(day,code,ops) values ($1,$2,'{1,1,1,1,1}') on conflict (day,code) do update set ops=excluded.ops", [ago(1), c]);
-    await fails(save('ops', '0000', 'rate', { day: ago(1), code: c }, [2, 2, 2, 2]), /reason required/);
-    await save('ops', '0000', 'rate', { day: ago(1), code: c, reason: 'اتقيّم غلط' }, [2, 2, 2, 2]);
-    const h = (await db.query("select data from najm_history where kind='rate' and code=$1 order by id desc limit 1", [c])).rows[0].data;
-    eq([h.old, h.data, h.key.reason], [[1, 1, 1, 1, 1], [2, 2, 2, 2], 'اتقيّم غلط']);
+    await db.query("insert into najm_ratings(day,code,pray) values ($1,$2,0) on conflict (day,code) do update set pray=excluded.pray", [ago(1), c]);
+    await fails(save('ops', '0000', 'pray', { day: ago(1), code: c }, { v: 1 }), /reason required/);
+    await save('ops', '0000', 'pray', { day: ago(1), code: c, reason: 'اتقيّم غلط' }, { v: 1 });
+    const h = (await db.query("select data from najm_history where kind='pray' and code=$1 order by id desc limit 1", [c])).rows[0].data;
+    eq([h.old, h.data, h.key.reason], [0, { v: 1 }, 'اتقيّم غلط']);
   });
   test('مدير الفرع ميقدرش يعدّل بعد اعتماد رجل اليوم', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1 offset 5", [B])).rows[0].code;
@@ -287,23 +290,22 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   // ---------------- تقييم المديرين كل 4 أيام
   test('تقييم المديرين كل 4 أيام: بيكمّل لوحده، والتعديل بيمشي لقدام لحد أول يوم متقيّم، والغياب من غير نجوم مديرين', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 1 offset 17", [B])).rows[0].code;
-    const k = d => ({ day: d, code: c, reason: 'اختبار' });
-    const row = async d => (await db.query('select ops, carry from najm_ratings where code=$1 and day=$2', [c, d])).rows[0];
-    await save('ops', '0000', 'rate', k('2025-03-01'), [2, 2, 2, 2]);
-    // أيام جديدة (من البصمة) بتاخد آخر تقييم
+    const row = async d => (await db.query('select br, carry from najm_ratings where code=$1 and day=$2', [c, d])).rows[0];
+    // المدير بيقيّم (صريح) ← najm_carry_forward زي najm_save بالظبط
+    const rate = async (d, a) => { await db.query("insert into najm_ratings(day,code,br,carry) values ($1,$2,$3,'{}') on conflict (day,code) do update set br=excluded.br, carry=array_remove(coalesce(najm_ratings.carry,'{}'),'br')", [d, c, a]); await db.query("select najm_carry_forward($1,$2,'br')", [c, d]); };
+    await rate('2025-03-01', [2, 2, 2, 2, 2]);
     await db.query("insert into najm_ratings(day, code, att) values ('2025-03-02',$1,'on'),('2025-03-03',$1,'abs'),('2025-03-04',$1,'on')", [c]);
-    eq([(await row('2025-03-02')).ops, (await row('2025-03-02')).carry], [[2, 2, 2, 2], ['ops']]);
-    // يوم 5 اتقيّم بإيد ← مبيتأثرش بتعديل يوم 2
-    await save('ops', '0000', 'rate', k('2025-03-05'), [1, 1, 1, 1]);
-    await save('ops', '0000', 'rate', k('2025-03-02'), [0, 0, 0, 0]);
-    eq([(await row('2025-03-02')).carry, (await row('2025-03-04')).ops, (await row('2025-03-05')).ops], [[], [0, 0, 0, 0], [1, 1, 1, 1]]);
-    // الغياب: مفيش نجوم مديرين حتى لو التقييم مكمّل
+    eq([(await row('2025-03-02')).br, (await row('2025-03-02')).carry], [[2, 2, 2, 2, 2], ['br']]);
+    await rate('2025-03-05', [1, 1, 1, 1, 1]);
+    await rate('2025-03-02', [0, 0, 0, 0, 0]);
+    eq([(await row('2025-03-02')).carry, (await row('2025-03-04')).br, (await row('2025-03-05')).br], [[], [0, 0, 0, 0, 0], [1, 1, 1, 1, 1]]);
     const sc = async d => (await db.query("select public.najm_score(r, 'قسم الكاشير', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, d])).rows[0].s;
-    eq([(await sc('2025-03-03')).ops_star, (await sc('2025-03-04')).ops_star, (await sc('2025-03-04')).carry], [null, 0, ['ops']]);
-    // مسح تعديل يوم 2 ← يرجع لتقييم يوم 1 ويكمّل لقدام
-    await save('ops', '0000', 'rate', k('2025-03-02'), null);
-    eq([(await row('2025-03-02')).ops, (await row('2025-03-02')).carry, (await row('2025-03-04')).ops], [[2, 2, 2, 2], ['ops'], [2, 2, 2, 2]]);
-    await fails(save('ops', '0000', 'rate', k('2025-03-06'), [3, 2, 2, 2]), /bad rating/);
+    // الغياب: مفيش نجوم مديرين ولا صلاة — والتقييم المكمّل بيتحسب (بيقطع ← ربع نجمة صلاة على يوم 4)
+    eq([(await sc('2025-03-03')).parts.br, (await sc('2025-03-03')).pray_star, (await sc('2025-03-04')).parts.br, (await sc('2025-03-04')).carry], [null, null, 0, ['br']]);
+    await fails(save('ops', '0000', 'rate', { day: D, code: c }, [2, 2, 2, 2]), /rates managers only/);
+    const n = (await db.query("select code from najm_employees where branch=$1 and active and shift='Night' order by code limit 1 offset 8", [B])).rows[0].code;
+    await fails(save('br', '1111', 'rate', { day: D, code: n }, [3, 2, 2, 2, 2]), /bad rating/);
+    await save('br', '1111', 'rate', { day: D, code: n }, [2, 2, 2, 2, 1]);   // 5 بنود: الخامس الصلاة (بيقطع)
   });
 
   test('الموظفين من شيت البصمة: الجديد بيتضاف بشيفته، والمتغيّر بيتعدّل (والنقل بيتسجل)، والقيم الغلط بتتساب', async () => {
@@ -327,20 +329,37 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await db.query("select by_user, to_dept from najm_emp_moves where code=$1 order by id desc limit 1", [x.code])).rows[0], { by_user: 'sheet', to_dept: 'قسم الكاشير' });
   });
 
-  test('الصلاة: نص نجمة كل يوم (مدير الشيفت/الفرع/التشغيل)، ومدير التشغيل نص نجمة، والغياب من غير صلاة', async () => {
-    const c = (await db.query("select code from najm_employees where branch=$1 and active and dept <> 'قسم البقاله' order by code limit 1 offset 25", [B])).rows[0].code;
+  test('الكاميرات (صلاة ¼ + بريك ¼ كل يوم) · صلاة المدير كل 4 أيام (ملتزم ½ · بيقطع ¼) · التعارض لمدير التشغيل · وسام برق · خصم التارجت', async () => {
+    const c = (await db.query("select code from najm_employees where branch=$1 and active and dept <> 'قسم البقاله' and shift='Night' order by code limit 1 offset 6", [B])).rows[0].code;   // الليل لسه مفتوح النهارده
+    await save('ops', '0000', 'user', { username: 'cam1' }, { name: 'كاميرات', role: 'cameras', branch: B, pin: '4444' });
     await save('ops', '0000', 'att', { day: D, code: c, reason: 'اختبار' }, { st: 'on' });
-    await save('ops', '0000', 'rate', { day: D, code: c }, [2, 2, 2, 2]);
-    await fails(save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 2 }), /bad prayer value/);
-    await fails(save('hy', '7777', 'pray', { day: D, code: c }, { v: 1 }), /hygiene rates only|prayer is recorded|wrong username/);
-    const r = await save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 1 });
-    eq([r.score.ops_star, r.score.pray_star, r.row.pray], [0.5, 0.5, 1]);
-    const r0 = await save('ops', '0000', 'pray', { day: D, code: c, reason: 'x' }, { v: 0 });
-    eq(r0.score.pray_star, 0);
-    await save('ops', '0000', 'att', { day: D, code: c, reason: 'اختبار' }, { st: 'abs' });
-    eq((await db.query("select public.najm_score(r, 'x', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, D])).rows[0].s.pray_star, null);
-    // التقييم القديم اللي فيه 5 بنود بيتحسب بأول 4
-    eq((await db.query("select public.najm_crit(array[2,2,2,2,0]::smallint[])::float8 a, public.najm_crit(array[2,2,1,1]::smallint[])::float8 b")).rows[0], { a: 1, b: 0.75 });
+    await fails(save('cam1', '4444', 'rate', { day: D, code: c }, [2, 2, 2, 2]), /cameras record prayer and break only/);
+    await fails(save('cam1', '4444', 'pray', { day: D, code: c }, { v: 2 }), /bad value/);
+    await fails(save('br', '1111', 'pray', { day: D, code: c }, { v: 1 }), /recorded by the cameras/);
+    let r = await save('cam1', '4444', 'pray', { day: D, code: c }, { v: 1 });
+    eq([r.score.cam_star, r.row.pray], [0.25, 1]);
+    r = await save('cam1', '4444', 'brk', { day: D, code: c }, { v: 1 });
+    eq([r.score.cam_star, r.row.brk], [0.5, 1]);
+    await db.query("update najm_ratings set sh='{2,2,2,2,1}', br='{2,2,2,2,1}' where day=$1 and code=$2", [D, c]);
+    r = (await db.query("select public.najm_score(r, 'x', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, D])).rows[0].s;
+    eq([r.pray_lvl, r.pray_star, r.ops_star ?? null], [1, 0.25, null]);
+    // مدير التشغيل اعتمد رأي الكاميرات (ملتزم) للدورة
+    const cyc = (await db.query("select ($1::date - ((extract(day from $1::date)::int - 1) % 4))::text d", [D])).rows[0].d;
+    await save('ops', '0000', 'pray_review', { code: c, cycle: cyc }, { decision: 'cams', level: 2 });
+    r = (await db.query("select public.najm_score(r, 'x', (select data from najm_settings where id=1)) s from najm_ratings r where code=$1 and day=$2", [c, D])).rows[0].s;
+    eq(r.pray_star, 0.5);
+    eq((await asAnon(db, 'select decision from najm_public_pray_reviews($1)', [D.slice(0, 7)])).length >= 1, true);
+    // وسام برق مرة في الشهر
+    await save('ops', '0000', 'medal', { code: c, day: D }, { note: 'أداء مميز' });
+    await fails(save('ops', '0000', 'medal', { code: c, day: D }, { note: 'تاني' }), /already given/);
+    await fails(save('br', '1111', 'medal', { code: c, day: D }, {}), /operations manager only/);
+    eq((await asAnon(db, 'select code from najm_public_medals($1)', [D.slice(0, 7)])).some(x => x.code === c), true);
+    // خصم التارجت (تلاعب 50%) — للكل: النسبة بس من غير السبب
+    await fails(save('ops', '0000', 'tgt_penalty', { id: 'tp1' }, { code: c, month: D.slice(0, 7), pct: 50, reason: ' ' }), /reason required/);
+    await save('ops', '0000', 'tgt_penalty', { id: 'tp1' }, { code: c, month: D.slice(0, 7), pct: 50, reason: 'تلاعب في التقييم' });
+    const pp = (await asAnon(db, 'select * from najm_public_penalties($1)', [D.slice(0, 7)])).find(x => x.code === c);
+    eq([+pp.pct, 'reason' in pp], [50, false]);
+    eq((await asAnon(db, 'select count(*)::int n from najm_medals'))[0].n, 0);   // الجدول مقفول عن العامة
   });
 
   test('التحديث اليومي: النهارده لسه شغال — اللي بصم بيتسجل، واللي لسه مابصمش مبيتحسبش غياب ولا راحة', async () => {
@@ -361,7 +380,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
 
   test('الموظف بيدخل بكود البصمة بس — والرقم السري لو التشغيل حطه بس، وهو اللي بيفتح التصويت والاعتراض', async () => {
-    const c = (await db.query("select code from najm_employees e where branch=$1 and active and not exists (select 1 from najm_emp_pins p where p.code=e.code) and not exists (select 1 from najm_users u where u.emp_code=e.code) order by code limit 1 offset 40", [B])).rows[0].code;
+    const c = (await db.query("select code from najm_employees e where active and not exists (select 1 from najm_emp_pins p where p.code=e.code) and not exists (select 1 from najm_users u where u.emp_code=e.code) order by code desc limit 1")).rows[0].code;
     const login = async pin => (await rpc('select najm_login_any($1,$2) r', [c, pin])).r;
     const r = await login('');
     eq([r.kind, r.code, r.has_pin], ['emp', c, false]);
@@ -377,6 +396,39 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await login('')).kind, 'emp');
     // المدير لسه لازم رقمه
     eq((await rpc('select najm_login_any($1,$2) r', ['br', ''])).r.error, 'najm: wrong code or PIN');
+  });
+
+  test('التنبيهات: الشيت اتغيّر في يوم فات ← تنبيه لمدير التشغيل · موظف رجع يبصم بعد 7 أيام · الموظف الجديد بيتضاف بعد أسبوع دخول + خروج', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and active and shift='Morning' order by code limit 1 offset 33", [B])).rows[0].code;
+    const y = ago(3);
+    const run = async inT => db.query('select najm_att_sync($1,$2) r', [JSON.stringify([{ code: x, day: y, shift: '8:00 AM', in: inT, leave: '' }]), 'alerts-test']);
+    await run('8:02 AM');
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 0);
+    await run('8:02 AM');   // نفس النتيجة ← مفيش تنبيه
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 0);
+    const r = (await run('9:40 AM')).rows[0].r;   // الشيت اتعدّل ليوم فات
+    eq(r.changed_past_days, 1);
+    const al = (await db.query("select data from najm_alerts where kind='sheet_changed'")).rows[0].data;
+    eq([al.count, al.rows[0].code, al.rows[0].old, al.rows[0].new], [1, x, 'on', 'xlate']);
+    // تغيير إعدادات التأخير بس (من غير ما الشيت يتغيّر) مبيعملش تنبيه
+    await run('9:40 AM');
+    eq((await db.query("select (data->>'count')::int n from najm_alerts where kind='sheet_changed'")).rows[0].n, 1);
+    // رجع يبصم بعد غياب + الجديد محتاج أسبوع دخول + خروج
+    const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
+    const rows = [{ code: x, name: 'رجع', dept: '', job: '', branch: B, backGap: 9, backDay: T },
+                  { code: '99101', name: 'جديد كمّل', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 6 },
+                  { code: '99102', name: 'جديد لسه', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 3 }];
+    const es = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'f'])).rows[0].r;
+    eq([es.added.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
+    await db.query('select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']);   // التنبيه مرة واحدة
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='comeback' and code=$1", [x])).rows[0].n, 1);
+    // مدير التشغيل بس بيشوفها، وبيعلّم «اتشاف»
+    const L = (await rpc('select najm_alerts_list($1,$2) r', ['ops', '0000'])).r;
+    eq(L.length >= 2, true);
+    eq((await rpc('select najm_alerts_list($1,$2) r', ['br', '1111'])).r, []);
+    await save('ops', '0000', 'alert_seen', { id: L[0].id }, {});
+    eq((await db.query('select seen_by from najm_alerts where id=$1', [L[0].id])).rows[0].seen_by, 'ops');
+    eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
   });
 
   // ---------------- الملفات المرفوعة: سجل + منع التكرار

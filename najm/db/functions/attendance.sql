@@ -15,7 +15,7 @@ $$;
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean;
+declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean; chg int; chs jsonb;
   today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select data into cfg from najm_settings where id = 1;
@@ -24,7 +24,8 @@ begin
   vlatemax := coalesce(nullif(cfg->>'vlateMax', '')::int, 60);   -- بعده: «فوق الحد» (حاضر من غير نجوم بصمة)
   woff := coalesce((cfg->'ruleVersions'->-1->'rules'->>'weeklyOff')::int, (cfg->>'weeklyOff')::int, 1);
   create temp table _r on commit drop as
-    select x->>'code' as code, (x->>'day')::date as day, nullif(trim(x->>'shift'), '') as shift, nullif(trim(x->>'in'), '') as tin, nullif(trim(x->>'leave'), '') as leave
+    select x->>'code' as code, (x->>'day')::date as day, nullif(trim(x->>'shift'), '') as shift, nullif(trim(x->>'in'), '') as tin, nullif(trim(x->>'leave'), '') as leave,
+           coalesce(x->>'raw', concat_ws('|', trim(x->>'shift'), trim(x->>'in'), trim(x->>'leave'))) as raw
     from jsonb_array_elements(p_rows) x where (x->>'day') ~ '^\d{4}-\d{2}-\d{2}$';
   select least(max(day), today) into lastd from _r where public.najm_tmin(tin) is not null;
   if lastd is null then return jsonb_build_object('saved', 0, 'note', 'مفيش بصمات في الملف'); end if;
@@ -50,12 +51,25 @@ begin
                                          (leave is null and tin is null) order by day) rn
           from r)
     select code, day, case when s = 'noshow' then case when rn <= woff then 'off' else 'abs' end else s end st,
-           case when p_keep_time and public.najm_tmin(tin) is not null then tin end tin
+           case when p_keep_time and public.najm_tmin(tin) is not null then tin end tin, raw
     from c where s is not null;
   select count(*) into skipped from _s s join najm_ratings x on x.day = s.day and x.code = s.code where x.att_src = 'manual';
-  insert into najm_ratings(day, code, att, att_time, att_src)
-    select day, code, st, tin, 'sheet' from _s
-  on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, att_src = 'sheet', updated_at = now()
+  -- أيام فاتت نتيجتها اتغيّرت عن آخر تحديث من الشيت ← تنبيه لمدير التشغيل (الشيت اتعدّل بعد ما اتسجل)
+  select count(*), coalesce(jsonb_agg(jsonb_build_object('code', s.code, 'day', s.day, 'old', x.att, 'new', s.st) order by s.day, s.code) filter (where true), '[]')
+    into chg, chs
+  from _s s join najm_ratings x on x.day = s.day and x.code = s.code
+  where s.day < today and x.att_src = 'sheet' and x.att_raw is not null and x.att_raw is distinct from s.raw;
+  if chg > 0 then
+    insert into najm_alerts(kind, code, day, data)
+      values ('sheet_changed', null, today, jsonb_build_object('count', chg, 'file', p_file, 'rows', (select jsonb_agg(v) from (select v from jsonb_array_elements(chs) v limit 30) z)))
+    on conflict (kind, coalesce(code, ''), day) do update
+      set data = jsonb_build_object('count', (najm_alerts.data->>'count')::int + chg, 'file', p_file,
+                                    'rows', (select jsonb_agg(v) from (select v from jsonb_array_elements(coalesce(najm_alerts.data->'rows', '[]') || chs) v limit 30) z)),
+          seen_by = null, seen_at = null;
+  end if;
+  insert into najm_ratings(day, code, att, att_time, att_src, att_raw)
+    select day, code, st, tin, 'sheet', raw from _s
+  on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, att_src = 'sheet', att_raw = excluded.att_raw, updated_at = now()
     where najm_ratings.att_src is distinct from 'manual';
   get diagnostics n = row_count;
   select min(day) into d1 from _s;
@@ -64,7 +78,7 @@ begin
             coalesce(array_length(unk, 1), 0), 'تحديث يومي من الـ Drive ' || d1 || ' → ' || lastd || case when skipped > 0 then ' · ' || skipped || ' يوم متعدّل بإيد اتساب' else '' end);
   insert into najm_history(actor, kind, data)
     values ('system', 'att_sync', jsonb_build_object('file', p_file, 'from', d1, 'to', lastd, 'saved', n, 'manual_kept', skipped, 'unknown', to_jsonb(unk)));
-  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'from', d1, 'to', lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
+  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'changed_past_days', chg, 'from', d1, 'to', lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
     'on', (select count(*) from _s where st = 'on'), 'late', (select count(*) from _s where st in ('late', 'vlate', 'xlate')),
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;
@@ -91,7 +105,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('code', split_part(seg, ':', 1), 'day', ((m || '-01')::date + (t.i - 1)::int)::text,
            'shift', '0:00',
            'in', case when t.tok ~ '^\d+$' then (t.tok::int / 60)::text || ':' || lpad((t.tok::int % 60)::text, 2, '0') when t.tok = 'x' then 'x' else '' end,
-           'leave', case when t.tok = 'L' then 'L' else '' end)), '[]'::jsonb)
+           'leave', case when t.tok = 'L' then 'L' else '' end, 'raw', t.tok)), '[]'::jsonb)
     into rows
   from unnest(string_to_array(split_part(p_payload, '|', 2), ';')) seg,
        unnest(string_to_array(split_part(seg, ':', 2), ',')) with ordinality t(tok, i)
@@ -120,6 +134,13 @@ begin
     c := trim(x->>'code'); nm := trim(coalesce(x->>'name', '')); dp := trim(coalesce(x->>'dept', ''));
     jb := trim(coalesce(x->>'job', '')); br := trim(coalesce(x->>'branch', ''));
     if c !~ '^\d+$' or nm = any(bad) then continue; end if;
+    -- رجع يبصم بعد 7 أيام أو أكتر من غير بصمة (في آخر يومين) ← تنبيه لمدير التشغيل مرة واحدة
+    if coalesce((x->>'backGap')::int, 0) >= 7 and nullif(x->>'backDay', '')::date >= (now() at time zone 'Africa/Cairo')::date - 2 then
+      insert into najm_alerts(kind, code, day, data)
+        values ('comeback', c, (x->>'backDay')::date, jsonb_build_object('name', nm, 'gap', (x->>'backGap')::int, 'branch', br,
+                'active', coalesce((select active from najm_employees where code = c), false)))
+      on conflict (kind, coalesce(code, ''), day) do nothing;
+    end if;
     select * into e from najm_employees where code = c;
     if br <> all(bad) and br not in (select distinct branch from najm_employees where branch is not null) then
       skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'فرع مش عندنا: ' || br); br := '';
@@ -127,9 +148,12 @@ begin
     end if;
     if e.code is null then
       if br = any(bad) then skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'من غير فرع'); continue; end if;
-      -- اللي مابصمش في آخر أسبوع مبيتضافش (غالبًا ساب) — بيرجع في التقرير
-      if coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7 then
-        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'مابصمش آخر أسبوع'); continue; end if;
+      -- الموظف الجديد بيتضاف بس لو «شغال»: بصمة دخول + خروج 6 أيام من آخر 7 (اليوم السابع راحة)
+      -- (لو الأداة القديمة مبعتتش fullWeek ← لازم يكون بصم في آخر أسبوع)
+      if (x ? 'fullWeek' and coalesce((x->>'fullWeek')::int, 0) < 6)
+         or (not x ? 'fullWeek' and coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7) then
+        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', case when x ? 'fullWeek' then 'لسه مكملش أسبوع دخول + خروج (' || coalesce(x->>'fullWeek', '0') || ' من 6)' else 'مابصمش آخر أسبوع' end);
+        continue; end if;
       t := public.najm_tmin(x->>'shiftTime');
       sh := case when t is null then 'Morning' when t between bf and bt then 'Between'
                  when t >= ni or t < mo - 120 then 'Night' else 'Morning' end;
