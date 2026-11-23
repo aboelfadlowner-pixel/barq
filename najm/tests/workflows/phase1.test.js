@@ -124,6 +124,17 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const r = [a, S.settings.vlateMax, attFromTime({ shift: 'Morning' }, '09:21'), attFromTime({ shift: 'Morning' }, '09:20')]; Object.assign(S.settings, k); render(); return r; }),
       [[10, 20, 60], 60, 'vlate', 'late']);
   });
+  test('ضبط الصورة: مدير التشغيل بيدوس على الصورة ويحرّكها ويكبّرها ويحفظ، ومدير الفرع مبيقدرش', async () => {
+    await as(OPS);
+    const r = await p.evaluate(async () => { const e = activeEmps()[0]; e.photo = 'data:image/gif;base64,R0lGODlhAQABAAAAACw='; e.photoPos = '';
+      const h = futCard(e, 'lg'); const clickable = h.includes('photoEditor(');
+      photoEditor(e.code); PE.x = 12; PE.y = -8; PE.z = 1.6; await photoEditorSave();
+      const saved = e.photoPos; const html = futCard(e, 'lg');
+      return [clickable, saved, html.includes('translate(12%,-8%) scale(1.6)'), photoPosOf({ photoPos: 'x' }).z]; });
+    eq(r, [true, '12.0,-8.0,1.60', true, 1]);
+    await as(MAHMOUD);
+    eq(await p.evaluate(() => futCard(Object.assign({}, activeEmps()[0], { photo: 'x' }), 'lg').includes('photoEditor(')), false);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

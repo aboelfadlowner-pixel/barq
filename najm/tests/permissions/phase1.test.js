@@ -431,6 +431,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
   });
 
+  test('ضبط الصورة جوه الكارت: مدير التشغيل بس بيحفظه، وبيتقري مع بيانات الموظف', async () => {
+    const c = (await db.query("select code from najm_employees where active order by code limit 1 offset 3")).rows[0].code;
+    await fails(save('br', '1111', 'media', { code: c }, { photo_pos: '5,-10,1.5' }), /operations manager only/);
+    await save('ops', '0000', 'media', { code: c }, { photo_pos: '5.0,-10.0,1.50' });
+    eq((await asAnon(db, 'select photo_pos from najm_employees where code=$1', [c]))[0].photo_pos, '5.0,-10.0,1.50');
+    await save('ops', '0000', 'media', { code: c }, { title: 'لقب' });   // تعديل حاجة تانية مبيمسحش الضبط
+    eq((await db.query('select photo_pos from najm_employees where code=$1', [c])).rows[0].photo_pos, '5.0,-10.0,1.50');
+    await save('ops', '0000', 'media', { code: c }, { photo_pos: '' });
+    eq((await db.query('select photo_pos from najm_employees where code=$1', [c])).rows[0].photo_pos, null);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

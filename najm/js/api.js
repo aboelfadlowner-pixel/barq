@@ -117,7 +117,7 @@ async function pull(){
   N.settings=Object.assign(N.settings,st?.[0]?.data||{});
   N.settings.att={...defaultState().settings.att,...(st?.[0]?.data?.att||{})};   // نجوم أي حالة جديدة (زي فوق الحد) بتاخد الافتراضي لحد ما تتحدد
   if(files?.private?.bonusAt100!=null)N.settings.bonusAt100=files.private.bonusAt100;
-  N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||'',title:e.title||''}));
+  N.employees=emps.map(e=>({code:e.code,name:e.name,branch:e.branch,dept:e.dept||'',job:e.job||'',shift:e.shift||'Morning',active:e.active!==false,photo:e.photo||'',video:e.video||'',title:e.title||'',photoPos:e.photo_pos||''}));
   if(typeof applyLocalMedia==='function')applyLocalMedia(N.employees);   // صورة لسه اترفعت متضيعش لو التحديث خلّص قبل ما الداتابيز تتحدّث
   N.targets={[m]:Object.fromEntries(tg.map(r=>[r.dkey,r.cfg]))};
   N.captains={[m]:{}};for(const c of caps)(N.captains[m][c.code]||(N.captains[m][c.code]=[])).push({sku:c.sku,name:c.name,target:+c.target,pts:c.pts==null?null:+c.pts,active:c.active,by:c.by_user});
