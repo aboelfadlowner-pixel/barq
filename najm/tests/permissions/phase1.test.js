@@ -422,6 +422,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq([es.added.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
     await db.query('select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']);   // التنبيه مرة واحدة
     eq((await db.query("select count(*)::int n from najm_alerts where kind='comeback' and code=$1", [x])).rows[0].n, 1);
+    // موظف نشط من غير بصمة 14 يوم ← تنبيه مرة واحدة (حتى لو التحديث اتكرر)
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='stale' and code='99101'")).rows[0].n, 1);
     // مدير التشغيل بس بيشوفها، وبيعلّم «اتشاف»
     const L = (await rpc('select najm_alerts_list($1,$2) r', ['ops', '0000'])).r;
     eq(L.length >= 2, true);
