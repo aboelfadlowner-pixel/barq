@@ -17,19 +17,19 @@ function futCard(e,cls=''){
 }
 
 // ---------- ضبط الصورة جوه الكارت (مدير التشغيل): اسحب الصورة فوق/تحت/جنب، واتحكم في التكبير ----------
-function photoPosOf(e){const [x,y,z]=String(e?.photoPos||'').split(',').map(Number);return {x:Number.isFinite(x)?x:0,y:Number.isFinite(y)?y:0,z:Number.isFinite(z)&&z>=1?z:1};}
+function photoPosOf(e){const [x,y,z]=String(e?.photoPos||'').split(',').map(Number);return {x:Number.isFinite(x)?x:0,y:Number.isFinite(y)?y:0,z:Number.isFinite(z)&&z>=0.5?z:1};}
 let PE=null;
 function photoEditor(code){const e=emp(code);if(!e||!e.photo||!isOps())return;PE={code,...photoPosOf(e),orig:e.photoPos||''};
   openModal(`<button class="x" onclick="photoEditorClose()">✕</button><h2>🎯 اظبط صورة ${esc(e.name.split(' ').slice(0,2).join(' '))}</h2>
     <div class="small muted" style="margin-bottom:8px">اسحب الصورة بإيدك أو إصبعك عشان تحرّكها فوق/تحت/جنب، وكبّرها أو صغّرها من الشريط.</div>
     <div class="row" style="justify-content:center;align-items:flex-start;gap:14px;flex-wrap:wrap"><div id="pe_card" style="touch-action:none">${futCard(e,'sm')}</div></div>
-    <label class="small" style="display:block;margin-top:10px">🔍 التكبير <b id="pe_zv">${PE.z.toFixed(2)}×</b><br><input id="pe_z" type="range" min="1" max="3" step="0.05" value="${PE.z}" style="width:100%"></label>
+    <label class="small" style="display:block;margin-top:10px">🔍 التكبير <b id="pe_zv">${PE.z.toFixed(2)}×</b><br><input id="pe_z" type="range" min="0.6" max="3" step="0.05" value="${PE.z}" style="width:100%"></label>
     <div class="row" style="margin-top:10px"><button class="btn pri" onclick="photoEditorSave()">💾 حفظ</button><button class="btn" onclick="photoEditorReset()">↺ رجّعها زي الأول</button></div>`);
   const box=$('#pe_card .fc-ph'),img=$('#pe_card .fc-ph img');if(!box||!img)return;box.onclick=null;box.style.cursor='grab';
   const apply=()=>{img.style.transform=`translate(${PE.x}%,${PE.y}%) scale(${PE.z})`;$('#pe_zv').textContent=PE.z.toFixed(2)+'×';};
   let d=null;
   box.onpointerdown=ev=>{d={sx:ev.clientX,sy:ev.clientY,x:PE.x,y:PE.y,w:box.clientWidth,h:box.clientHeight};box.setPointerCapture(ev.pointerId);box.style.cursor='grabbing';ev.preventDefault();};
-  box.onpointermove=ev=>{if(!d)return;const lim=60;PE.x=Math.max(-lim,Math.min(lim,d.x+(ev.clientX-d.sx)/d.w*100));PE.y=Math.max(-lim,Math.min(lim,d.y+(ev.clientY-d.sy)/d.h*100));apply();};
+  box.onpointermove=ev=>{if(!d)return;const lim=90;PE.x=Math.max(-lim,Math.min(lim,d.x+(ev.clientX-d.sx)/d.w*100));PE.y=Math.max(-lim,Math.min(lim,d.y+(ev.clientY-d.sy)/d.h*100));apply();};
   box.onpointerup=box.onpointercancel=()=>{d=null;box.style.cursor='grab';};
   $('#pe_z').oninput=ev=>{PE.z=+ev.target.value;apply();};}
 const photoPosStr=()=>`${PE.x.toFixed(1)},${PE.y.toFixed(1)},${PE.z.toFixed(2)}`;
