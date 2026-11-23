@@ -24,7 +24,7 @@ function empProfileHTML(e){
         <div class="muted">${esc(e.name)} · كود ${esc(e.code)}</div>
         <div class="muted small">${esc(e.job||'')} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
         <div class="row" style="margin-top:8px;gap:6px">${R.branch[e.code]?`<span class="badge b-blue">#${fmt(R.branch[e.code])} في الفرع</span>`:''}${R.company[e.code]?`<span class="badge b-blue">#${fmt(R.company[e.code])} في المؤسسة</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins||0)} مرة رجل اليوم</span></div>
-        <div class="row" style="margin-top:10px;gap:6px">${ME_HASPIN?`<button class="btn sm pri" onclick="go('vote')">🗳️ صوّت لمديرك</button>`:''}<button class="btn sm" onclick="go('target')">🎯 تارجت قسمي</button>${ME_HASPIN?`<button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button>`:''}<button class="btn sm" onclick="meLogout()">خروج</button></div>
+        <div class="row" style="margin-top:10px;gap:6px">${ME_HASPIN?`<button class="btn sm pri" onclick="go('vote')">🗳️ صوّت لمديرك</button>`:''}<button class="btn sm" onclick="go('target')">🎯 تارجت قسمي</button><button class="btn sm" onclick="openCareer('${e.code}')">📜 ملفي الكامل</button>${ME_HASPIN?`<button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button>`:''}<button class="btn sm" onclick="meLogout()">خروج</button></div>
       </div></div></div>
     <div class="grid g-2" style="margin-bottom:12px">
       <div class="card"><h3>⭐ نجومك النهارده (${esc(DATE)})</h3>${todayStarsHTML(e.code)}</div>
@@ -168,3 +168,32 @@ function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;c
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>${a.kind==='sheet_changed'?'🚨 شيت البصمة اتغيّر':'🔁 موظف رجع يبصم'}</h2><div class="small muted" style="margin-bottom:8px">${esc(new Date(a.created_at||Date.now()).toLocaleString('ar-EG'))}</div>${rows}
     <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتواصلت / اتشاف</button></div>`);}
 async function alertSeen(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(a){a.seen_at=new Date().toISOString();a.seen_by=USER.username;}save();closeModal();render();push('alert_seen',{id},{});}
+
+// ---------- الملف الكامل: تاريخ الموظف طول فترة شغله (نجوم · KPI · كروت · إنجازات) — من غير أي فلوس ----------
+// الموظف بيشوف ملفه هو بس (بكوده)، ومدير التشغيل بيشوف أي موظف. النقط بتبدأ من جديد كل شهر والملف بيحتفظ بكل شهر.
+async function loadCareer(code){
+  if(LIVE){const r=USER?await sbRpc('najm_emp_history',{p_user:USER.username,p_pin:PIN,p_code:code}):await sbRpc('najm_my_history',{p_code:ME,p_pin:MEPIN});if(r?.error)throw new Error(r.error);return r;}
+  const e=emp(code);const ms=[...new Set(Object.keys(S.days).map(d=>d.slice(0,7)))].sort().reverse();
+  return {emp:{code,name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:e.active!==false},
+    months:ms.map(m=>{const s=monthSummary(e,m);return {month:m,n:s.n,avg:s.avg!=null?+s.avg.toFixed(2):null,worked:s.worked,off:s.off,abs:s.abs,late:s.late,yellow:s.cards.y||0,red:s.cards.r||0,green:s.cards.g||0,card_pts:s.cardPts,medal:medalOf(code,m),wins:s.wins,cashier:isCashierEmp(e)?cashierPts(code,m):null,complaints:0,kpi_pts:s.kpiPts,month_score:s.monthScore};}),
+    cards:(S.cards||[]).filter(c=>c.code===code&&c.approved!==false).map(c=>({id:c.id,day:c.date,color:c.color,reason:c.reason,by:emp(c.by)?.name||c.by})),
+    wins:Object.keys(S.days).filter(d=>isWinner(d,code)).sort().reverse(),medals:(S.medals||[]).filter(x=>x.code===code).map(x=>x.month||monthOf(x.day)),moves:[]};
+}
+async function openCareer(code){
+  let h;try{h=await loadCareer(code);}catch(x){toast('⚠️ '+errMsg(x.message));return;}
+  if(!h){toast('الموظف مش موجود');return;}
+  const M=h.months||[];const tot=k=>M.reduce((a,x)=>a+(+x[k]||0),0);const col={yellow:'🟨',red:'🟥',green:'🟩'};
+  const sc=v=>v==null?'—':v;
+  openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📜 الملف الكامل — ${esc(h.emp.name)}</h2>
+    <div class="muted small">كود ${esc(h.emp.code)} · ${esc(h.emp.job||'')} · ${esc(h.emp.dept||'')} · ${esc(h.emp.branch||'')}${h.emp.active===false?' · <b>موقوف</b>':''}</div>
+    <div class="row" style="gap:6px;margin:8px 0;flex-wrap:wrap"><span class="badge b-gold">🏆 ${fmt((h.wins||[]).length)} مرة رجل اليوم</span><span class="badge b-gold">🏅 ${fmt((h.medals||[]).length)} وسام برق</span>
+      <span class="badge b-gold">🟩 ${fmt(tot('green'))}</span><span class="badge b-gold">🟨 ${fmt(tot('yellow'))}</span><span class="badge b-red">🟥 ${fmt(tot('red'))}</span></div>
+    <h3 style="margin:10px 0 4px">📅 كل شهر</h3>
+    <div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>الشهر</th><th>متوسط النجوم</th><th>KPI (نقطة)</th><th>%</th><th>شغل</th><th>غياب</th><th>تأخير</th><th>كروت</th><th>🏆</th><th>🏅</th>${M.some(x=>x.cashier!=null)?'<th>باندات</th>':''}</tr></thead><tbody>
+      ${M.map(x=>`<tr><td>${esc(monthName(x.month))}</td><td>${x.avg!=null?`${starsHTML(x.avg)} <b>${fmt(x.avg,2)}</b>`:'—'}</td><td><b>${x.kpi_pts!=null?fmt(x.kpi_pts):'—'}</b></td><td>${x.month_score!=null?fmt(x.month_score)+'%':'—'}</td><td>${fmt(x.worked)}</td><td>${fmt(x.abs)}</td><td>${fmt(x.late)}</td><td>${x.green?`🟩${x.green} `:''}${x.yellow?`🟨${x.yellow} `:''}${x.red?`🟥${x.red}`:''}${x.green||x.yellow||x.red?'':'—'}</td><td>${x.wins||'—'}</td><td>${x.medal?'🏅':'—'}</td>${M.some(y=>y.cashier!=null)?`<td>${x.cashier!=null?(x.cashier>0?'+':'')+fmt(x.cashier):'—'}</td>`:''}</tr>`).join('')||'<tr><td colspan="11" class="muted">مفيش أشهر لسه</td></tr>'}</tbody></table></div>
+    <div class="small muted" style="margin-top:4px">النقط بتبدأ من جديد كل شهر — ده سجل كل شهر على حدة. نقط التارجت للأشهر القديمة مش محفوظة (بتتحسب من تارجت القسم وقتها).</div>
+    <h3 style="margin:10px 0 4px">🃏 الكروت (${fmt((h.cards||[]).length)})</h3>
+    ${(h.cards||[]).slice(0,60).map(c=>`<div class="small" style="margin:2px 0">${col[c.color]||''} ${esc(String(c.day).slice(0,10))} — ${esc(c.reason||'')} <span class="muted">(${esc(c.by||'')})</span></div>`).join('')||'<div class="muted small">مفيش كروت</div>'}
+    ${(h.wins||[]).length?`<h3 style="margin:10px 0 4px">🏆 أيام رجل اليوم</h3><div class="small">${h.wins.slice(0,40).map(d=>esc(String(d).slice(5,10))).join(' · ')}</div>`:''}
+    ${(h.moves||[]).length?`<h3 style="margin:10px 0 4px">🔀 النقل</h3>${h.moves.map(m=>`<div class="small">${esc(String(m.day))}: ${esc(m.from_branch||'')} / ${esc(m.from_dept||'')} ← ${esc(m.to_branch||'')} / ${esc(m.to_dept||'')}</div>`).join('')}`:''}`);
+}

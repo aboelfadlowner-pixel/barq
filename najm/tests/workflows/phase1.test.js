@@ -161,6 +161,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [true, true, true]);
     await as(MAHMOUD);
   });
+  test('الملف الكامل: ملخص الأشهر والكروت من الواجهة', async () => {
+    const r = await p.evaluate(async () => { const e = activeEmps().find(x => ratable(x)); await openCareer(e.code);
+      const t = document.querySelector('.modal, #modal, [class*=modal]')?.innerText || document.body.innerText; closeModal();
+      return [t.includes('الملف الكامل'), t.includes('كل شهر'), t.includes('الكروت')]; });
+    eq(r, [true, true, true]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
