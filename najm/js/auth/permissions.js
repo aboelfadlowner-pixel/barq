@@ -8,6 +8,7 @@ function inScope(e){
   if(!USER) return false; if(USER.role==='ops') return true;
   if(USER.branch&&e.branch!==USER.branch) return false;
   if(USER.role==='shift'&&shiftGroup(e.shift)!==shiftGroup(USER.shift)) return false;   // Between مع الليل
+  if(USER.role==='headcashier'&&e.dept!==(S.settings.cashierDept||'قسم الكاشير')) return false;   // هيد الكاشير: كاشيرات فرعه
   if(USER.role==='fresh'&&!freshDepts(USER).includes(e.dept)) return false;
   return true;
 }

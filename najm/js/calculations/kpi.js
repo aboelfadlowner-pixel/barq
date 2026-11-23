@@ -35,3 +35,9 @@ function tgtPenaltyPct(code,month){
 function camMissedLocal(code,month){const u=(S.users||[]).find(x=>x.role==='cameras'&&x.emp_code===code&&x.active!==false);if(!u)return 0;let n=0;const T=todayC();
   for(const d of monthDays(month)){if(d>=T)break;const D=S.days[d];if(!D)continue;for(const e of activeEmps()){if(u.branch&&e.branch!==u.branch)continue;const st=D.att[e.code];
     if(['on','late','vlate','xlate'].includes(st)&&(D.pray?.[e.code]==null||D.brk?.[e.code]==null))n++;}}return n;}
+
+// ---------- هيد الكاشير: باندات +/− على نقط تارجت الكاشير ----------
+const cashierBands=()=>{const sv=S.settings.cashierBands||[];return CASHIER_BANDS_DEF.map(b=>({...b,pts:+(sv.find(x=>x.id===b.id)?.pts??b.pts)}));};
+// صافي نقط الباندات للكاشير في الشهر (لايف: من الداتابيز للكل · تجربة: من الأحداث المحلية)
+function cashierPts(code,month){if(LIVE&&month===monthOf(DATE))return S.cashierPts?.[code]||0;return (S.cashierEvents||[]).filter(x=>x.code===code&&String(x.day).startsWith(month)).reduce((a,x)=>a+x.pts,0);}
+const isCashierEmp=e=>e?.dept===(S.settings.cashierDept||'قسم الكاشير');

@@ -192,7 +192,7 @@ function demoSeed(){
   const mg=(username,code,role,branch,shift,pin,depts=[])=>{const e=emp(code);return {username,name:e?e.name:username,role,branch,shift,depts,pin,active:true,emp_code:code};};
   S.users.push(mg('haitham','278','branch',B,'','1111'),mg('mahmoud','189','shift',B,'Morning','2222'),mg('islam','65','shift',B,'Night','3333'),
     mg('firas','44','fresh',B,'','5555',['قسم البقاله']),mg('abdelrahman','74','branch',A,'','6666'),
-    mg('yasser','62','hygiene',B,'','7777'),mg('bothaina','226','hygiene',A,'','8888'),mg('cam','20','cameras',B,'','4444'));
+    mg('yasser','62','hygiene',B,'','7777'),mg('bothaina','226','hygiene',A,'','8888'),mg('cam','20','cameras',B,'','4444'),mg('hcash','21','headcashier',B,'','4545'));
   const m=monthOf(DATE),pm=prevMonth(m),days=monthDays(m,DATE);
   // products and sales (kilos/units)
   let k=1;const cat={};const base={[B]:{},[A]:{}};
@@ -220,6 +220,9 @@ function demoSeed(){
     {id:2,kind:'comeback',code:L[9].code,day:days[days.length-1],created_at:new Date().toISOString(),data:{name:L[9].name,gap:9,branch:B,active:true}}];}
   // تعارض صلاة واحد للتجربة: المدير قال «ملتزم» والكاميرات سجّلت يوم ماصلّاش
   {const y=days[days.length-2];const x=y&&activeEmps().find(e=>e.branch===B&&prayL(e.code)===2&&S.days[y]?.pray?.[e.code]===1);if(x)S.days[y].pray[x.code]=0;}
+  // أحداث هيد الكاشير للتجربة
+  {const C=activeEmps().filter(e=>e.branch===B&&e.dept==='قسم الكاشير'&&e.code!=='21');const bs=CASHIER_BANDS_DEF;S.cashierEvents=[];
+   C.slice(0,6).forEach((e,i)=>{for(let k=0;k<3+i;k++){const b=bs[(i*3+k)%bs.length];S.cashierEvents.push({id:'ce'+i+'_'+k,day:days[(k*3)%days.length],code:e.code,band:b.id,pts:b.pts,note:'',by:'hcash'});}});}
   // وسام برق لموظفين اتنين الشهر ده
   {const L=activeEmps().filter(e=>e.branch===B);S.medals=[{code:L[2].code,month:m,day:days[Math.min(3,days.length-1)],note:'ساعد في الجرد طول الليل'},{code:L[11].code,month:m,day:days[0],note:'خدمة عميل مميزة'}];}
   // شكاوى العملاء: واحدة مستنية مراجعة، واحدة مثبتة، وواحدة مثبتة والموظف معترض عليها

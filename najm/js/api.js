@@ -9,7 +9,7 @@ function defaultState(){
     settings:{
       att:{on:2, late:1.2, vlate:0.4, xlate:0, abs:0},
       shiftStart:{Morning:'09:00', Between:'13:00', Night:'17:00'}, betweenTo:'16:00',   // Between فترة: أي بداية بين shiftStart.Between و betweenTo
-      graceMin:10, lateMax:30, vlateMax:60, medalPts:100, camMissPct:2, finalists:4, winnersPerShift:2,
+      graceMin:10, lateMax:30, vlateMax:60, medalPts:100, camMissPct:2, cashierDept:'قسم الكاشير', cashierBands:CASHIER_BANDS_DEF.map(b=>({id:b.id,pts:b.pts})), finalists:4, winnersPerShift:2,
       capPct:120, complaintPenalty:50, bonusAt100:0, defaultMultiplier:2,
       freshDepts:['قسم البقاله'],
       cards:{yellow:-5, red:-20, green:10, yellowsToRed:3},
@@ -30,7 +30,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[]
+    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[], cashierEvents:[], cashierPts:{}
   };
 }
 
@@ -106,6 +106,7 @@ async function pull(){
   ]);
   const [dayCards,closes,complCnt,moves]=await Promise.all([sbRpc('najm_public_day_cards',{p_from:from,p_to:to}),sbRpc('najm_closes_list',{p_from:from,p_to:to}),sbRpc('najm_public_complaints',{p_from:from,p_to:to}),sbRpc('najm_public_moves',{p_from:from,p_to:to})]);
   const [medals,pens,camMiss,prayRv]=await Promise.all([sbRpc('najm_public_medals',{p_month:m}).catch(()=>[]),sbRpc('najm_public_penalties',{p_month:m}).catch(()=>[]),sbRpc('najm_cam_missing',{p_month:m}).catch(()=>[]),sbRpc('najm_public_pray_reviews',{p_month:m}).catch(()=>[])]);
+  const cashPts=await sbRpc('najm_public_cashier_pts',{p_month:m}).catch(()=>[]);
   const [mgrs,mgrPtsRows,ledger,market,offers,mgrFull,votes]=await Promise.all([
     sbRpc('najm_public_users',{}),sbRpc('najm_mgr_points',{p_from:from,p_to:to}),sbAll('najm_mgr_ledger','select=*&order=created_at'),
     sbRpc('najm_market_list',{}),sbAll('najm_offers','select=*'),
@@ -137,6 +138,8 @@ async function pull(){
     N.myCards=myc?.cards||null;}
   N.moves=(moves||[]).map(m=>({code:m.code,day:m.day,fromBranch:m.from_branch,fromDept:m.from_dept,toBranch:m.to_branch,toDept:m.to_dept}));
   N.complaintCounts=Object.fromEntries((complCnt||[]).map(r=>[r.code,r.n]));
+  N.cashierPts=Object.fromEntries((cashPts||[]).map(r=>[r.code,+r.pts]));   // نقط الكاشير (باندات هيد الكاشير)
+  N.cashierEvents=(USER&&(USER.role==='headcashier'||USER.role==='ops'))?(((await sbRpc('najm_cashier_events_list',{p_user:USER.username,p_pin:PIN,p_month:m}).catch(()=>[]))||[]).map(r=>({id:r.id,day:r.day,code:r.code,band:r.band,pts:+r.pts,note:r.note||'',by:r.by_user}))):[];
   N.medals=(medals||[]).map(r=>({code:r.code,month:m,day:r.day}));                       // وسام برق
   N.tgtPenalties=Object.fromEntries((pens||[]).map(r=>[r.code,+r.pct]));                 // خصومات التارجت (%)
   N.camMissing=Object.fromEntries((camMiss||[]).map(r=>[r.code,r.missed]));              // الكاميرات: حاضر ماتقيّمش

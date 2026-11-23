@@ -1,6 +1,7 @@
 // نجم أبو الفضل — تاب تقييم اليوم (المديرين والهايجين)
 function vRate(){
   if(isCam())return vRateCams();
+  if(isHC())return vRateHC();
   const list=filtered(true).filter(ratable);const D=peekDay(DATE);const field=isOps()?null:RATE_FIELD[USER.role];
   /* البصمة من الشيت — المديرين بيشوفوها بس، والتشغيل بيعدّل استثناء بسبب */const canAtt=isOps();const CL=critList(USER.role);const withPray=hasPrayItem();
   const off=e=>D.att[e.code]==='abs'||D.att[e.code]==='off';
@@ -112,3 +113,23 @@ async function giveCard(code,color){
   toast(approved?'اتسجل الكارت':'🟥 الكارت الأحمر مستني موافقة مدير التشغيل');
 }
 
+
+// ---------- هيد الكاشير: أحداث كل كاشير في فرعه (باندات +/−) بتتجمع على نقط التارجت ----------
+function evOf(code,month){return (S.cashierEvents||[]).filter(x=>x.code===code&&String(x.day).startsWith(month));}
+function vRateHC(){const m=monthOf(DATE);const B=cashierBands();const list=filtered(true).filter(ratable);const todayEv=x=>String(x.day)===DATE;
+  const tgtOn=e=>{const t=empTarget(e,m,DATE);return t?.basePoints>0;};
+  return `<div class="sec-title"><h2>الكاشيرات — ${esc(DATE)}</h2><div class="row"><button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
+  <div class="lock" style="margin-bottom:10px">سجّل لكل كاشير الحاجات اللي بتحصل — كل دوسة بتزوّد أو بتنقّص من نقط تارجته، <b>من أول ما يحقق 85% من التارجت</b>. تقدر تمسح حدث اتسجل بالغلط (لحد يومين).</div>
+  <div class="grid g-emp">${list.map(e=>{const evs=evOf(e.code,m);const net=evs.reduce((a,x)=>a+x.pts,0);const tdy=evs.filter(todayEv);const on=tgtOn(e);
+    return `<div class="card"><div class="emp-top" style="margin-bottom:6px">${ava(e)}<div style="flex:1"><div class="emp-name">${esc(e.name)}</div><div class="small muted">${esc(e.job)} · ${esc(e.shift)}</div></div>
+      <div style="text-align:center"><div class="small muted">صافي الشهر</div><b style="font-size:18px;color:${net>0?'var(--green)':net<0?'var(--red)':'inherit'}">${net>0?'+':''}${fmt(net)}</b></div></div>
+      ${on?'':'<div class="small muted" style="margin-bottom:4px">⏳ لسه ماوصلش 85% من التارجت — النقط بتتسجل وبتتحسب أول ما يوصل</div>'}
+      <div class="row" style="gap:5px;flex-wrap:wrap">${B.map(b=>{const n=tdy.filter(x=>x.band===b.id).length;return `<button class="btn sm" style="border-color:${b.pts>0?'var(--green)':'var(--red)'};color:${b.pts>0?'var(--green)':'var(--red)'}" onclick="addCashierEvent('${e.code}','${b.id}')">${b.pts>0?'＋':'−'}${fmt(Math.abs(b.pts))} ${esc(b.t)}${n?` <b>×${n}</b>`:''}</button>`;}).join('')}</div>
+      ${evs.length?`<details style="margin-top:6px"><summary class="small muted" style="cursor:pointer">آخر الأحداث (${fmt(evs.length)})</summary>${evs.slice(0,12).map(x=>`<div class="small row" style="justify-content:space-between;margin:2px 0"><span>${esc(String(x.day).slice(5))} · ${esc(B.find(b=>b.id===x.band)?.t||x.band)}</span><span><b style="color:${x.pts>0?'var(--green)':'var(--red)'}">${x.pts>0?'+':''}${fmt(x.pts)}</b> <button class="btn sm" onclick="delCashierEvent('${esc(x.id)}')">🗑️</button></span></div>`).join('')}</details>`:''}</div>`;}).join('')||'<div class="empty">مفيش كاشيرات في نطاقك</div>'}</div>`;}
+async function addCashierEvent(code,band){const b=cashierBands().find(x=>x.id===band);if(!b)return;const id=uid();
+  (S.cashierEvents||(S.cashierEvents=[])).unshift({id,day:DATE,code,band,pts:b.pts,note:'',by:USER.username});
+  if(LIVE){S.cashierPts[code]=(S.cashierPts[code]||0)+b.pts;}save();render();
+  if(await push('cashier_event',{id},{code,band,day:DATE})!==false)toast(`${b.pts>0?'＋':'−'}${fmt(Math.abs(b.pts))} ${b.t} — ${emp(code).name.split(' ')[0]}`);}
+async function delCashierEvent(id){const x=(S.cashierEvents||[]).find(v=>v.id===id);if(!x)return;if(!await askConfirm('مسح الحدث ده؟'))return;
+  S.cashierEvents=S.cashierEvents.filter(v=>v.id!==id);if(LIVE)S.cashierPts[x.code]=(S.cashierPts[x.code]||0)-x.pts;save();render();
+  if(await push('cashier_event',{id},null)!==false)toast('اتمسح');}

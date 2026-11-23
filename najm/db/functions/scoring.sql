@@ -278,3 +278,11 @@ language sql stable security definer set search_path = public as $$
   select code, cycle, decision, level from najm_pray_reviews where to_char(cycle, 'YYYY-MM') = p_month;
 $$;
 grant execute on function public.najm_public_pray_reviews(text) to anon, authenticated;
+
+-- نقط الكاشير (هيد الكاشير) للشهر: صافي الباندات لكل كاشير — للكل (الكود والنقط والعدد، من غير تفاصيل)
+create or replace function public.najm_public_cashier_pts(p_month text)
+returns table(code text, pts numeric, n int)
+language sql stable security definer set search_path = public as $$
+  select code, sum(pts), count(*)::int from najm_cashier_events where to_char(day, 'YYYY-MM') = p_month group by code;
+$$;
+grant execute on function public.najm_public_cashier_pts(text) to anon, authenticated;

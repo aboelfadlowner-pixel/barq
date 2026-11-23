@@ -453,6 +453,38 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await save('fr1', '5151', 'rate', { day: D, code: g }, [2, 2, 2, 2]);
   });
 
+  test('هيد الكاشير: بيسجّل باندات على كاشيرات فرعه بس، النقط من الإعدادات، والتجميع للكل من غير تفاصيل', async () => {
+    await save('ops', '0000', 'user', { username: 'hc1' }, { name: 'هيد كاشير', role: 'headcashier', branch: B, pin: '4545' });
+    const c = (await db.query("select code from najm_employees where branch=$1 and active and dept='قسم الكاشير' and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') order by code limit 1", [B])).rows[0].code;
+    const o = (await db.query("select code from najm_employees where branch=$1 and active and dept<>'قسم الكاشير' limit 1", [B])).rows[0].code;
+    const m = D.slice(0, 7);
+    await fails(save('hc1', '4545', 'rate', { day: D, code: c }, [2, 2, 2, 2]), /cashier events only/);
+    await fails(save('hc1', '4545', 'cashier_event', { id: 'ce0' }, { code: o, band: 'smile' }), /outside your scope/);
+    await fails(save('hc1', '4545', 'cashier_event', { id: 'ce0' }, { code: c, band: 'nope' }), /unknown band/);
+    await fails(save('br', '1111', 'cashier_event', { id: 'ce0' }, { code: c, band: 'smile' }), /head cashier only/);
+    await save('hc1', '4545', 'cashier_event', { id: 'ce1' }, { code: c, band: 'smile' });
+    await save('hc1', '4545', 'cashier_event', { id: 'ce2' }, { code: c, band: 'no_receipt' });
+    await save('hc1', '4545', 'cashier_event', { id: 'ce3' }, { code: c, band: 'barcode_found' });
+    await save('hc1', '4545', 'cashier_event', { id: 'ce3' }, { code: c, band: 'barcode_found' });   // نفس المعرّف مرة تانية ← مبيتكررش
+    let p = (await asAnon(db, 'select pts, n from najm_public_cashier_pts($1) where code=$2', [m, c]))[0];
+    eq([+p.pts, p.n], [20, 3]);   // +20 −20 +20
+    // النقط من الإعدادات وقت التسجيل
+    const st = (await db.query('select data from najm_settings where id=1')).rows[0].data;
+    await save('ops', '0000', 'settings', {}, { ...st, cashierBands: [{ id: 'smile', pts: 50 }] });
+    await save('hc1', '4545', 'cashier_event', { id: 'ce4' }, { code: c, band: 'smile' });
+    p = (await asAnon(db, 'select pts from najm_public_cashier_pts($1) where code=$2', [m, c]))[0];
+    eq(+p.pts, 70);
+    // التفاصيل: هيد الكاشير والتشغيل بس
+    eq((await rpc('select najm_cashier_events_list($1,$2,$3) r', ['hc1', '4545', m])).r.length >= 4, true);
+    eq((await rpc('select najm_cashier_events_list($1,$2,$3) r', ['br', '1111', m])).r, []);
+    eq((await asAnon(db, 'select count(*)::int n from najm_cashier_events'))[0].n, 0);
+    // مسح حدث
+    await save('hc1', '4545', 'cashier_event', { id: 'ce4' }, null);
+    p = (await asAnon(db, 'select pts from najm_public_cashier_pts($1) where code=$2', [m, c]))[0];
+    eq(+p.pts, 20);
+    await save('ops', '0000', 'settings', {}, st);
+  });
+
   // ---------------- الملفات المرفوعة: سجل + منع التكرار
   test('رفع ملف: بيتسجل، ونفس الملف مبيترفعش مرتين (مدير التشغيل بس يرفعه تاني بقصد)', async () => {
     const info = { kind: 'sales', file: 'foodics.xlsx', hash: 'abc123', branch: B, day: D, ok: 40, bad: 2, dup: 1 };

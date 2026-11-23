@@ -20,6 +20,10 @@ begin
   if u.role = 'hygiene' and p_kind <> 'rate' then
     raise exception 'najm: hygiene rates only' using errcode = '42501';
   end if;
+  -- هيد الكاشير: أحداث الكاشيرات بس
+  if u.role = 'headcashier' and p_kind <> 'cashier_event' then
+    raise exception 'najm: head cashier records cashier events only' using errcode = '42501';
+  end if;
   -- مراقب الكاميرات: الصلاة والبريك بس
   if u.role = 'cameras' and p_kind not in ('pray', 'brk') then
     raise exception 'najm: cameras record prayer and break only' using errcode = '42501';
@@ -28,7 +32,7 @@ begin
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
-  if p_kind in ('att','rate','bonus','pray','brk','note','card','captain','medal') and not public.najm_in_scope(u, k_code) then
+  if p_kind in ('att','rate','bonus','pray','brk','note','card','captain','medal','cashier_event') and p_kind <> 'cashier_event' and not public.najm_in_scope(u, k_code) then
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
   -- اللي ليه حساب مدير مبيتقيّمش (المدير بيقيّم موظفين مش مديرين) — بيظهر في رجل اليوم والعامل المثالي عادي
@@ -115,6 +119,32 @@ begin
     else
       insert into najm_ratings(day, code, brk) values (k_day, k_code, case when del then null else (p_data->>'v')::smallint end)
       on conflict (day, code) do update set brk = excluded.brk, updated_at = now();
+    end if;
+  elsif p_kind = 'cashier_event' then
+    -- هيد الكاشير (أو التشغيل) بيسجّل حدث على كاشير: الباند بيحدد النقط (من الإعدادات وقت التسجيل) — النقط بتتجمع على التارجت
+    if u.role not in ('headcashier', 'ops') then raise exception 'najm: head cashier only' using errcode = '42501'; end if;
+    if del then
+      -- مسح حدث: اللي سجّله لحد يومين، أو التشغيل
+      delete from najm_cashier_events where id = p_key->>'id' and (u.role = 'ops' or (by_user = u.username and day >= today - 1))
+        returning code into k_code;
+    else
+      k_code := p_data->>'code';
+      if not public.najm_in_scope(u, k_code) then raise exception 'najm: employee outside your scope' using errcode = '42501'; end if;
+      if exists (select 1 from najm_users x where x.active and coalesce(x.emp_code, '') <> '' and x.emp_code = k_code) then
+        raise exception 'najm: managers are not rated' using errcode = '42501'; end if;
+      k_day := coalesce(nullif(p_data->>'day', '')::date, today);
+      if u.role <> 'ops' and (k_day < today - 1 or k_day > today) then raise exception 'najm: day locked' using errcode = '42501'; end if;
+      select data into st from najm_settings where id = 1;
+      -- النقط من الإعدادات (cashierBands) أو الافتراضي
+      wmax := (select coalesce((b->>'pts')::int, null) from jsonb_array_elements(coalesce(st->'cashierBands', '[]'::jsonb)) b where b->>'id' = p_data->>'band' limit 1);
+      if wmax is null then
+        wmax := case p_data->>'band' when 'barcode_found' then 20 when 'barcode_missed' then -20 when 'shortage' then -20 when 'smile' then 20
+                  when 'closing_ok' then 20 when 'forgot_items' then -20 when 'customer_issue' then -20 when 'no_receipt' then -20 end;
+      end if;
+      if wmax is null then raise exception 'najm: unknown band'; end if;
+      insert into najm_cashier_events(id, day, code, band, pts, note, by_user)
+        values (p_key->>'id', k_day, k_code, p_data->>'band', wmax, nullif(trim(p_data->>'note'), ''), u.username)
+        on conflict (id) do nothing;
     end if;
   elsif p_kind = 'alert_seen' then
     -- مدير التشغيل شاف التنبيه (اتواصل مع الـ HR مثلاً)
