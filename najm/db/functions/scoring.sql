@@ -286,3 +286,78 @@ language sql stable security definer set search_path = public as $$
   select code, sum(pts), count(*)::int from najm_cashier_events where to_char(day, 'YYYY-MM') = p_month group by code;
 $$;
 grant execute on function public.najm_public_cashier_pts(text) to anon, authenticated;
+
+-- الملف الكامل للموظف (طول فترة شغله): ملخص كل شهر (نجوم · KPI بالنقط · حضور وغياب · كروت · رجل اليوم · وسام · باندات الكاشير) + الكروت + النقل
+-- من غير أي فلوس. داخلية — بتتنادى من najm_my_history (الموظف بكوده) و najm_emp_history (مدير التشغيل)
+create or replace function public.najm_history_data(p_code text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare cfg jsonb; e najm_employees; res jsonb;
+  ky numeric; kr numeric; kg numeric; kn int; mpts numeric;
+begin
+  select * into e from najm_employees where code = p_code;
+  if e.code is null then return null; end if;
+  select data into cfg from najm_settings where id = 1;
+  ky := coalesce((cfg->'cards'->>'yellow')::numeric, -5); kr := coalesce((cfg->'cards'->>'red')::numeric, -20);
+  kg := coalesce((cfg->'cards'->>'green')::numeric, 10); kn := greatest(1, coalesce((cfg->'cards'->>'yellowsToRed')::int, 3));
+  mpts := coalesce((cfg->>'medalPts')::numeric, 100);
+  select jsonb_build_object(
+    'emp', jsonb_build_object('code', e.code, 'name', e.name, 'branch', e.branch, 'dept', e.dept, 'job', e.job, 'shift', e.shift, 'active', e.active),
+    'months', coalesce((select jsonb_agg(m order by m->>'month' desc) from (
+      select jsonb_build_object('month', x.m, 'n', x.n, 'avg', case when x.n > 0 then round(x.sum / x.n, 2) end,
+               'worked', x.worked, 'off', x.off, 'abs', x.abs, 'late', x.late,
+               'yellow', c.y, 'red', c.r, 'green', c.g, 'card_pts', cp.v, 'medal', md.has, 'wins', coalesce(w.n, 0),
+               'cashier', ca.p, 'complaints', coalesce(cm.n, 0),
+               'kpi_pts', case when x.n > 0 or md.has then greatest(0, round(x.sum / 5 * r.dm + cp.v + case when md.has then mpts else 0 end)) end,
+               'month_score', case when (x.n + x.abs) > 0 and (x.n > 0 or md.has)
+                    then round(greatest(0, round(x.sum / 5 * r.dm + cp.v + case when md.has then mpts else 0 end)) / (r.dm * (x.n + x.abs)) * 100) end) m
+      from (select to_char(rt.day, 'YYYY-MM') m,
+                   count(*) filter (where rt.tot is not null and rt.att is distinct from 'abs') n,
+                   coalesce(sum(rt.tot) filter (where rt.att is distinct from 'abs'), 0) sum,
+                   count(*) filter (where rt.att in ('on', 'late', 'vlate', 'xlate')) worked,
+                   count(*) filter (where rt.att = 'off') off, count(*) filter (where rt.att = 'abs') abs,
+                   count(*) filter (where rt.att in ('late', 'vlate', 'xlate')) late
+            from (select r2.day, r2.att, (public.najm_score(r2, e.dept, cfg)->>'total')::numeric tot from najm_ratings r2 where r2.code = p_code) rt
+            group by 1) x
+      cross join lateral (select coalesce(nullif(coalesce((select v->'rules'->>'kpiPts' from jsonb_array_elements(coalesce(cfg->'ruleVersions', '[]'::jsonb)) v where v->>'from' <= x.m order by v->>'from' desc limit 1), cfg->>'kpiPts'), '')::numeric, 500)
+                                 / coalesce(nullif(coalesce((select v->'rules'->>'kpiDays' from jsonb_array_elements(coalesce(cfg->'ruleVersions', '[]'::jsonb)) v where v->>'from' <= x.m order by v->>'from' desc limit 1), cfg->>'kpiDays'), '')::numeric, 26) dm) r
+      cross join lateral (select count(*) filter (where k.color = 'yellow')::int y, count(*) filter (where k.color = 'red')::int r, count(*) filter (where k.color = 'green')::int g
+                          from najm_cards k where k.code = p_code and k.status = 'approved' and to_char(k.day, 'YYYY-MM') = x.m) c
+      cross join lateral (select (c.r + c.y / kn) * kr + (c.y % kn) * ky + c.g * kg v) cp
+      cross join lateral (select exists (select 1 from najm_medals d where d.code = p_code and d.month = x.m) has) md
+      left join lateral (select count(*)::int n from najm_winners z where p_code = any(z.codes) and to_char(z.day, 'YYYY-MM') = x.m) w on true
+      left join lateral (select sum(v.pts) p from najm_cashier_events v where v.code = p_code and to_char(v.day, 'YYYY-MM') = x.m having count(*) > 0) ca on true
+      left join lateral (select count(*)::int n from najm_complaints q where q.code = p_code and q.status = 'proven' and to_char(q.day, 'YYYY-MM') = x.m) cm on true
+    ) q(m)), '[]'::jsonb),
+    'cards', coalesce((select jsonb_agg(jsonb_build_object('id', k.id, 'day', k.day, 'color', k.color, 'reason', k.reason, 'status', k.status, 'by', coalesce(u.name, k.by_user)) order by k.day desc)
+                       from najm_cards k left join najm_users u on u.username = k.by_user where k.code = p_code and k.status = 'approved'), '[]'::jsonb),
+    'wins', coalesce((select jsonb_agg(z.day order by z.day desc) from najm_winners z where p_code = any(z.codes)), '[]'::jsonb),
+    'medals', coalesce((select jsonb_agg(d.month order by d.month desc) from najm_medals d where d.code = p_code), '[]'::jsonb),
+    'moves', coalesce((select jsonb_agg(jsonb_build_object('day', v.day, 'from_branch', v.from_branch, 'from_dept', v.from_dept, 'to_branch', v.to_branch, 'to_dept', v.to_dept) order by v.day desc)
+                       from najm_emp_moves v where v.code = p_code), '[]'::jsonb)
+  ) into res;
+  return res;
+end $$;
+revoke all on function public.najm_history_data(text) from public, anon, authenticated;
+
+-- الموظف بيشوف ملفه هو بس (كود البصمة + الرقم السري لو متحط)
+create or replace function public.najm_my_history(p_code text, p_pin text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare e najm_employees;
+begin
+  select * into e from public.najm_emp_auth(p_code, p_pin);
+  if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  return public.najm_history_data(e.code);
+end $$;
+grant execute on function public.najm_my_history(text, text) to anon, authenticated;
+
+-- مدير التشغيل بس بيشوف ملف أي موظف
+create or replace function public.najm_emp_history(p_user text, p_pin text, p_code text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  if u.role <> 'ops' then return jsonb_build_object('error', 'najm: operations manager only'); end if;
+  return public.najm_history_data(p_code);
+end $$;
+grant execute on function public.najm_emp_history(text, text, text) to anon, authenticated;

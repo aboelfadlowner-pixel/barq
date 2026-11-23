@@ -373,7 +373,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     // الشيت فيه بصمة شيفت ليل النهارده + الساعة عدّت بداية الليل بساعتين ← اللي مابصمش بيتحسب (راحة أو غياب)
     const n = (await db.query("select code from najm_employees where branch=$1 and active and shift='Night' and code not in ($2,$3) order by code limit 1", [B, a, b])).rows[0].code;
     await db.query("update najm_employees set shift='Night' where code=$1", [b]);
-    await db.query('select najm_att_sync($1,$2)', [JSON.stringify([...rows, { code: n, day: T, shift: '5:00 PM', in: '5:01 PM', leave: '' }]), 'today-test-2']);
+    await db.query('select najm_att_sync($1,$2)', [JSON.stringify([...rows, { code: n, day: T, shift: '5:00 PM', in: '5:01 PM', leave: '' }, { code: b, day: (await db.query("select ((now() at time zone 'Africa/Cairo')::date - 1)::text d")).rows[0].d, shift: '5:00 PM', in: '5:01 PM', leave: '' }]), 'today-test-2']);
     const late = (await db.query("select (now() at time zone 'Africa/Cairo')::time >= time '19:00' x")).rows[0].x;
     const sb = (await db.query('select att from najm_ratings where day=$1 and code=$2', [T, b])).rows[0]?.att ?? null;
     ok(late ? ['off', 'abs'].includes(sb) : sb === null, 'today no-show: ' + sb + ' late=' + late);
@@ -431,6 +431,21 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await save('ops', '0000', 'alert_seen', { id: L[0].id }, {});
     eq((await db.query('select seen_by from najm_alerts where id=$1', [L[0].id])).rows[0].seen_by, 'ops');
     eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
+  });
+
+  test('الملف الكامل: الموظف بيشوف ملفه هو بس، ومدير التشغيل بيشوف الكل، من غير أي فلوس', async () => {
+    const c = (await db.query("select code from najm_employees where active and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') and code not in (select code from najm_emp_pins) order by code desc limit 1")).rows[0].code;
+    await db.query("insert into najm_ratings(day, code, att) values ('2026-09-10', $1, 'on') on conflict do nothing", [c]);
+    const mine = (await rpc('select najm_my_history($1,$2) r', [c, ''])).r;
+    eq([mine.emp.code, Array.isArray(mine.months), mine.months.length > 0, Array.isArray(mine.cards)], [c, true, true, true]);
+    eq(JSON.stringify(mine).match(/salary|amount|payout|money|فلوس/i), null);
+    const ops = (await rpc('select najm_emp_history($1,$2,$3) r', ['ops', '0000', c])).r;
+    eq(ops.emp.code, c);
+    eq((await rpc('select najm_emp_history($1,$2,$3) r', ['br', '1111', c])).r.error != null, true);
+    eq((await rpc('select najm_my_history($1,$2) r', ['00000', ''])).r.error != null, true);
+    eq((await asAnon(db, 'select count(*)::int n from pg_proc where proname = $1', ['najm_history_data']))[0].n >= 0, true);
+    await fails(db.query("set role anon; select najm_history_data('1')"), /permission denied/);
+    await db.query('reset role');
   });
 
   test('ضبط الصورة جوه الكارت: مدير التشغيل بس بيحفظه، وبيتقري مع بيانات الموظف', async () => {
