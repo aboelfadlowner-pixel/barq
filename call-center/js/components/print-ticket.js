@@ -53,7 +53,7 @@ export function ticketHtml(order) {
       </table>
       <div class="tk-count">عدد الأصناف: <span class="num">${order.items.length}</span></div>
       ${order.note ? `<div class="tk-sec"><div class="tk-title">ملاحظات العميل</div><div class="tk-strong">${esc(order.note)}</div></div>` : ''}
-      ${adjustLines(order).length ? `<div class="tk-sec"><div class="tk-title">تنبيه للكاشير</div>${adjustLines(order).map((x) => `<div class="tk-strong">${x.kind === 'fee' ? '* ' : '* '}${esc(x.text)}${x.reason ? ` — ${esc(x.reason)}` : ''}</div>`).join('')}</div>` : ''}
+      ${adjustLines(order).length ? `<div class="tk-sec"><div class="tk-title">تنبيه للكاشير</div>${adjustLines(order).map((x) => `<div class="tk-strong">${x.kind === 'fee' ? '* ' : '* '}${esc(x.text)}</div>`).join('')}</div>` : ''}
     </div>`;
 }
 

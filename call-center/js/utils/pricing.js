@@ -60,13 +60,13 @@ export const totalsOf = (o) => computeTotals(o.items, o.deliveryFee, o.discount 
 export const discountLabel = (d) => (!d ? '' : d.kind === 'percent' ? `خصم ${d.value}%` : 'خصم');
 
 /* For the branch (prep card, printed ticket): what was taken off the order, in plain lines.
-   [{ kind: 'fee' | 'discount', text, reason }] — empty when nothing was adjusted. */
+   [{ kind: 'fee' | 'discount', text }] — empty when nothing was adjusted. */
 export function adjustLines(o) {
   const out = [];
-  if (o.feeRemoved > 0) out.push({ kind: 'fee', text: 'رسوم التوصيل متشالة', reason: o.adjustReason || '' });
+  if (o.feeRemoved > 0) out.push({ kind: 'fee', text: 'رسوم التوصيل متشالة' });
   const t = totalsOf(o);
   if (t.discount > 0) {
-    out.push({ kind: 'discount', text: `${discountLabel(t.discountSpec)} (− ${t.discount.toFixed(2)} ج.م)`, reason: o.adjustReason || '' });
+    out.push({ kind: 'discount', text: `${discountLabel(t.discountSpec)} (− ${t.discount.toFixed(2)} ج.م)` });
   }
   return out;
 }

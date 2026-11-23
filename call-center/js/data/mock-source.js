@@ -846,14 +846,12 @@ function checkAdjust(adjust, cart) {
   const a = adjust || {};
   const discount = a.discount && a.discount.value > 0 ? { kind: a.discount.kind === 'percent' ? 'percent' : 'amount', value: Number(a.discount.value) } : null;
   const noFee = !!a.noFee;
-  const reason = String(a.reason || '').trim().slice(0, 80);
-  if ((discount || noFee) && !reason) return { error: 'اكتب سبب الخصم' };
   if (discount) {
     const sub = totalsOf({ items: cart, deliveryFee: 0 }).subtotal;
     if (discount.kind === 'percent' && discount.value > 100) return { error: 'نسبة الخصم غير صحيحة' };
     if (discount.kind === 'amount' && discount.value > sub) return { error: 'الخصم أكبر من أصناف الطلب' };
   }
-  return { discount, noFee, reason: discount || noFee ? reason : '' };
+  return { discount, noFee };
 }
 
 export function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery', adjust = null }) {
@@ -907,7 +905,7 @@ export function editOrder({ orderId, cart, address, orderNote, agent, orderType 
   if (!pickup && adj.noFee) { if (!o.feeRemoved) o.feeRemoved = o.deliveryFee || areaNow?.fee || 0; o.deliveryFee = 0; }
   else if (!pickup && o.feeRemoved) { o.deliveryFee = o.feeRemoved; o.feeRemoved = 0; }
   if (pickup) o.feeRemoved = 0;
-  Object.assign(o, { discount: adj.discount, adjustReason: adj.reason, adjustBy: adj.reason ? (agent?.name || '') : '', adjustAt: adj.reason ? new Date().toISOString() : null });
+  Object.assign(o, { discount: adj.discount, adjustBy: adj.discount || adj.noFee ? (agent?.name || '') : '', adjustAt: adj.discount || adj.noFee ? new Date().toISOString() : null });
   Object.assign(o, { editCount: (o.editCount || 0) + 1, editedAt: new Date().toISOString(), editedBy: agent?.name || '', editChanges: changes, editSeenAt: null });
   return resolve(o);
 }
@@ -962,7 +960,7 @@ export function createOrder(draft) {
     address: pickup ? { id: null, label: 'استلام من الفرع', areaId: null, areaName: 'استلام من الفرع', street: 'استلام من الفرع', housingType: '', notes: '' } : { ...addrFields, id: addrId, areaName: area.name },
     deliveryFee: pickup ? 0 : (adj.noFee ? 0 : area.fee),
     feeRemoved: !pickup && adj.noFee ? area.fee : 0,
-    discount: adj.discount, adjustReason: adj.reason, adjustBy: adj.reason ? agent.name : '', adjustAt: adj.reason ? now : null,
+    discount: adj.discount, adjustBy: adj.discount || adj.noFee ? agent.name : '', adjustAt: adj.discount || adj.noFee ? now : null,
     items,
     note: orderNote || '',
     status: mock.orderStatuses[0].id,

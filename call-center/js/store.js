@@ -19,7 +19,7 @@ const emptyDraft = () => ({
   address: null,    // { id|null, isNew, edited, label, areaId, street, housingType, notes }
   orderNote: '',
   orderType: 'delivery',   // «توصيل» | «pickup» = استلام من الفرع (39_order_type.sql)
-  adjust: { noFee: false, discount: null, reason: '' },   // «بدون رسوم توصيل» + «خصم» ({ kind: 'percent'|'amount', value }) + السبب (48)
+  adjust: { noFee: false, discount: null },   // «بدون رسوم توصيل» + «خصم» ({ kind: 'percent'|'amount', value }) (48)
   editing: null,    // editing a sent order: { orderId, number } (until «على الكاشير»)
 });
 
@@ -131,7 +131,7 @@ export const setCustomer = (customer, address) => setState({ customer, address }
 export const clearCustomer = () => setState({ customer: null, address: null });
 export const setOrderNote = (orderNote) => setState({ orderNote });
 export const setOrderType = (orderType, address = undefined) => setState(address === undefined ? { orderType } : { orderType, address });
-export const setAdjust = (adjust) => setState({ adjust: { noFee: false, discount: null, reason: '', ...adjust } });
+export const setAdjust = (adjust) => setState({ adjust: { noFee: false, discount: null, ...adjust } });
 
 export function resetDraft() {
   setState({ ...emptyDraft(), search: '', category: null, cartOpen: false });
@@ -155,7 +155,7 @@ export function loadDraftForEdit(order) {
     address: order.type === 'pickup' ? null : { ...address, isNew: false },
     orderType: order.type === 'pickup' ? 'pickup' : 'delivery',
     orderNote: order.note || '',
-    adjust: { noFee: !!order.feeRemoved, discount: order.discount ?? null, reason: order.adjustReason || '' },
+    adjust: { noFee: !!order.feeRemoved, discount: order.discount ?? null },
     editing: { orderId: order.id, number: order.number },
   });
 }

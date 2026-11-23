@@ -96,7 +96,7 @@ export function mountOrderDetails(view, orderId) {
             </div>
             <div class="details-totals">
               <div class="totals-box">${totalsRows(t, { detailed: true })}${t.estimated ? estimateNote() : ''}</div>
-              ${(order.feeRemoved > 0 || t.discount > 0) ? `<div class="adj-info"><span>💸</span><div><strong>${[order.feeRemoved > 0 ? 'رسوم التوصيل متشالة' : '', t.discount > 0 ? discountLabel(t.discountSpec) : ''].filter(Boolean).join(' + ')}</strong><div class="muted">السبب: ${esc(order.adjustReason || '—')}${order.adjustBy ? ` · ${esc(order.adjustBy)}` : ''}${order.adjustAt ? ` · ${esc(formatDateTime(order.adjustAt))}` : ''}</div></div></div>` : ''}
+              ${(order.feeRemoved > 0 || t.discount > 0) ? `<div class="adj-info"><span>💸</span><div><strong>${[order.feeRemoved > 0 ? 'رسوم التوصيل متشالة' : '', t.discount > 0 ? discountLabel(t.discountSpec) : ''].filter(Boolean).join(' + ')}</strong><div class="muted">${order.adjustBy ? `${esc(order.adjustBy)}` : ''}${order.adjustAt ? ` · ${esc(formatDateTime(order.adjustAt))}` : ''}</div></div></div>` : ''}
             </div>
           </div>
 
