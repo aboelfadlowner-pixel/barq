@@ -165,6 +165,9 @@ export function toOrder(r) {
       street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '',
     },
     deliveryFee: Number(r.delivery_fee) || 0,
+    feeRemoved: Number(r.fee_removed) || 0,                 // «بدون رسوم توصيل» (48_order_adjust.sql)
+    discount: r.discount_kind ? { kind: r.discount_kind, value: Number(r.discount_value) || 0 } : null,   // «خصم»
+    adjustBy: r.adjust_by || '', adjustAt: r.adjust_at || null,
     subtotal: Number(r.subtotal) || 0,     // computed by the database
     total: Number(r.total) || 0,
     items,
@@ -257,6 +260,9 @@ const toPrepOrder = (r) => ({
   address: { areaName: r.area_name, label: r.address_label, street: r.street, housingType: r.housing_type || '', notes: r.address_notes || '' },
   note: r.note || '', employee: r.agent_name || '',
   editCount: r.edit_count || 0, editedAt: r.edited_at || null, editChanges: r.edit_changes || [], editSeenAt: r.edit_seen_at || null,
+  feeRemoved: Number(r.fee_removed) || 0,                      // 48: what was taken off, for the branch
+  discount: r.discount_kind ? { kind: r.discount_kind, value: Number(r.discount_value) || 0 } : null,
+  discountAmount: Number(r.discount_amount) || 0,
   items: (r.items || []).map((it) => (it.weight_grams != null
     ? { name: it.name, unitType: 'weight', grams: it.weight_grams, note: it.note || '', modifiers: toModifiers(it.modifiers) }
     : { name: it.name, unitType: 'piece', qty: it.qty, note: it.note || '', modifiers: toModifiers(it.modifiers) })),
@@ -617,14 +623,29 @@ export async function ackEdit(orderId) {
 }
 
 /* Edit an order (until «على الكاشير»). The database recomputes prices and totals. */
-export async function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery' }) {
+/* «خصم» و«بدون رسوم توصيل» (48_order_adjust.sql). Before 48 is installed: nothing to set → fine, something to set → say so. */
+async function applyAdjust(orderId, adjust, { always = false } = {}) {
+  const wants = !!(adjust?.noFee || adjust?.discount?.value > 0);
+  if (!wants && !always) return;
+  const c = await sb();
+  const res = await c.rpc('cc_set_order_adjust', {
+    p_order_id: orderId, p_no_fee: !!adjust?.noFee,
+    p_kind: adjust?.discount?.value > 0 ? adjust.discount.kind : null, p_value: adjust?.discount?.value > 0 ? adjust.discount.value : null,
+  });
+  if (res.error?.code === NOT_INSTALLED) { if (wants) throw new Error('الخصم غير مفعّل على قاعدة البيانات بعد'); return; }
+  ok(res);
+}
+
+export async function editOrder({ orderId, cart, address, orderNote, agent, orderType = 'delivery', adjust = null }) {
   const c = await sb();
   const { p_items } = toCreateOrderArgs({ requestId: null, cart, customer: { id: 'x' }, address, orderNote, orderType });
   const p_address = orderType === 'pickup' ? { pickup: true }
     : { label: address.label || null, area_id: address.areaId, street: address.street, housing_type: address.housingType || null, notes: address.notes || null };
   const res = await c.rpc('cc_edit_order', { p_agent_id: agent?.id ?? null, p_order_id: orderId, p_address, p_items, p_note: orderNote || null });
   if (res.error?.code === NOT_INSTALLED) throw new Error('تعديل الطلبات غير مفعّل على قاعدة البيانات بعد');
-  ok(res);
+  // only the discount / fee changed: «no change» from the edit is fine when the adjust is applied next
+  if (res.error?.code === '22023' && res.error?.hint === 'nochange' && adjust) { /* continue with the adjust */ } else ok(res);
+  await applyAdjust(orderId, adjust, { always: true });
   return getOrder(orderId);
 }
 
@@ -1031,6 +1052,7 @@ export async function createOrder(draft) {
   if (!draft.agent?.id) throw new Error('اختر اسمك من قائمة الموظفين أولًا');
   const c = await sb();
   const created = ok(await c.rpc('cc_place_order', { p_agent_id: draft.agent.id, ...toCreateOrderArgs(draft) }));
+  await applyAdjust(created.id, draft.adjust);   // 48: «خصم» / «بدون رسوم توصيل»
   return getOrder(created.id);
 }
 

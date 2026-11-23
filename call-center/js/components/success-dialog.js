@@ -1,6 +1,6 @@
 /* Shown after a demo order is created. */
 import { esc, copyText } from '../utils/dom.js';
-import { computeTotals } from '../utils/pricing.js';
+import { totalsOf } from '../utils/pricing.js';
 import { buildOrderSummary } from '../utils/order-summary.js';
 import { icon } from './icons.js';
 import { money, statusChip } from './chips.js';
@@ -10,7 +10,7 @@ import { openNewOrderDialog } from './new-order-dialog.js';
 import { orderWaLink } from './whatsapp-dialog.js';
 
 export function openSuccessDialog(order, { edited = false } = {}) {
-  const t = computeTotals(order.items, order.deliveryFee);
+  const t = totalsOf(order);
   const wa = orderWaLink(order, { edited });
   const m = openModal({
     title: `${icon('check')} ${edited ? 'تم حفظ التعديل' : 'تم إنشاء الطلب'}`,

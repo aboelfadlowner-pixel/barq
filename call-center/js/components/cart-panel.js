@@ -1,14 +1,14 @@
 /* Order side panel (Foodics-style): order summary card (customer, phone, type,
    address, notes), items, totals, "إرسال الطلب" and "حفظ كمسودة". */
 import {
-  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, currentDeliveryFee, setOrderNote, setCustomer,
+  bind, getState, setState, changeQty, removeLine, updateLine, clearCart, draftTotals, hasAdjust, setOrderNote, setCustomer,
 } from '../store.js';
 import { openAddressDialog } from './address-dialog.js';
 import { catalog, productModifiers } from '../catalog.js';
 import { esc, on } from '../utils/dom.js';
 import { formatAddress, formatWeight } from '../utils/format.js';
 import { PAYMENT_METHOD } from '../constants.js';
-import { computeTotals, lineTotal, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
+import { lineTotal, perUnitLabel, modifiersText, modifiersTotal } from '../utils/pricing.js';
 import { icon } from './icons.js';
 import { money, totalsRows, estimateNote } from './chips.js';
 import { confirmDialog, showToast } from './modal.js';
@@ -16,6 +16,7 @@ import { openItemDialog } from './item-dialog.js';
 import { openNewOrderDialog, todayWarning } from './new-order-dialog.js';
 import { openReviewDialog } from './review-dialog.js';
 import { openOrderTypeDialog } from './order-type-dialog.js';
+import { openAdjustDialog } from './adjust-dialog.js';
 
 export function mountCartPanel(el) {
   el.innerHTML = `
@@ -125,9 +126,10 @@ export function mountCartPanel(el) {
 
   /* ---------- Footer ---------- */
   const renderFooter = ({ cart }, s) => {
-    const t = computeTotals(cart, currentDeliveryFee(s));
+    const t = draftTotals(s);
     sec('footer').innerHTML = `
       <div class="totals">${totalsRows(t)}</div>
+      ${cart.length ? `<button type="button" class="btn btn-soft btn-sm adjust-btn ${hasAdjust(s) ? 'is-on' : ''}" data-action="adjust">${hasAdjust(s) ? '💸 تعديل الخصم / الرسوم' : '💸 خصم أو بدون رسوم توصيل'}</button>` : ''}
       ${t.estimated ? estimateNote() : ''}
       <div class="foot-actions stack">
         <button type="button" class="btn btn-primary btn-lg send-btn" data-action="review" ${cart.length && s.customer && s.address ? '' : 'disabled'}>
@@ -139,7 +141,7 @@ export function mountCartPanel(el) {
   const unbinds = [
     bind((s) => ({ customer: s.customer, address: s.address, orderType: s.orderType }), renderSummary),
     bind((s) => s.cart, renderItems),
-    bind((s) => ({ cart: s.cart, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address, editing: !!s.editing, orderType: s.orderType }), renderFooter),
+    bind((s) => ({ cart: s.cart, adjust: s.adjust, area: s.address?.areaId ?? null, hasCustomer: !!s.customer, hasAddress: !!s.address, editing: !!s.editing, orderType: s.orderType }), renderFooter),
   ];
 
   /* ---------- Events ---------- */
@@ -173,7 +175,8 @@ export function mountCartPanel(el) {
             openAddressDialog({ address: getState().address, onSave: (address) => setCustomer(getState().customer, { ...address, edited: true }) });
           } else openNewOrderDialog({ edit: !!getState().customer });
           break;
-        case 'order-type': openOrderTypeDialog(); break;   // «تغيير نوع الطلب» (39_order_type.sql)
+        case 'order-type': openOrderTypeDialog(); break;
+        case 'adjust': openAdjustDialog(); break;   // «خصم» و«بدون رسوم توصيل» (48)   // «تغيير نوع الطلب» (39_order_type.sql)
         case 'edit-note': noteOpen = true; renderSummary(getState()); break;
         case 'save-draft':
           location.hash = '#/board';
