@@ -3040,3 +3040,99 @@ do $$ declare r jsonb; x jsonb; d date := public.cc_work_day_of(now()); begin
 end $$;
 reset role;
 rollback;
+
+-- T65 — «خصم» و«بدون رسوم توصيل» (48_order_adjust.sql): call center / admin only, until «على الكاشير»; a percent is taken from
+--        the items only; the total follows a weight correction; clearing brings the fee and the total back; same call twice = no change;
+--        wrong values refused; the branch's list says what was taken off
+begin;
+do $$ begin
+  if coalesce(obj_description(to_regclass('public.products_master'), 'pg_class'), '') not like 'CC_TEST_STUB%' then raise exception 'STOP: ده مش المشروع التجريبي (مفيش علامة CC_TEST_STUB). مفيش أي تغيير اتعمل.'; end if;
+end $$;
+insert into auth.users (id, email) values (gen_random_uuid(), 'pa65@cc.test'), (gen_random_uuid(), 'c65@cc.test');
+insert into public.cc_staff (user_id, display_name, role)
+select id, case when email like 'pa65%' then 'نادية' else 'x' end, case when email like 'c65%' then 'call_center' else 'prep' end
+  from auth.users where email in ('pa65@cc.test', 'c65@cc.test');
+insert into public.cc_agents (name) values ('موظف 65') on conflict do nothing;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'staff@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare o public.cc_orders; begin
+  o := public.cc_place_order((select id from public.cc_agents where name = 'موظف 65'), gen_random_uuid(),
+         jsonb_build_object('name', 'عميل 65', 'phone', '01065656501'),
+         jsonb_build_object('label', 'البيت', 'area_id', (select id from public.cc_delivery_areas where active order by name limit 1), 'street', 'ش 65'),
+         '[{"sku": "T-101", "weight_grams": 500}, {"sku": "T-201", "qty": 2}]', null);
+  perform set_config('cc.o65', o.id::text, true);
+  perform set_config('cc.fee65', o.delivery_fee::text, true);
+  if o.subtotal <> 294 or o.total <> 294 + o.delivery_fee then raise exception 'FAIL T65 setup %', o.total; end if;
+end $$;
+reset role;
+-- the branch cannot
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_order_adjust(current_setting('cc.o65')::uuid, true, 'percent', 10); raise exception 'FAIL T65 prep sets a discount';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- the call center: no fee + 10% of the items (not of the fee)
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; r2 jsonb; fee numeric := current_setting('cc.fee65')::numeric; begin
+  begin perform public.cc_set_order_adjust(current_setting('cc.o65')::uuid, false, 'percent', 120); raise exception 'FAIL T65 over 100 percent';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_set_order_adjust(current_setting('cc.o65')::uuid, false, 'amount', 500); raise exception 'FAIL T65 more than the items';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.cc_set_order_adjust(current_setting('cc.o65')::uuid, false, 'x', 5); raise exception 'FAIL T65 unknown kind';
+  exception when invalid_parameter_value then null; end;
+  r := public.cc_set_order_adjust(current_setting('cc.o65')::uuid, true, 'percent', 10);
+  if (r->>'total')::numeric <> 264.60 or (r->>'discount_amount')::numeric <> 29.40 or (r->>'delivery_fee')::numeric <> 0
+     or (r->>'fee_removed')::numeric <> fee then raise exception 'FAIL T65 set %', r; end if;
+  r2 := public.cc_set_order_adjust(current_setting('cc.o65')::uuid, true, 'percent', 10);   -- again: nothing changes
+  if r2 <> r then raise exception 'FAIL T65 twice % %', r, r2; end if;
+end $$;
+reset role;
+do $$ declare o public.cc_orders; begin
+  select * into o from public.cc_orders where id = current_setting('cc.o65')::uuid;
+  if o.adjust_by is null or o.adjust_at is null or o.total <> 264.60 then raise exception 'FAIL T65 who and when %', o; end if;
+end $$;
+-- the branch corrects the weight: 500 → 540 g (210 → 226.80); the 10% follows the items
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare l jsonb; begin
+  perform public.cc_set_stage(current_setting('cc.o65')::uuid, 'preparing');
+  perform public.cc_prep_adjust(current_setting('cc.o65')::uuid, 1, 'جبنة رومي قديمة (تجريبي)', 'weight', 540);
+  select x into l from public.cc_prep_orders() x where x->>'id' = current_setting('cc.o65');
+  if (l->>'fee_removed')::numeric <> current_setting('cc.fee65')::numeric or l->>'discount_kind' <> 'percent'
+     or (l->>'discount_amount')::numeric <> 31.08 then raise exception 'FAIL T65 the branch list %', l; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select total from public.cc_orders where id = current_setting('cc.o65')::uuid) <> 279.72 then raise exception 'FAIL T65 total after the weight'; end if;
+end $$;
+-- clearing: the fee and the total come back
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ declare r jsonb; fee numeric := current_setting('cc.fee65')::numeric; begin
+  r := public.cc_set_order_adjust(current_setting('cc.o65')::uuid, false, null, null);
+  if (r->>'total')::numeric <> 310.80 + fee or (r->>'delivery_fee')::numeric <> fee or (r->>'fee_removed')::numeric <> 0
+     or r->>'discount_kind' is not null then raise exception 'FAIL T65 clear %', r; end if;
+  r := public.cc_set_order_adjust(current_setting('cc.o65')::uuid, true, 'amount', 50);
+  if (r->>'total')::numeric <> 260.80 then raise exception 'FAIL T65 amount %', r; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select adjust_by from public.cc_orders where id = current_setting('cc.o65')::uuid) is null then raise exception 'FAIL T65 who again'; end if;
+end $$;
+-- at the cashier: no more
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'pa65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin perform public.cc_set_stage(current_setting('cc.o65')::uuid, 'at_cashier'); end $$;
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from auth.users where email = 'c65@cc.test'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$ begin
+  begin perform public.cc_set_order_adjust(current_setting('cc.o65')::uuid, false, null, null); raise exception 'FAIL T65 at the cashier';
+  exception when invalid_parameter_value then null; end;
+  raise notice 'PASS T65 خصم وبدون رسوم: الكول سنتر بس، النسبة من الأصناف، الإجمالي بيتبع الوزن، المسح بيرجّع الرسوم، قائمة التجهيز، لحد الكاشير';
+end $$;
+reset role;
+rollback;

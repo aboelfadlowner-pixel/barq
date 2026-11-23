@@ -64,9 +64,9 @@ export const discountLabel = (d) => (!d ? '' : d.kind === 'percent' ? `خصم ${
 export function adjustLines(o) {
   const out = [];
   if (o.feeRemoved > 0) out.push({ kind: 'fee', text: 'رسوم التوصيل متشالة' });
-  const t = totalsOf(o);
-  if (t.discount > 0) {
-    out.push({ kind: 'discount', text: `${discountLabel(t.discountSpec)} (− ${t.discount.toFixed(2)} ج.م)` });
+  const amount = o.discountAmount ?? totalsOf(o).discount;   // the branch's list carries the amount from the database
+  if (amount > 0 && o.discount) {
+    out.push({ kind: 'discount', text: `${discountLabel(o.discount)} (− ${Number(amount).toFixed(2)} ج.م)` });
   }
   return out;
 }
