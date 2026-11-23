@@ -7,8 +7,9 @@ function applyLocalMedia(emps){for(const [c,o] of Object.entries(LOCAL_MEDIA)){c
   for(const [f,x] of Object.entries(o)){if((e[f]||'')===x.v||Date.now()-x.at>120000)delete o[f];else e[f]=x.v;}}}
 async function setTitle(code){const e=emp(code);const t=await askText(`لقب ${e.name} (سيبه فاضي يرجع للألقاب التلقائية)`);if(t===null)return;e.title=t.trim();noteMedia(code,'title',e.title);save();openEmp(code);render();push('media',{code},{title:t.trim()});}
 // photos: portrait crop (3:4) — one at a time from the profile, or many at once named by employee code (e.g. 125.jpg)
-function cropPortrait(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const W=600,H=800;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
-  const sc=Math.max(W/img.width,H/img.height);const w=img.width*sc,h=img.height*sc;x.drawImage(img,(W-w)/2,(H-h)/2.6,w,h);c.toBlob(b=>res({blob:b,url:c.toDataURL('image/jpeg',.88)}),'image/jpeg',.88);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+// الصورة بتترفع كاملة من غير قص (أكبر ضلع 1280) — مدير التشغيل بيظبط مكانها وتكبيرها جوه الكارت بالضغط عليها
+function cropPortrait(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,sc=Math.min(1,M/Math.max(img.width,img.height));const W=Math.round(img.width*sc),H=Math.round(img.height*sc);const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  x.drawImage(img,0,0,W,H);c.toBlob(b=>res({blob:b,url:c.toDataURL('image/jpeg',.9)}),'image/jpeg',.9);};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
 async function savePhoto(code,file){
   const {blob,url}=await cropPortrait(file);
   if(LIVE){const u=await uploadMedia(code,blob,'jpg');emp(code).photo=u;emp(code).photoPos='';noteMedia(code,'photo',u);noteMedia(code,'photoPos','');await push('media',{code},{photo:u,photo_pos:''});}
