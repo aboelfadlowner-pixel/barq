@@ -154,6 +154,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [true, 20, true, 8]);
     await as(MAHMOUD);
   });
+  test('مدير التشغيل بيشوف أحداث هيد الكاشير على الكاشير في «الموظفين»', async () => {
+    const r = await p.evaluate(async () => { USER = { username: 'ops', role: 'ops', name: 'x', branch: null, shift: '', depts: [] };
+      const e = activeEmps().find(x => isCashierEmp(x) && ratable(x)); S.cashierEvents = [{ id: 'z1', day: DATE, code: e.code, band: 'smile', pts: 20, note: '', by: 'hcash' }, { id: 'z2', day: DATE, code: e.code, band: 'no_receipt', pts: -20, note: '', by: 'hcash' }];
+      const h = cashSummaryHTML(e); return [h.includes('هيد الكاشير'), h.includes('ابتسم'), h.includes('عدم إعطاء الريسيت')]; });
+    eq(r, [true, true, true]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
