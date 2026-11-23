@@ -173,6 +173,17 @@ begin
       end if;
     end if;
   end loop;
+  -- موظف نشط مابصمش 14 يوم ← تنبيه لمدير التشغيل (يوقفه أو يسأل الـ HR) — مرة كل 30 يوم لكل موظف
+  insert into najm_alerts(kind, code, day, data)
+    select 'stale', m.code, (now() at time zone 'Africa/Cairo')::date,
+           jsonb_build_object('name', m.name, 'branch', m.branch,
+             'last', (select max(r.day) from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')))
+    from najm_employees m
+    where m.active
+      and not exists (select 1 from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')
+                        and r.day >= (now() at time zone 'Africa/Cairo')::date - 14)
+      and not exists (select 1 from najm_alerts a where a.kind = 'stale' and a.code = m.code and a.created_at > now() - interval '30 days')
+  on conflict (kind, coalesce(code, ''), day) do nothing;
   insert into najm_history(actor, kind, data)
     values ('system', 'emp_sync', jsonb_build_object('file', p_file, 'added', added, 'updated', upd, 'skipped', skip));
   return jsonb_build_object('added', added, 'updated', upd, 'skipped', skip);

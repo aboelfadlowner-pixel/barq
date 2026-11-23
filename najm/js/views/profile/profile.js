@@ -157,8 +157,11 @@ async function decidePray(code,cycle,decision,level){(S.prayReviews||(S.prayRevi
 function alertTxt(a){const d=a.data||{};
   if(a.kind==='sheet_changed')return `🚨 شيت البصمة اتغيّر في أيام فاتت (${fmt(d.count||0)} يوم) — في حاجة غلط، اتواصل مع الـ HR`;
   if(a.kind==='comeback')return `🔁 ${esc(d.name||a.code)} (${esc(a.code)}) رجع يبصم ${esc(a.day)} بعد ${fmt(d.gap)} يوم من غير بصمة${d.active===false?' — وهو موقوف في السيستم':''}`;
+  if(a.kind==='stale')return `⏸️ ${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` (آخر حضور ${esc(d.last)})`:' ولا مرة'} وهو لسه نشط`;
   return esc(a.kind);}
 function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  if(a.kind==='stale'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>⏸️ موظف نشط من غير بصمة</h2><div class="small">${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` — آخر حضور ${esc(d.last)}`:''}. اسأل الـ HR: ساب الشغل؟ إجازة طويلة؟ لو ساب ← وقّفه من «ملفات الموظفين» وهيختفي من التقييمات والترتيب.</div>
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتشاف</button></div>`);return;}
   const rows=a.kind==='sheet_changed'?`<div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>الكود</th><th>الموظف</th><th>اليوم</th><th>كان</th><th>بقى</th></tr></thead><tbody>${(d.rows||[]).map(r=>`<tr><td>${esc(r.code)}</td><td class="small">${esc(emp(r.code)?.name||'')}</td><td class="small">${esc(r.day)}</td><td>${ATT[r.old]||esc(r.old||'—')}</td><td>${ATT[r.new]||esc(r.new||'—')}</td></tr>`).join('')}</tbody></table></div>
     <div class="small muted" style="margin-top:6px">النتيجة دي اتغيّرت لأن الشيت نفسه اتعدّل بعد ما اتسجل. لو التعديل مش مظبوط، اتواصل مع الـ HR يرجّعوه — والتحديث الجاي هيسجل اللي في الشيت.</div>`
     :`<div class="small">مابصمش ${fmt(d.gap)} يوم، ورجع يبصم يوم ${esc(a.day)}.${d.active===false?' <b>وهو موقوف في السيستم</b> — لو رجع الشغل فعلاً شغّله من «ملفات الموظفين».':''} اتأكد من الـ HR إيه اللي حصل (إجازة طويلة؟ ساب ورجع؟).</div>`;
