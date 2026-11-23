@@ -28,7 +28,7 @@ function vRate(){
       ${R?.carried&&R.arr?`<div class="row small" style="justify-content:space-between;color:var(--muted);margin:2px 0">🔁 مكمّل من تقييم ${R.from?`يوم ${esc(R.from.slice(8))}`:'قبل كده'}${rateStale(DATE,field,e.code)?`<button class="btn sm" onclick="confirmRate('${e.code}')">✔ تأكيد</button>`:''}</div>`:''}
       ${isHy()?hyRowsHTML(e,arr):field?CL.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')
         +(withPray?`<div class="crit"><span class="small">🕌 الصلاة <span class="muted">(كل ${RATE_EVERY} أيام · ½ نجمة)</span></span><span class="seg">${[[2,'ملتزم'],[1,'بيقطع'],[0,'مبيصليش']].map(([v,t])=>`<button style="font-size:12px" class="${arr[4]===v?'on':''}" onclick="setCrit('${e.code}',4,${v})">${t}</button>`).join('')}</span></div>`:''):''}
-      ${isOps()?camSummaryHTML(e,D):''}
+      ${isOps()?camSummaryHTML(e,D)+cashSummaryHTML(e):''}
       <div class="row" style="justify-content:space-between;margin-top:6px"><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>
         ${isHy()?`<span class="small">🧼 الهايجين ${fmt(s.hy,2)}</span>`:`<span class="row" style="gap:4px">${isOps()?`<button class="btn sm ${medal?'gold':''}" onclick="giveMedal('${e.code}')">${medal?'🏅 واخد الوسام':'🏅 وسام برق'}</button>`:''}<button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ مثالي':'+ ½ مثالي'}</button></span>`}</div>
       <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · هايجين ${fmt(s.hy,2)} · صلاة ${fmt(s.pray,2)} · كاميرات ${fmt(s.cam,2)}</div>
@@ -50,6 +50,11 @@ function camRowsHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];
 // مدير التشغيل بيشوف اللي الكاميرات سجلته بس (مش بيقيّم)
 function camSummaryHTML(e,D){const pv=D.pray?.[e.code],bv=D.brk?.[e.code];if(pv==null&&bv==null)return '<div class="small muted">📹 الكاميرات: لسه ماتقيّمش</div>';
   return `<div class="small">📹 الكاميرات: الصلاة <b>${pv==null?'—':pv?'صلّى':'ماصلّاش'}</b> · البريك <b>${bv==null?'—':bv?'التزم':'كسر البريك'}</b></div>`;}
+// مدير التشغيل بيشوف اللي هيد الكاشير سجله على الكاشير (باندات +/−) — اليوم وصافي الشهر
+function cashSummaryHTML(e){if(!isCashierEmp(e))return '';const m=monthOf(DATE);const B=cashierBands();const evs=evOf(e.code,m);if(!evs.length)return '<div class="small muted">🧾 هيد الكاشير: مفيش أحداث الشهر ده</div>';
+  const net=evs.reduce((a,x)=>a+x.pts,0);const td=evs.filter(x=>String(x.day)===DATE);const name=x=>B.find(b=>b.id===x.band)?.t||x.band;
+  return `<div class="small">🧾 هيد الكاشير — النهارده: ${td.length?td.map(x=>`<b style="color:${x.pts>0?'var(--green)':'var(--red)'}">${x.pts>0?'＋':'−'}${fmt(Math.abs(x.pts))}</b> ${esc(name(x))}`).join(' · '):'<span class="muted">مفيش</span>'} · صافي الشهر <b style="color:${net>0?'var(--green)':net<0?'var(--red)':'inherit'}">${net>0?'+':''}${fmt(net)}</b>
+    <details style="margin-top:2px"><summary class="muted" style="cursor:pointer">كل أحداث الشهر (${fmt(evs.length)})</summary>${evs.slice(0,40).map(x=>`<div class="row" style="justify-content:space-between;margin:2px 0"><span>${esc(String(x.day).slice(5))} · ${esc(name(x))}</span><span><b style="color:${x.pts>0?'var(--green)':'var(--red)'}">${x.pts>0?'+':''}${fmt(x.pts)}</b> <button class="btn sm" onclick="delCashierEvent('${esc(x.id)}')">🗑️</button></span></div>`).join('')}</details></div>`;}
 function vRateCams(){
   const D=peekDay(DATE);const list=filtered(true).filter(ratable).filter(camPresent);
   const left=list.filter(e=>!dayLocked(e)&&(D.pray?.[e.code]==null||D.brk?.[e.code]==null));
