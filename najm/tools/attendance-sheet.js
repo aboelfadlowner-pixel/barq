@@ -59,7 +59,9 @@ if (empsFile) {
     for (let i = 1; i < D.length; i++) { const gap = Math.round((new Date(D[i]) - new Date(D[i - 1])) / 864e5) - 1; if (gap >= 7) best = { backGap: gap, backDay: D[i] }; } return best || {}; };
   const week = (code) => { if (!fileLast) return 0; let n = 0; for (let i = 0; i < 7; i++) { const d = new Date(fileLast); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10);
       if (OUTS.has(code + '|' + k) && out.some(r => r.code === code && r.day === k && hasIn(r))) n++; } return n; };
-  const L = Object.values(EMPS).filter(e => e.name).map(e => ({ ...e, shiftTime: Object.entries(cnt[e.code] || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || '', lastIn: lastIn[e.code] || '', fullWeek: week(e.code), ...back(e.code) }));
+  // monthIn = أيام «دخول + خروج» في الشهر كله — الموظف القديم اللي غاب آخر يومين مبيتسكّبش (15 يوم أو أكتر = شغال)
+  const monthFull = (code) => new Set(out.filter(r => r.code === code && hasIn(r) && OUTS.has(code + '|' + r.day)).map(r => r.day)).size;
+  const L = Object.values(EMPS).filter(e => e.name).map(e => ({ ...e, shiftTime: Object.entries(cnt[e.code] || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || '', lastIn: lastIn[e.code] || '', fullWeek: week(e.code), monthIn: monthFull(e.code), ...back(e.code) }));
   fs.writeFileSync(empsFile, JSON.stringify(L));
 }
 const withIn = new Set(out.filter(r => /\d{1,2}:\d{2}/.test(r.in)).map(r => r.code)).size;
