@@ -1,14 +1,14 @@
 // نجم أبو الفضل — تاب تقريري / تقارير التقدّم
 function tgtDetailHTML(R){const t=R.tg?.t;if(!t)return `<div class="lock" style="margin-top:8px">🎯 لسه مفيش تارجت متحدد لقسمك — كلّم مديرك.</div>`;
   const rows=[];
-  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);rows.push(`<tr><td>🛒 تارجت القسم</td><td>باع ${fmt(Sd,1)} من ${fmt(T,1)} (${fmt(t.pct)}%)</td><td>${t.pace!=null?`المفروض لحد النهارده ${fmt(t.pace)}%`:''}</td><td><b>${fmt(R.tg?.dPts)}</b> / ${fmt(t.deptMax)} نقطة</td></tr>`);}
+  if(t.type==='sales'&&t.items){const T=t.total>0?t.total:t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);rows.push(`<tr><td>🛒 تارجت القسم</td><td>باع ${fmt(Sd,1)} من ${fmt(T,1)} (${fmt(t.pct)}%)</td><td>${t.pace!=null?`المفروض لحد النهارده ${fmt(t.pace)}%`:''}</td><td><b>${fmt(R.tg?.dPts)}</b> / ${fmt(t.deptMax)} نقطة</td></tr>`);}
   else if(t.kpis){for(const k of t.kpis)rows.push(`<tr><td>📋 ${esc(k.name)}</td><td>${k.val!=null?fmt(k.val,1):'—'}</td><td>${k.pct!=null?fmt(k.pct)+'%':'—'}</td><td></td></tr>`);rows.push(`<tr><td><b>📋 مؤشرات القسم</b></td><td>${fmt(t.pct)}%</td><td></td><td><b>${fmt(R.tg?.dPts)}</b> / ${fmt(t.deptMax)} نقطة</td></tr>`);}
   (t.caps||[]).forEach((c,i)=>rows.push(`<tr><td><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن ${esc(c.name)}</td><td>باع ${fmt(c.sold,1)} من ${fmt(c.target,1)} (${fmt(c.pct)}%)</td><td>${c.target>c.sold?`فاضل ${fmt(c.target-c.sold,1)}`:'✔ قفل'}</td><td><b>${fmt(R.tg?.cPts?.[i])}</b> / ${fmt(c.max)} نقطة</td></tr>`));
   if(R.tg&&R.tg.pace<100)rows.push(`<tr><td colspan="4" class="small muted">النقط محسوبة «على المسار»: اللي اتباع لحد النهارده مقارنة باللي المفروض يتباع لحد النهارده.</td></tr>`);
   return `<h3 style="margin:10px 0 4px">🎯 التارجت بالتفصيل</h3><table><tbody>${rows.join('')}</tbody></table>`;}
 function tgtTip(R){const t=R.tg?.t;if(!t)return 'لسه مفيش تارجت متحدد لقسمك.';const L=[];
   for(const c of t.caps||[])if(c.target>c.sold)L.push(`فاضل ${fmt(c.target-c.sold,1)} من ${esc(c.name)}`);
-  if(t.type==='sales'&&t.items){const T=t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);if(T>Sd)L.push(`القسم فاضله ${fmt(T-Sd,1)} عشان يقفل الشهر — ركّز على البيع والعرض`);}
+  if(t.type==='sales'&&t.items){const T=t.total>0?t.total:t.items.reduce((a,i)=>a+(+i.target||0),0),Sd=t.items.reduce((a,i)=>a+(+i.sold||0),0);if(T>Sd)L.push(`القسم فاضله ${fmt(T-Sd,1)} عشان يقفل الشهر — ركّز على البيع والعرض`);}
   else if(t.kpis){const w=t.kpis.filter(k=>k.pct!=null).sort((a,b)=>a.pct-b.pct)[0];if(w)L.push(`أضعف مؤشر في قسمك: ${esc(w.name)} (${fmt(w.pct)}%)`);}
   return L.join(' · ')||'كمّل على نفس المستوى.';}
 function reportHTML(R,forEmp){

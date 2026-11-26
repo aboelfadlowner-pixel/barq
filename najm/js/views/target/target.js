@@ -37,14 +37,14 @@ function captainPanel(m){
   const rows=L.map(e=>({e,caps:captainsOfEmp(e,m,DATE,false)})).filter(x=>x.caps.length);
   const team=L.filter(e=>inScope(e));const can=team.length>0;
   return `<div class="card" style="margin-top:10px;border-color:#cfc4ff;background:#faf8ff"><div class="sec-title" style="margin:0 0 6px"><h3>🎗️ الكابتن الشخصي</h3><span class="small muted">كل موظف ليه صنف أو أكتر — بيتحسب من كيلوهات الفرع في شيت فوديكس</span></div>
-    ${rows.length?`<table><thead><tr><th>الموظف</th><th>المنتج</th><th>التارجت</th><th>المتباع</th><th>الإنجاز</th><th>النقاط</th>${can?'<th></th>':''}</tr></thead><tbody>${rows.map(x=>x.caps.map((c,i)=>`<tr style="${c.active===false?'opacity:.5':''}">${i===0?`<td rowspan="${x.caps.length}"><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(x.e,'sm')}<b>${esc(x.e.name)}</b></div></td>`:''}<td><span class="cap-c" style="width:18px;height:18px;font-size:11px">C</span> ${esc(c.name)} <span class="small muted">${esc(c.sku)}</span></td><td>${fmt(c.target,1)}</td><td>${fmt(c.sold,1)}</td><td style="min-width:110px">${barHTML(c.pct,null,'cap')}<span class="small">${fmt(c.pct)}%</span></td><td><b>${fmt(c.points)}</b> <span class="small muted">/ ${fmt(c.max)}${+c.pts>0?'':' (× '+S.settings.captainMult+')'}</span></td>${can?`<td class="row" style="gap:4px">${inScope(x.e)?`<button class="btn sm" onclick="toggleCap('${x.e.code}','${esc(c.sku)}')">${c.active===false?'تفعيل':'إيقاف'}</button><button class="btn sm red" onclick="delCap('${x.e.code}','${esc(c.sku)}')">حذف</button>`:''}</td>`:''}</tr>`).join('')).join('')}</tbody></table>`:'<div class="small muted">لسه محدش واخد كابتن في القسم ده</div>'}
+    ${rows.length?`<table><thead><tr><th>الموظف</th><th>المنتج</th><th>التارجت (كلي)</th><th>المتباع</th><th>الإنجاز</th><th>النقاط</th>${can?'<th></th>':''}</tr></thead><tbody>${rows.map(x=>x.caps.map((c,i)=>`<tr style="${c.active===false?'opacity:.5':''}">${i===0?`<td rowspan="${x.caps.length}"><div class="row" style="flex-wrap:nowrap;gap:6px">${ava(x.e,'sm')}<b>${esc(x.e.name)}</b></div></td>`:''}<td><span class="cap-c" style="width:18px;height:18px;font-size:11px">C</span> ${esc(c.name)} <span class="small muted">${esc(c.sku)}</span></td><td>${fmt(c.target,1)}<div class="small muted">الشهر اللي فات ${fmt(c.base,1)} · الزيادة المطلوبة ${fmt(c.need,1)}</div></td><td>${fmt(c.sold,1)}<div class="small muted">+${fmt(c.extra,1)} عن الشهر اللي فات</div></td><td style="min-width:110px">${barHTML(c.pct,null,'cap')}<span class="small">${fmt(c.pct)}%</span></td><td><b>${fmt(c.points)}</b> <span class="small muted">/ ${fmt(c.max)}</span></td>${can?`<td class="row" style="gap:4px">${inScope(x.e)?`<button class="btn sm" onclick="toggleCap('${x.e.code}','${esc(c.sku)}')">${c.active===false?'تفعيل':'إيقاف'}</button><button class="btn sm red" onclick="delCap('${x.e.code}','${esc(c.sku)}')">حذف</button>`:''}</td>`:''}</tr>`).join('')).join('')}</tbody></table>`:'<div class="small muted">لسه محدش واخد كابتن في القسم ده</div>'}
     ${can?`<div class="row" style="margin-top:8px"><select class="inp" id="capEmp">${team.map(e=>`<option value="${e.code}">${esc(e.name)}</option>`).join('')}</select><input class="inp" id="capCode" placeholder="كود المنتج (sk-…)" style="width:140px" oninput="capLookup()"><span id="capName" class="small muted">اكتب الكود يطلع المنتج</span><input class="inp" id="capTarget" type="number" placeholder="التارجت (كيلو)" style="width:110px">${isOps()?'<input class="inp" id="capPts" type="number" placeholder="نقط الكابتن" style="width:110px">':''}<button class="btn pri sm" onclick="addCap()">+ كابتن</button></div>`:''}
   </div>`;
 }
 function capLookup(){
   const code=$('#capCode').value.trim().toLowerCase();const cat=catalog();const k=Object.keys(cat).find(x=>x.toLowerCase()===code);
   $('#capName').innerHTML=k?`<b style="color:var(--purple)">${esc(cat[k])}</b>`:(code?'<span style="color:var(--red)">مش موجود</span>':'اكتب الكود يطلع المنتج');
-  if(k&&!$('#capTarget').value){const q=baseFor(monthOf(DATE))[k]?.qty;if(q)$('#capTarget').value=Math.round(q*S.settings.defaultMultiplier);}
+  if(k&&!$('#capTarget').value){const q=lastMonthQty(monthOf(DATE),TG.branch,k);if(q)$('#capTarget').value=Math.round(q*S.settings.defaultMultiplier);}
 }
 function addCap(){
   const code=$('#capCode').value.trim();const cat=catalog();const k=Object.keys(cat).find(x=>x.toLowerCase()===code.toLowerCase());
@@ -62,6 +62,10 @@ function targetDetail(m){
   const head=`<div class="sec-title"><h3>${esc(TG.branch)} — ${esc(TG.dept)}</h3><div class="row">${isOps()?`<button class="btn sm" onclick="TG.mode='edit';render()">✏️ تعديل التارجت</button>`:''}<button class="btn sm" onclick="TG.dept='';render()">✕</button></div></div>`;
   let body;
   if(!p) body=`<div class="empty">التارجت الأساسي لسه متحددش للقسم ده</div>`;
+  else if(p.type==='sales'&&p.total) body=`<div class="tbl-wrap" style="max-height:45vh"><table><thead><tr><th>الصنف</th><th>الشهر اللي فات</th><th>المتباع</th></tr></thead><tbody>
+    ${p.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${fmt(i.last,1)}</td><td>${fmt(i.sold,1)}</td></tr>`).join('')}
+    <tr><td><b>الإجمالي</b></td><td><b>${fmt(p.last,1)}</b></td><td><b>${fmt(p.sold,1)}</b></td></tr></tbody></table></div>
+    <div class="kv" style="margin-top:8px"><span>التارجت الكلي للقسم</span><b>${fmt(p.total,1)}</b></div>${barHTML(p.pct,p.pace)}<span class="small">${fmt(p.pct)}% من التارجت الكلي</span>`;
   else if(p.type==='sales') body=`<div class="tbl-wrap" style="max-height:45vh"><table><thead><tr><th>الصنف</th><th>التارجت</th><th>المتباع</th><th>الإنجاز</th></tr></thead><tbody>
     ${p.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${fmt(i.target,1)}</td><td>${fmt(i.sold,1)}</td><td style="min-width:140px">${barHTML(i.pct,p.pace)}<span class="small">${fmt(i.pct)}%</span></td></tr>`).join('')}</tbody></table></div>`;
   else body=`${isMgr()&&deptInScope(TG.branch,TG.dept)?`<div class="row" style="margin-bottom:8px"><b class="small">تسجيل يوم ${esc(DATE)}:</b>${p.kpis.filter(k=>k.kind!=='mgr').map(k=>`<label class="small">${esc(k.name)} <input class="inp" type="number" style="width:70px" value="${S.kpiVals[DATE]?.[deptKey(TG.branch,TG.dept)]?.[k.id]??''}" onchange="setKpi('${k.id}',this.value)"></label>`).join('')}</div>`:''}
@@ -74,7 +78,7 @@ let DRAFT=null;
 function baseFor(m){const pm=prevMonth(m);return Object.keys(S.baseSales[pm]?.[TG.branch]||{}).length?S.baseSales[pm][TG.branch]:salesAgg(pm,TG.branch);}
 function targetEditor(m){
   const key=deptKey(TG.branch,TG.dept);
-  if(!DRAFT||DRAFT._key!==key+m){const cur=S.targets[m]?.[key];DRAFT=cur?JSON.parse(JSON.stringify(cur)):{type:'sales',items:[],kpis:[]};DRAFT.items=DRAFT.items||[];DRAFT.kpis=DRAFT.kpis||[];DRAFT._key=key+m;DRAFT.mult=S.settings.defaultMultiplier;DRAFT.q='';}
+  if(!DRAFT||DRAFT._key!==key+m){const cur=S.targets[m]?.[key];DRAFT=cur?JSON.parse(JSON.stringify(cur)):{type:'sales',items:[],kpis:[]};DRAFT.items=DRAFT.items||[];DRAFT.kpis=DRAFT.kpis||[];DRAFT._key=key+m;DRAFT.mult=S.settings.defaultMultiplier;DRAFT.q='';DRAFT.totalTouched=+DRAFT.total>0;}
   const head=`<div class="sec-title"><h3>✏️ تارجت ${esc(TG.branch)} — ${esc(TG.dept)} — ${monthName(m)}</h3><div class="row"><button class="btn pri sm" onclick="saveTarget()">💾 حفظ</button><button class="btn sm" onclick="DRAFT=null;TG.mode='view';render()">إلغاء</button></div></div>
     <div class="card" style="margin-bottom:10px;border-color:#cfc4ff;background:#faf8ff"><b>⭐ نقط القسم للشهر ده</b><div class="row" style="margin-top:6px">
       <label class="small">نقط التارجت لو اتقفل 100%<br><input class="inp" type="number" style="width:120px" value="${DRAFT.pts??''}" placeholder="مثلاً 100" onchange="DRAFT.pts=+this.value||null"></label></div>
@@ -88,17 +92,22 @@ function targetEditor(m){
   const base=baseFor(m);const chosen=new Set(DRAFT.items.map(i=>i.key));const q=norm(DRAFT.q);
   const list=Object.entries(base).map(([k,v])=>({key:k,name:v.name,qty:v.qty})).filter(x=>!q||norm(x.name).includes(q)||x.key.includes(q)).sort((a,b)=>b.qty-a.qty).slice(0,300);
   return `<div class="card">${head}
-    <div class="lock" style="margin-bottom:8px">التارجت = مبيعات ${monthName(prevMonth(m))} × المُضاعِف، وتقدر تعدّل أي رقم.</div>
-    <div class="grid g-2"><div><h3>أصناف القسم (${fmt(chosen.size)})</h3><div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>الصنف</th><th>الشهر اللي فات</th><th>التارجت</th><th></th></tr></thead><tbody>
-      ${DRAFT.items.map((it,i)=>`<tr><td class="small">${esc(it.name)}</td><td class="small">${fmt(base[it.key]?.qty,1)}</td><td><input class="inp" type="number" style="width:85px" value="${it.target}" onchange="DRAFT.items[${i}].target=+this.value"></td><td><button class="btn sm red" onclick="DRAFT.items.splice(${i},1);render()">✕</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty small">اختار أصناف</td></tr>'}</tbody></table></div></div>
-      <div><h3>مبيعات ${monthName(prevMonth(m))}</h3><div class="row" style="margin-bottom:6px"><input class="inp" placeholder="بحث بالاسم أو الكود" value="${esc(DRAFT.q)}" onchange="DRAFT.q=this.value;render()"><label class="small">× <input class="inp" type="number" step="0.1" style="width:60px" value="${DRAFT.mult}" onchange="DRAFT.mult=+this.value"></label></div>
+    <div class="lock" style="margin-bottom:8px">تارجت القسم رقم كلي واحد (المقترح = إجمالي مبيعات ${monthName(prevMonth(m))} × المُضاعِف) وتقدر تعدّله. إنجاز القسم = إجمالي المتباع من أصناف القسم ÷ التارجت الكلي.</div>
+    <div class="grid g-2"><div><h3>أصناف القسم (${fmt(chosen.size)})</h3><div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>الصنف</th><th>الشهر اللي فات (كيلو)</th><th></th></tr></thead><tbody>
+      ${DRAFT.items.map((it,i)=>`<tr><td class="small">${esc(it.name)}</td><td class="small">${fmt(base[it.key]?.qty,1)}</td><td><button class="btn sm red" onclick="DRAFT.items.splice(${i},1);suggestTotal();render()">✕</button></td></tr>`).join('')||'<tr><td colspan="3" class="empty small">اختار أصناف</td></tr>'}
+      ${DRAFT.items.length?`<tr><td><b>إجمالي الشهر اللي فات</b></td><td><b>${fmt(DRAFT.items.reduce((a,i)=>a+(base[i.key]?.qty||0),0),1)}</b></td><td></td></tr>`:''}</tbody></table></div>
+      <label class="small" style="display:block;margin-top:8px"><b>🎯 تارجت القسم الكلي (كيلو)</b><br><input class="inp" id="deptTotal" type="number" style="width:140px" value="${DRAFT.total??''}" onchange="DRAFT.total=+this.value||null;DRAFT.totalTouched=true"></label></div>
+      <div><h3>مبيعات ${monthName(prevMonth(m))}</h3><div class="row" style="margin-bottom:6px"><input class="inp" placeholder="بحث بالاسم أو الكود" value="${esc(DRAFT.q)}" onchange="DRAFT.q=this.value;render()"><label class="small">× <input class="inp" type="number" step="0.1" style="width:60px" value="${DRAFT.mult}" onchange="DRAFT.mult=+this.value;suggestTotal();render()"></label></div>
       ${list.length?`<div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>الصنف</th><th>الكمية</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td class="small">${esc(x.name)}</td><td>${fmt(x.qty,1)}</td><td>${chosen.has(x.key)?'<span class="badge b-green">مضاف</span>':`<button class="btn sm" onclick="addItem('${esc(x.key)}')">+</button>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty small">ارفع مبيعات الشهر اللي فات الأول</div>'}</div></div></div>`;
 }
-function addItem(key){const b=baseFor(monthOf(DATE))[key];if(!b)return;DRAFT.items.push({key,name:b.name,target:Math.round(b.qty*(DRAFT.mult||1)*10)/10});render();}
+function suggestTotal(){   // المقترح = إجمالي الشهر اللي فات × المُضاعِف (لحد ما المستخدم يعدّل الرقم بنفسه)
+  if(DRAFT.totalTouched)return;const base=baseFor(monthOf(DATE));const t=DRAFT.items.reduce((a,i)=>a+(base[i.key]?.qty||0),0);DRAFT.total=t>0?Math.round(t*(DRAFT.mult||1)*10)/10:null;}
+function addItem(key){const b=baseFor(monthOf(DATE))[key];if(!b)return;DRAFT.items.push({key,name:b.name});suggestTotal();render();}
 function applyPreset(p){DRAFT.kpis=PRESETS[p].map(k=>({...k,id:uid()}));render();}
 async function saveTarget(){
   const m=monthOf(DATE);const key=deptKey(TG.branch,TG.dept);
-  const cfg=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.filter(i=>i.target>0)}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
+  if(DRAFT.type==='sales'&&!(+DRAFT.total>0)){toast('حط تارجت القسم الكلي');return;}
+  const cfg=DRAFT.type==='sales'?{type:'sales',items:DRAFT.items.map(i=>({key:i.key,name:i.name})),total:+DRAFT.total}:{type:'manual',kpis:DRAFT.kpis.filter(k=>k.name.trim())};
   if(DRAFT.pts>0)cfg.pts=DRAFT.pts;if(DRAFT.need>0)cfg.need=DRAFT.need;
   (S.targets[m]||(S.targets[m]={}))[key]=cfg;save();DRAFT=null;TG.mode='view';render();
   if(await push('target',{month:m,dkey:key},cfg)!==false)toast('💾 اتحفظ التارجت');
