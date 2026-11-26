@@ -524,6 +524,23 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await db.query("delete from najm_ratings where day >= $1::date - 8 and code = any($2)", [ref, [A, Bq, C]]);
   });
 
+  test('مدير على أكتر من شيفت: بيشوف موظفين الشيفتين، ويقفل الشيفتين، ومش التالت', async () => {
+    const pickS = async sh => (await db.query("select code from najm_employees where branch=$1 and active and shift=$2 and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') limit 1", [B, sh])).rows[0].code;
+    const [m, n] = [await pickS('Morning'), await pickS('Night')];
+    await save('ops', '0000', 'user', { username: 'msh' }, { name: 'مدير شيفتين', role: 'shift', branch: B, shift: 'Morning', shifts: ['Morning', 'Night'], pin: '5151' });
+    const lg = (await rpc('select najm_login($1,$2) r', ['msh', '5151'])).r;
+    eq(lg.shifts, ['Morning', 'Night']);
+    await save('msh', '5151', 'note', { code: m }, { body: 'x' }).catch(() => {});
+    const inSc = async c => (await db.query('select najm_in_scope(u, $1) r from najm_users u where u.username = $2', [c, 'msh'])).rows[0].r;
+    eq([await inSc(m), await inSc(n)], [true, true]);
+    const w = await pickS('Between');
+    eq(await inSc(w), true);   // Between مع الليل
+    const own = async g => (await db.query('select najm_close_owners($1) r', [B + '|' + g])).rows[0].r || [];
+    eq([own('Morning'), own('Night')].length, 2);
+    eq([(await own('Morning')).includes('msh'), (await own('Night')).includes('msh')], [true, true]);   // مسؤول عن إغلاق الشيفتين
+    await save('ops', '0000', 'user', { username: 'msh' }, null);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;

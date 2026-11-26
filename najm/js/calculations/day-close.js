@@ -6,12 +6,12 @@ function closeDeadline(d,gk){
 }
 // المسؤول عن إغلاق شيفت: مديرين الشيفت ده في الفرع، ولو مفيش ← مدير الفرع
 function closeOwners(gk){const [b,g]=gk.split('|');const L=managers();
-  const sh=L.filter(u=>u.role==='shift'&&u.branch===b&&shiftGroup(u.shift)===g).map(u=>u.username);
+  const sh=L.filter(u=>u.role==='shift'&&u.branch===b&&userGroups(u).includes(g)).map(u=>u.username);
   return sh.length?sh:L.filter(u=>u.role==='branch'&&u.branch===b).map(u=>u.username);}
 // الشيفتات اللي المدير الداخل مسؤول يقفلها
 function myCloseGroups(){if(!USER||isHy()||isLimited()||USER.role==='fresh')return [];
   const bs=USER.role==='ops'?branches():userBranches(USER);const out=[];
-  for(const b of bs)for(const g of SHIFT_GROUPS){if(USER.role==='shift'&&shiftGroup(USER.shift)!==g)continue;if(activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))out.push(`${b}|${g}`);}
+  for(const b of bs)for(const g of SHIFT_GROUPS){if(USER.role==='shift'&&!userGroups(USER).includes(g))continue;if(activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))out.push(`${b}|${g}`);}
   return out;}
 const closeOn=()=>!!S.settings.closeStart;
 const minsLate=(at,dl)=>Math.max(0,Math.round((at-dl)/60000));

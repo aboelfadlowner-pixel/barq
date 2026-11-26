@@ -296,7 +296,7 @@ begin
     -- إغلاق اليوم: مدير الشيفت (Between مع الليل) أو مدير الفرع أو التشغيل
     if gk is null or k_day is null then raise exception 'najm: day and shift required'; end if;
     if not (u.role = 'ops' or (u.role = 'branch' and u.branch = split_part(gk, '|', 1))
-            or (u.role = 'shift' and u.branch = split_part(gk, '|', 1) and public.najm_shift_group(u.shift) = split_part(gk, '|', 2))) then
+            or (u.role = 'shift' and u.branch = split_part(gk, '|', 1) and split_part(gk, '|', 2) = any(public.najm_user_shift_groups(u.shift, u.shifts)))) then
       raise exception 'najm: outside your scope' using errcode = '42501';
     end if;
     if k_day > (now() at time zone 'Africa/Cairo')::date then raise exception 'najm: cannot close a future day'; end if;
@@ -394,12 +394,12 @@ begin
       if s = u.username then raise exception 'najm: cannot delete yourself'; end if;
       delete from najm_users where username = s;
     else
-      insert into najm_users(username, name, role, branch, branches, shift, depts, active, salt, pin_hash)
-        values (s, coalesce(p_data->>'name', s), p_data->>'role', nullif(p_data->>'branch',''), case when p_data ? 'branches' then array(select jsonb_array_elements_text(p_data->'branches')) end, nullif(p_data->>'shift',''),
+      insert into najm_users(username, name, role, branch, branches, shift, shifts, depts, active, salt, pin_hash)
+        values (s, coalesce(p_data->>'name', s), p_data->>'role', nullif(p_data->>'branch',''), case when p_data ? 'branches' then array(select jsonb_array_elements_text(p_data->'branches')) end, nullif(p_data->>'shift',''), case when p_data ? 'shifts' then array(select jsonb_array_elements_text(p_data->'shifts')) end,
                 case when p_data ? 'depts' then array(select jsonb_array_elements_text(p_data->'depts')) end,
                 coalesce((p_data->>'active')::boolean, true), md5(random()::text), '!')
       on conflict (username) do update set name = excluded.name, role = excluded.role, branch = excluded.branch, branches = excluded.branches,
-        shift = excluded.shift, depts = excluded.depts, active = excluded.active, updated_at = now();
+        shift = excluded.shift, shifts = excluded.shifts, depts = excluded.depts, active = excluded.active, updated_at = now();
       -- حساب جديد من غير رقم سري (أو «رقم جديد»): السيستم بيطلّع رقم مؤقت (4 أرقام) بيرجع للتشغيل مرة واحدة يديه للمدير،
       -- والمدير يقدر يغيّره بنفسه بعد كده (najm_my_pin) — مش إجباري
       dpt := coalesce(nullif(p_data->>'pin', ''),
@@ -456,7 +456,7 @@ begin
     'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports
                     where u.role = 'ops' or branch is null or branch = u.branch or branch = any(coalesce(u.branches, '{}')) order by at desc limit 100) i), '[]'),
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
-                    'branch',x.branch,'branches',x.branches,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
+                    'branch',x.branch,'branches',x.branches,'shift',x.shift,'shifts',x.shifts,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;
 
 grant execute on function public.najm_files(text, text) to anon, authenticated;
