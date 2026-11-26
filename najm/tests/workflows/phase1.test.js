@@ -181,6 +181,14 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [true, false, false, true]);
     await as(MAHMOUD);
   });
+  test('وسام برق: أي عدد في الشهر لموظف أو مدير، وبيتحسب +100 لكل وسام', async () => {
+    const r = await p.evaluate(() => { const e = activeEmps().find(x => ratable(x)); const m = monthOf(DATE); S.medals = []; const base = monthSummary(e, m).medal;
+      S.medals.push({ code: e.code, month: m, day: DATE }, { code: e.code, month: m, day: DATE }, { code: 'm:x', month: m, day: DATE });
+      const u = managers()[0]; S.medals.push({ code: 'm:' + u.username, month: m, day: DATE }); const a = mgrMonth(u, m, DATE).total; S.medals.pop(); const b = mgrMonth(u, m, DATE).total;
+      return [base, monthSummary(e, m).medal, medalOf(e.code, m), a - b]; });
+    eq(r, [0, 200, 2, 100]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

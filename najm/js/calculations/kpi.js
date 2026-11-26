@@ -7,7 +7,7 @@ function monthSummary(e,month,upto){
   // الـ KPI بالنقط: كل يوم بنجومه (5 نجوم = نقط يوم كامل ≈ 19.2) + ½ المثالي + الكروت (+10 / −5 / −20)
   // الفلوس = النقط لحد أقصى الشهر (500)، والزيادة بتعلّي الترتيب بس · النسبة % = النقط ÷ نقط الأيام اللي اتحسبت (الغياب بيتحسب صفر)
   const R=rulesFor(month),dm=dayPts(month),cap=+R.kpiPts||500;
-  const md=medalOf(e.code,month)?medalPts():0;   // 🏅 وسام برق (+100 نقطة، مرة في الشهر)
+  const md=medalOf(e.code,month)*medalPts();   // 🏅 وسام برق (+100 نقطة لكل وسام، أي عدد في الشهر)
   const kpiPts=avg!=null||md?Math.max(0,Math.round((avg!=null?sum/5*dm:0)+cp+md)):null;
   const kpiMoney=kpiPts==null?null:Math.min(cap,kpiPts);
   const monthScore=kpiPts!=null&&(n+abs)>0?Math.round(kpiPts/(dm*(n+abs))*100):null;
@@ -25,7 +25,8 @@ const kpiTxt=ms=>ms?.kpiPts==null?'—':`${fmt(ms.kpiPts)} نقطة`;
 
 // وسام برق: مدير التشغيل بيديه لموظف مميز — مرة في الشهر، +نقط (الإعدادات)
 const medalPts=()=>+(S.settings.medalPts??100);
-const medalOf=(code,month)=>(S.medals||[]).some(x=>x.code===code&&(x.month||monthOf(x.day))===month);
+// عدد أوسمة برق للموظف (أو المدير: كود «m:اسم-الدخول») في الشهر
+const medalOf=(code,month)=>(S.medals||[]).filter(x=>x.code===code&&(x.month||monthOf(x.day))===month).length;
 // خصم التارجت (%): خصومات مدير التشغيل (تلاعب مثلاً) + الكاميرات: كل موظف حاضر ماتقيّمش (من الإعدادات)
 function tgtPenaltyPct(code,month){
   let p=0;if(LIVE&&month===monthOf(DATE))p+=S.tgtPenalties?.[code]||0;else p+=(S.penalties||[]).filter(x=>x.code===code&&x.month===month).reduce((a,x)=>a+x.pct,0);

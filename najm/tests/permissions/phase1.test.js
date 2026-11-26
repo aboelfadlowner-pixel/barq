@@ -351,7 +351,12 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await asAnon(db, 'select decision from najm_public_pray_reviews($1)', [D.slice(0, 7)])).length >= 1, true);
     // وسام برق مرة في الشهر
     await save('ops', '0000', 'medal', { code: c, day: D }, { note: 'أداء مميز' });
-    await fails(save('ops', '0000', 'medal', { code: c, day: D }, { note: 'تاني' }), /already given/);
+    await save('ops', '0000', 'medal', { code: c, day: D }, { note: 'تاني' });   // أي عدد في الشهر
+    eq((await asAnon(db, 'select code from najm_public_medals($1)', [D.slice(0, 7)])).filter(x => x.code === c).length, 2);
+    await save('ops', '0000', 'medal', { code: c, day: D }, null);   // الشيل بيشيل آخر وسام بس
+    eq((await asAnon(db, 'select code from najm_public_medals($1)', [D.slice(0, 7)])).filter(x => x.code === c).length, 1);
+    await save('ops', '0000', 'medal', { code: 'm:br', day: D }, { note: 'مدير مميز' });   // وسام لمدير (كود m:اسم-الدخول)
+    eq((await asAnon(db, 'select code from najm_public_medals($1)', [D.slice(0, 7)])).some(x => x.code === 'm:br'), true);
     await fails(save('br', '1111', 'medal', { code: c, day: D }, {}), /operations manager only/);
     eq((await asAnon(db, 'select code from najm_public_medals($1)', [D.slice(0, 7)])).some(x => x.code === c), true);
     // خصم التارجت (تلاعب 50%) — للكل: النسبة بس من غير السبب

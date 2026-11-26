@@ -15,7 +15,8 @@ function mgrMonth(u,month,upto){
   for(const d of days){rating+=mgrDayPts(d,u.username);for(const codes of Object.values(peekDay(d).winners||{}))for(const c of codes)if(inScopeOf(u,emp(c)))wins++;}
   const R=ranks();const team=activeEmps().filter(e=>inScopeOf(u,e));
   for(const e of team){const t=cupOf(prizeRank(e.code));if(t)cups+=P[t];reds+=cardCount(e.code,month,upto).r||0;}
-  return {rating,wins,cups,reds,team:team.length,total:Math.round(rating*P.rating+wins*P.winner+cups+reds*P.red)};
+  const medals=medalOf('m:'+u.username,month);   // 🏅 وسام برق لكل وسام +100 نقطة (من الإعدادات)
+  return {rating,wins,cups,reds,medals,team:team.length,total:Math.round(rating*P.rating+wins*P.winner+cups+reds*P.red+medals*medalPts())};
 }
 const balanceOf=un=>(S.ledger||[]).filter(l=>l.username===un).reduce((a,l)=>a+(+l.points||0),0);
 const MGR_W=()=>Object.assign({ops:50,team:25,votes:25},S.settings.mgrWeights||{});
