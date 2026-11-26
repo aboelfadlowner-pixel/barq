@@ -207,6 +207,12 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const t = document.querySelector('#cd')?.innerText || ''; closeModal(); return [t.includes('يوم بيوم'), t.includes('البصمة'), t.includes('الإجمالي')]; });
     eq(r, [true, true, true]);
   });
+  test('تقييم المديرين كل 4 أيام: التقييم بيكمّل لحد ما يتغيّر، والنقط والنسبة بيتحسبوا على كل الأيام', async () => {
+    const r = await p.evaluate(() => { const u = managers()[0].username; const saveC = S.mgrCrit, saveD = S.mgrDaily; S.mgrDaily = {}; S.mgrCrit = { '2031-03-01': { [u]: [2, 2, 2, 2, 2] }, '2031-03-09': { [u]: [1, 1, 1, 1, 1] } };
+      const out = [mgrDayPts('2031-03-05', u), mgrDayPts('2031-03-09', u), mgrDayPts('2031-03-20', u), mgrCritAt('2031-03-20', u).from, mgrRated('2031-02-20', u), cycleStart('2031-03-07'), cycleStart('2031-03-09')];
+      S.mgrCrit = saveC; S.mgrDaily = saveD; return out; });
+    eq(r, [10, 5, 5, '2031-03-09', false, '2031-03-05', '2031-03-09']);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

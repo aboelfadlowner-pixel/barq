@@ -9,7 +9,10 @@ const mgrPts=()=>Object.assign({},MGR_DEF,S.settings.mgrPoints||{});
 function inScopeOf(u,e){if(!u||!e||u.role==='ops')return false;if(!inUserBranch(u,e.branch))return false;if(u.role==='shift'&&!userGroups(u).includes(shiftGroup(e.shift)))return false;if(u.role==='fresh'&&!freshDepts(u).includes(e.dept))return false;return true;}
 function managers(){return (S.mgrs||S.users||[]).filter(u=>u.role!=='ops'&&u.role!=='hygiene'&&u.role!=='headcashier'&&u.active!==false);}
 const mgrName=un=>(S.mgrs||S.users||[]).find(u=>u.username===un)?.name||un;
-function mgrDayPts(d,un){if(S.mgrDaily?.[d]?.[un]!=null)return S.mgrDaily[d][un];const a=S.mgrCrit?.[d]?.[un];return a?a.reduce((x,y)=>x+(y||0),0):0;}
+// تقييم المدير الساري في يوم: آخر تقييم لحد اليوم ده — مدير التشغيل بيقيّم المديرين كل 4 أيام (دورات ثابتة 1-4 / 5-8 …) والتقييم بيكمّل لحد ما يتغيّر
+function mgrCritAt(d,un){let best=null,bd='';for(const [day,o] of Object.entries(S.mgrCrit||{})){if(day<=d&&o[un]&&(bd===''||day>bd)){bd=day;best=o[un];}}return best?{arr:best,from:bd}:null;}
+const mgrRated=(d,un)=>S.mgrDaily?.[d]?.[un]!=null||!!mgrCritAt(d,un);
+function mgrDayPts(d,un){if(S.mgrDaily?.[d]?.[un]!=null)return S.mgrDaily[d][un];const c=mgrCritAt(d,un);return c?c.arr.reduce((x,y)=>x+(y||0),0):0;}
 function mgrMonth(u,month,upto){
   const P=mgrPts();const days=monthDays(month,upto);let rating=0,wins=0,reds=0,cups=0;
   for(const d of days){rating+=mgrDayPts(d,u.username);for(const codes of Object.values(peekDay(d).winners||{}))for(const c of codes)if(inScopeOf(u,emp(c)))wins++;}
@@ -22,7 +25,7 @@ const balanceOf=un=>(S.ledger||[]).filter(l=>l.username===un).reduce((a,l)=>a+(+
 const MGR_W=()=>Object.assign({ops:50,team:25,votes:25},S.settings.mgrWeights||{});
 const votesOf=un=>(LIVE?S.voteCounts?.[un]?.votes:(S.votes||[]).filter(v=>v.month===monthOf(DATE)&&v.manager===un).length)||0;
 function mgrScore(u,month,upto){
-  const days=monthDays(month,upto);let s=0,n=0;for(const d of days){const has=S.mgrDaily?.[d]?.[u.username]!=null||S.mgrCrit?.[d]?.[u.username];if(has){s+=mgrDayPts(d,u.username);n++;}}
+  const days=monthDays(month,upto);let s=0,n=0;for(const d of days){const has=mgrRated(d,u.username);if(has){s+=mgrDayPts(d,u.username);n++;}}
   const ops=n?s/n/10*100:0;
   const team=activeEmps().filter(e=>inScopeOf(u,e)).map(e=>msOf(e).monthScore).filter(v=>v!=null);const teamPct=team.length?team.reduce((a,b)=>a+b,0)/team.length:0;
   const maxV=Math.max(0,...managers().map(x=>votesOf(x.username)));const v=votesOf(u.username);const votePct=maxV?v/maxV*100:0;

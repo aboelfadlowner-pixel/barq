@@ -12,7 +12,11 @@ grant execute on function public.najm_public_users() to anon, authenticated;
 create or replace function public.najm_mgr_points(p_from date, p_to date)
 returns table(day date, username text, pts int)
 language sql stable security definer set search_path = public as $$
-  select day, username, (select coalesce(sum(x),0) from unnest(crit) x)::int from najm_mgr_ratings where day between p_from and p_to;
+  -- تقييم التشغيل للمدير كل 4 أيام وبيكمّل لحد ما يتغيّر: كل يوم في الفترة بياخد آخر تقييم لحد اليوم ده
+  select g::date, u.username, (select coalesce(sum(x), 0) from unnest(r.crit) x)::int
+  from generate_series(p_from, p_to, interval '1 day') g
+  cross join (select distinct m.username from najm_mgr_ratings m) u
+  cross join lateral (select m.crit from najm_mgr_ratings m where m.username = u.username and m.day <= g::date order by m.day desc limit 1) r;
 $$;
 
 grant execute on function public.najm_mgr_points(date, date) to anon, authenticated;
@@ -141,8 +145,10 @@ begin
   select * into u from public.najm_auth(p_user, p_pin);
   -- wrong PIN: return (not raise) so the failed attempt counted by najm_auth is kept (5 → 15-minute lock)
   if u.username is null then return; end if;
+  -- + آخر تقييم قبل الفترة لكل مدير (عشان يكمّل عليها)
   return query select r.day, r.username, r.crit from najm_mgr_ratings r
-    where r.day between p_from and p_to and (u.role = 'ops' or r.username = u.username);
+    where (r.day between p_from and p_to or r.day = (select max(m.day) from najm_mgr_ratings m where m.username = r.username and m.day < p_from))
+      and (u.role = 'ops' or r.username = u.username);
 end $$;
 
 grant execute on function public.najm_mgr_ratings_full(text, text, date, date) to anon, authenticated;

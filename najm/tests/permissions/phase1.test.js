@@ -561,6 +561,21 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await rpc('select najm_my_history_days($1,$2,$3) r', [c, '', 'x'])).r, []);
   });
 
+  test('تقييم التشغيل للمديرين كل 4 أيام: بيكمّل على الأيام اللي بعده لحد ما يتغيّر، ومن غير ما يتقيّم مفيش نقط', async () => {
+    const mr = (day, crit) => rpc("select najm_market_save($1,$2,'mgr_rate',$3::jsonb,$4::jsonb) r", ['ops', '0000', JSON.stringify({ day, username: 'br' }), JSON.stringify(crit)]);
+    await db.query("delete from najm_mgr_ratings where username='br' and day between '2031-03-01' and '2031-03-31'");
+    await mr('2031-03-01', [2, 2, 2, 2, 2]);
+    await mr('2031-03-09', [1, 1, 1, 1, 1]);
+    const pts = (await asAnon(db, "select day::text d, pts from najm_mgr_points('2031-03-01','2031-03-12') where username='br' order by day")).map(r => [r.d.slice(8), r.pts]);
+    eq(pts.map(x => x[1]).join(','), '10,10,10,10,10,10,10,10,5,5,5,5');   // 1-8 بتقييم الدورة الأولى، 9 وبعدها بالجديد
+    // الفترة اللي بتبدأ بعد التقييم بتكمّل عليه (آخر تقييم قبلها)
+    const full = (await rpc('select najm_mgr_ratings_full($1,$2,$3,$4) r', ['ops', '0000', '2031-03-05', '2031-03-08'])).r;
+    eq(Array.isArray(full) ? full.length >= 0 : true, true);
+    const rows = (await db.query("select day::text d from najm_mgr_ratings_full('ops','0000','2031-03-05','2031-03-08') where username='br'")).rows.map(r => r.d);
+    eq(rows, ['2031-03-01']);
+    await db.query("delete from najm_mgr_ratings where username='br' and day between '2031-03-01' and '2031-03-31'");
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;
