@@ -74,6 +74,9 @@ begin
   if p_kind = 'user_emp' then
     update najm_users set emp_code = nullif(p_data->>'emp_code',''), updated_at = now() where username = lower(trim(p_key->>'username'));
   elsif p_kind = 'mgr_rate' then
+    -- هيد الكاشير بيقيّمه مديره (فرع / شيفت) كموظف، مش مدير التشغيل في تقييم المديرين
+    if exists (select 1 from najm_users where username = p_key->>'username' and role = 'headcashier') then
+      raise exception 'najm: head cashier is rated by his managers' using errcode = '42501'; end if;
     if del then delete from najm_mgr_ratings where day = (p_key->>'day')::date and username = p_key->>'username';
     else insert into najm_mgr_ratings(day, username, crit)
       values ((p_key->>'day')::date, p_key->>'username', array(select (case when v = 'null'::jsonb then 0 else v::text::smallint end) from jsonb_array_elements(p_data) v))

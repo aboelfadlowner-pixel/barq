@@ -454,6 +454,33 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await db.query("select count(*)::int n from najm_ratings where day=$1 and code = any($2) and att in ('abs','off')", [dd(3), em.slice(30)])).rows[0].n > 0, true);
   });
 
+  test('مين بيقيّم مين: اللي بنفس الصلاحية مبيقيّمش بعض، هيد الكاشير بيقيّمه مديره، والتشغيل بيقيّم المديرين والكاميرات', async () => {
+    const pickE = async (dept, n) => (await db.query("select code from najm_employees where branch=$1 and active and dept=$2 and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') order by code limit 1 offset $3", [B, dept, n])).rows[0].code;
+    const [h1, h2] = [await pickE('قسم الكاشير', 0), await pickE('قسم الكاشير', 1)];
+    const [k1, k2] = [await pickE('قسم البقاله', 0), await pickE('قسم البقاله', 1)];
+    await save('ops', '0000', 'user', { username: 'hcr1' }, { name: 'هيد 1', role: 'headcashier', branch: B, pin: '4040' });
+    await save('ops', '0000', 'user', { username: 'hcr2' }, { name: 'هيد 2', role: 'headcashier', branch: B, pin: '4041' });
+    await save('ops', '0000', 'user', { username: 'cmr1' }, { name: 'كاميرا 1', role: 'cameras', branch: B, pin: '4042' });
+    await save('ops', '0000', 'user', { username: 'cmr2' }, { name: 'كاميرا 2', role: 'cameras', branch: B, pin: '4043' });
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['hcr1', h1]);
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['hcr2', h2]);
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['cmr1', k1]);
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['cmr2', k2]);
+    // هيد الكاشير: مديره (فرع) بيقيّمه والكاميرات بتسجّل صلاته، بس مش هيد كاشير زيه، ومش بيقيّم نفسه
+    await save('br', '1111', 'rate', { day: D, code: h1 }, [2, 2, 2, 2]);
+    await save('cmr1', '4042', 'pray', { day: D, code: h1 }, { v: 1 });
+    await fails(save('hcr2', '4041', 'cashier_event', { id: 'z9' }, { code: h1, band: 'smile' }), /managers are not rated/);
+    await fails(save('hcr1', '4040', 'cashier_event', { id: 'z8' }, { code: h1, band: 'smile' }), /managers are not rated/);
+    // التشغيل مبيقيّمش هيد الكاشير في تقييم المديرين (مديره هو اللي بيقيّمه)
+    await fails(rpc("select najm_market_save($1,$2,'mgr_rate',$3::jsonb,$4::jsonb) r", ['ops', '0000', JSON.stringify({ day: D, username: 'hcr1' }), JSON.stringify([2, 2, 2, 2, 2])]).then(x => { if (x.r?.error) throw new Error(x.r.error); return x; }), /rated by his managers/);
+    // الكاميرات: مفيش كاميرا بتقيّم كاميرا
+    await fails(save('cmr2', '4043', 'pray', { day: D, code: k1 }, { v: 1 }), /managers are not rated/);
+    // مدير التشغيل بيقيّم الكاميرات (تقييم المديرين) عادي
+    const ok1 = (await rpc("select najm_market_save($1,$2,'mgr_rate',$3::jsonb,$4::jsonb) r", ['ops', '0000', JSON.stringify({ day: D, username: 'cmr1' }), JSON.stringify([2, 2, 2, 2, 2])])).r;
+    eq(ok1 == null || ok1.error == null, true);
+    for (const u of ['hcr1', 'hcr2', 'cmr1', 'cmr2']) await save('ops', '0000', 'user', { username: u }, null);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;

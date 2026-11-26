@@ -172,6 +172,15 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     const r = await p.evaluate(() => [hyWarnHTML([2, 1, 1, null, 2]).includes('ناقص'), hyWarnHTML([2, 1, 1, 1, 2]), hyWarnHTML([]), userBranches({ branch: 'a', branches: ['a', 'b'] }).join(','), inUserBranch({ branch: 'a', branches: ['a', 'b'] }, 'b'), inUserBranch({ branch: 'a', branches: [] }, 'b'), inUserBranch({ branch: '' }, 'z')]);
     eq(r, [true, '', '', 'a,b', true, false, true]);
   });
+  test('مين بيقيّم مين (الواجهة): هيد الكاشير ظاهر لمديره مش لهيد كاشير، وبره قايمة المديرين عند التشغيل', async () => {
+    const r = await p.evaluate(() => { const e = activeEmps().find(x => isCashierEmp(x) && ratable(x)); const base = S.users.length;
+      S.users.push({ username: 'hcz', name: 'هيد', role: 'headcashier', branch: e.branch, shift: '', depts: [], active: true, emp_code: e.code });
+      USER = { username: 'mahmoud', role: 'shift', branch: e.branch, shift: 'Morning', depts: [], name: 'x' }; const asMgr = ratable(e);
+      USER = { username: 'hcz', role: 'headcashier', branch: e.branch, shift: '', depts: [], name: 'x' }; const asHC = ratable(e);
+      const inMgrs = managers().some(u => u.username === 'hcz'); S.users.pop(); return [asMgr, asHC, inMgrs, S.users.length === base]; });
+    eq(r, [true, false, false, true]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
