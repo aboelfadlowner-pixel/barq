@@ -15,7 +15,7 @@ $$;
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean; chg int; chs jsonb;
+declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean; chg int; chs jsonb; avgn numeric; lastn int; partial boolean;
   today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select data into cfg from najm_settings where id = 1;
@@ -29,6 +29,11 @@ begin
     from jsonb_array_elements(p_rows) x where (x->>'day') ~ '^\d{4}-\d{2}-\d{2}$';
   select least(max(day), today) into lastd from _r where public.najm_tmin(tin) is not null;
   if lastd is null then return jsonb_build_object('saved', 0, 'note', 'مفيش بصمات في الملف'); end if;
+  -- آخر يوم في الشيت لو عدد اللي بصموا فيه أقل من 60% من متوسط الأسبوع اللي قبله (والنهارده عدّى) ← الشيت لسه ما اتكملش:
+  -- اللي مابصمش فيه مبيتحسبش غياب ولا راحة لحد ما الشيت يتحدّث (التحديث الجاي بيكمّل من هنا)
+  select coalesce(avg(c), 0) into avgn from (select count(distinct code) c from _r where day < lastd and day >= lastd - 7 and public.najm_tmin(tin) is not null group by day) z;
+  select count(distinct code) into lastn from _r where day = lastd and public.najm_tmin(tin) is not null;
+  partial := lastd < today and avgn > 0 and lastn < 0.6 * avgn;
   select array_agg(distinct code) into unk from _r r where not exists (select 1 from najm_employees e where e.code = r.code and e.active)
     and (public.najm_tmin(r.tin) is not null or r.leave is not null);
   -- النهارده بيتحسب كامل (الغياب والراحة كمان) بس لو: الساعة عدّت بداية شيفت الليل بساعتين، والشيت فيه بصمات شيفت الليل النهارده
@@ -45,7 +50,7 @@ begin
                              (select case when dd <= grace then 'on' when dd <= latemax then 'late' when dd <= vlatemax then 'vlate' else 'xlate' end
                               from (select (public.najm_tmin(tin) - public.najm_tmin(shift) + 2160) % 1440 - 720 dd) z)
                            when tin is not null then null              -- وقت مش مقروء: بيتساب (مش غياب)
-                           when day >= today and not done_today then null   -- النهارده لسه شغال: اللي مابصمش لسه مبيتحسبش غياب ولا راحة
+                           when (day >= today and not done_today) or (partial and day = lastd) then null   -- النهارده لسه شغال (أو آخر يوم في الشيت ناقص): اللي مابصمش لسه مبيتحسبش غياب ولا راحة
                            else 'noshow' end s,
                       row_number() over (partition by code, day - ((extract(dow from day)::int + 1) % 7),
                                          (leave is null and tin is null) order by day) rn
@@ -67,6 +72,12 @@ begin
                                     'rows', (select jsonb_agg(v) from (select v from jsonb_array_elements(coalesce(najm_alerts.data->'rows', '[]') || chs) v limit 30) z)),
           seen_by = null, seen_at = null;
   end if;
+  -- الشيت واقف: آخر يوم فيه من يومين أو أكتر ← تنبيه لمدير التشغيل (النجوم محفوظة زي ما هي، والتحديث بعد ما الشيت يتحدّث بيكمّل من آخر يوم)
+  if today - lastd >= 2 then
+    insert into najm_alerts(kind, code, day, data)
+      values ('sheet_stale', null, today, jsonb_build_object('last', lastd, 'days', today - lastd, 'file', p_file))
+    on conflict (kind, coalesce(code, ''), day) do nothing;
+  end if;
   insert into najm_ratings(day, code, att, att_time, att_src, att_raw)
     select day, code, st, tin, 'sheet', raw from _s
   on conflict (day, code) do update set att = excluded.att, att_time = excluded.att_time, att_src = 'sheet', att_raw = excluded.att_raw, updated_at = now()
@@ -78,7 +89,7 @@ begin
             coalesce(array_length(unk, 1), 0), 'تحديث يومي من الـ Drive ' || d1 || ' → ' || lastd || case when skipped > 0 then ' · ' || skipped || ' يوم متعدّل بإيد اتساب' else '' end);
   insert into najm_history(actor, kind, data)
     values ('system', 'att_sync', jsonb_build_object('file', p_file, 'from', d1, 'to', lastd, 'saved', n, 'manual_kept', skipped, 'unknown', to_jsonb(unk)));
-  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'changed_past_days', chg, 'from', d1, 'to', lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
+  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'changed_past_days', chg, 'from', d1, 'to', lastd, 'last_day_partial', partial, 'stale_days', today - lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
     'on', (select count(*) from _s where st = 'on'), 'late', (select count(*) from _s where st in ('late', 'vlate', 'xlate')),
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;

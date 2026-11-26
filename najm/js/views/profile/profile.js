@@ -94,6 +94,9 @@ function opsPendingHTML(){
   const ap=(S.appeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
   const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);
   for(const a of (S.alerts||[]).filter(a=>!a.seen_at))items.push([alertTxt(a),`openAlert(${+a.id})`]);
+  // التحديث الدوري نفسه واقف (مفيش تحديث من أكتر من 30 ساعة) — النجوم محفوظة زي ما هي وبتكمّل من آخر يوم لما يرجع يشتغل
+  {const li=(S.imports||[]).filter(i=>i.kind==='attendance'&&String(i.file_hash||'').startsWith('drive-sync')).map(i=>i.at).sort().pop();
+   if(LIVE&&li&&Date.now()-new Date(li)>30*36e5)items.push([`⏳ تحديث البصمة من الشيت واقف من ${fmt(Math.floor((Date.now()-new Date(li))/864e5))} يوم — النجوم محفوظة زي ما هي، وبتكمّل من آخر يوم أول ما يرجع`,"openImports('attendance')"]);}
   const pc=prayConflicts();if(pc.length)items.push([`🕌 ${fmt(pc.length)} تعارض في الصلاة بين الكاميرات والمدير — اعتمد رأي مين`,"openPrayConflicts()"]);
   const W=peekDay(DATE).winners||{};
   for(const b of branches())for(const g of SHIFT_GROUPS){if(!winnersFor(b,g))continue;if(!activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))continue;
@@ -157,9 +160,12 @@ async function decidePray(code,cycle,decision,level){(S.prayReviews||(S.prayRevi
 function alertTxt(a){const d=a.data||{};
   if(a.kind==='sheet_changed')return `🚨 شيت البصمة اتغيّر في أيام فاتت (${fmt(d.count||0)} يوم) — في حاجة غلط، اتواصل مع الـ HR`;
   if(a.kind==='comeback')return `🔁 ${esc(d.name||a.code)} (${esc(a.code)}) رجع يبصم ${esc(a.day)} بعد ${fmt(d.gap)} يوم من غير بصمة${d.active===false?' — وهو موقوف في السيستم':''}`;
+  if(a.kind==='sheet_stale')return `⏳ شيت البصمة واقف — آخر يوم فيه ${esc(d.last||'')} (من ${fmt(d.days||0)} يوم). النجوم محفوظة وبتكمّل أول ما يتحدّث`;
   if(a.kind==='stale')return `⏸️ ${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` (آخر حضور ${esc(d.last)})`:' ولا مرة'} وهو لسه نشط`;
   return esc(a.kind);}
 function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  if(a.kind==='sheet_stale'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>⏳ شيت البصمة واقف</h2><div class="small">آخر يوم في الشيت <b>${esc(d.last||'')}</b> (من ${fmt(d.days||0)} يوم). مفيش حاجة بتتمسح ولا بيتحسب غياب: النجوم بتفضل زي آخر تحديث، وأول ما الـ HR يحدّث الشيت التحديث الجاي بيحسب الأيام الفاضلة كلها من آخر يوم. اتواصل مع الـ HR لو الشيت متأخر.</div>
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتشاف</button></div>`);return;}
   if(a.kind==='stale'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>⏸️ موظف نشط من غير بصمة</h2><div class="small">${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` — آخر حضور ${esc(d.last)}`:''}. اسأل الـ HR: ساب الشغل؟ إجازة طويلة؟ لو ساب ← وقّفه من «ملفات الموظفين» وهيختفي من التقييمات والترتيب.</div>
     <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتشاف</button></div>`);return;}
   const rows=a.kind==='sheet_changed'?`<div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>الكود</th><th>الموظف</th><th>اليوم</th><th>كان</th><th>بقى</th></tr></thead><tbody>${(d.rows||[]).map(r=>`<tr><td>${esc(r.code)}</td><td class="small">${esc(emp(r.code)?.name||'')}</td><td class="small">${esc(r.day)}</td><td>${ATT[r.old]||esc(r.old||'—')}</td><td>${ATT[r.new]||esc(r.new||'—')}</td></tr>`).join('')}</tbody></table></div>
