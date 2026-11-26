@@ -98,9 +98,10 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
 
   // ---------------- التصويت بالرقم السري
-  test('التصويت محتاج الرقم السري', async () => {
-    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '0000', 'device-aaaaaaaaaaaaaaaa', 'br'])).r.error, 'pin');
-    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '4321', 'device-aaaaaaaaaaaaaaaa', 'br'])).r.ok, true);
+  test('التصويت بكود البصمة بس: صوت واحد لكل كود، ومش بيتغيّر بعدها', async () => {
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '', 'device-aaaaaaaaaaaaaaaa', 'br'])).r.ok, true);
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '', 'device-bbbbbbbbbbbbbbbb', 'br'])).r.error, 'voted');
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['99999', '', 'device-cccccccccccccccc', 'br'])).r.error, 'pin');
   });
 
   // ---------------- إغلاق اليوم
@@ -196,8 +197,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await save('ops', '0000', 'complaint_decide', { id: 'cp1' }, { proven: true, note: 'اتأكدنا من الكاميرا' });
     eq(await pc(), 1);
     await fails(save('ops', '0000', 'complaint_decide', { id: 'cp1' }, { proven: false }), /already decided/);
-    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '0000', 'cp1', 'مكنتش أنا'])).r.error, 'najm: wrong code or PIN');
-    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '4321', 'cp1', 'مكنتش أنا'])).r.ok, true);
+    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['99999', '', 'cp1', 'مكنتش أنا'])).r.error, 'najm: wrong code or PIN');
+    eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '', 'cp1', 'مكنتش أنا'])).r.ok, true);   // الاعتراض بالكود بس
     eq((await rpc('select najm_emp_complaint_appeal($1,$2,$3,$4) r', ['125', '4321', 'cp1', 'تاني'])).r.error, 'najm: complaint cannot be appealed');
     const mine = (await rpc('select najm_my_complaints($1,$2) r', ['125', '4321'])).r.complaints;
     eq([mine.length, mine[0].appeal_status], [1, 'pending']);
@@ -389,8 +390,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const login = async pin => (await rpc('select najm_login_any($1,$2) r', [c, pin])).r;
     const r = await login('');
     eq([r.kind, r.code, r.has_pin], ['emp', c, false]);
-    eq((await rpc('select najm_emp_appeal($1,$2,$3,$4) r', [c, '', 'x', 'سبب'])).r.error, 'najm: PIN required');
-    eq((await rpc('select najm_vote($1,$2,$3,$4) r', [c, '', 'device-0123456789abcdef', 'br'])).r.error, 'pin');
+    eq((await rpc('select najm_emp_appeal($1,$2,$3,$4) r', [c, '', 'x', 'سبب'])).r.error, 'najm: card cannot be appealed');   // بالكود بس: وصل لحد فحص الكارت
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', [c, '', 'device-0123456789abcdef', 'br'])).r.ok, true);
     eq((await rpc('select najm_emp_set_pin($1,$2,$3) r', [c, '', '1234'])).r.error, 'najm: PIN required');
     // التشغيل بيحط رقم ← لازم في الدخول
     await save('ops', '0000', 'emp_pin', { code: c }, { pin: '4321' });
@@ -484,6 +485,17 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const ok1 = (await rpc("select najm_market_save($1,$2,'mgr_rate',$3::jsonb,$4::jsonb) r", ['ops', '0000', JSON.stringify({ day: D, username: 'cmr1' }), JSON.stringify([2, 2, 2, 2, 2])])).r;
     eq(ok1 == null || ok1.error == null, true);
     for (const u of ['hcr1', 'hcr2', 'cmr1', 'cmr2']) await save('ops', '0000', 'user', { username: u }, null);
+  });
+
+  test('محل الايس كريم جزء من البيطاش، ورفع المبيعات لمدير التشغيل بس', async () => {
+    const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
+    const e = (await db.query("select code, name, dept, job from najm_employees where branch=$1 and active order by code limit 1", [B])).rows[0];
+    const rows = [{ code: e.code, name: e.name, dept: e.dept, job: e.job || '', branch: 'محل الايس كريم', lastIn: T, fullWeek: 6 },
+                  { code: '99301', name: 'ايس كريم جديد', dept: 'قسم الايس كريم', job: 'بائع', branch: 'محل الايس كريم', shiftTime: '2:00 PM', lastIn: T, fullWeek: 6 }];
+    const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'ice'])).rows[0].r;
+    eq(r.added.map(x => [x.code, x.branch]), [['99301', B]]);
+    eq((await db.query('select branch from najm_employees where code=$1', [e.code])).rows[0].branch, B);
+    await fails(save('br', '1111', 'sales', { day: D, branch: B }, {}), /operations manager only/);
   });
 
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {

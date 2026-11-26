@@ -24,7 +24,7 @@ function empProfileHTML(e){
         <div class="muted">${esc(e.name)} · كود ${esc(e.code)}</div>
         <div class="muted small">${esc(e.job||'')} · ${esc(e.dept)} · ${esc(e.branch)} · شيفت ${esc(e.shift)}</div>
         <div class="row" style="margin-top:8px;gap:6px">${R.branch[e.code]?`<span class="badge b-blue">#${fmt(R.branch[e.code])} في الفرع</span>`:''}${R.company[e.code]?`<span class="badge b-blue">#${fmt(R.company[e.code])} في المؤسسة</span>`:''}<span class="badge b-gold">🏆 ${fmt(ms.wins||0)} مرة رجل اليوم</span></div>
-        <div class="row" style="margin-top:10px;gap:6px">${ME_HASPIN?`<button class="btn sm pri" onclick="go('vote')">🗳️ صوّت لمديرك</button>`:''}<button class="btn sm" onclick="go('target')">🎯 تارجت قسمي</button><button class="btn sm" onclick="openCareer('${e.code}')">📜 ملفي الكامل</button>${ME_HASPIN?`<button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button>`:''}<button class="btn sm" onclick="meLogout()">خروج</button></div>
+        <div class="row" style="margin-top:10px;gap:6px"><button class="btn sm pri" onclick="go('vote')">🗳️ صوّت لمديرك</button><button class="btn sm" onclick="go('target')">🎯 تارجت قسمي</button><button class="btn sm" onclick="openCareer('${e.code}')">📜 ملفي الكامل</button>${ME_HASPIN?`<button class="btn sm" onclick="meChangePin()">🔑 تغيير الرقم السري</button>`:''}<button class="btn sm" onclick="meLogout()">خروج</button></div>
       </div></div></div>
     <div class="grid g-2" style="margin-bottom:12px">
       <div class="card"><h3>⭐ نجومك النهارده (${esc(DATE)})</h3>${todayStarsHTML(e.code)}</div>
@@ -132,7 +132,7 @@ async function mgrChangePin(){
   toast('✔ اتغيّر الرقم السري');}
 
 // التصويت والاعتراض للموظف اللي مدير التشغيل اداله رقم سري بس (كود البصمة لوحده معروف لزمايله)
-function needPin(){if(ME_HASPIN)return true;toast('ده محتاج رقم سري — اطلبه من مدير التشغيل');return false;}
+function needPin(){return true;}   // الاعتراض والتصويت بكود البصمة بس
 
 // ---------- تعارض الصلاة: المدير (كل 4 أيام) × الكاميرات (كل يوم) ← مدير التشغيل بيعتمد ----------
 // رأي الكاميرات في الدورة: صلّى كل الأيام = ملتزم · مصلاش خالص = مبيصليش · مرة ومرة = بيقطع (من يومين على الأقل)

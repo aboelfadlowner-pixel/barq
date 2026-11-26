@@ -69,3 +69,14 @@
 .ovr-pill.silver{background:linear-gradient(160deg,#f7f9fa,#cdd4da 48%,#8a95a0);color:#1c2329} .ovr-pill.bronze{background:linear-gradient(160deg,#f6d6b4,#d0915c 48%,#8c4c1d);color:#2a1304}
 .ovr-pill.neon{background:linear-gradient(160deg,#2a1a6e,#2b3aa8 55%,#0e9fc4);color:#fff;box-shadow:0 0 8px rgba(79,243,255,.7)} .ovr-pill.icon{background:linear-gradient(160deg,#fbf3df,#e9d7ae 50%,#c3a46b);color:#3a2a0c;box-shadow:0 0 8px rgba(255,212,81,.8)}
 .fut-grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
+
+/* حركة خفيفة على كارت الموظف: لمعة بتعدّي كل 6 ثواني + طفو بسيط + تكبير لمسة عند اللمس — بتقف لو الجهاز عنده «تقليل الحركة» */
+.fc-body::after{content:'';position:absolute;top:-20%;bottom:-20%;left:-60%;width:38%;pointer-events:none;z-index:30;
+  background:linear-gradient(100deg,transparent 0,rgba(255,255,255,.0) 20%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 80%,transparent 100%);transform:skewX(-18deg) translateX(0);opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .fc-body::after{animation:fcShine 6s ease-in-out infinite}
+  @keyframes fcShine{0%,70%{transform:skewX(-18deg) translateX(0);opacity:0}74%{opacity:1}96%{transform:skewX(-18deg) translateX(520%);opacity:.9}100%{transform:skewX(-18deg) translateX(520%);opacity:0}}
+  .fc:not(.tvc){animation:fcFloat 5s ease-in-out infinite;transition:transform .2s}
+  @keyframes fcFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-.25em)}}
+  .fc:not(.tvc):active{transform:scale(1.03);animation-play-state:paused}
+}

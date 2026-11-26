@@ -100,9 +100,10 @@ create or replace function public.najm_emp_appeal(p_code text, p_pin text, p_car
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare e najm_employees; k najm_cards; b text := trim(coalesce(p_body, ''));
 begin
-  select * into e from public.najm_emp_auth(p_code, p_pin);
+  -- الاعتراض بكود البصمة بس (من غير رقم سري)
+  select * into e from najm_employees where code = trim(coalesce(p_code, '')) and active
+    and not exists (select 1 from najm_users x where x.active and x.emp_code = trim(coalesce(p_code, '')));
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
-  if not public.najm_emp_has_pin(e.code) then return jsonb_build_object('error', 'najm: PIN required'); end if;
   select * into k from najm_cards where id = p_card and code = e.code;
   if k.id is null or k.status not in ('approved', 'pending') then return jsonb_build_object('error', 'najm: card cannot be appealed'); end if;
   if length(b) < 3 or length(b) > 500 then return jsonb_build_object('error', 'najm: write the reason (3-500 letters)'); end if;
@@ -146,9 +147,10 @@ create or replace function public.najm_emp_complaint_appeal(p_code text, p_pin t
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare e najm_employees; c najm_complaints; b text := trim(coalesce(p_body, ''));
 begin
-  select * into e from public.najm_emp_auth(p_code, p_pin);
+  -- الاعتراض بكود البصمة بس (من غير رقم سري)
+  select * into e from najm_employees where code = trim(coalesce(p_code, '')) and active
+    and not exists (select 1 from najm_users x where x.active and x.emp_code = trim(coalesce(p_code, '')));
   if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
-  if not public.najm_emp_has_pin(e.code) then return jsonb_build_object('error', 'najm: PIN required'); end if;
   select * into c from najm_complaints where id = p_id and code = e.code;
   if c.id is null or c.status <> 'proven' or c.appeal_status is not null then return jsonb_build_object('error', 'najm: complaint cannot be appealed'); end if;
   if length(b) < 3 or length(b) > 500 then return jsonb_build_object('error', 'najm: write the reason (3-500 letters)'); end if;

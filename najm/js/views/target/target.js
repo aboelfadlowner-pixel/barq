@@ -23,7 +23,7 @@ function vTarget(){
       ${(c=>+c?.pts>0?`<div class="small muted">⭐ ${fmt(c.pts)} نقطة لو اتقفل</div>`:isOps()?'<div class="small" style="color:var(--red)">⭐ لسه محددتش نقط القسم ده</div>':'')(tgtCfg(m,TG.branch,d))}
       ${caps.length?`<div class="kv"><span><span class="cap-c" style="width:16px;height:16px;font-size:10px">C</span> كابتن شخصي</span><b style="color:var(--purple)">${fmt(capPeople)} موظف · ${fmt(caps.length)} منتج</b></div>`:''}
     </div>`;}).join('');
-  const canUpload=isMgr()&&USER.role!=='fresh'&&!isHy()&&!isLimited();
+  const canUpload=isOps();   // رفع المبيعات لمدير التشغيل بس
   return `<div class="sec-title"><h2>🎯 التارجت والكابتن — ${monthName(m)}</h2>
     <div class="row">${canUpload?`<button class="btn pri" onclick="importSales()">📥 تقرير المبيعات اليومي</button>`:''}${isOps()?`<button class="btn" onclick="importSales(true)">📊 مبيعات شهر كامل (للتخطيط)</button>`:''}${canUpload?`<button class="btn" onclick="openImports()">📂 الملفات المرفوعة</button>`:''}</div></div>
     <div class="lock" style="margin-bottom:10px"><b>النقط بيحددها مدير التشغيل أول كل شهر:</b> نقط تارجت كل قسم، ونقط كل كابتن، والمطلوب للعشرة الأوائل — والتطبيق بيحسب الباقي لوحده. التارجت بالكميات للقسم كله. <b>الكابتن</b>: تارجت شخصي إضافي لكل شيف/سيلز على صنف أو أكتر، بالكيلو المتباع من شيت فوديكس. الأقسام اللي مش مبيعات: نضافة + تقييم المدير المباشر. شكوى ضغط في البيع = −${S.settings.complaintPenalty}%.</div>

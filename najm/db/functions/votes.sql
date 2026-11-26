@@ -7,8 +7,10 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare e najm_employees; u najm_users; m text := to_char(now() at time zone 'Africa/Cairo', 'YYYY-MM');
   ip text := split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1);
 begin
-  select * into e from public.najm_emp_auth(p_code, p_pin);
-  if e.code is null or not public.najm_emp_has_pin(e.code) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;   -- التصويت بالرقم السري بس
+  -- التصويت بكود البصمة بس: صوت واحد لكل كود في الشهر (ولكل جهاز)، ومش بيتغيّر بعد ما يتسجل
+  select * into e from najm_employees where code = trim(coalesce(p_code, '')) and active
+    and not exists (select 1 from najm_users x where x.active and x.emp_code = trim(coalesce(p_code, '')));
+  if e.code is null then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
   if coalesce(length(p_device),0) < 16 then return jsonb_build_object('ok', false, 'error', 'device'); end if;
   select * into u from najm_users where username = p_manager and active and role not in ('ops','hygiene') and (branch is null or branch = e.branch);
   if u.username is null then return jsonb_build_object('ok', false, 'error', 'manager'); end if;

@@ -117,3 +117,7 @@ video{max-width:100%;border-radius:12px;background:#000}
 .login{max-width:360px;margin:0 auto}
 .demo-flag{background:#fff3cd;color:#7a5600;border-bottom:1px solid #f0d78a;text-align:center;font-size:12px;padding:4px;font-weight:700}
 @media(max-width:640px){main{padding:10px} header{position:static} nav{top:0} header h1{font-size:16px}}
+
+/* علامة «سلّمت اليوم» / «اليوم مقفول» عند المدير وعند التشغيل */
+.close-done{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--green-soft,#e6f7ee);color:var(--green,#16794c);border:1px solid var(--green,#16794c);font-weight:800;font-size:13px}
+.close-done.lock{background:#eef1f5;color:#44505f;border-color:#9aa6b5}
