@@ -322,14 +322,11 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     ];
     await fails(asAnon(db, 'select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']), /permission denied/);
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv'])).rows[0].r;
-    // الجدد مبيتضافوش لوحدهم: تنبيه لمدير التشغيل بالشيفت المحسوب، وهو اللي بيوافق (حفظ موظف)
-    eq(r.added.length, 0);
-    const al = Object.fromEntries((await db.query("select code, data from najm_alerts where kind='new_emp'")).rows.map(a => [a.code, a.data]));
-    eq([al['99001'].shift, al['99002'].shift, al['99003'].shift, al['99003'].dept, !!al['99004'], !!al['99005'], !!al['99006']], ['Morning', 'Between', 'Night', '', false, false, false]);
-    for (const c of ['99001', '99002', '99003']) await save('ops', '0000', 'employee', { code: c }, { name: al[c].name, branch: al[c].branch, dept: al[c].dept, job: al[c].job, shift: al[c].shift, active: true });
     const E = Object.fromEntries((await db.query("select code, name, dept, job, branch, shift from najm_employees where code = any($1)", [['99001', '99002', '99003', '99004', '99005', x.code]])).rows.map(e => [e.code, e]));
+    eq([E['99001'].shift, E['99002'].shift, E['99003'].shift, E['99003'].dept, !!E['99004'], !!E['99005']], ['Morning', 'Between', 'Night', null, false, false]);
     eq([E[x.code].name, E[x.code].dept, E[x.code].branch], ['اسم متعدّل', 'قسم الكاشير', B]);
-    eq(r.proposed.length, 3);
+    eq(r.added.length, 3);   // الجديد اللي بصم آخر أسبوع بيتضاف فوراً، واللي وقف من بدري بيتسكّب
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='emp_added'")).rows[0].n, 3);   // وإشعار لمدير التشغيل
     ok(r.skipped.some(s => s.code === '99004') && r.skipped.some(s => s.code === '99006') && r.skipped.filter(s => s.code === '99004').length === 1, 'skips reported once');
     eq((await db.query("select by_user, to_dept from najm_emp_moves where code=$1 order by id desc limit 1", [x.code])).rows[0], { by_user: 'sheet', to_dept: 'قسم الكاشير' });
   });
@@ -429,8 +426,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
                   { code: '99101', name: 'جديد كمّل', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 6 },
                   { code: '99102', name: 'جديد لسه', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 3 }];
     const es = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'f'])).rows[0].r;
-    eq([es.proposed.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
-    await save('ops', '0000', 'employee', { code: '99101' }, { name: 'جديد كمّل', branch: B, dept: 'خدمه العملاء', job: 'سيلز', shift: 'Morning', active: true });
+    eq([es.added.map(a => a.code), es.skipped.length], [['99101', '99102'], 0]);
     await db.query('select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']);   // التنبيه مرة واحدة
     eq((await db.query("select count(*)::int n from najm_alerts where kind='comeback' and code=$1", [x])).rows[0].n, 1);
     // موظف نشط من غير بصمة 14 يوم ← تنبيه مرة واحدة (حتى لو التحديث اتكرر)
@@ -498,19 +494,31 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const rows = [{ code: e.code, name: e.name, dept: e.dept, job: e.job || '', branch: 'محل الايس كريم', lastIn: T, fullWeek: 6 },
                   { code: '99301', name: 'ايس كريم جديد', dept: 'قسم الايس كريم', job: 'بائع', branch: 'محل الايس كريم', shiftTime: '2:00 PM', lastIn: T, fullWeek: 6 }];
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'ice'])).rows[0].r;
-    eq(r.proposed.map(x => [x.code, x.branch]), [['99301', B]]);
-    await save('ops', '0000', 'employee', { code: '99301' }, { name: 'ايس كريم جديد', branch: B, dept: 'قسم الايس كريم', job: 'بائع', shift: 'Morning', active: true });
+    eq(r.added.map(x => [x.code, x.branch]), [['99301', B]]);
     eq((await db.query('select branch from najm_employees where code=$1', [e.code])).rows[0].branch, B);
     await fails(save('br', '1111', 'sales', { day: D, branch: B }, {}), /operations manager only/);
   });
 
-  test('موظف قديم غاب آخر يومين: بيتضاف لو شغال 15 يوم في الشهر، ومبيتضافش لو أقل', async () => {
+  test('موظف جديد في الشيت: بيتضاف لو بصم آخر أسبوع، ومبيتضافش لو وقف من بدري', async () => {
     const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
-    const rows = [{ code: '99401', name: 'قديم غاب', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 18 },
-                  { code: '99402', name: 'جديد فعلاً', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 5 }];
+    const rows = [{ code: '99401', name: 'بصم امبارح', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 1, monthIn: 2 },
+                  { code: '99402', name: 'وقف من بدري', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: '2020-01-01', fullWeek: 0, monthIn: 20 }];
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'month'])).rows[0].r;
-    eq([r.proposed.map(x => x.code), r.skipped.map(x => x.code)], [['99401'], ['99402']]);
-    await save('ops', '0000', 'employee', { code: '99401' }, { name: 'قديم غاب', branch: B, dept: 'قسم البقاله', job: 'سيلز', shift: 'Morning', active: true });
+    eq([r.added.map(x => x.code), r.skipped.map(x => x.code)], [['99401'], ['99402']]);
+  });
+
+  test('تنبيه الوقف: موظف نشط مابصمش 5 أيام (من آخر يوم في الشيت) ← تنبيه، ومن غير توقيف', async () => {
+    const [A, Bq, C, Dn] = (await db.query("select code from najm_employees where active order by code desc limit 4")).rows.map(r => r.code);
+    await db.query("delete from najm_ratings where code = any($1)", [[A, Bq, C, Dn]]);
+    await db.query("delete from najm_alerts where kind='stale' and code = any($1)", [[A, Bq, C, Dn]]);
+    const ref = (await db.query("select (max(day) + 30)::text d from najm_ratings where att in ('on','late','vlate','xlate')")).rows[0].d;   // يوم مرجع جديد
+    const day = n => `('${ref}'::date - ${n})`;
+    await db.query(`insert into najm_ratings(day, code, att) values (${day(0)}, $1, 'on'), (${day(7)}, $2, 'on'), (${day(2)}, $3, 'on')`, [A, Bq, C]);
+    await db.query("select najm_emp_sync('[]'::jsonb, 'stall')");
+    const al = Object.fromEntries((await db.query("select code, data from najm_alerts where kind='stale' and code = any($1)", [[A, Bq, C, Dn]])).rows.map(r => [r.code, r.data]));
+    eq([!!al[A], !!al[C], al[Bq]?.days, !!al[Dn], al[Dn]?.last ?? null], [false, false, 7, true, null]);
+    eq((await db.query("select active from najm_employees where code=$1", [Bq])).rows[0].active, true);   // مفيش توقيف تلقائي
+    await db.query("delete from najm_ratings where day >= $1::date - 8 and code = any($2)", [ref, [A, Bq, C]]);
   });
 
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {

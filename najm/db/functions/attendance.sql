@@ -132,7 +132,7 @@ grant execute on function public.najm_att_sync_compact(text, text, text) to serv
 create or replace function public.najm_emp_sync(p_rows jsonb, p_file text)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare cfg jsonb; x jsonb; e najm_employees; c text; nm text; dp text; jb text; br text; sh text; t int;
-  mo int; bf int; bt int; ni int; added jsonb := '[]'; prop jsonb := '[]'; upd jsonb := '[]'; skip jsonb := '[]'; ch jsonb;
+  mo int; bf int; bt int; ni int; ref date; added jsonb := '[]'; upd jsonb := '[]'; skip jsonb := '[]'; ch jsonb;
   bad text[] := array['', '#N/A', '#REF!', '#VALUE!', 'لا يوجد', '-'];
 begin
   select data into cfg from najm_settings where id = 1;
@@ -160,26 +160,21 @@ begin
     end if;
     if e.code is null then
       if br = any(bad) then skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'من غير فرع'); continue; end if;
-      -- الموظف الجديد بيتضاف بس لو «شغال»: بصمة دخول + خروج 6 أيام من آخر 7 (اليوم السابع راحة)
-      -- (لو الأداة القديمة مبعتتش fullWeek ← لازم يكون بصم في آخر أسبوع)
-      -- أو شغال في الشهر: 15 يوم دخول + خروج أو أكتر (الموظف القديم اللي غاب آخر يومين مبيتسكّبش)
-      if ((x ? 'fullWeek' and coalesce((x->>'fullWeek')::int, 0) < 6)
-         or (not x ? 'fullWeek' and coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7))
-         and coalesce((x->>'monthIn')::int, 0) < 15 then
-        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', case when x ? 'fullWeek' then 'لسه مكملش أسبوع دخول + خروج (' || coalesce(x->>'fullWeek', '0') || ' من 6) ولا 15 يوم في الشهر (' || coalesce(x->>'monthIn', '0') || ')' else 'مابصمش آخر أسبوع' end);
+      -- الموظف الجديد بيتضاف فوراً لو شغال (بصم في آخر 7 أيام) — اللي وقف من بدري ومش عندنا بيتسكّب
+      if coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7 then
+        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'مابصمش آخر أسبوع');
         continue; end if;
       t := public.najm_tmin(x->>'shiftTime');
       sh := case when t is null then 'Morning' when t between bf and bt then 'Between'
                  when t >= ni or t < mo - 120 then 'Night' else 'Morning' end;
-      -- موظف جديد في الشيت: مبيتضافش لوحده — تنبيه لمدير التشغيل (زرار «أضيفه»)، ومبيتكررش لنفس الكود في 14 يوم
-      if not exists (select 1 from najm_alerts a where a.kind = 'new_emp' and a.code = c and a.created_at > now() - interval '14 days') then
-        insert into najm_alerts(kind, code, day, data)
-          values ('new_emp', c, (now() at time zone 'Africa/Cairo')::date,
-                  jsonb_build_object('name', nm, 'branch', br, 'dept', case when dp = any(bad) then '' else dp end, 'job', case when jb = any(bad) then '' else jb end,
-                                     'shift', sh, 'fullWeek', x->>'fullWeek', 'monthIn', x->>'monthIn'))
-        on conflict (kind, coalesce(code, ''), day) do nothing;
-      end if;
-      prop := prop || jsonb_build_object('code', c, 'name', nm, 'branch', br, 'dept', dp, 'shift', sh);
+      insert into najm_employees(code, name, branch, dept, job, shift, active)
+        values (c, nm, br, nullif(case when dp = any(bad) then '' else dp end, ''), nullif(case when jb = any(bad) then '' else jb end, ''), sh, true);
+      added := added || jsonb_build_object('code', c, 'name', nm, 'branch', br, 'dept', dp, 'shift', sh);
+      -- إشعار لمدير التشغيل إن موظف جديد اتضاف من الشيت
+      insert into najm_alerts(kind, code, day, data)
+        values ('emp_added', c, (now() at time zone 'Africa/Cairo')::date,
+                jsonb_build_object('name', nm, 'branch', br, 'dept', case when dp = any(bad) then '' else dp end, 'job', case when jb = any(bad) then '' else jb end, 'shift', sh))
+      on conflict (kind, coalesce(code, ''), day) do nothing;
     else
       ch := '{}';
       if nm <> coalesce(e.name, '') then ch := ch || jsonb_build_object('name', nm); end if;
@@ -193,20 +188,21 @@ begin
       end if;
     end if;
   end loop;
-  -- موظف نشط مابصمش 14 يوم ← تنبيه لمدير التشغيل (يوقفه أو يسأل الـ HR) — مرة كل 30 يوم لكل موظف
+  -- موظف نشط مابصمش 5 أيام (بالنسبة لآخر يوم في الشيت) ← تنبيه لمدير التشغيل (وقف بعد ما كان بيبصم، أو كوده موجود ومابصمش) — مرة كل 30 يوم لكل موظف
+  select max(r.day) into ref from najm_ratings r where r.att in ('on', 'late', 'vlate', 'xlate');
   insert into najm_alerts(kind, code, day, data)
     select 'stale', m.code, (now() at time zone 'Africa/Cairo')::date,
            jsonb_build_object('name', m.name, 'branch', m.branch,
-             'last', (select max(r.day) from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')))
+             'last', (select max(r.day) from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')),
+             'days', ref - (select max(r.day) from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')))
     from najm_employees m
-    where m.active
-      and not exists (select 1 from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate')
-                        and r.day >= (now() at time zone 'Africa/Cairo')::date - 14)
+    where m.active and ref is not null
+      and not exists (select 1 from najm_ratings r where r.code = m.code and r.att in ('on', 'late', 'vlate', 'xlate') and r.day > ref - 5)
       and not exists (select 1 from najm_alerts a where a.kind = 'stale' and a.code = m.code and a.created_at > now() - interval '30 days')
   on conflict (kind, coalesce(code, ''), day) do nothing;
   insert into najm_history(actor, kind, data)
-    values ('system', 'emp_sync', jsonb_build_object('file', p_file, 'added', added, 'proposed', prop, 'updated', upd, 'skipped', skip));
-  return jsonb_build_object('added', added, 'proposed', prop, 'updated', upd, 'skipped', skip);
+    values ('system', 'emp_sync', jsonb_build_object('file', p_file, 'added', added, 'updated', upd, 'skipped', skip));
+  return jsonb_build_object('added', added, 'updated', upd, 'skipped', skip);
 end $$;
 revoke all on function public.najm_emp_sync(jsonb, text) from public, anon, authenticated;
 grant execute on function public.najm_emp_sync(jsonb, text) to service_role;
