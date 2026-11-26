@@ -24,7 +24,7 @@ function photoEditor(code){const e=emp(code);if(!e||!e.photo||!isOps())return;PE
     <div class="small muted" style="margin-bottom:8px">اسحب الصورة بإيدك أو إصبعك عشان تحرّكها فوق/تحت/جنب، وكبّرها أو صغّرها من الشريط.</div>
     <div class="row" style="justify-content:center;align-items:flex-start;gap:14px;flex-wrap:wrap"><div id="pe_card" style="touch-action:none">${futCard(e,'sm')}</div></div>
     <label class="small" style="display:block;margin-top:10px">🔍 التكبير <b id="pe_zv">${PE.z.toFixed(2)}×</b><br><input id="pe_z" type="range" min="0.6" max="3" step="0.05" value="${PE.z}" style="width:100%"></label>
-    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="photoEditorSave()">💾 حفظ</button><button class="btn" onclick="photoEditorReset()">↺ رجّعها زي الأول</button></div>`);
+    <div class="row" style="margin-top:10px"><button class="btn pri" onclick="photoEditorSave()">💾 حفظ</button><button class="btn" onclick="photoEditorReset()">↺ رجّعها زي الأول</button><button class="btn red" onclick="PE=null;removeMedia('${code}','photo')">🗑️ شيل الصورة</button></div>`);
   const box=$('#pe_card .fc-ph'),img=$('#pe_card .fc-ph img');if(!box||!img)return;box.onclick=null;box.style.cursor='grab';
   const apply=()=>{img.style.transform=`translate(${PE.x}%,${PE.y}%) scale(${PE.z})`;$('#pe_zv').textContent=PE.z.toFixed(2)+'×';};
   let d=null;

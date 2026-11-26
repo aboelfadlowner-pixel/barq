@@ -195,6 +195,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const inL = roles.map((_, i) => managers().some(u => u.username === 'rx' + i)); S.users.length = base; return inL; });
     eq(r, [true, false, false]);
   });
+  test('مدير التشغيل يقدر يشيل صورة الموظف', async () => {
+    await p.evaluate(() => { USER = { username: 'ops', role: 'ops', name: 'x', branch: '', shift: '', depts: [] }; window.__e = activeEmps()[3]; __e.photo = 'data:image/png;base64,AAAA'; __e.photoPos = '1,2,1.2'; removeMedia(__e.code, 'photo'); });
+    await answer();
+    const r = await p.evaluate(() => [__e.photo, __e.photoPos, futCard(__e, 'sm').includes('fc-ph has')]);
+    eq(r, ['', '', false]);
+    await as(MAHMOUD);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

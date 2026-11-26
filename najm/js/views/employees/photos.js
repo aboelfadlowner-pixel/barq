@@ -23,3 +23,11 @@ function bulkPhotos(){
     render();openModal(`<button class="x" onclick="closeModal()">✕</button><h2>📷 رفع الصور</h2><div>اترفع <b>${fmt(ok)}</b> صورة.</div>${miss.length?`<div class="lock" style="margin-top:8px">ماتربطوش بموظف (اسم الملف لازم يكون كود الموظف، زي 125.jpg):<br>${miss.map(esc).join('، ')}</div>`:''}`);};
   f.click();
 }
+
+// شيل صورة أو فيديو الموظف (مدير التشغيل) — الكارت بيرجع للحرف الأول، والملف القديم بيفضل في التخزين من غير ما يظهر
+async function removeMedia(code,kind){const e=emp(code);if(!e||!isOps())return;
+  if(!await askConfirm(kind==='photo'?`تشيل صورة ${e.name}؟`:`تشيل فيديو ${e.name}؟`))return;
+  e[kind]='';noteMedia(code,kind,'');if(kind==='photo'){e.photoPos='';noteMedia(code,'photoPos','');}
+  save();closeModal();render();
+  const r=await push('media',{code},kind==='photo'?{photo:'',photo_pos:''}:{video:''});
+  if(r!==false)toast(kind==='photo'?'🗑️ اتشالت الصورة':'🗑️ اتشال الفيديو');}
