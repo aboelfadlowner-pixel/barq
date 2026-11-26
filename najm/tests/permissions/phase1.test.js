@@ -102,6 +102,9 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '', 'device-aaaaaaaaaaaaaaaa', 'br'])).r.ok, true);
     eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['125', '', 'device-bbbbbbbbbbbbbbbb', 'br'])).r.error, 'voted');
     eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['99999', '', 'device-cccccccccccccccc', 'br'])).r.error, 'pin');
+    await save('ops', '0000', 'user', { username: 'camv' }, { name: 'كاميرا', role: 'cameras', branch: B, pin: '4747' });
+    eq((await rpc('select najm_vote($1,$2,$3,$4) r', ['133', '', 'device-dddddddddddddddd', 'camv'])).r.error, 'manager');   // الكاميرات مش بتتصوّت لها
+    await save('ops', '0000', 'user', { username: 'camv' }, null);
   });
 
   // ---------------- إغلاق اليوم
