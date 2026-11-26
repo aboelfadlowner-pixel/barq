@@ -549,6 +549,18 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq(await needs(e), true);   // موظف مدير التشغيل حطله رقم
   });
 
+  test('النجوم اليومية في الملف الكامل: الموظف بكوده، التشغيل بس للتانيين، وبأجزاء النجمة من غير بنود ولا مديرين', async () => {
+    const c = (await db.query("select code from najm_employees where active and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') and code not in (select code from najm_emp_pins) order by code desc limit 1")).rows[0].code;
+    await db.query("insert into najm_ratings(day, code, att) values ('2026-08-10', $1, 'on'), ('2026-08-11', $1, 'late') on conflict do nothing", [c]);
+    const mine = (await rpc('select najm_my_history_days($1,$2,$3) r', [c, '', '2026-08'])).r;
+    eq([mine.length, mine[0].att, mine[0].att_star, mine[1].att], [2, 'on', 2, 'late']);
+    eq(Object.keys(mine[0]).sort().join(','), 'att,att_star,bonus,cam,day,green,hy,mgr,pray,red,total,win,yellow');
+    eq((await rpc('select najm_emp_history_days($1,$2,$3,$4) r', ['ops', '0000', c, '2026-08'])).r.length, 2);
+    eq((await rpc('select najm_emp_history_days($1,$2,$3,$4) r', ['br', '1111', c, '2026-08'])).r.error != null, true);
+    eq((await rpc('select najm_my_history_days($1,$2,$3) r', ['99999', '', '2026-08'])).r.error != null, true);
+    eq((await rpc('select najm_my_history_days($1,$2,$3) r', [c, '', 'x'])).r, []);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;
