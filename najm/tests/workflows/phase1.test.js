@@ -14,7 +14,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('رجل اليوم: البيطاش «الصبح» و«الليل + Between» بـ 2 لكل شيفت، وعين شمس 1', async () => {
     const r = await p.evaluate(() => { const y = new Date(); y.setDate(y.getDate() - 1); const W = peekDay(ymd(y)).winners; return [W['البيطاش الرئيسي|Morning']?.length, W['البيطاش الرئيسي|Night']?.length, W['عين شمس|Morning']?.length, Object.keys(W).some(k => k.endsWith('|Between'))]; });
     eq(r, [2, 2, 1, false]);
-    await as(OPS); await p.evaluate(() => go('day'));
+    await as(OPS); await p.evaluate(() => { const y = new Date(); y.setDate(y.getDate() - 1); DATE = ymd(y); go('day'); });
     const t = await main(); ok(t.includes('الليل + Between') && t.includes('اعتماد (٢)'), t.slice(0, 200));
   });
   test('مفيش فايز عنده كارت أصفر أو أحمر يومها أو أقل من 4 نجوم', async () => {
@@ -167,6 +167,10 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [t.includes('الملف الكامل'), t.includes('كل شهر'), t.includes('الكروت')]; });
     eq(r, [true, true, true]);
     await as(MAHMOUD);
+  });
+  test('الهايجين: تقييم ناقص بند بيظهر عليه تحذير، والمكتمل لأ', async () => {
+    const r = await p.evaluate(() => [hyWarnHTML([2, 1, 1, null, 2]).includes('ناقص'), hyWarnHTML([2, 1, 1, 1, 2]), hyWarnHTML([]), userBranches({ branch: 'a', branches: ['a', 'b'] }).join(','), inUserBranch({ branch: 'a', branches: ['a', 'b'] }, 'b'), inUserBranch({ branch: 'a', branches: [] }, 'b'), inUserBranch({ branch: '' }, 'z')]);
+    eq(r, [true, '', '', 'a,b', true, false, true]);
   });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');

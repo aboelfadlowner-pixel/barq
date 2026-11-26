@@ -72,7 +72,7 @@ begin
   if p_kind = 'att' and coalesce(trim(p_key->>'reason'), '') = '' then
     raise exception 'najm: reason required for an attendance change' using errcode = '42501';
   end if;
-  if p_kind in ('sales','kpi') and u.role <> 'ops' and u.branch is not null and u.branch <> p_key->>'branch' then
+  if p_kind in ('sales','kpi') and u.role <> 'ops' and u.branch is not null and u.branch <> p_key->>'branch' and not (p_key->>'branch' = any(coalesce(u.branches, '{}'))) then
     raise exception 'najm: other branch' using errcode = '42501';
   end if;
 
@@ -367,7 +367,7 @@ begin
     if coalesce(p_data->>'hash', '') = '' then raise exception 'najm: file hash required'; end if;
     if u.role not in ('ops', 'branch', 'shift') or (s = 'base_sales' and u.role <> 'ops') then
       raise exception 'najm: not allowed to upload this file' using errcode = '42501'; end if;
-    if u.role <> 'ops' and coalesce(p_data->>'branch', '') <> '' and u.branch is not null and p_data->>'branch' <> u.branch then
+    if u.role <> 'ops' and coalesce(p_data->>'branch', '') <> '' and u.branch is not null and p_data->>'branch' <> u.branch and not (p_data->>'branch' = any(coalesce(u.branches, '{}'))) then
       raise exception 'najm: other branch' using errcode = '42501'; end if;
     dpt := p_data->>'hash';
     if exists (select 1 from najm_imports where kind = s and file_hash = dpt) then
@@ -395,11 +395,11 @@ begin
       if s = u.username then raise exception 'najm: cannot delete yourself'; end if;
       delete from najm_users where username = s;
     else
-      insert into najm_users(username, name, role, branch, shift, depts, active, salt, pin_hash)
-        values (s, coalesce(p_data->>'name', s), p_data->>'role', nullif(p_data->>'branch',''), nullif(p_data->>'shift',''),
+      insert into najm_users(username, name, role, branch, branches, shift, depts, active, salt, pin_hash)
+        values (s, coalesce(p_data->>'name', s), p_data->>'role', nullif(p_data->>'branch',''), case when p_data ? 'branches' then array(select jsonb_array_elements_text(p_data->'branches')) end, nullif(p_data->>'shift',''),
                 case when p_data ? 'depts' then array(select jsonb_array_elements_text(p_data->'depts')) end,
                 coalesce((p_data->>'active')::boolean, true), md5(random()::text), '!')
-      on conflict (username) do update set name = excluded.name, role = excluded.role, branch = excluded.branch,
+      on conflict (username) do update set name = excluded.name, role = excluded.role, branch = excluded.branch, branches = excluded.branches,
         shift = excluded.shift, depts = excluded.depts, active = excluded.active, updated_at = now();
       -- حساب جديد من غير رقم سري (أو «رقم جديد»): السيستم بيطلّع رقم مؤقت (4 أرقام) بيرجع للتشغيل مرة واحدة يديه للمدير،
       -- والمدير يقدر يغيّره بنفسه بعد كده (najm_my_pin) — مش إجباري
@@ -455,9 +455,9 @@ begin
                     ), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
     'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports
-                    where u.role = 'ops' or branch is null or branch = u.branch order by at desc limit 100) i), '[]'),
+                    where u.role = 'ops' or branch is null or branch = u.branch or branch = any(coalesce(u.branches, '{}')) order by at desc limit 100) i), '[]'),
     'users',      case when u.role = 'ops' then (select jsonb_agg(jsonb_build_object('username',x.username,'name',x.name,'role',x.role,
-                    'branch',x.branch,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
+                    'branch',x.branch,'branches',x.branches,'shift',x.shift,'depts',x.depts,'active',x.active) order by x.role, x.username) from najm_users x) end);
 end $$;
 
 grant execute on function public.najm_files(text, text) to anon, authenticated;

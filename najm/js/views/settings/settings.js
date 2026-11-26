@@ -7,7 +7,7 @@ function vSettings(){
   return `<div class="sec-title"><h2>⚙️ الإعدادات</h2><div class="row"><button class="btn" onclick="openImports()">📂 الملفات المرفوعة</button><button class="btn" onclick="openSettingsLog()">📜 سجل التغييرات</button></div></div>
   <div class="card" style="margin-bottom:12px"><div class="sec-title"><h3>🔐 حسابات المديرين</h3><button class="btn pri sm" onclick="editUser()">+ حساب</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>اسم الدخول</th><th>الاسم</th><th>الدور</th><th>الفرع</th><th>الشيفت</th><th>الأقسام</th><th></th></tr></thead><tbody>
-    ${S.users.map(u=>`<tr style="${u.active===false?'opacity:.5':''}"><td><b>${esc(u.username)}</b></td><td><div class="row" style="flex-wrap:nowrap;gap:6px">${u.emp_code&&emp(u.emp_code)?ava(emp(u.emp_code),'sm'):''}${esc(u.name)}</div></td><td>${ROLES[u.role]}</td><td class="small">${esc(u.branch||'الكل')}</td><td class="small">${esc(u.shift||'—')}</td><td class="small">${esc((u.depts||[]).join('، ')||'—')}</td><td><button class="btn sm" onclick="editUser('${esc(u.username)}')">✏️</button></td></tr>`).join('')}
+    ${S.users.map(u=>`<tr style="${u.active===false?'opacity:.5':''}"><td><b>${esc(u.username)}</b></td><td><div class="row" style="flex-wrap:nowrap;gap:6px">${u.emp_code&&emp(u.emp_code)?ava(emp(u.emp_code),'sm'):''}${esc(u.name)}</div></td><td>${ROLES[u.role]}</td><td class="small">${esc(userBranches(u).join('، ')||'الكل')}</td><td class="small">${esc(u.shift||'—')}</td><td class="small">${esc((u.depts||[]).join('، ')||'—')}</td><td><button class="btn sm" onclick="editUser('${esc(u.username)}')">✏️</button></td></tr>`).join('')}
     </tbody></table></div><div class="small muted" style="margin-top:6px">الموظفين بيدخلوا من غير حساب ويشوفوا النجوم والترتيب والتارجت بس.</div></div>
   <div class="grid g-2">
    <div class="card"><h3>⏰ نجوم البصمة</h3><div class="row">${num('att.on','في ميعاده',.25)}${num('att.late','تأخير بسيط',.25)}${num('att.vlate','تأخير كبير',.25)}${num('att.xlate','تأخير فوق الحد',.25)}${num('att.abs','غياب',.25)}</div>
@@ -92,7 +92,7 @@ function editUser(name){
     <label>اسم الدخول (اختياري — المدير بيدخل بكود البصمة بتاعه)<br><input class="inp" id="u_user" autocomplete="off" value="${esc(u.username)}" ${name?'disabled':''} placeholder="لو فاضي = كود البصمة"></label>
     <label>الاسم<br><input class="inp" id="u_name" autocomplete="off" value="${esc(u.name)}"></label>
     <label>الدور<br><select class="inp" id="u_role">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></label>
-    <label>الفرع<br><select class="inp" id="u_branch"><option value="">كل الفروع</option>${branches().map(b=>`<option ${b===u.branch?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+    <div>الفروع <span class="small muted">(اختار فرع أو أكتر — ولو مفيش = كل الفروع)</span><div class="row" id="u_branches" style="gap:10px;margin-top:4px;flex-wrap:wrap">${branches().map(b=>`<label style="font-weight:600"><input type="checkbox" class="u_br" value="${esc(b)}" ${userBranches(u).includes(b)?'checked':''}> ${esc(b)}</label>`).join('')}</div></div>
     <label>الشيفت (لمدير الشيفت)<br><select class="inp" id="u_shift"><option value="">—</option>${Object.values(SH).map(s=>`<option ${s===u.shift?'selected':''}>${s}</option>`).join('')}</select></label>
     <label>الأقسام (لمدير الفريش)<br><input class="inp" id="u_depts" autocomplete="off" value="${esc((u.depts||[]).join('، '))}" placeholder="قسم البقاله"></label>
     <label>الرقم السري ${name?'(سيبه فاضي لو مش هتغيّره)':'(اختياري — لو فاضي السيستم بيطلّع رقم مؤقت تديه للمدير)'}<br><input class="inp" id="u_pin" type="text" inputmode="numeric" autocomplete="off" name="najm-tmp-pin" data-lpignore="true" style="-webkit-text-security:disc" maxlength="6"></label>
@@ -100,7 +100,7 @@ function editUser(name){
    </div><div class="row" style="margin-top:12px"><button class="btn pri" onclick="saveUser('${esc(name||'')}')">💾 حفظ</button>${name&&name!==USER.username?`<button class="btn" onclick="resetUserPin('${esc(name)}')">🔑 رقم مؤقت جديد</button><button class="btn red" onclick="delUser('${esc(name)}')">حذف</button>`:''}</div>`);
 }
 function userFromEmp(){const c=($('#u_emp').value.split('—')[0]||'').trim();const e=emp(c);if(!e)return;
-  if(!$('#u_name').value)$('#u_name').value=e.name;$('#u_name').value=e.name;$('#u_branch').value=e.branch;if(Object.values(SH).includes(e.shift))$('#u_shift').value=e.shift;}
+  if(!$('#u_name').value)$('#u_name').value=e.name;$('#u_name').value=e.name;document.querySelectorAll('.u_br').forEach(x=>{x.checked=x.value===e.branch;});if(Object.values(SH).includes(e.shift))$('#u_shift').value=e.shift;}
 async function saveUser(name){
   const g=id=>$('#'+id).value.trim();const ec0=(g('u_emp').split('—')[0]||'').trim();const un=(name||g('u_user')||(emp(ec0)?ec0:'')).toLowerCase();
   if(!un||!g('u_name')){toast('اختار المدير من الموظفين (كود البصمة) واكتب الاسم');return;}
@@ -110,11 +110,11 @@ async function saveUser(name){
   if(g('u_pin')&&!/^\d{4,6}$/.test(g('u_pin'))){toast('الرقم السري من 4 لـ 6 أرقام');return;}
   if(!u){u={username:un};S.users.push(u);}
   const ec=(g('u_emp').split('—')[0]||'').trim();
-  Object.assign(u,{name:g('u_name'),role:g('u_role'),branch:g('u_branch'),shift:g('u_shift'),depts:g('u_depts').split(/[،,]/).map(x=>x.trim()).filter(Boolean),active:$('#u_active').checked,emp_code:emp(ec)?ec:''});
+  Object.assign(u,{name:g('u_name'),role:g('u_role'),...(bl=>({branch:bl[0]||'',branches:bl.length>1?bl:[]}))([...document.querySelectorAll('.u_br:checked')].map(x=>x.value)),shift:g('u_shift'),depts:g('u_depts').split(/[،,]/).map(x=>x.trim()).filter(Boolean),active:$('#u_active').checked,emp_code:emp(ec)?ec:''});
   const isNew=!u.pin&&!name;if(g('u_pin'))u.pin=g('u_pin');
   const tmp=!LIVE&&isNew&&!g('u_pin')?newTmpPin():null;if(tmp)u.pin=tmp;
   save();closeModal();render();
-  const r=await push('user',{username:un},{name:u.name,role:u.role,branch:u.branch,shift:u.shift,depts:u.depts,active:u.active,pin:g('u_pin')||''});
+  const r=await push('user',{username:un},{name:u.name,role:u.role,branch:u.branch,branches:u.branches||[],shift:u.shift,depts:u.depts,active:u.active,pin:g('u_pin')||''});
   if(r!==false){await pushM('user_emp',{username:un},{emp_code:u.emp_code||''});const pin=r?.pin||tmp;if(pin)showTmpPin(u,pin);else toast('💾 اتحفظ الحساب');refresh(true);}
 }
 // الرقم المؤقت: بيظهر للتشغيل مرة واحدة بس يديه للمدير — والمدير يقدر يغيّره من «صفحتي» (مش إجباري)
@@ -125,7 +125,7 @@ function showTmpPin(u,pin){openModal(`<button class="x" onclick="closeModal()">�
   <div class="small muted" style="margin-top:6px">المدير يقدر يغيّره لرقم بتاعه من «صفحتي» ← «تغيير الرقم السري» (اختياري).</div>`);}
 async function resetUserPin(n){if(!await askConfirm('رقم سري مؤقت جديد للحساب ده؟ الرقم القديم هيبطل.'))return;const u=S.users.find(x=>x.username===n);if(!u)return;
   const tmp=LIVE?null:newTmpPin();if(tmp){u.pin=tmp;save();}
-  const r=await push('user',{username:n},{name:u.name,role:u.role,branch:u.branch,shift:u.shift,depts:u.depts,active:u.active!==false,resetPin:true});
+  const r=await push('user',{username:n},{name:u.name,role:u.role,branch:u.branch,branches:u.branches||[],shift:u.shift,depts:u.depts,active:u.active!==false,resetPin:true});
   if(r!==false){closeModal();showTmpPin(u,r?.pin||tmp);}}
 async function delUser(n){if(!await askConfirm('حذف الحساب؟'))return;S.users=S.users.filter(u=>u.username!==n);save();closeModal();render();push('user',{username:n},null);}
 async function loadDemo(){

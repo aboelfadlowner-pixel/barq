@@ -10,7 +10,7 @@ function closeOwners(gk){const [b,g]=gk.split('|');const L=managers();
   return sh.length?sh:L.filter(u=>u.role==='branch'&&u.branch===b).map(u=>u.username);}
 // الشيفتات اللي المدير الداخل مسؤول يقفلها
 function myCloseGroups(){if(!USER||isHy()||isLimited()||USER.role==='fresh')return [];
-  const bs=USER.role==='ops'?branches():[USER.branch].filter(Boolean);const out=[];
+  const bs=USER.role==='ops'?branches():userBranches(USER);const out=[];
   for(const b of bs)for(const g of SHIFT_GROUPS){if(USER.role==='shift'&&shiftGroup(USER.shift)!==g)continue;if(activeEmps().some(e=>e.branch===b&&shiftGroup(e.shift)===g))out.push(`${b}|${g}`);}
   return out;}
 const closeOn=()=>!!S.settings.closeStart;

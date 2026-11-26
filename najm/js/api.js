@@ -155,9 +155,9 @@ async function pull(){
     N.imports=files.imports||[];
     N.complaints=(files.complaints||[]).map(c=>({id:c.id,date:c.day,code:c.code,note:c.note,by:c.by_user,status:c.status,decidedBy:c.decided_by,decisionNote:c.decision_note,appealBody:c.appeal_body,appealStatus:c.appeal_status,appealNote:c.appeal_note}));
     N.notes=(files.notes||[]).map(n=>({id:n.id,date:n.day,code:n.code,text:n.body,by:n.by_user}));
-    if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],emp_code:(mgrs||[]).find(x=>x.username===u.username)?.emp_code||''}));
+    if(files.users)N.users=files.users.map(u=>({...u,branch:u.branch||'',branches:u.branches||[],shift:u.shift||'',depts:u.depts||[],emp_code:(mgrs||[]).find(x=>x.username===u.username)?.emp_code||''}));
   } else N.users=[];
-  N.mgrs=(mgrs||[]).map(u=>({...u,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[],emp_code:u.emp_code||'',active:true}));
+  N.mgrs=(mgrs||[]).map(u=>({...u,branch:u.branch||'',branches:u.branches||[],shift:u.shift||'',depts:u.depts||[],emp_code:u.emp_code||'',active:true}));
   N.voteCounts={};for(const v of votes||[])N.voteCounts[v.username]={votes:v.votes,ips:v.ips};
   N.mgrDaily={};for(const r of mgrPtsRows||[])(N.mgrDaily[r.day]||(N.mgrDaily[r.day]={}))[r.username]=r.pts;
   N.mgrCrit={};for(const r of mgrFull||[])(N.mgrCrit[r.day]||(N.mgrCrit[r.day]={}))[r.username]=r.crit;

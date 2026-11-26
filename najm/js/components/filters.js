@@ -2,7 +2,7 @@
 // الشيفت والقسم أزرار واضحة وجنب كل واحد عدد موظفينه (عشان المقيّم يلاقي اللي محتاجه بسرعة)
 const SH_NAME={Morning:'الصبح',Night:'الليل',Between:'Between'};
 function filterBar(opts={}){
-  const bs=opts.scoped&&USER?.branch?[USER.branch]:branches();
+  const bs=opts.scoped&&userBranches(USER).length?userBranches(USER):branches();
   const q=norm(F.q);
   const base=activeEmps().filter(e=>(!opts.scoped||inScope(e))&&(!F.branch||e.branch===F.branch)&&(!q||norm(e.name).includes(q)||e.code===F.q.trim()));
   const shifts=Object.values(SH).filter(s=>base.some(e=>e.shift===s));

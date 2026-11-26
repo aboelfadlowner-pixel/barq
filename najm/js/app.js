@@ -46,7 +46,7 @@ const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.d
   render();
   if(DEMO){LIVE=false;const f=$('#demoFlag');f.innerHTML='🧪 نسخة تجريبية بأرقام وهمية — مفيش حاجة بتتحفظ · الدخول بكود البصمة: التشغيل <b>ops / 0000</b> · مدير البيطاش <b>278 / 1111</b> · مدير الصبح <b>189 / 2222</b> · مدير الليل <b>65 / 3333</b> · الهايجين <b>62 / 7777</b> · الكاميرات <b>20 / 4444</b> · هيد الكاشير <b>21 / 4545</b> · أي موظف تاني <b>كوده / 1234</b> · كود اللاعب في السوق <b>123456</b>';render();if(TVB){TV_READY=true;}return;}
   try{
-    if(saved?.pin){const u=await sbRpc('najm_login',{p_user:saved.username,p_pin:saved.pin});if(u){USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',shift:u.shift||'',depts:u.depts||[]};PIN=saved.pin;}}
+    if(saved?.pin){const u=await sbRpc('najm_login',{p_user:saved.username,p_pin:saved.pin});if(u){USER={username:u.username,name:u.name,role:u.role,branch:u.branch||'',branches:u.branches||[],shift:u.shift||'',depts:u.depts||[]};PIN=saved.pin;}}
     await pull();LIVE=true;
   }catch(e){LIVE=false;if(saved&&!saved.pin&&S.users.some(x=>x.username===saved.username))USER=saved;}
   liveFlag();render();

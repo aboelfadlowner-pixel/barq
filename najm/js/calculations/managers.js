@@ -6,7 +6,7 @@
 // =========================================================
 const MGR_DEF={rating:1,winner:20,gold:100,silver:60,bronze:40,top10:20,red:-10,bonus:50};
 const mgrPts=()=>Object.assign({},MGR_DEF,S.settings.mgrPoints||{});
-function inScopeOf(u,e){if(!u||!e||u.role==='ops')return false;if(u.branch&&e.branch!==u.branch)return false;if(u.role==='shift'&&shiftGroup(e.shift)!==shiftGroup(u.shift))return false;if(u.role==='fresh'&&!freshDepts(u).includes(e.dept))return false;return true;}
+function inScopeOf(u,e){if(!u||!e||u.role==='ops')return false;if(!inUserBranch(u,e.branch))return false;if(u.role==='shift'&&shiftGroup(e.shift)!==shiftGroup(u.shift))return false;if(u.role==='fresh'&&!freshDepts(u).includes(e.dept))return false;return true;}
 function managers(){return (S.mgrs||S.users||[]).filter(u=>u.role!=='ops'&&u.role!=='hygiene'&&u.active!==false);}
 const mgrName=un=>(S.mgrs||S.users||[]).find(u=>u.username===un)?.name||un;
 function mgrDayPts(d,un){if(S.mgrDaily?.[d]?.[un]!=null)return S.mgrDaily[d][un];const a=S.mgrCrit?.[d]?.[un];return a?a.reduce((x,y)=>x+(y||0),0):0;}
