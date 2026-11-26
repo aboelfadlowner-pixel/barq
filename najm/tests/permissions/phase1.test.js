@@ -322,10 +322,14 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     ];
     await fails(asAnon(db, 'select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']), /permission denied/);
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'حضور ppv'])).rows[0].r;
+    // الجدد مبيتضافوش لوحدهم: تنبيه لمدير التشغيل بالشيفت المحسوب، وهو اللي بيوافق (حفظ موظف)
+    eq(r.added.length, 0);
+    const al = Object.fromEntries((await db.query("select code, data from najm_alerts where kind='new_emp'")).rows.map(a => [a.code, a.data]));
+    eq([al['99001'].shift, al['99002'].shift, al['99003'].shift, al['99003'].dept, !!al['99004'], !!al['99005'], !!al['99006']], ['Morning', 'Between', 'Night', '', false, false, false]);
+    for (const c of ['99001', '99002', '99003']) await save('ops', '0000', 'employee', { code: c }, { name: al[c].name, branch: al[c].branch, dept: al[c].dept, job: al[c].job, shift: al[c].shift, active: true });
     const E = Object.fromEntries((await db.query("select code, name, dept, job, branch, shift from najm_employees where code = any($1)", [['99001', '99002', '99003', '99004', '99005', x.code]])).rows.map(e => [e.code, e]));
-    eq([E['99001'].shift, E['99002'].shift, E['99003'].shift, E['99003'].dept, !!E['99004'], !!E['99005']], ['Morning', 'Between', 'Night', null, false, false]);
     eq([E[x.code].name, E[x.code].dept, E[x.code].branch], ['اسم متعدّل', 'قسم الكاشير', B]);
-    eq(r.added.length, 3);
+    eq(r.proposed.length, 3);
     ok(r.skipped.some(s => s.code === '99004') && r.skipped.some(s => s.code === '99006') && r.skipped.filter(s => s.code === '99004').length === 1, 'skips reported once');
     eq((await db.query("select by_user, to_dept from najm_emp_moves where code=$1 order by id desc limit 1", [x.code])).rows[0], { by_user: 'sheet', to_dept: 'قسم الكاشير' });
   });
@@ -425,7 +429,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
                   { code: '99101', name: 'جديد كمّل', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 6 },
                   { code: '99102', name: 'جديد لسه', dept: 'خدمه العملاء', job: 'سيلز', branch: B, shiftTime: '7:00 AM', lastIn: T, fullWeek: 3 }];
     const es = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'f'])).rows[0].r;
-    eq([es.added.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
+    eq([es.proposed.map(a => a.code), es.skipped.some(k => k.code === '99102')], [['99101'], true]);
+    await save('ops', '0000', 'employee', { code: '99101' }, { name: 'جديد كمّل', branch: B, dept: 'خدمه العملاء', job: 'سيلز', shift: 'Morning', active: true });
     await db.query('select najm_emp_sync($1,$2)', [JSON.stringify(rows), 'f']);   // التنبيه مرة واحدة
     eq((await db.query("select count(*)::int n from najm_alerts where kind='comeback' and code=$1", [x])).rows[0].n, 1);
     // موظف نشط من غير بصمة 14 يوم ← تنبيه مرة واحدة (حتى لو التحديث اتكرر)
@@ -493,7 +498,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const rows = [{ code: e.code, name: e.name, dept: e.dept, job: e.job || '', branch: 'محل الايس كريم', lastIn: T, fullWeek: 6 },
                   { code: '99301', name: 'ايس كريم جديد', dept: 'قسم الايس كريم', job: 'بائع', branch: 'محل الايس كريم', shiftTime: '2:00 PM', lastIn: T, fullWeek: 6 }];
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'ice'])).rows[0].r;
-    eq(r.added.map(x => [x.code, x.branch]), [['99301', B]]);
+    eq(r.proposed.map(x => [x.code, x.branch]), [['99301', B]]);
+    await save('ops', '0000', 'employee', { code: '99301' }, { name: 'ايس كريم جديد', branch: B, dept: 'قسم الايس كريم', job: 'بائع', shift: 'Morning', active: true });
     eq((await db.query('select branch from najm_employees where code=$1', [e.code])).rows[0].branch, B);
     await fails(save('br', '1111', 'sales', { day: D, branch: B }, {}), /operations manager only/);
   });
@@ -503,7 +509,8 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const rows = [{ code: '99401', name: 'قديم غاب', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 18 },
                   { code: '99402', name: 'جديد فعلاً', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 5 }];
     const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'month'])).rows[0].r;
-    eq([r.added.map(x => x.code), r.skipped.map(x => x.code)], [['99401'], ['99402']]);
+    eq([r.proposed.map(x => x.code), r.skipped.map(x => x.code)], [['99401'], ['99402']]);
+    await save('ops', '0000', 'employee', { code: '99401' }, { name: 'قديم غاب', branch: B, dept: 'قسم البقاله', job: 'سيلز', shift: 'Morning', active: true });
   });
 
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
