@@ -160,10 +160,15 @@ async function decidePray(code,cycle,decision,level){(S.prayReviews||(S.prayRevi
 function alertTxt(a){const d=a.data||{};
   if(a.kind==='sheet_changed')return `🚨 شيت البصمة اتغيّر في أيام فاتت (${fmt(d.count||0)} يوم) — في حاجة غلط، اتواصل مع الـ HR`;
   if(a.kind==='comeback')return `🔁 ${esc(d.name||a.code)} (${esc(a.code)}) رجع يبصم ${esc(a.day)} بعد ${fmt(d.gap)} يوم من غير بصمة${d.active===false?' — وهو موقوف في السيستم':''}`;
+  if(a.kind==='new_emp')return `🆕 ${esc(d.name||a.code)} (${esc(a.code)}) ظهر في الشيت — ${esc(d.dept||'')} · ${esc(d.branch||'')} — مستني موافقتك`;
   if(a.kind==='sheet_stale')return `⏳ شيت البصمة واقف — آخر يوم فيه ${esc(d.last||'')} (من ${fmt(d.days||0)} يوم). النجوم محفوظة وبتكمّل أول ما يتحدّث`;
   if(a.kind==='stale')return `⏸️ ${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` (آخر حضور ${esc(d.last)})`:' ولا مرة'} وهو لسه نشط`;
   return esc(a.kind);}
 function openAlert(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  if(a.kind==='new_emp'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>🆕 موظف جديد في شيت البصمة</h2>
+    <div class="kv"><span>الاسم</span><b>${esc(d.name||'')}</b></div><div class="kv"><span>الكود</span><b>${esc(a.code)}</b></div><div class="kv"><span>القسم</span><b>${esc(d.dept||'—')}</b></div><div class="kv"><span>الوظيفة</span><b>${esc(d.job||'—')}</b></div><div class="kv"><span>الفرع</span><b>${esc(d.branch||'')}</b></div><div class="kv"><span>الشيفت</span><b>${esc(d.shift||'')}</b></div>
+    <div class="small muted" style="margin:8px 0">بصم ${fmt(+d.monthIn||0)} يوم في الشهر، و${fmt(+d.fullWeek||0)} من آخر 7 أيام. مش هيتضاف إلا لو وافقت.</div>
+    <div class="row"><button class="btn pri" onclick="approveNewEmp(${id})">➕ أضيفه</button><button class="btn" onclick="alertSeen(${id})">تجاهل</button></div>`);return;}
   if(a.kind==='sheet_stale'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>⏳ شيت البصمة واقف</h2><div class="small">آخر يوم في الشيت <b>${esc(d.last||'')}</b> (من ${fmt(d.days||0)} يوم). مفيش حاجة بتتمسح ولا بيتحسب غياب: النجوم بتفضل زي آخر تحديث، وأول ما الـ HR يحدّث الشيت التحديث الجاي بيحسب الأيام الفاضلة كلها من آخر يوم. اتواصل مع الـ HR لو الشيت متأخر.</div>
     <div class="row" style="margin-top:10px"><button class="btn pri" onclick="alertSeen(${id})">✔ تمام — اتشاف</button></div>`);return;}
   if(a.kind==='stale'){openModal(`<button class="x" onclick="closeModal()">✕</button><h2>⏸️ موظف نشط من غير بصمة</h2><div class="small">${esc(d.name||a.code)} (${esc(a.code)}) مابصمش من ١٤ يوم${d.last?` — آخر حضور ${esc(d.last)}`:''}. اسأل الـ HR: ساب الشغل؟ إجازة طويلة؟ لو ساب ← وقّفه من «ملفات الموظفين» وهيختفي من التقييمات والترتيب.</div>
@@ -203,3 +208,10 @@ async function openCareer(code){
     ${(h.wins||[]).length?`<h3 style="margin:10px 0 4px">🏆 أيام رجل اليوم</h3><div class="small">${h.wins.slice(0,40).map(d=>esc(String(d).slice(5,10))).join(' · ')}</div>`:''}
     ${(h.moves||[]).length?`<h3 style="margin:10px 0 4px">🔀 النقل</h3>${h.moves.map(m=>`<div class="small">${esc(String(m.day))}: ${esc(m.from_branch||'')} / ${esc(m.from_dept||'')} ← ${esc(m.to_branch||'')} / ${esc(m.to_dept||'')}</div>`).join('')}`:''}`);
 }
+
+// موظف جديد ظهر في الشيت: مدير التشغيل بيوافق من التنبيه ← بيتضاف بنفس بيانات الشيت (بعدها حضوره بيتسجل من التحديث الجاي)
+async function approveNewEmp(id){const a=(S.alerts||[]).find(x=>+x.id===id);if(!a)return;const d=a.data||{};
+  const e={code:String(a.code),name:d.name,branch:d.branch,dept:d.dept||'',job:d.job||'',shift:d.shift||'Morning',active:true,photo:'',video:'',title:'',photoPos:''};
+  if(!(S.employees||[]).some(x=>x.code===e.code))S.employees.push(e);save();
+  const r=await push('employee',{code:e.code},{name:e.name,branch:e.branch,dept:e.dept,job:e.job,shift:e.shift,active:true});
+  if(r!==false){toast('✔ اتضاف '+e.name);alertSeen(id);if(LIVE)refresh(true);}}
