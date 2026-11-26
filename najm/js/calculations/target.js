@@ -10,6 +10,8 @@ function salesAgg(month,branch,upto){
 }
 // نقط التارجت من نسبة التحقيق — بالشرايح اللي مدير التشغيل حددها للشهر ده (rules.js)
 const pts=p=>tierPts(p);
+// كمية صنف اتباعت الشهر اللي فات في فرع (من مبيعات الشهر الماضي المرفوعة) — أساس تارجت القسم والكابتن
+function lastMonthQty(month,branch,sku){const pm=prevMonth(month);const b=S.baseSales[pm]?.[branch];const src=b&&Object.keys(b).length?b:salesAgg(pm,branch);return +(src?.[sku]?.qty)||0;}
 // نسبة النقط اللي الموظف بياخدها من نقط التارجت/الكابتن حسب الإنجاز
 const tgtRatio=p=>p==null?null:(pts(p)||0)/100;
 const tgtCfg=(month,branch,dept)=>S.targets[month]?.[deptKey(branch,dept)]||null;
@@ -19,6 +21,11 @@ function deptProgress(month,branch,dept,upto,empCode){
   const cap=S.settings.capPct;
   if(cfg.type==='sales'){
     const agg=salesAgg(month,branch,upto);
+    if(+cfg.total>0){   // تارجت كلي واحد للقسم: مجموع المتباع من كل أصناف القسم ÷ التارجت الكلي
+      const its=(cfg.items||[]).map(it=>({...it,sold:agg[it.key]?.qty||0,last:lastMonthQty(month,branch,it.key)}));
+      const sold=its.reduce((a,i)=>a+i.sold,0),last=its.reduce((a,i)=>a+i.last,0),pct=Math.min(cap,sold/+cfg.total*100);
+      return {type:'sales',items:its,total:+cfg.total,sold,last,pct,points:pts(pct),pace:upto?(monthDays(month,upto).length/daysInMonth(month)*100):null};
+    }
     const items=(cfg.items||[]).map(it=>{const sold=agg[it.key]?.qty||0;const p=it.target>0?Math.min(cap,sold/it.target*100):null;return {...it,sold,pct:p};});
     const T=items.reduce((a,i)=>a+(+i.target||0),0), Sd=items.reduce((a,i)=>a+Math.min(i.sold,(+i.target||0)*cap/100),0);
     const pct=T>0?Sd/T*100:null; // department total (kilos/units) vs total target
@@ -48,8 +55,13 @@ function deptProgress(month,branch,dept,upto,empCode){
 // captain = personal extra target: each salesperson / chef gets one or more products; measured by the kilos the branch sold of it (Foodics sheet)
 function captainsOfEmp(e,month,upto,onlyActive=true){
   const L=S.captains[month]?.[e.code]||[];if(!L.length)return [];
-  const agg=salesAgg(month,e.branch,upto);const cap=S.settings.capPct;const mult=S.settings.captainMult||3;
-  return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;const pct=c.target>0?Math.min(cap,sold/c.target*100):null;const p=pts(pct);const man=+c.pts>0;return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,pct,max:man?+c.pts:100*mult,points:p==null?null:man?Math.round(+c.pts*tgtRatio(pct)):p*mult};});
+  const agg=salesAgg(month,e.branch,upto);const cap=S.settings.capPct;
+  return L.filter(c=>!onlyActive||c.active!==false).map(c=>{const sold=agg[c.sku]?.qty||0;
+    // الإنجاز بيتحسب من الزيادة فوق مبيعات الشهر الماضي: (المتباع − الأساس) ÷ (التارجت − الأساس)
+    const base=lastMonthQty(month,e.branch,c.sku);const span=c.target-base;
+    const pct=!(c.target>0)?null:span>0?Math.min(cap,Math.max(0,sold-base)/span*100):Math.min(cap,sold/c.target*100);
+    const p=pts(pct);const man=+c.pts>0;
+    return {...c,code:e.code,branch:e.branch,dept:e.dept,sold,base,extra:Math.max(0,sold-base),need:span>0?span:c.target,pct,max:man?+c.pts:100,points:p==null?null:man?Math.round(+c.pts*tgtRatio(pct)):p};});
 }
 function captainsIn(month,upto,pred){const out=[];for(const e of activeEmps())if(pred(e))out.push(...captainsOfEmp(e,month,upto));return out;}
 // شكاوى العملاء المثبتة بس هي اللي بتخصم (اللي لسه بتتراجع أو اتلغت مش بتتحسب)

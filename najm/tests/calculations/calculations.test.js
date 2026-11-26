@@ -27,6 +27,23 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(await p.evaluate(() => { const T = [[50, 50], [60, 60], [70, 70], [85, 85], [100, 100], [110, 110], [120, 120]]; const r = { ...RULE_DEF, ptsTiers: T, ptsMode: 'linear' }, st = { ...RULE_DEF, ptsTiers: T, ptsMode: 'step' }, c = { ...RULE_DEF, ptsTiers: [[50, 30], [100, 100]], ptsMode: 'linear' };
       return [tierPts(49, r), tierPts(50, r), tierPts(93, r), tierPts(130, r), tierPts(93, st), tierPts(75, c), tierPts(null, r)]; }), [0, 50, 93, 120, 85, 65, null]);
   });
+  test('تارجت القسم الكلي: إجمالي المتباع ÷ الرقم الكلي، والكابتن من الزيادة فوق الشهر الماضي بنقطه من غير ضرب', async () => {
+    eq(await p.evaluate(() => {
+      const keep = [S.targets, S.baseSales, S.sales, S.captains, LIVE]; const r = { ...RULE_DEF, ptsTiers: [[85, 50], [100, 100]], ptsMode: 'step' };
+      S.settings.ruleVersions = [{ from: '0000-00', rules: r }];
+      const m = '2026-05', br = 'فرع', dp = 'قسم', k = deptKey(br, dp);
+      S.baseSales = { '2026-04': { [br]: { a: { name: 'أ', qty: 6 }, b: { name: 'ب', qty: 94 } } } };
+      S.targets = { [m]: { [k]: { type: 'sales', items: [{ key: 'a', name: 'أ' }, { key: 'b', name: 'ب' }], total: 200 } } };
+      S.captains = { [m]: { x: [{ sku: 'a', name: 'أ', target: 12, active: true }] } };
+      const out = [];
+      for (const sold of [[3, 97], [9, 161], [12, 188], [12, 250]]) /* كابتن: 3 ← 0% · 9 ← 50% (من الزيادة) · 12 ← 100% */ {
+        S.sales = { '2026-05-10': { [br]: { a: { name: 'أ', qty: sold[0] }, b: { name: 'ب', qty: sold[1] } } } }; SALES_CACHE = {};
+        const d = deptProgress(m, br, dp, '2026-05-20'), c = captainsOfEmp({ code: 'x', branch: br, dept: dp }, m, '2026-05-20')[0];
+        out.push([Math.round(d.pct), d.points, Math.round(c.pct), c.points]);
+      }
+      [S.targets, S.baseSales, S.sales, S.captains] = keep; SALES_CACHE = {}; return out;
+    }), [[50, 0, 0, 0], [85, 50, 50, 0], [100, 100, 100, 100], [120, 100, 100, 100]]);
+  });
   test('قواعد الشهر: التغيير بيبدأ من الشهر الجاي والشهور اللي فاتت بتفضل بقواعدها', async () => {
     eq(await p.evaluate(() => { const keep = S.settings.ruleVersions;
       S.settings.ruleVersions = [{ from: '0000-00', rules: { ...RULE_DEF } }, { from: '2026-12', rules: { ...RULE_DEF, weeklyOff: 2, goal: 90 } }];

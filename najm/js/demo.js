@@ -200,7 +200,7 @@ function demoSeed(){
   S.baseSales[pm]=base;
   for(const d of days){S.sales[d]={};for(const br of [B,A]){const o={};for(const[sku,v]of Object.entries(base[br]))o[sku]={name:v.name,qty:Math.round(v.qty/30*(0.7+rnd()*1.1)*10)/10};S.sales[d][br]=o;}}
   const T=S.targets[m]={};
-  for(const br of [B,A])for(const dept of Object.keys(DEMO_PRODUCTS)){const f=1.05+rnd()*.7;T[deptKey(br,dept)]={type:'sales',pts:dept==='قسم البقاله'?100:80,need:dept==='قسم البقاله'?120:70,items:Object.entries(cat).filter(([,c])=>c.dept===dept).map(([sku,c])=>({key:sku,name:c.name,target:Math.round(base[br][sku].qty*f)}))};}
+  for(const br of [B,A])for(const dept of Object.keys(DEMO_PRODUCTS)){const f=1.05+rnd()*.7;T[deptKey(br,dept)]={type:'sales',pts:dept==='قسم البقاله'?100:80,need:dept==='قسم البقاله'?120:70,items:Object.entries(cat).filter(([,c])=>c.dept===dept).map(([sku,c])=>({key:sku,name:c.name})),total:Math.round(Object.entries(cat).filter(([,c])=>c.dept===dept).reduce((t,[sku])=>t+base[br][sku].qty,0)*f)};}
   for(const br of [B,A]){T[deptKey(br,'قسم الكاشير')]={type:'manual',kpis:PRESETS['الكاشير'].map((x,i)=>({...x,id:'c'+i}))};
     for(const dept of ['خدمه العملاء','قسم الامن و المراقبه','قسم الخدمات','دليفري','بيكب','قسم الداتا انتري','تسعير','كول سنتر'])T[deptKey(br,dept)]={type:'manual',kpis:PRESETS['نضافة + تقييم المدير'].map((x,i)=>({...x,id:'d'+i}))};
     for(const d of days){const V=S.kpiVals[d]||(S.kpiVals[d]={});V[deptKey(br,'قسم الكاشير')]={c0:rnd()<.8?0:1,c1:1+Math.round(rnd()*2),c2:8+Math.round(rnd()*2),c3:8+Math.round(rnd()*2),c4:9,c5:rnd()<.7?0:1};

@@ -110,7 +110,7 @@ function sceneCaptain(){
   const m=monthOf(DATE);const caps=captainsIn(m,DATE,e=>e.branch===TVB);
   const g={};for(const c of caps)(g[c.sku]||(g[c.sku]={...c,people:[]})).people.push(emp(c.code));
   const L=Object.values(g).sort((a,b)=>(b.pct||0)-(a.pct||0)).slice(0,6);
-  return `<div class="tv-h">🎗️ شارة الكابتن <small>— المنتجات اللي مركزين عليها الشهر ده (النقاط × ${S.settings.captainMult})</small></div>
+  return `<div class="tv-h">🎗️ شارة الكابتن <small>— المنتجات اللي مركزين عليها الشهر ده</small></div>
   <div class="tv-caps">${L.map(c=>{const p=Math.min(100,c.pct||0);return `<div class="tv-capcard"><div class="t">${esc(c.name)}</div>
     <div class="ring" style="background:conic-gradient(#ffd54a ${p*3.6}deg,rgba(255,255,255,.18) 0)"><div style="width:118px;height:118px;border-radius:50%;background:#4a35b8;display:flex;align-items:center;justify-content:center">${fmt(c.pct)}%</div></div>
     <div style="text-align:center;font-size:22px;font-weight:800;opacity:.9">${fmt(c.sold,1)} من ${fmt(c.target,1)} كيلو</div>
