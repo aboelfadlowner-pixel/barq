@@ -2,7 +2,9 @@
 // مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
 const freshDepts=u=>(u?.depts&&u.depts.length)?u.depts:(S.settings.freshDepts||[]);
 // اللي ليه حساب مدير مبيتقيّمش (المدير بيقيّم موظفين) — بيفضل في رجل اليوم والعامل المثالي
-const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code));
+// اللي ليه حساب مبيتقيّمش من حد (المدير بيقيّم موظفين، ومدير التشغيل بيقيّم المديرين والكاميرات) — ومفيش حد بيقيّم اللي بنفس صلاحيته
+// الاستثناء: هيد الكاشير بيقيّمه مديره (فرع / شيفت / هايجين / كاميرات) كموظف، وهيد الكاشير مبيقيّمش هيد كاشير زيه
+const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code)&&!(u.role==='headcashier'&&USER?.role!=='headcashier'));
 const ratable=e=>!isMgrEmp(e.code);
 function inScope(e){
   if(!USER) return false; if(USER.role==='ops') return true;

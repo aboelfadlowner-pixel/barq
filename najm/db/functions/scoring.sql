@@ -266,7 +266,7 @@ language sql stable security definer set search_path = public as $$
                      and r.day < (now() at time zone 'Africa/Cairo')::date
                      and r.att in ('on', 'late', 'vlate', 'xlate') and (r.pray is null or r.brk is null)
   where u.role = 'cameras' and u.active and coalesce(u.emp_code, '') <> ''
-    and not exists (select 1 from najm_users x where x.active and x.emp_code = e.code)
+    and not exists (select 1 from najm_users x where x.active and x.emp_code = e.code and x.role <> 'headcashier')
   group by u.emp_code;
 $$;
 grant execute on function public.najm_cam_missing(text) to anon, authenticated;
