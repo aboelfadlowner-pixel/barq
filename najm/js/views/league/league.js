@@ -4,10 +4,12 @@ const MK_STATUS={open:['مستني اللاعب يحدد رغبته','b-gray'],l
 function vLeague(){
   const m=monthOf(DATE);const L=mgrRanks();const P=mgrPts();const pz=prizes();
   const prev=mgrOfMonth(prevMonth(m));
-  const rateBox=isOps()?`<div class="card" style="margin-bottom:14px"><div class="sec-title" style="margin:0 0 6px"><h3>📝 تقييم المديرين — ${esc(DATE)}</h3><span class="small muted">كل بند من 0 لـ 2 · المجموع نقاط للمدير</span></div>
-    <div class="grid g-emp">${managers().map(u=>{const a=S.mgrCrit?.[DATE]?.[u.username]||[];return `<div class="card"><b>${esc(u.name)}</b><div class="small muted" style="margin-bottom:6px">${ROLES[u.role]} · ${esc(u.branch||'كل الفروع')}${u.shift?' · '+esc(u.shift):''}</div>
-      ${MGR_CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}</span><span class="seg">${[0,1,2].map(v=>`<button class="${a[i]===v?'on':''}" onclick="setMgrCrit('${esc(u.username)}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')}
-      <div class="row" style="justify-content:space-between;margin-top:4px"><span class="small">النهارده: <b>${fmt(mgrDayPts(DATE,u.username))}</b> / 10</span><button class="btn sm ${medalOf('m:'+u.username,m)?'gold':''}" onclick="giveMedal('m:${esc(u.username)}')">🏅 وسام برق${medalOf('m:'+u.username,m)?' ×'+fmt(medalOf('m:'+u.username,m)):''}</button></div></div>`;}).join('')||'<div class="empty">مفيش حسابات مديرين لسه — اعملها من الإعدادات</div>'}</div></div>`:'';
+  const cs=cycleStart(DATE),ce=cycleEnd(DATE);
+  const rateBox=isOps()?`<div class="card" style="margin-bottom:14px"><div class="sec-title" style="margin:0 0 6px"><h3>📝 تقييم المديرين — دورة ${esc(cs.slice(8))}–${esc(ce.slice(8))} ${isRateDay(DATE)?'(النهارده يوم تقييم)':''}</h3><span class="small muted">كل بند من 0 لـ 2 · كل ${RATE_EVERY} أيام وبيكمّل لحد ما تغيّره · المجموع نقاط للمدير</span></div>
+    <div class="grid g-emp">${managers().map(u=>{const c=mgrCritAt(DATE,u.username);const a=c?.arr||[];const old=c&&c.from<cs;return `<div class="card"><b>${esc(u.name)}</b><div class="small muted" style="margin-bottom:6px">${ROLES[u.role]} · ${esc(userBranches(u).join('، ')||'كل الفروع')}${userShifts(u).length?' · '+esc(userShifts(u).join('، ')):''}</div>
+      ${old?`<div class="row small" style="justify-content:space-between;color:var(--muted);margin-bottom:4px">🔁 مكمّل من تقييم يوم ${esc(c.from.slice(8))}<button class="btn sm" onclick="confirmMgrRate('${esc(u.username)}')">✔ تأكيد</button></div>`:(!c?'<div class="small muted" style="margin-bottom:4px">لسه ماتقيّمش</div>':'')}
+      ${MGR_CRITERIA.map((c2,i)=>`<div class="crit"><span class="small">${c2}</span><span class="seg">${[0,1,2].map(v=>`<button class="${a[i]===v?'on':''}" onclick="setMgrCrit('${esc(u.username)}',${i},${v})">${v}</button>`).join('')}</span></div>`).join('')}
+      <div class="row" style="justify-content:space-between;margin-top:4px"><span class="small">تقييم الدورة: <b>${fmt(mgrDayPts(DATE,u.username))}</b> / 10</span><button class="btn sm ${medalOf('m:'+u.username,m)?'gold':''}" onclick="giveMedal('m:${esc(u.username)}')">🏅 وسام برق${medalOf('m:'+u.username,m)?' ×'+fmt(medalOf('m:'+u.username,m)):''}</button></div></div>`;}).join('')||'<div class="empty">مفيش حسابات مديرين لسه — اعملها من الإعدادات</div>'}</div></div>`:'';
   return `<div class="sec-title"><h2>🏟️ دوري المديرين وسوق الانتقالات — ${monthName(m)}</h2>${isOps()?`<button class="btn gold" onclick="closeMonth()">🔒 إقفال ${monthName(m)} وفتح السوق</button>`:''}</div>
   <div class="lock" style="margin-bottom:12px"><b>المدير المثالي (من 100):</b> ${MGR_W().ops}% تقييم مدير التشغيل · ${MGR_W().team}% أداء موظفينه (متوسط تقييم الشهر لفريقه) · ${MGR_W().votes}% تصويت الموظفين. الجايزة: كاس + ${fmt(P.bonus)} نقطة${pz.manager&&cash()?` + ${fmt(pz.manager)} جنيه`:''}.<br><b>رصيد السوق:</b> نقاط بيكسبها من رجالة اليوم في فريقه (+${P.winner}) وكؤوس فريقه وتقييمه اليومي، وبيشتري بيها لاعبين من السوق بعد إقفال الشهر.</div>
   ${prev?`<div class="card honor" style="margin-bottom:12px"><b>👑 المدير المثالي لـ ${monthName(prevMonth(m))}: ${esc(mgrName(prev.username))}</b></div>`:''}
@@ -35,8 +37,13 @@ function vMarket(){
      </div>`;}).join('')||'<div class="empty small">السوق بيفتح بعد إقفال الشهر</div>'}
   </div>`;
 }
-function setMgrCrit(un,i,v){const D=S.mgrCrit||(S.mgrCrit={});const d=D[DATE]||(D[DATE]={});const a=d[un]||(d[un]=[null,null,null,null,null]);a[i]=a[i]===v?null:v;
-  const full=a.map(x=>x??0);if(S.mgrDaily?.[DATE])delete S.mgrDaily[DATE][un];save();render();pushM('mgr_rate',{day:DATE,username:un},a.every(x=>x==null)?null:full);}
+// التقييم بيتسجل على أول يوم في الدورة (1 / 5 / 9 …) وبيكمّل على اللي بعده
+function saveMgrRate(un,arr){const cs=cycleStart(DATE);const D=S.mgrCrit||(S.mgrCrit={});const d=D[cs]||(D[cs]={});const empty=arr.every(x=>x==null);
+  if(empty)delete d[un];else d[un]=arr;
+  for(const day of Object.keys(S.mgrDaily||{}))if(day>=cs&&S.mgrDaily[day])delete S.mgrDaily[day][un];   // الحساب يتعاد من التقييم الساري
+  save();render();return pushM('mgr_rate',{day:cs,username:un},empty?null:arr.map(x=>x??0));}
+function setMgrCrit(un,i,v){const base=mgrCritAt(DATE,un)?.arr||[null,null,null,null,null];const a=[...base];while(a.length<5)a.push(null);a[i]=a[i]===v?null:v;saveMgrRate(un,a);}
+async function confirmMgrRate(un){const c=mgrCritAt(DATE,un);if(!c)return;if(await saveMgrRate(un,[...c.arr])!==false)toast('✔ اتأكد التقييم للدورة دي');}
 async function closeMonth(){
   const m=monthOf(DATE);const last=`${m}-${pad(daysInMonth(m))}`;
   if(DATE<last&&!await askConfirm(`إنت واقف على ${DATE} مش آخر يوم في ${monthName(m)}. الأفضل تختار ${last} من التاريخ فوق قبل الإقفال. تكمّل برضه؟`))return;
