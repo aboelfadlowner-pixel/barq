@@ -34,7 +34,7 @@ declare u najm_users;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
   if u.username is null then return null; end if;
-  return jsonb_build_object('username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch,
+  return jsonb_build_object('username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch, 'branches', to_jsonb(coalesce(u.branches, '{}')),
                             'shift', u.shift, 'depts', to_jsonb(u.depts));
 end $$;
 
@@ -47,7 +47,7 @@ create or replace function public.najm_in_scope(u public.najm_users, p_code text
 returns boolean language sql stable security definer set search_path = public as $$
   select case when u.role = 'ops' then true
     else exists (select 1 from najm_employees e where e.code = p_code
-      and (u.branch is null or e.branch = u.branch)
+      and (u.branch is null or e.branch = u.branch or e.branch = any(coalesce(u.branches, '{}')))
       and (u.role <> 'shift' or public.najm_shift_group(e.shift) = public.najm_shift_group(u.shift))
       -- هيد الكاشير: كاشيرات فرعه بس (قسم الكاشير)
       and (u.role <> 'headcashier' or e.dept = coalesce((select data->>'cashierDept' from najm_settings where id = 1), 'قسم الكاشير'))
@@ -95,7 +95,7 @@ begin
   if un is not null then
     select * into u from public.najm_auth(un, p_pin);
     if u.username is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
-    return jsonb_build_object('kind', 'mgr', 'username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch,
+    return jsonb_build_object('kind', 'mgr', 'username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch, 'branches', to_jsonb(coalesce(u.branches, '{}')),
                               'shift', u.shift, 'depts', to_jsonb(u.depts), 'emp_code', u.emp_code);
   end if;
   r := public.najm_emp_login(i, p_pin);

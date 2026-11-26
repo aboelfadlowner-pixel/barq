@@ -101,7 +101,10 @@ async function confirmRates(){const f=RATE_FIELD[USER.role];const L=filtered(tru
   toast(fail?`⚠️ اتأكد ${items.length-fail} بس من ${items.length}`:`✔ اتأكد التقييم لـ ${items.length} موظف`);}
 // الهايجين: الخمس بنود جنب كل موظف — التيشرت إجباري، والباقي فيه «مش مطلوب»
 function hyRowsHTML(e,arr){if(!arr||!arr.length)arr=hyBlank(e);   // «مش مطلوب» من آخر مرة بيظهر من الأول
-  return HY_CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}${i===0?' <span class="muted">(إجباري)</span>':''}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}${i===0?'':`<button style="font-size:11px" class="${arr[i]===HY_NA?'on':''}" onclick="setCrit('${e.code}',${i},${HY_NA})">مش مطلوب</button>`}</span></div>`).join('');}
+  return HY_CRITERIA.map((c,i)=>`<div class="crit"><span class="small">${c}${i===0?' <span class="muted">(إجباري)</span>':''}</span><span class="seg">${[0,1,2].map(v=>`<button class="${arr[i]===v?'on':''}" onclick="setCrit('${e.code}',${i},${v})">${v}</button>`).join('')}${i===0?'':`<button style="font-size:11px" class="${arr[i]===HY_NA?'on':''}" onclick="setCrit('${e.code}',${i},${HY_NA})">مش مطلوب</button>`}</span></div>`).join('')+hyWarnHTML(arr);}
+// تقييم الهايجين ناقص بند ← النجمة مبتتحسبش ومبتظهرش للموظف لحد ما كل الـ 5 بنود يتحددوا (0 لـ 2 أو «مش مطلوب»)
+function hyWarnHTML(arr){const a=arr||[];if(!a.some(v=>v!=null)||hyScore(a)!=null)return '';const miss=HY_CRITERIA.map((c,i)=>a[i]==null?c:null).filter(Boolean);
+  return `<div class="small" style="color:var(--red);font-weight:700;margin-top:4px">⚠️ التقييم ناقص (${esc(miss.join('، '))}) — النجمة مش هتظهر للموظف لحد ما تكمّل كل البنود</div>`;}
 async function toggleBonus(code){
   const k=await editKey(code);if(!k)return;
   const D=day(DATE);OLD_VAL={v:D.bonus[code]?.v??null,note:D.bonus[code]?.note??null};

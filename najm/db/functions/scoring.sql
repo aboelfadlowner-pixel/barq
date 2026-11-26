@@ -261,7 +261,7 @@ returns table(code text, missed int)
 language sql stable security definer set search_path = public as $$
   select u.emp_code, count(r.*)::int
   from najm_users u
-  join najm_employees e on e.active and (u.branch is null or e.branch = u.branch)
+  join najm_employees e on e.active and (u.branch is null or e.branch = u.branch or e.branch = any(coalesce(u.branches, '{}')))
   join najm_ratings r on r.code = e.code and to_char(r.day, 'YYYY-MM') = p_month
                      and r.day < (now() at time zone 'Africa/Cairo')::date
                      and r.att in ('on', 'late', 'vlate', 'xlate') and (r.pray is null or r.brk is null)

@@ -33,7 +33,7 @@ function tgtPenaltyPct(code,month){
   p+=miss*(+(S.settings.camMissPct??2));return Math.min(100,p);}
 // نسخة التجربة: نفس najm_cam_missing
 function camMissedLocal(code,month){const u=(S.users||[]).find(x=>x.role==='cameras'&&x.emp_code===code&&x.active!==false);if(!u)return 0;let n=0;const T=todayC();
-  for(const d of monthDays(month)){if(d>=T)break;const D=S.days[d];if(!D)continue;for(const e of activeEmps()){if(u.branch&&e.branch!==u.branch)continue;const st=D.att[e.code];
+  for(const d of monthDays(month)){if(d>=T)break;const D=S.days[d];if(!D)continue;for(const e of activeEmps()){if(!inUserBranch(u,e.branch))continue;const st=D.att[e.code];
     if(['on','late','vlate','xlate'].includes(st)&&(D.pray?.[e.code]==null||D.brk?.[e.code]==null))n++;}}return n;}
 
 // ---------- هيد الكاشير: باندات +/− على نقط تارجت الكاشير ----------

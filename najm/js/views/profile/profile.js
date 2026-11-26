@@ -49,7 +49,7 @@ function rateLeft(u){
 function mgrProfileHTML(u,self){
   const m=monthOf(DATE);const me=mgrEmp(u);const ops=u.role==='ops';
   const head=`<div class="card" style="margin-bottom:12px"><div class="row" style="gap:14px">${me?ava(me,'xl'):`<div class="ava xl">${esc((u.name||'?')[0])}</div>`}
-    <div style="flex:1;min-width:200px"><h2 style="margin:0">${self?'👋 أهلاً ':''}${esc(u.name)}</h2><div class="muted">${ROLES[u.role]||''}${u.branch?' · '+esc(u.branch):''}${u.shift?' · شيفت '+esc(GROUP_NAME[shiftGroup(u.shift)]||u.shift):''}</div></div></div></div>`;
+    <div style="flex:1;min-width:200px"><h2 style="margin:0">${self?'👋 أهلاً ':''}${esc(u.name)}</h2><div class="muted">${ROLES[u.role]||''}${userBranches(u).length?' · '+esc(userBranches(u).join('، ')):''}${u.shift?' · شيفت '+esc(GROUP_NAME[shiftGroup(u.shift)]||u.shift):''}</div></div></div></div>`;
   let tasks='';
   if(self){const r=rateLeft(u);
     tasks=`<div class="card" style="margin-bottom:12px"><h3>✅ مهام النهارده (${esc(DATE)})</h3>

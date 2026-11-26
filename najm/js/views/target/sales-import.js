@@ -6,14 +6,14 @@ function importSales(monthly=false){
     let rows;try{rows=await readSheet(f);}catch(e){toast('الملف مش مقروء');return;}
     const H=findHeader(rows,{code:/^(كود|الكود|كود الصنف|كود تعريف المنتج|باركود|sku|code|barcode)/,name:/^(اسم الصنف|الصنف|اسم المنتج|المنتج|product|item|name)/,qty:/(صافي الكميه|الكميه|كميه|quantity|qty)/,branch:/^(الفرع|فرع|branch)/});
     if(!H){toast('مش لاقي عناوين الأعمدة');return;}
-    const guess=USER?.branch||branches().find(b=>norm(f.name).includes(norm(b)))||TG.branch||branches()[0];
+    const guess=userBranches(USER)[0]||branches().find(b=>norm(f.name).includes(norm(b)))||TG.branch||branches()[0];
     IMP={rows,H,fname:f.name,hash:await fileHash(f),branch:guess,monthly,month:prevMonth(monthOf(DATE)),date:DATE};
     const prev=sameFile(monthly?'base_sales':'sales',IMP.hash);
     const hdr=rows[H.row];
     const sel=(k,l)=>`<label class="small">${l}<br><select class="inp" onchange="IMP.H.idx.${k}=+this.value;previewImp()"><option value="-1">— مش موجود —</option>${hdr.map((h,i)=>`<option value="${i}" ${H.idx[k]===i?'selected':''}>${esc(h)||'عمود '+(i+1)}</option>`).join('')}</select></label>`;
     openModal(`<h2>${monthly?'📊 مبيعات شهر كامل':'📥 تقرير المبيعات اليومي'}</h2><div class="small muted">${esc(f.name)}</div>
       <div class="row" style="margin:10px 0">${monthly?`<label class="small">الشهر<br><input class="inp" type="month" value="${IMP.month}" onchange="IMP.month=this.value"></label>`:`<label class="small">اليوم<br><input class="inp" type="date" value="${IMP.date}" onchange="IMP.date=this.value"></label>`}
-      <label class="small">الفرع<br><select class="inp" ${USER?.branch?'disabled':''} onchange="IMP.branch=this.value">${branches().map(b=>`<option ${b===guess?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
+      <label class="small">الفرع<br><select class="inp" ${userBranches(USER).length===1?'disabled':''} onchange="IMP.branch=this.value">${branches().map(b=>`<option ${b===guess?'selected':''}>${esc(b)}</option>`).join('')}</select></label>
       ${sel('code','كود المنتج')}${sel('name','اسم المنتج')}${sel('qty','الكمية')}</div>
       ${prev?`<div class="lock" style="border-color:var(--red);color:var(--red);margin-bottom:6px">⛔ ${importedMsg(prev)}</div>`:''}<div class="lock">بناخد <b>الكمية بس</b>. راجع المعاينة تحت قبل التأكيد: السطور المرفوضة مش هتتحسب.</div><div id="impPrev" style="margin-top:8px"></div>
       <div class="row" style="margin-top:10px"><button class="btn pri" onclick="commitImp()">✔ تأكيد</button><button class="btn" onclick="closeModal()">إلغاء</button></div>`);

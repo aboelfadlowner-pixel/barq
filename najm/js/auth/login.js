@@ -32,9 +32,9 @@ async function doLogin(){
   closeModal();
   if(r.kind==='mgr'){
     ME=null;MEPIN=null;meSave();PIN=pin;
-    USER={username:r.username,name:r.name,role:r.role,branch:r.branch||'',shift:r.shift||'',depts:r.depts||[]};
+    USER={username:r.username,name:r.name,role:r.role,branch:r.branch||'',branches:r.branches||[],shift:r.shift||'',depts:r.depts||[]};
     try{sessionStorage.setItem('najm-user',JSON.stringify({...USER,pin:LIVE?PIN:undefined}))}catch(e){}
-    F.branch=USER.branch||'';VIEW='me';
+    F.branch=userBranches(USER).length===1?userBranches(USER)[0]:'';VIEW='me';
     if(LIVE){toast('⏳ بنحمّل بيانات فريقك…');await refresh();await seedEmployeesIfEmpty();}
     render();toast('أهلاً '+r.name);return;
   }

@@ -433,6 +433,23 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
   });
 
+  test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
+    const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
+    const [b1, b2, b3] = brs;
+    await save('ops', '0000', 'user', { username: 'hyx' }, { name: 'هايجين فرعين', role: 'hygiene', branch: b1, branches: [b1, b2], pin: '7878' });
+    const lg = (await rpc('select najm_login($1,$2) r', ['hyx', '7878'])).r;
+    eq([lg.branch, lg.branches], [b1, [b1, b2]]);
+    const pick = async b => (await db.query("select code from najm_employees where branch=$1 and active and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') limit 1", [b])).rows[0].code;
+    const [c1, c2, c3] = [await pick(b1), await pick(b2), await pick(b3)];
+    await save('hyx', '7878', 'rate', { day: D, code: c1 }, [2, 2, 2, 2, 2]);
+    await save('hyx', '7878', 'rate', { day: D, code: c2 }, [2, 1, 2, 2, 2]);
+    await fails(save('hyx', '7878', 'rate', { day: D, code: c3 }, [2, 2, 2, 2, 2]), /outside your scope/);
+    const f = (await rpc('select najm_files($1,$2) r', ['ops', '0000'])).r.users.find(x => x.username === 'hyx');
+    eq(f.branches, [b1, b2]);
+    eq((await rpc('select count(*)::int n from najm_full_scores($1,$2,$3,$3)', ['hyx', '7878', D])).n >= 2, true);
+    await save('ops', '0000', 'user', { username: 'hyx' }, null);
+  });
+
   test('الملف الكامل: الموظف بيشوف ملفه هو بس، ومدير التشغيل بيشوف الكل، من غير أي فلوس', async () => {
     const c = (await db.query("select code from najm_employees where active and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') and code not in (select code from najm_emp_pins) order by code desc limit 1")).rows[0].code;
     await db.query("insert into najm_ratings(day, code, att) values ('2026-09-10', $1, 'on') on conflict do nothing", [c]);
