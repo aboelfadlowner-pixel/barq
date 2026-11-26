@@ -433,6 +433,27 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq((await asAnon(db, 'select count(*)::int n from najm_alerts'))[0].n, 0);
   });
 
+  test('الشيت واقف أو ناقص: آخر يوم ناقص مبيتحسبش غياب، وتنبيه «الشيت واقف» لو من يومين، واللي بعده بيكمّل من آخر يوم', async () => {
+    const em = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 40 offset 60", [B])).rows.map(r => r.code);
+    const dd = n => { const d = new Date(D); d.setDate(d.getDate() - 70 - n); return d.toISOString().slice(0, 10); };
+    const mk = (day, codes) => em.map(c => ({ code: c, day, shift: '9:00 AM', in: codes.includes(c) ? '9:01 AM' : '', leave: '' }));   // صف لكل موظف كل يوم (زي الشيت الحقيقي): اللي مابصمش صفه من غير دخول
+    // 7 أيام كاملة (آخرها من 3 أيام) وبعدها يوم ناقص (من يومين): 40 موظف بصموا الأيام الكاملة، و4 بس في آخر يوم
+    const rows = [];
+    for (let n = 9; n >= 4; n--) rows.push(...mk(dd(n), em));
+    rows.push(...mk(dd(3), em.slice(0, 4)));   // آخر يوم في الشيت: 4 من 40 ← ناقص
+    await db.query('select najm_att_sync($1,$2)', [JSON.stringify(rows), 'stalled']);
+    const r = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(rows), 'stalled'])).rows[0].r;
+    eq([r.last_day_partial, r.stale_days >= 2], [true, true]);
+    // اللي ماجوش في اليوم الناقص مفيش ليهم غياب ولا راحة
+    eq((await db.query("select count(*)::int n from najm_ratings where day=$1 and code = any($2) and att in ('abs','off')", [dd(3), em.slice(4)])).rows[0].n, 0);
+    eq((await db.query("select count(*)::int n from najm_alerts where kind='sheet_stale'")).rows[0].n >= 1, true);
+    // الشيت اتحدّث: اليوم اتكمل + أيام بعده ← الغياب بيتحسب، والنجوم بتكمّل من آخر يوم
+    const full = [...rows.filter(x => x.day !== dd(3)), ...mk(dd(3), em.slice(0, 30)), ...mk(dd(2), em.slice(0, 30)), ...mk(dd(1), em.slice(0, 30))];
+    const r2 = (await db.query('select najm_att_sync($1,$2) r', [JSON.stringify(full), 'recovered'])).rows[0].r;
+    eq([r2.last_day_partial, r2.to], [false, dd(1)]);
+    eq((await db.query("select count(*)::int n from najm_ratings where day=$1 and code = any($2) and att in ('abs','off')", [dd(3), em.slice(30)])).rows[0].n > 0, true);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;
