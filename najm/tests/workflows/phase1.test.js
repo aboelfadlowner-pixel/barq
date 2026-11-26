@@ -189,6 +189,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, [0, 200, 2, 100]);
     await as(MAHMOUD);
   });
+  test('دوري المديرين: مدير الفرع والشيفت والفريش بس (مش الكاميرات ولا الهايجين ولا هيد الكاشير)', async () => {
+    const r = await p.evaluate(() => { const roles = ['cameras', 'hygiene', 'headcashier']; const base = S.users.length;
+      roles.forEach((role, i) => S.users.push({ username: 'rx' + i, name: 'x', role, branch: '', shift: '', depts: [], active: true }));
+      const inL = roles.map((_, i) => managers().some(u => u.username === 'rx' + i)); S.users.length = base;
+      return [inL, managers().every(u => ['branch', 'shift', 'fresh'].includes(u.role))]; });
+    eq(r, [[false, false, false], true]);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();
