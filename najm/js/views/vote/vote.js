@@ -7,7 +7,7 @@ function vVote(){
   if(done)return `<div class="card" style="max-width:520px;margin:20px auto;text-align:center"><div style="font-size:56px">🗳️</div><h2>صوتك اتسجل لشهر ${monthName(m)}</h2><div class="muted">شكراً — التصويت مرة واحدة في الشهر من كل موبايل.</div></div>`;
   if(!ME||MEPIN==null||!emp(ME))return empLoginForm(`🗳️ صوّت لأحسن مدير — ${monthName(m)}`,`صوتك سري، وبيمثل ${MGR_W().votes}% من جايزة المدير المثالي. صوت واحد في الشهر لكل موظف ولكل موبايل. ادخل بكودك ورقمك السري الأول.`);
   VOTER=ME;
-  const e=emp(VOTER);const L=managers().filter(u=>inUserBranch(u,e.branch)&&u.emp_code!==e.code);
+  const e=emp(VOTER);const L=managers().filter(u=>['branch','shift','fresh'].includes(u.role)&&inUserBranch(u,e.branch)&&u.emp_code!==e.code)   /* مدير الفرع والشيفت والفريش فود بس */;
   return `<div class="card" style="max-width:720px;margin:20px auto"><h2>🗳️ ${esc(e.name)} — مين أحسن مدير في ${esc(e.branch)} الشهر ده؟</h2><div class="muted" style="margin-bottom:10px">اختار واحد بس — مش هتقدر تغيّر بعد التأكيد.</div>
     <div class="grid g-3">${L.map(u=>{const me=mgrEmp(u);return `<button class="card" style="cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px" onclick="voteFor('${esc(u.username)}')">${me?ava(me,'xl'):`<div class="ava xl">${esc(u.name[0])}</div>`}<b>${esc(u.name)}</b><span class="small muted">${ROLES[u.role]}${u.shift?' · '+esc(u.shift):''}</span></button>`;}).join('')||'<div class="empty">مفيش مديرين في فرعك لسه</div>'}</div>
     <div class="row" style="margin-top:12px"><button class="btn sm" onclick="meLogout()">مش أنا — خروج</button></div></div>`;
