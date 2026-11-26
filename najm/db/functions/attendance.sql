@@ -162,9 +162,11 @@ begin
       if br = any(bad) then skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', 'من غير فرع'); continue; end if;
       -- الموظف الجديد بيتضاف بس لو «شغال»: بصمة دخول + خروج 6 أيام من آخر 7 (اليوم السابع راحة)
       -- (لو الأداة القديمة مبعتتش fullWeek ← لازم يكون بصم في آخر أسبوع)
-      if (x ? 'fullWeek' and coalesce((x->>'fullWeek')::int, 0) < 6)
-         or (not x ? 'fullWeek' and coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7) then
-        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', case when x ? 'fullWeek' then 'لسه مكملش أسبوع دخول + خروج (' || coalesce(x->>'fullWeek', '0') || ' من 6)' else 'مابصمش آخر أسبوع' end);
+      -- أو شغال في الشهر: 15 يوم دخول + خروج أو أكتر (الموظف القديم اللي غاب آخر يومين مبيتسكّبش)
+      if ((x ? 'fullWeek' and coalesce((x->>'fullWeek')::int, 0) < 6)
+         or (not x ? 'fullWeek' and coalesce(nullif(x->>'lastIn', ''), '1900-01-01')::date < (now() at time zone 'Africa/Cairo')::date - 7))
+         and coalesce((x->>'monthIn')::int, 0) < 15 then
+        skip := skip || jsonb_build_object('code', c, 'name', nm, 'why', case when x ? 'fullWeek' then 'لسه مكملش أسبوع دخول + خروج (' || coalesce(x->>'fullWeek', '0') || ' من 6) ولا 15 يوم في الشهر (' || coalesce(x->>'monthIn', '0') || ')' else 'مابصمش آخر أسبوع' end);
         continue; end if;
       t := public.najm_tmin(x->>'shiftTime');
       sh := case when t is null then 'Morning' when t between bf and bt then 'Between'

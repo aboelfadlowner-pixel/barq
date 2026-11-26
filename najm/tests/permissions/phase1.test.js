@@ -498,6 +498,14 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('br', '1111', 'sales', { day: D, branch: B }, {}), /operations manager only/);
   });
 
+  test('موظف قديم غاب آخر يومين: بيتضاف لو شغال 15 يوم في الشهر، ومبيتضافش لو أقل', async () => {
+    const T = (await db.query("select ((now() at time zone 'Africa/Cairo')::date)::text d")).rows[0].d;
+    const rows = [{ code: '99401', name: 'قديم غاب', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 18 },
+                  { code: '99402', name: 'جديد فعلاً', dept: 'قسم البقاله', job: 'سيلز', branch: B, shiftTime: '9:00 AM', lastIn: T, fullWeek: 3, monthIn: 5 }];
+    const r = (await db.query('select najm_emp_sync($1,$2) r', [JSON.stringify(rows), 'month'])).rows[0].r;
+    eq([r.added.map(x => x.code), r.skipped.map(x => x.code)], [['99401'], ['99402']]);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;
