@@ -2,9 +2,9 @@
 
 drop function if exists public.najm_public_users();
 create or replace function public.najm_public_users()
-returns table(username text, name text, role text, branch text, shift text, depts text[], emp_code text, branches text[])
+returns table(username text, name text, role text, branch text, shift text, depts text[], emp_code text, branches text[], shifts text[])
 language sql stable security definer set search_path = public as $$
-  select username, name, role, branch, shift, depts, emp_code, branches from najm_users where active order by role, username;
+  select username, name, role, branch, shift, depts, emp_code, branches, shifts from najm_users where active order by role, username;
 $$;
 
 grant execute on function public.najm_public_users() to anon, authenticated;

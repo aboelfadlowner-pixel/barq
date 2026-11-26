@@ -8,6 +8,9 @@ function meSave(){try{ME?localStorage.setItem('najm-me',JSON.stringify({code:ME,
 // فروع المدير: فاضية = كل الفروع. فرع واحد في branch، ولو أكتر من فرع (مثلاً الهايجين) كلهم في branches
 const userBranches=u=>{const L=(u?.branches||[]).filter(Boolean);return L.length?L:(u?.branch?[u.branch]:[]);};
 const inUserBranch=(u,b)=>{const L=userBranches(u);return !L.length||L.includes(b);};
+// شيفتات المدير: شيفت واحد في shift، ولو أكتر من شيفت كلهم في shifts. المجموعات: Between مع الليل
+const userShifts=u=>{const L=(u?.shifts||[]).filter(Boolean);return L.length?L:(u?.shift?[u.shift]:[]);};
+const userGroups=u=>[...new Set(userShifts(u).map(s=>shiftGroup(s)))];
 const isMgr=()=>!!USER, isOps=()=>USER?.role==='ops', isHy=()=>USER?.role==='hygiene', isCam=()=>USER?.role==='cameras', isHC=()=>USER?.role==='headcashier', isLimited=()=>isCam()||isHC();
 // الموظف داخل بكوده ورقمه السري · الزائر = محدش داخل (بيشوف الترتيب ورجل اليوم والعامل المثالي بس)
 const isEmp=()=>!USER&&!!ME&&MEPIN!=null&&!!emp(ME), isGuest=()=>!USER&&!isEmp();

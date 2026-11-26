@@ -7,6 +7,13 @@ returns text language sql immutable set search_path = public as $$
 $$;
 grant execute on function public.najm_shift_group(text) to anon, authenticated;
 
+-- مجموعات شيفتات المدير (شيفت واحد، أو أكتر لو متحددين من الإعدادات)
+create or replace function public.najm_user_shift_groups(p_shift text, p_shifts text[])
+returns text[] language sql immutable set search_path = public as $$
+  select coalesce((select array_agg(distinct public.najm_shift_group(s)) from unnest(case when coalesce(array_length(p_shifts, 1), 0) > 0 then p_shifts else array[p_shift] end) s), '{}'::text[]);
+$$;
+grant execute on function public.najm_user_shift_groups(text, text[]) to anon, authenticated;
+
 create or replace function public.najm_auth(p_user text, p_pin text)
 returns public.najm_users language plpgsql volatile security definer set search_path = public as $$
 declare u najm_users; f najm_login_fails; un text := lower(trim(p_user));
@@ -35,7 +42,7 @@ begin
   select * into u from public.najm_auth(p_user, p_pin);
   if u.username is null then return null; end if;
   return jsonb_build_object('username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch, 'branches', to_jsonb(coalesce(u.branches, '{}')),
-                            'shift', u.shift, 'depts', to_jsonb(u.depts));
+                            'shift', u.shift, 'shifts', to_jsonb(coalesce(u.shifts, '{}')), 'depts', to_jsonb(u.depts));
 end $$;
 
 grant execute on function public.najm_login(text, text) to anon, authenticated;
@@ -48,7 +55,7 @@ returns boolean language sql stable security definer set search_path = public as
   select case when u.role = 'ops' then true
     else exists (select 1 from najm_employees e where e.code = p_code
       and (u.branch is null or e.branch = u.branch or e.branch = any(coalesce(u.branches, '{}')))
-      and (u.role <> 'shift' or public.najm_shift_group(e.shift) = public.najm_shift_group(u.shift))
+      and (u.role <> 'shift' or public.najm_shift_group(e.shift) = any(public.najm_user_shift_groups(u.shift, u.shifts)))
       -- هيد الكاشير: كاشيرات فرعه بس (قسم الكاشير)
       and (u.role <> 'headcashier' or e.dept = coalesce((select data->>'cashierDept' from najm_settings where id = 1), 'قسم الكاشير'))
       -- مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
@@ -96,7 +103,7 @@ begin
     select * into u from public.najm_auth(un, p_pin);
     if u.username is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
     return jsonb_build_object('kind', 'mgr', 'username', u.username, 'name', u.name, 'role', u.role, 'branch', u.branch, 'branches', to_jsonb(coalesce(u.branches, '{}')),
-                              'shift', u.shift, 'depts', to_jsonb(u.depts), 'emp_code', u.emp_code);
+                              'shift', u.shift, 'shifts', to_jsonb(coalesce(u.shifts, '{}')), 'depts', to_jsonb(u.depts), 'emp_code', u.emp_code);
   end if;
   r := public.najm_emp_login(i, p_pin);
   if r ? 'error' then return r; end if;

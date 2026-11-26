@@ -14,7 +14,7 @@ create or replace function public.najm_close_owners(p_gkey text)
 returns text[] language sql stable security definer set search_path = public as $$
   select coalesce(
     (select array_agg(username order by username) from najm_users
-      where active and role = 'shift' and branch = split_part(p_gkey, '|', 1) and public.najm_shift_group(shift) = split_part(p_gkey, '|', 2)),
+      where active and role = 'shift' and branch = split_part(p_gkey, '|', 1) and split_part(p_gkey, '|', 2) = any(public.najm_user_shift_groups(shift, shifts))),
     (select array_agg(username order by username) from najm_users
       where active and role = 'branch' and branch = split_part(p_gkey, '|', 1)));
 $$;
