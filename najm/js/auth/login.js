@@ -11,8 +11,7 @@ async function openLogin(){
 function loginFields(big){const fs=big?'font-size:20px;':'';
   return `<label>كود البصمة<br><input class="inp" id="l_id" inputmode="numeric" style="width:100%;${fs}" autocomplete="username" oninput="loginIdChanged()" onkeydown="if(event.key==='Enter')doLogin()"></label><br><br>
     <div id="l_pin_wrap" style="display:none"><label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%;${fs}" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label></div>
-    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>
-    <div class="small muted" style="margin-top:10px">اكتب كود البصمة. لو ليك رقم سري هتظهرلك خانته. 5 محاولات رقم سري غلط ← الحساب بيتقفل 15 دقيقة.</div>`;}
+    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>`;}
 // خانة الرقم السري بتظهر بس لو الكود محتاج رقم (مدير، أو موظف التشغيل حطله رقم)
 let LOGIN_NEED_T=null;
 async function loginNeedsPin(id){
