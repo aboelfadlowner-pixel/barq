@@ -9,7 +9,7 @@ function vRate(){
   const stale=isHy()||!field?[]:list.filter(e=>!dayLocked(e)&&!off(e)&&rateStale(DATE,field,e.code));
   return `<div class="sec-title"><h2>${isOps()?'الموظفين':'تقييم'} يوم ${esc(DATE)} — ${ROLES[USER.role]}</h2>
     <div class="row">${canAtt?`<button class="btn" onclick="importAttendance()">📥 رفع شيت البصمة</button><button class="btn" onclick="openImports('attendance')">📂 الملفات المرفوعة</button>`:''}<button class="btn" onclick="showGuide()">📘 الدليل</button></div></div>
-  ${isOps()?`<div class="card" style="margin-bottom:10px;border-color:var(--gold);background:#fffaf0"><b>🏅 وسام برق</b><div class="small muted">انت مبقتش بتقيّم الموظفين كل يوم — بتقيّم المديرين بس كل ${RATE_EVERY} أيام. لو شفت موظف أداؤه مميز في أي يوم، اديله «وسام برق» (+${fmt(medalPts())} نقطة، مرة واحدة في الشهر).</div></div>`:''}
+  ${isOps()?`<div class="card" style="margin-bottom:10px;border-color:var(--gold);background:#fffaf0"><b>🏅 وسام برق</b><div class="small muted">انت مبقتش بتقيّم الموظفين كل يوم — بتقيّم المديرين بس كل ${RATE_EVERY} أيام. لو شفت موظف أداؤه مميز في أي يوم، اديله «وسام برق» (+${fmt(medalPts())} نقطة لكل وسام، أي عدد في الشهر).</div></div>`:''}
   ${field&&left.length?`<div class="card" style="margin-bottom:10px;border-color:#f3c3be;background:var(--red-soft)"><b>⏰ فاضل ${fmt(left.length)} موظف ماكملتش تقييمهم النهارده:</b> <span class="small">${left.slice(0,12).map(e=>esc(e.name.split(' ').slice(0,2).join(' '))).join('، ')}${left.length>12?' …':''}</span></div>`:field&&list.length?'<div class="card" style="margin-bottom:10px;border-color:#bfe3d6;background:var(--green-soft)"><b>✔ خلّصت تقييم فريقك النهارده</b></div>':''}
   ${isHy()||!field?'':`<div class="card" style="margin-bottom:10px;border-color:#cfc4ff;background:#faf8ff"><b>${isRateDay(DATE)?'📋 النهارده يوم تقييم':'📋 دورة التقييم'}: ${esc(cycleStart(DATE).slice(8))} ← ${esc(cycleEnd(DATE).slice(8))}</b>
     <div class="small muted">التقييم${withPray?' والصلاة':''} كل ${RATE_EVERY} أيام وبيفضل مكمّل لوحده لحد ما تغيّره. البصمة والهايجين والكاميرات بيتغيروا كل يوم.</div>
@@ -30,7 +30,7 @@ function vRate(){
         +(withPray?`<div class="crit"><span class="small">🕌 الصلاة <span class="muted">(كل ${RATE_EVERY} أيام · ½ نجمة)</span></span><span class="seg">${[[2,'ملتزم'],[1,'بيقطع'],[0,'مبيصليش']].map(([v,t])=>`<button style="font-size:12px" class="${arr[4]===v?'on':''}" onclick="setCrit('${e.code}',4,${v})">${t}</button>`).join('')}</span></div>`:''):''}
       ${isOps()?camSummaryHTML(e,D)+cashSummaryHTML(e):''}
       <div class="row" style="justify-content:space-between;margin-top:6px"><span>${starsHTML(s.total)} <b>${fmt(s.total,2)}</b></span>
-        ${isHy()?`<span class="small">🧼 الهايجين ${fmt(s.hy,2)}</span>`:`<span class="row" style="gap:4px">${isOps()?`<button class="btn sm ${medal?'gold':''}" onclick="giveMedal('${e.code}')">${medal?'🏅 واخد الوسام':'🏅 وسام برق'}</button>`:''}<button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ مثالي':'+ ½ مثالي'}</button></span>`}</div>
+        ${isHy()?`<span class="small">🧼 الهايجين ${fmt(s.hy,2)}</span>`:`<span class="row" style="gap:4px">${isOps()?`<button class="btn sm ${medal?'gold':''}" onclick="giveMedal('${e.code}')">${medal?'🏅 وسام برق ×'+fmt(medal):'🏅 وسام برق'}</button>`:''}<button class="btn sm ${s.bonus?'gold':''}" onclick="toggleBonus('${e.code}')">${s.bonus?'⭐ ½ مثالي':'+ ½ مثالي'}</button></span>`}</div>
       <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · هايجين ${fmt(s.hy,2)} · صلاة ${fmt(s.pray,2)} · كاميرات ${fmt(s.cam,2)}</div>
       ${isHy()?'':`<div class="row" style="margin-top:6px;gap:6px">${['yellow','red','green'].map(c=>`<button class="cardbtn" onclick="giveCard('${e.code}','${c}')"><i class="fcard ${c}"></i>${CARD[c].t.split(' ')[1]}</button>`).join('')}
         ${myC.map(c=>`<span class="badge ${c.color==='red'?'b-red':c.color==='green'?'b-green':'b-gold'}" title="${esc(c.reason)}">${cardStatus(c)==='approved'?'':'⏳ '}<i class="fcard ${c.color}"></i></span>`).join('')}</div>`}
@@ -70,14 +70,16 @@ function vRateCams(){
 }
 async function setCam(kind,code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);const bag=D[kind]||(D[kind]={});OLD_VAL=bag[code]??null;mark(D,code);
   const nv=bag[code]===v?null:v;if(nv==null)delete bag[code];else bag[code]=nv;save();render();push(kind,k,nv==null?null:{v:nv});}
-// وسام برق — مدير التشغيل، مرة في الشهر لكل موظف (+100 نقطة)
-async function giveMedal(code){const e=emp(code);const m=monthOf(DATE);
-  if(medalOf(code,m)){if(!await askConfirm(`${e.name} واخد وسام برق الشهر ده — تشيله؟`))return;
-    if(!LIVE)S.medals=(S.medals||[]).filter(x=>!(x.code===code&&x.month===m));else S.medals=(S.medals||[]).filter(x=>x.code!==code);
-    save();render();if(await push('medal',{code,day:DATE},null)!==false)toast('اتشال الوسام');return;}
-  const note=await askText(`🏅 وسام برق لـ ${e.name} (+${medalPts()} نقطة، مرة واحدة في الشهر) — إيه اللي عمله؟ (اختياري)`);if(note===null)return;
+// وسام برق — مدير التشغيل بيديه لأي موظف أو مدير، أي عدد في الشهر (+100 نقطة لكل وسام)
+async function giveMedal(code){const isM=code.startsWith('m:');const nm=isM?mgrName(code.slice(2)):emp(code).name;const m=monthOf(DATE);const n=medalOf(code,m);
+  // وسام برق: أي عدد في الشهر لأي موظف أو مدير (+نقط الوسام من الإعدادات لكل وسام)
+  if(n){if(!await askConfirm(`${nm} واخد ${fmt(n)} وسام الشهر ده — تديله وسام تاني؟`)){
+      if(!await askConfirm(`تشيل آخر وسام من ${nm}؟`))return;
+      const i=S.medals.map(x=>x.code===code&&(x.month||monthOf(x.day))===m).lastIndexOf(true);if(i>=0)S.medals.splice(i,1);
+      save();render();if(await push('medal',{code,day:DATE},null)!==false)toast('اتشال آخر وسام');return;}}
+  const note=await askText(`🏅 وسام برق لـ ${nm} (+${medalPts()} نقطة) — إيه اللي عمله؟ (اختياري)`);if(note===null)return;
   (S.medals||(S.medals=[])).push({code,month:m,day:DATE,note:note.trim()});save();render();
-  if(await push('medal',{code,day:DATE},{note:note.trim()})!==false)toast(`🏅 ${e.name.split(' ')[0]} خد وسام برق`);}
+  if(await push('medal',{code,day:DATE},{note:note.trim()})!==false)toast(`🏅 ${nm.split(' ')[0]} خد وسام برق`);}
 
 // تعديل البصمة: التشغيل بس، وكل تعديل بسبب (جهاز البصمة عطلان، مأمورية، …) — بيتسجل في السجل بالقيمة القديمة والجديدة
 async function setAtt(code,v){if(!isOps())return;const D=day(DATE);if(D.att[code]===v)return;

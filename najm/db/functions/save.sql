@@ -150,11 +150,10 @@ begin
     -- مدير التشغيل شاف التنبيه (اتواصل مع الـ HR مثلاً)
     update najm_alerts set seen_by = u.username, seen_at = now() where id = (p_key->>'id')::bigint;
   elsif p_kind = 'medal' then
-    -- وسام برق: مدير التشغيل بيديه لموظف أداؤه مميز — مرة واحدة في الشهر (+100 نقطة من الإعدادات)
+    -- وسام برق: مدير التشغيل بيديه لموظف أو مدير أداؤه مميز — أي عدد في الشهر (كل وسام +100 نقطة من الإعدادات)
     s := to_char(coalesce(k_day, today), 'YYYY-MM');
-    if del then delete from najm_medals where code = k_code and month = s;
+    if del then delete from najm_medals where id = (select id from najm_medals where code = k_code and month = s order by id desc limit 1);
     else
-      if exists (select 1 from najm_medals where code = k_code and month = s) then raise exception 'najm: medal already given this month'; end if;
       insert into najm_medals(code, month, day, note, by_user) values (k_code, s, coalesce(k_day, today), nullif(trim(p_data->>'note'), ''), u.username);
     end if;
   elsif p_kind = 'tgt_penalty' then

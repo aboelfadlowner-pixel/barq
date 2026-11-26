@@ -305,11 +305,11 @@ begin
     'months', coalesce((select jsonb_agg(m order by m->>'month' desc) from (
       select jsonb_build_object('month', x.m, 'n', x.n, 'avg', case when x.n > 0 then round(x.sum / x.n, 2) end,
                'worked', x.worked, 'off', x.off, 'abs', x.abs, 'late', x.late,
-               'yellow', c.y, 'red', c.r, 'green', c.g, 'card_pts', cp.v, 'medal', md.has, 'wins', coalesce(w.n, 0),
+               'yellow', c.y, 'red', c.r, 'green', c.g, 'card_pts', cp.v, 'medal', md.n > 0, 'medals_n', md.n, 'wins', coalesce(w.n, 0),
                'cashier', ca.p, 'complaints', coalesce(cm.n, 0),
-               'kpi_pts', case when x.n > 0 or md.has then greatest(0, round(x.sum / 5 * r.dm + cp.v + case when md.has then mpts else 0 end)) end,
-               'month_score', case when (x.n + x.abs) > 0 and (x.n > 0 or md.has)
-                    then round(greatest(0, round(x.sum / 5 * r.dm + cp.v + case when md.has then mpts else 0 end)) / (r.dm * (x.n + x.abs)) * 100) end) m
+               'kpi_pts', case when x.n > 0 or md.n > 0 then greatest(0, round(x.sum / 5 * r.dm + cp.v + md.n * mpts)) end,
+               'month_score', case when (x.n + x.abs) > 0 and (x.n > 0 or md.n > 0)
+                    then round(greatest(0, round(x.sum / 5 * r.dm + cp.v + md.n * mpts)) / (r.dm * (x.n + x.abs)) * 100) end) m
       from (select to_char(rt.day, 'YYYY-MM') m,
                    count(*) filter (where rt.tot is not null and rt.att is distinct from 'abs') n,
                    coalesce(sum(rt.tot) filter (where rt.att is distinct from 'abs'), 0) sum,
@@ -323,7 +323,7 @@ begin
       cross join lateral (select count(*) filter (where k.color = 'yellow')::int y, count(*) filter (where k.color = 'red')::int r, count(*) filter (where k.color = 'green')::int g
                           from najm_cards k where k.code = p_code and k.status = 'approved' and to_char(k.day, 'YYYY-MM') = x.m) c
       cross join lateral (select (c.r + c.y / kn) * kr + (c.y % kn) * ky + c.g * kg v) cp
-      cross join lateral (select exists (select 1 from najm_medals d where d.code = p_code and d.month = x.m) has) md
+      cross join lateral (select count(*)::int n from najm_medals d where d.code = p_code and d.month = x.m) md
       left join lateral (select count(*)::int n from najm_winners z where p_code = any(z.codes) and to_char(z.day, 'YYYY-MM') = x.m) w on true
       left join lateral (select sum(v.pts) p from najm_cashier_events v where v.code = p_code and to_char(v.day, 'YYYY-MM') = x.m having count(*) > 0) ca on true
       left join lateral (select count(*)::int n from najm_complaints q where q.code = p_code and q.status = 'proven' and to_char(q.day, 'YYYY-MM') = x.m) cm on true
