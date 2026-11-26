@@ -541,6 +541,14 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await save('ops', '0000', 'user', { username: 'msh' }, null);
   });
 
+  test('شاشة الدخول: الدالة بتقول مين محتاج رقم سري (مدير أو موظف ليه رقم) من غير بيانات', async () => {
+    const e = (await db.query("select code from najm_employees e where active and not exists (select 1 from najm_users u where u.emp_code=e.code) and not exists (select 1 from najm_emp_pins p where p.code=e.code) order by code limit 1")).rows[0].code;
+    const needs = async id => (await rpc('select najm_login_needs_pin($1) r', [id])).r;
+    eq([await needs(e), await needs('ops'), await needs('99999'), await needs('')], [false, true, false, false]);
+    await save('ops', '0000', 'emp_pin', { code: e }, { pin: '8181' });
+    eq(await needs(e), true);   // موظف مدير التشغيل حطله رقم
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;
