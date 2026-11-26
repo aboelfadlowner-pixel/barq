@@ -9,10 +9,19 @@ async function openLogin(){
   setTimeout(()=>$('#l_id')?.focus(),50);
 }
 function loginFields(big){const fs=big?'font-size:20px;':'';
-  return `<label>كود البصمة<br><input class="inp" id="l_id" inputmode="numeric" style="width:100%;${fs}" autocomplete="username"></label><br><br>
-    <label>الرقم السري <span class="muted small">(للمديرين — والموظف لو مدير التشغيل اداله رقم)</span><br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%;${fs}" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
+  return `<label>كود البصمة<br><input class="inp" id="l_id" inputmode="numeric" style="width:100%;${fs}" autocomplete="username" oninput="loginIdChanged()" onkeydown="if(event.key==='Enter')doLogin()"></label><br><br>
+    <div id="l_pin_wrap" style="display:none"><label>الرقم السري<br><input class="inp" id="l_pin" type="password" inputmode="numeric" style="width:100%;${fs}" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label></div>
     <div class="row" style="margin-top:12px"><button class="btn pri" onclick="doLogin()">دخول</button></div>
-    <div class="small muted" style="margin-top:10px">الموظف بيدخل بكود البصمة بس. 5 محاولات رقم سري غلط ← الحساب بيتقفل 15 دقيقة.</div>`;}
+    <div class="small muted" style="margin-top:10px">اكتب كود البصمة. لو ليك رقم سري هتظهرلك خانته. 5 محاولات رقم سري غلط ← الحساب بيتقفل 15 دقيقة.</div>`;}
+// خانة الرقم السري بتظهر بس لو الكود محتاج رقم (مدير، أو موظف التشغيل حطله رقم)
+let LOGIN_NEED_T=null;
+async function loginNeedsPin(id){
+  if(!id)return false;
+  if(LIVE){try{return !!(await sbRpc('najm_login_needs_pin',{p_id:id}));}catch(e){return true;}}   // لو مش قادر يتأكد، نظهر الخانة
+  return !!S.users.find(x=>x.active!==false&&(x.username===id.toLowerCase()||(x.emp_code&&x.emp_code===id)))||!!localEmpPin(id);
+}
+function loginIdChanged(){clearTimeout(LOGIN_NEED_T);LOGIN_NEED_T=setTimeout(async()=>{const el=$('#l_id');if(!el)return;const id=el.value.split(/[—–-]/)[0].trim();const w=$('#l_pin_wrap');if(!w)return;
+  const need=await loginNeedsPin(id);w.style.display=need?'':'none';if(!need&&$('#l_pin'))$('#l_pin').value='';},250);}
 function empLoginForm(title,desc){
   return `<div class="card login" style="max-width:520px;margin:20px auto"><h2>${title}</h2><div class="muted" style="margin-bottom:10px">${desc}</div>${loginFields(true)}</div>`;
 }
@@ -22,6 +31,7 @@ async function doLogin(){
   // لو المتصفح كتب «85 — الاسم» في خانة الكود، بناخد الكود بس
   const id=$('#l_id').value.split(/[—–-]/)[0].trim(),pin=$('#l_pin').value.trim();
   if(!id){toast('اكتب كود البصمة');return;}
+  if(!pin&&await loginNeedsPin(id)){const w=$('#l_pin_wrap');if(w){w.style.display='';$('#l_pin')?.focus();toast('اكتب الرقم السري');return;}}
   const bad='الكود أو الرقم السري غلط — بعد 5 محاولات غلط الحساب بيتقفل 15 دقيقة';
   let r;
   if(LIVE){try{r=await sbRpc('najm_login_any',{p_id:id,p_pin:pin});}catch(x){toast(/wrong code/.test(x.message)?bad:'⚠️ مش قادر أوصل لقاعدة البيانات');return;}}

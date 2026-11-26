@@ -111,6 +111,14 @@ begin
 end $$;
 grant execute on function public.najm_login_any(text, text) to anon, authenticated;
 
+-- هل الكود (أو اسم الدخول) ده محتاج رقم سري؟ مدير ← أيوه، موظف ← بس لو مدير التشغيل حطله رقم. من غير ما ترجّع أي بيانات (شاشة الدخول بتظهر خانة الرقم السري بناءً عليها)
+create or replace function public.najm_login_needs_pin(p_id text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from najm_users u where u.active and (u.username = lower(trim(coalesce(p_id, ''))) or (coalesce(u.emp_code, '') <> '' and u.emp_code = trim(coalesce(p_id, '')))))
+      or exists (select 1 from najm_emp_pins p join najm_employees e on e.code = p.code and e.active where p.code = trim(coalesce(p_id, '')));
+$$;
+grant execute on function public.najm_login_needs_pin(text) to anon, authenticated;
+
 -- المدير بيغيّر رقمه السري بنفسه (اختياري) — لازم الرقم القديم
 create or replace function public.najm_my_pin(p_user text, p_pin text, p_new text)
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
