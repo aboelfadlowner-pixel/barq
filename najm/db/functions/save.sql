@@ -36,7 +36,7 @@ begin
     raise exception 'najm: employee outside your scope' using errcode = '42501';
   end if;
   -- اللي ليه حساب مدير مبيتقيّمش (المدير بيقيّم موظفين مش مديرين) — بيظهر في رجل اليوم والعامل المثالي عادي
-  if p_kind in ('rate','pray','brk','bonus') and exists (select 1 from najm_users x where x.active and coalesce(x.emp_code, '') <> '' and x.emp_code = k_code and x.role <> 'headcashier') then
+  if p_kind in ('rate','pray','brk','bonus') and exists (select 1 from najm_users x where x.active and coalesce(x.emp_code, '') <> '' and x.emp_code = k_code and x.role <> 'headcashier' and not (u.role = 'hygiene' and x.role <> 'hygiene')) then
     raise exception 'najm: managers are not rated' using errcode = '42501';
   end if;
   if p_kind in ('att','rate','bonus','pray','brk') and u.role <> 'ops' and (

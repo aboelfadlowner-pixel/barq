@@ -576,6 +576,20 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await db.query("delete from najm_mgr_ratings where username='br' and day between '2031-03-01' and '2031-03-31'");
   });
 
+  test('الهايجين بيقيّم اللبس لكل الموظفين حتى المديرين (إلا هايجين زيه)، ومدير الفرع لأ', async () => {
+    const pickE = async n => (await db.query("select code from najm_employees where branch=$1 and active and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') order by code limit 1 offset $2", [B, n])).rows[0].code;
+    const [m1, h1] = [await pickE(40), await pickE(41)];
+    await save('ops', '0000', 'user', { username: 'hyq' }, { name: 'هايجين', role: 'hygiene', branch: B, pin: '6161' });
+    await save('ops', '0000', 'user', { username: 'hyr' }, { name: 'هايجين تاني', role: 'hygiene', branch: B, pin: '6162' });
+    await save('ops', '0000', 'user', { username: 'mgx' }, { name: 'مدير', role: 'branch', branch: B, pin: '6163' });
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['mgx', m1]);
+    await db.query("update najm_users set emp_code=$2 where username=$1", ['hyr', h1]);
+    await save('hyq', '6161', 'rate', { day: D, code: m1 }, [2, 2, 2, 2, 2]);                       // لبس مدير الفرع: عادي
+    await fails(save('hyq', '6161', 'rate', { day: D, code: h1 }, [2, 2, 2, 2, 2]), /managers are not rated/);   // هايجين مش بيقيّم هايجين
+    await fails(save('br', '1111', 'rate', { day: D, code: m1 }, [2, 2, 2, 2]), /managers are not rated/);    // المدير مش بيقيّم مدير
+    for (const u of ['hyq', 'hyr', 'mgx']) await save('ops', '0000', 'user', { username: u }, null);
+  });
+
   test('حساب على أكتر من فرع: الهايجين بيقيّم موظفين الفرعين ومش التالت، والفروع بترجع في الدخول والملفات', async () => {
     const brs = (await db.query("select distinct branch from najm_employees where active and branch is not null order by 1")).rows.map(r => r.branch);
     const [b1, b2, b3] = brs;

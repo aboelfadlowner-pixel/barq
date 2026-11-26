@@ -3,8 +3,9 @@
 const freshDepts=u=>(u?.depts&&u.depts.length)?u.depts:(S.settings.freshDepts||[]);
 // اللي ليه حساب مدير مبيتقيّمش (المدير بيقيّم موظفين) — بيفضل في رجل اليوم والعامل المثالي
 // اللي ليه حساب مبيتقيّمش من حد (المدير بيقيّم موظفين، ومدير التشغيل بيقيّم المديرين والكاميرات) — ومفيش حد بيقيّم اللي بنفس صلاحيته
+// الاستثناء: الهايجين بيقيّم اللبس لكل الموظفين حتى اللي ليهم حسابات مديرين (إلا مسؤول هايجين زيه)
 // الاستثناء: هيد الكاشير بيقيّمه مديره (فرع / شيفت / هايجين / كاميرات) كموظف، وهيد الكاشير مبيقيّمش هيد كاشير زيه
-const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code)&&!(u.role==='headcashier'&&USER?.role!=='headcashier'));
+const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code)&&!(u.role==='headcashier'&&USER?.role!=='headcashier')&&!(USER?.role==='hygiene'&&u.role!=='hygiene'));
 const ratable=e=>!isMgrEmp(e.code);
 function inScope(e){
   if(!USER) return false; if(USER.role==='ops') return true;
