@@ -28,6 +28,6 @@ function mgrScore(u,month,upto){
   const maxV=Math.max(0,...managers().map(x=>votesOf(x.username)));const v=votesOf(u.username);const votePct=maxV?v/maxV*100:0;
   const W=MGR_W();return {opsPct:ops,teamPct,votes:v,votePct,score:Math.round((ops*W.ops+teamPct*W.team+votePct*W.votes)/(W.ops+W.team+W.votes))};
 }
-const mgrEmp=u=>u?.emp_code?emp(u.emp_code):null;
+const mgrEmp=u=>{const c=u?.emp_code||(S.mgrs||S.users||[]).find(x=>x.username===u?.username)?.emp_code;return c?emp(c):null;};
 function mgrRanks(){const m=monthOf(DATE);return managers().map(u=>({u,...mgrMonth(u,m,DATE),...mgrScore(u,m,DATE),bal:balanceOf(u.username)})).sort((a,b)=>b.score-a.score||b.opsPct-a.opsPct);}
 const mgrOfMonth=m=>(S.ledger||[]).find(l=>l.id===`bonus|${m}|${l.username}`);

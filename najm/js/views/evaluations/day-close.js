@@ -11,8 +11,8 @@ function closeBarHTML(){
     const dlTxt=dl.toLocaleString('ar-EG',{weekday:'short',hour:'2-digit',minute:'2-digit'});
     const name=`${USER.role==='shift'?'':esc(b)+' · '}شيفت ${GROUP_NAME[g]}`;
     let act;
-    if(c?.closed_by)act=`<span class="small">📤 اتسلّم ${new Date(c.closed_at).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit'})} بواسطة ${esc(mgrName(c.closed_by))} ${c.penalty>0?`<span class="badge b-red">متأخر ${fmt(c.late_minutes)} دقيقة · −${fmt(c.penalty)} نقطة</span>`:'<span class="badge b-green">في الميعاد</span>'}</span>`;
-    else if(stage===4)act='<span class="small muted">رجل اليوم اتعتمد — اليوم مغلق</span>';
+    if(c?.closed_by)act=`<span class="close-done">✅ سلّمت اليوم</span> <span class="small">${new Date(c.closed_at).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit'})} بواسطة ${esc(mgrName(c.closed_by))} ${c.penalty>0?`<span class="badge b-red">متأخر ${fmt(c.late_minutes)} دقيقة · −${fmt(c.penalty)} نقطة</span>`:'<span class="badge b-green">في الميعاد</span>'}</span>`;
+    else if(stage===4)act='<span class="close-done lock">🔒 اليوم مقفول — رجل اليوم اتعتمد</span>';
     else{const late=now>dl;act=`<span class="small">آخر ميعاد ${dlTxt}${late?` <span class="badge b-red">متأخر${closeOn()?` · ${c?.penalty>0?'اتخصم':'هيتخصم'} −${fmt(c?.penalty||S.settings.lateClosePenalty)}`:''}</span>`:''}</span>
       <button class="btn sm ${late?'red':'gold'}" onclick="closeDay('${esc(gk)}')">📤 سلّم اليوم للمراجعة</button>`;}
     return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row" style="justify-content:space-between;gap:8px"><b>${name}</b>${stagesHTML(stage)}</div><div class="row" style="justify-content:space-between;gap:8px;margin-top:4px">${act}</div></div>`;}).join('');

@@ -144,6 +144,7 @@ begin
   for x in select * from jsonb_array_elements(coalesce(p_rows, '[]')) loop
     c := trim(x->>'code'); nm := trim(coalesce(x->>'name', '')); dp := trim(coalesce(x->>'dept', ''));
     jb := trim(coalesce(x->>'job', '')); br := trim(coalesce(x->>'branch', ''));
+    if br = 'محل الايس كريم' then br := 'البيطاش الرئيسي'; end if;   -- محل الايس كريم جزء من البيطاش (رجل اليوم والترتيب مع بعض)
     if c !~ '^\d+$' or nm = any(bad) then continue; end if;
     -- رجع يبصم بعد 7 أيام أو أكتر من غير بصمة (في آخر يومين) ← تنبيه لمدير التشغيل مرة واحدة
     if coalesce((x->>'backGap')::int, 0) >= 7 and nullif(x->>'backDay', '')::date >= (now() at time zone 'Africa/Cairo')::date - 2 then

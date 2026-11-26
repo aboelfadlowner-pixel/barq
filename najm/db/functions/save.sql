@@ -28,7 +28,7 @@ begin
   if u.role = 'cameras' and p_kind not in ('pray', 'brk') then
     raise exception 'najm: cameras record prayer and break only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen')
+  if p_kind in ('winners','target','base_sales','sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
