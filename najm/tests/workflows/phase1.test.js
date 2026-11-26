@@ -202,6 +202,11 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     eq(r, ['', '', false]);
     await as(MAHMOUD);
   });
+  test('الملف الكامل: الضغط على شهر بيعرض نجوم كل يوم', async () => {
+    const r = await p.evaluate(async () => { const e = activeEmps().find(x => ratable(x)); await openCareer(e.code); const m = monthOf(DATE); await careerMonth(e.code, m);
+      const t = document.querySelector('#cd')?.innerText || ''; closeModal(); return [t.includes('يوم بيوم'), t.includes('البصمة'), t.includes('الإجمالي')]; });
+    eq(r, [true, true, true]);
+  });
   test('مفيش أخطاء في الصفحة', async () => eq(p.errors, []));
   await run('المرحلة الأولى — الشاشات (نسخة التجربة)');
   await b.close();

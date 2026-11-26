@@ -361,3 +361,43 @@ begin
   return public.najm_history_data(p_code);
 end $$;
 grant execute on function public.najm_emp_history(text, text, text) to anon, authenticated;
+
+-- النجوم اليومية للموظف في شهر (للملف الكامل): كل يوم بأجزاء النجمة + الكروت ورجل اليوم — من غير بنود التقييم الفردية ولا أسماء المديرين ولا فلوس
+create or replace function public.najm_history_days_data(p_code text, p_month text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare cfg jsonb; e najm_employees;
+begin
+  select * into e from najm_employees where code = p_code;
+  if e.code is null or coalesce(p_month, '') !~ '^\d{4}-\d{2}$' then return '[]'::jsonb; end if;
+  select data into cfg from najm_settings where id = 1;
+  return coalesce((select jsonb_agg(jsonb_build_object('day', r.day, 'att', x.s->>'att', 'att_star', x.s->'att_star', 'mgr', x.s->'mgr_star', 'hy', x.s->'hy_star',
+      'pray', x.s->'pray_star', 'cam', x.s->'cam_star', 'bonus', x.s->'bonus', 'total', x.s->'total',
+      'green', (select count(*)::int from najm_cards k where k.code = p_code and k.day = r.day and k.status = 'approved' and k.color = 'green'),
+      'yellow', (select count(*)::int from najm_cards k where k.code = p_code and k.day = r.day and k.status = 'approved' and k.color = 'yellow'),
+      'red', (select count(*)::int from najm_cards k where k.code = p_code and k.day = r.day and k.status = 'approved' and k.color = 'red'),
+      'win', exists (select 1 from najm_winners z where z.day = r.day and p_code = any(z.codes))) order by r.day)
+    from najm_ratings r, lateral (select public.najm_score(r, e.dept, cfg) as s) x
+    where r.code = p_code and to_char(r.day, 'YYYY-MM') = p_month), '[]'::jsonb);
+end $$;
+revoke all on function public.najm_history_days_data(text, text) from public, anon, authenticated;
+
+create or replace function public.najm_my_history_days(p_code text, p_pin text, p_month text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare e najm_employees;
+begin
+  select * into e from public.najm_emp_auth(p_code, p_pin);
+  if e.code is null then return jsonb_build_object('error', 'najm: wrong code or PIN'); end if;
+  return public.najm_history_days_data(e.code, p_month);
+end $$;
+grant execute on function public.najm_my_history_days(text, text, text) to anon, authenticated;
+
+create or replace function public.najm_emp_history_days(p_user text, p_pin text, p_code text, p_month text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare u najm_users;
+begin
+  select * into u from public.najm_auth(p_user, p_pin);
+  if u.username is null then return jsonb_build_object('error', 'najm: wrong username or PIN'); end if;
+  if u.role <> 'ops' then return jsonb_build_object('error', 'najm: operations manager only'); end if;
+  return public.najm_history_days_data(p_code, p_month);
+end $$;
+grant execute on function public.najm_emp_history_days(text, text, text, text) to anon, authenticated;
