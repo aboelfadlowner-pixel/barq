@@ -17,6 +17,7 @@ function defaultState(){
       winnersBy:{'البيطاش الرئيسي':{Morning:2,Night:2},'عين شمس':{Morning:1,Night:1},'المصنع':{Morning:0,Night:0}},
       minStarsWinner:4,
       // إغلاق اليوم: آخر ميعاد = بداية الشيفت + closeAfterHours · الخصم بيبدأ من closeStart (التشغيل بيحدده)
+      monthFinalDay:8, monthsFinal:{},
       closeStart:'', closeAfterHours:10, lateClosePenalty:5,
       captainMult:3,
       goal:85, targetGoal:100, weeklyOff:1, checkpoints:[10,20],

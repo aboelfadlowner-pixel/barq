@@ -56,6 +56,11 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       return [r.matched.map(m => [m.code, m.days]), r.unmatched.map(u => [u.name, u.cands.length])];
     }), [[['1', [2, 3, 5]], ['2', [3]]], [['محمد احمد', 2], ['مجهول تماما', 0]]]);
   });
+  test('نهائي الشهر: مؤقت قبل يوم 8 من الشهر اللي بعده، ونهائي بعده أو بالاعتماد', async () => {
+    eq(await p.evaluate(() => { const k = S.settings.monthsFinal, d = S.settings.monthFinalDay; S.settings.monthsFinal = {}; S.settings.monthFinalDay = 8;
+      const r = [monthFinal('2999-01'), monthFinal('2020-01'), (S.settings.monthsFinal['2999-01'] = { by: 'x' }, monthFinal('2999-01'))];
+      S.settings.monthsFinal = k; S.settings.monthFinalDay = d; return r; }), [false, true, true]);
+  });
   test('قواعد الشهر: التغيير بيبدأ من الشهر الجاي والشهور اللي فاتت بتفضل بقواعدها', async () => {
     eq(await p.evaluate(() => { const keep = S.settings.ruleVersions;
       S.settings.ruleVersions = [{ from: '0000-00', rules: { ...RULE_DEF } }, { from: '2026-12', rules: { ...RULE_DEF, weeklyOff: 2, goal: 90 } }];
