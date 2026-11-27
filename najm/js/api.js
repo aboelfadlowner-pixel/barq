@@ -31,7 +31,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[], cashierEvents:[], cashierPts:{}
+    appeals:[], attAppeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[], cashierEvents:[], cashierPts:{}
   };
 }
 
@@ -79,7 +79,7 @@ async function push(kind,key,data){
 // نسخة التجربة / من غير إنترنت: نفس السجل اللي الداتابيز بتكتبه (من غير أرقام سرية)
 let OLD_VAL;   // القيمة قبل التعديل (للسجل في نسخة التجربة)
 function logLocal(kind,key,data){if(!USER||!S)return;
-  const code=key?.code||(kind==='appeal_decide'?(S.appeals||[]).find(a=>a.id===key?.id)?.code:kind==='card_approve'?(S.cards||[]).find(c=>c.id===key?.id)?.code:null)||null;
+  const code=key?.code||(kind==='appeal_decide'?(S.appeals||[]).find(a=>a.id===key?.id)?.code:kind==='card_approve'?(S.cards||[]).find(c=>c.id===key?.id)?.code:kind==='att_appeal_decide'?(S.attAppeals||[]).find(a=>a.id===key?.id)?.code:null)||null;
   (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:USER.username,actor_name:USER.name,kind,code,day:key?.day||null,data:{key,data:kind==='user'||kind==='emp_pin'?null:data,...(OLD_VAL!==undefined?{old:OLD_VAL}:{})}});OLD_VAL=undefined;if(S.history.length>2000)S.history.length=2000;}
 let UPTOK=null;
 async function uploadMedia(code,blob,ext){
@@ -133,8 +133,8 @@ async function pull(){
     for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][r.code]=r[f];if(r.bonus)x.bonus[r.code]={v:+r.bonus,note:r.bonus_note||''};
     const cf=r.score?.carry;if(cf?.length)(x.carry||(x.carry={}))[r.code]=cf;if(r.score?.pray!=null)x.pray[r.code]=+r.score.pray;if(r.score?.brk!=null)x.brk[r.code]=+r.score.brk;}
   // الموظف الداخل بكوده + رقمه السري: تفاصيل تقييمه هو بس، وكروته كلها
-  if(!USER&&ME&&MEPIN!=null){const [mine,myc,mycp]=await Promise.all([sbRpc('najm_my_ratings3',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
-    N.myComplaints=mycp?.complaints||null;
+  if(!USER&&ME&&MEPIN!=null){const [mine,myc,mycp,myap]=await Promise.all([sbRpc('najm_my_ratings3',{p_code:ME,p_pin:MEPIN,p_from:from,p_to:to}).catch(()=>[]),sbRpc('najm_my_cards',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_complaints',{p_code:ME,p_pin:MEPIN}).catch(()=>null),sbRpc('najm_my_att_appeals',{p_code:ME,p_pin:MEPIN}).catch(()=>null)]);
+    N.myComplaints=mycp?.complaints||null;N.myAttAppeals=myap?.appeals||null;
     for(const r of mine||[]){const x=D(r.day);x.full[ME]=1;if(r.att)x.att[ME]=r.att;for(const f of ['br','sh','fr','ops','hy'])if(r[f])x[f][ME]=r[f];if(r.pray!=null)x.pray[ME]=+r.pray;if(r.brk!=null)x.brk[ME]=+r.brk;if(r.carry?.length)x.carry[ME]=r.carry;if(r.bonus)x.bonus[ME]={v:+r.bonus,note:''};}
     N.myCards=myc?.cards||null;}
   N.moves=(moves||[]).map(m=>({code:m.code,day:m.day,fromBranch:m.from_branch,fromDept:m.from_dept,toBranch:m.to_branch,toDept:m.to_dept}));
@@ -151,6 +151,7 @@ async function pull(){
   N.cardCounts={};for(const c of cardsPub||[])N.cardCounts[c.code]={y:c.yellow,r:c.red,g:c.green,pts:+c.points};
   if(files){
     N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved,status:c.status,decidedBy:c.decided_by}));
+    N.attAppeals=(files.att_appeals||[]).map(a=>({id:a.id,code:a.code,day:a.day,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note}));
     N.appeals=(files.appeals||[]).map(a=>({id:a.id,cardId:a.card_id,code:a.code,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note,cardBy:a.card_by,cardDay:a.card_day,cardColor:a.card_color,cardReason:a.card_reason}));
     N.empPins=files.pins||{};
     N.imports=files.imports||[];

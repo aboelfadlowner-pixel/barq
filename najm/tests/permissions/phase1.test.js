@@ -291,6 +291,27 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq(r.to, '2026-04-07');
   });
 
+  test('اعتراض على الغياب: الموظف بكوده، التشغيل يقرر، القبول بيحوّل اليوم لإجازة ومابيتغيّرش بتحديث الشيت', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and active and shift='Night' and dept<>'قسم البقاله' and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') order by code desc limit 1", [B])).rows[0].code;
+    const t = today();
+    await db.query("insert into najm_ratings(day, code, att, att_src) values ($1,$2,'abs','sheet'),($1::date - 1,$2,'on','sheet') on conflict (day, code) do update set att='abs', att_src='sheet'", [t, x]);
+    const ap = (d, b) => asAnon(db, 'select najm_emp_att_appeal($1,$2,$3,$4) r', [x, '', d, b]).then(r => r[0].r);
+    const yday = (await db.query("select ($1::date - 1)::text d", [t])).rows[0].d;
+    eq((await ap(yday, 'مش غياب')).error, 'najm: day is not an absence');
+    eq((await ap(t, 'x')).error, 'najm: write the reason (3-500 letters)');
+    eq((await ap(t, 'كانت راحتي')).ok, true);
+    eq((await ap(t, 'تاني')).error, 'najm: appeal already open');
+    const id = (await db.query("select id from najm_att_appeals where code=$1 and status='pending'", [x])).rows[0].id;
+    await fails(save('br', '1111', 'att_appeal_decide', { id }, { accept: true }), /operations manager only/);
+    await save('ops', '0000', 'att_appeal_decide', { id }, { accept: true, note: 'تمام' });
+    eq((await db.query("select att, att_src from najm_ratings where code=$1 and day=$2", [x, t])).rows[0], { att: 'off', att_src: 'manual' });
+    await fails(save('ops', '0000', 'att_appeal_decide', { id }, { accept: false }), /already decided/);
+    // تحديث الشيت بعد كده مبيلمسش اليوم المتعدّل
+    const mo = t.slice(0, 7), dd = +t.slice(8, 10);
+    const px = `${mo}|${x}:` + Array.from({ length: dd }, (_, i) => i + 1 === dd ? '-' : '0').join(',');
+    await db.query('select najm_att_sync_compact($1,$2,$3)', [px, require('crypto').createHash('md5').update(px).digest('hex'), 'f']);
+    eq((await db.query("select att from najm_ratings where code=$1 and day=$2", [x, t])).rows[0].att, 'off');
+  });
   test('جدول الراحات: اليوم الفاضي المخطط = راحة (حتى يومين ورا بعض)، وغير المخطط = غياب، ومن غير جدول = الحساب القديم', async () => {
     const [x, y] = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 2 offset 12", [B])).rows.map(r => r.code);
     await fails(save('br', '1111', 'leave_plan', { month: '2026-06' }, { rows: [{ code: x, days: [2, 3] }] }), /operations manager only/);

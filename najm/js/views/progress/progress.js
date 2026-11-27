@@ -76,6 +76,25 @@ function myCardsHTML(){
   return `<div class="card" style="margin-top:12px"><h3>🟨🟥🟩 كروتي</h3><div class="small muted" style="margin-bottom:6px">الشهر ده: ${cardsHTML(cardCount(ME,m,DATE))||'مفيش كروت'} — النقط بتبدأ من جديد كل شهر، والكروت كلها بتفضل في سجلك. لو شايف إن كارت مش في محله، اعترض واكتب السبب.</div>
     ${L.length?`<div class="tbl-wrap"><table><thead><tr><th>اليوم</th><th>الكارت</th><th>السبب</th><th>الحالة</th><th></th></tr></thead><tbody>${L.map(row).join('')}</tbody></table></div>`:'<div class="small muted">مفيش كروت 👏</div>'}</div>`;
 }
+// ---------- أيام الغياب + الاعتراض (بيوصل لمدير التشغيل: القبول بيحوّل اليوم لإجازة) ----------
+function myAttAppeals(){return LIVE?(S.myAttAppeals||[]):(S.attAppeals||[]).filter(a=>a.code===ME);}
+function myAbsHTML(){
+  const today=ymd(new Date()),from=ymd(new Date(Date.now()-35*864e5));
+  const days=[];for(let d=DATE;d>=from&&days.length<40;d=ymd(new Date(new Date(d+'T00:00:00').getTime()-864e5)))if(d<=today&&peekDay(d).att?.[ME]==='abs')days.push(d);
+  const ap=myAttAppeals();const of=d=>ap.filter(a=>String(a.day)===d).sort((x,y)=>(+y.id||0)-(+x.id||0))[0];
+  const txt=a=>!a?'':a.status==='pending'?'<span class="badge b-gold">✋ مستني قرار</span>':a.status==='accepted'?`<span class="badge b-green">✔ اتقبل — اليوم بقى إجازة</span>`:`<span class="badge b-red">✖ اترفض</span>${a.note?` <span class="small muted">${esc(a.note)}</span>`:''}`;
+  if(!days.length&&!ap.length)return '';
+  return `<div class="card" style="margin-top:12px"><h3>🚫 أيام الغياب</h3><div class="small muted" style="margin-bottom:6px">لو غياب يوم مش مظبوط (مثلاً كان راحتك أو إجازة) اعترض وهيوصل لمدير التشغيل. لو اقتنع اليوم بيتحول إجازة ومبيقللش نجومك.</div>
+    <div class="tbl-wrap"><table><tbody>${days.map(d=>{const a=of(d);return `<tr><td>${esc(d)}</td><td>${a?txt(a):'<span class="badge b-red">غياب</span>'}</td><td>${!a||a.status==='rejected'?`<button class="btn sm" onclick="empAttAppeal('${d}')">✋ اعتراض</button>`:''}</td></tr>`;}).join('')||'<tr><td colspan="3" class="small muted">مفيش أيام غياب 👏</td></tr>'}</tbody></table></div></div>`;
+}
+async function empAttAppeal(day){
+  const t=await askText('اكتب سبب اعتراضك على غياب يوم '+day+' (هيوصل لمدير التشغيل):');if(t===null)return;const body=t.trim();
+  if(body.length<3){toast('اكتب سبب الاعتراض');return;}
+  if(LIVE){try{const r=await sbRpc('najm_emp_att_appeal',{p_code:ME,p_pin:MEPIN,p_day:day,p_body:body});if(r?.error){toast(/already open/.test(r.error)?'في اعتراض مفتوح على اليوم ده':'⚠️ '+r.error);return;}}catch(x){toast('⚠️ '+x.message);return;}await refresh(true);}
+  else{S.attAppeals=S.attAppeals||[];S.attAppeals.unshift({id:uid(),code:ME,day,body,status:'pending',at:new Date().toISOString()});
+    (S.history||(S.history=[])).unshift({at:new Date().toISOString(),actor:'emp:'+ME,actor_name:emp(ME)?.name,kind:'att_appeal',code:ME,day,data:{body}});save();}
+  render();toast('✋ اعتراضك اتبعت');
+}
 async function empAppeal(cardId){
   if(!needPin())return;
   const t=await askText('اكتب اعتراضك على الكارت ده (هيوصل لمدير التشغيل):');if(t===null)return;const body=t.trim();

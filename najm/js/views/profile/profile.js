@@ -35,7 +35,7 @@ function empProfileHTML(e){
         <div class="kv"><span>الكروت</span><span>${cardsHTML(cardCount(e.code,m,DATE))||'<span class="muted">مفيش</span>'}</span></div>
         <div class="kv"><span>غياب / تأخير</span><b>${fmt(ms.abs||0)} / ${fmt(ms.late||0)}</b></div></div>
     </div>
-    ${report}${myCardsHTML()}${myComplaintsHTML()}</div>`;
+    ${report}${myCardsHTML()}${myAbsHTML()}${myComplaintsHTML()}</div>`;
 }
 
 // ---------- بروفايل المدير ----------
@@ -91,7 +91,7 @@ function openMgrProfile(un){const u=(S.mgrs||S.users||[]).find(x=>x.username===u
 function opsPendingHTML(){
   const items=[];
   const red=S.cards.filter(c=>cardStatus(c)==='pending').length;if(red)items.push([`🟥 ${fmt(red)} كارت أحمر مستني موافقتك`,"go('cards')"]);
-  const ap=(S.appeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
+  const ap=(S.appeals||[]).filter(a=>a.status==='pending').length+(S.attAppeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
   const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);
   for(const a of (S.alerts||[]).filter(a=>!a.seen_at))items.push([alertTxt(a),`openAlert(${+a.id})`]);
   // التحديث الدوري نفسه واقف (مفيش تحديث من أكتر من 30 ساعة) — النجوم محفوظة زي ما هي وبتكمّل من آخر يوم لما يرجع يشتغل

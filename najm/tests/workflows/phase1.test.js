@@ -58,6 +58,16 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     await p.evaluate(id => { empAppeal(id); }, card.id); await answer('مكنتش موجود الساعة دي');
     ok((await main()).includes('اعتراضك مستني قرار'));
   });
+  test('الموظف يعترض على يوم غياب ← التشغيل يقبل ← اليوم بيبقى إجازة', async () => {
+    const day = await p.evaluate(() => { const d = DATE; day(d).att[ME] = 'abs'; RANK_CACHE = null; render(); return d; });
+    ok((await main()).includes('أيام الغياب'), 'absence card missing');
+    await p.evaluate(d => { empAttAppeal(d); }, day); await answer('كان يوم راحتي');
+    ok((await main()).includes('مستني قرار'));
+    await as(OPS); await p.evaluate(() => go('cards'));
+    const t = await main(); ok(t.includes('اعتراضات على الغياب') && t.includes('كان يوم راحتي'), 'ops does not see the absence appeal');
+    await p.evaluate(() => { const a = S.attAppeals.find(x => x.status === 'pending'); decideAttAppeal(a.id, true); }); await answer('تمام');
+    eq(await p.evaluate(d => [peekDay(d).att[S.attAppeals[0].code], S.attAppeals[0].status], day), ['off', 'accepted']);
+  });
   test('الاعتراض بيوصل لمدير التشغيل بس (المدير اللي ادى الكارت مبيشوفوش)', async () => {
     const issuer = card.by;
     await as({ username: issuer, name: issuer, role: issuer === 'haitham' ? 'branch' : 'shift', branch: 'البيطاش الرئيسي', shift: issuer === 'islam' ? 'Night' : 'Morning', depts: [] });
