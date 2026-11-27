@@ -20,6 +20,12 @@ function cupOf(rank){if(!rank)return null;return rank===1?'gold':rank===2?'silve
 const CUP_NAME={gold:'الكأس الدهبي',silver:'الكأس الفضي',bronze:'الكأس البرونزي',top10:'جايزة العشرة الأوائل'};
 const money$=n=>`${fmt(n)} جنيه`;
 const cash=()=>isOps(); // prize amounts are shown to the operations manager only
+// الشهر نهائي: مدير التشغيل اعتمده، أو عدّى يوم monthFinalDay (8) من الشهر اللي بعده (لما شيت HR يتكتب فيه الإجازات)
+function monthFinal(m){
+  if(S.settings.monthsFinal?.[m])return true;
+  const y=+m.slice(0,4),mo=+m.slice(5,7),nx=mo===12?`${y+1}-01`:`${y}-${pad(mo+1)}`;
+  return ymd(new Date())>=`${nx}-${pad(+S.settings.monthFinalDay||8)}`;
+}
 function duePrizes(){
   const m=monthOf(DATE);const P=prizes();const out=[];
   for(const d of monthDays(m,DATE))for(const[g,codes]of Object.entries(peekDay(d).winners||{}))for(const c of codes){const e=emp(c);if(e)out.push({id:`daily|${d}|${c}`,code:c,name:e.name,branch:e.branch,kind:'daily',ref:d,label:`رجل اليوم ${d.slice(5)} · ${g.split('|')[1]}`,amount:P.daily});}

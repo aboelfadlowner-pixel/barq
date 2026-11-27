@@ -1,6 +1,7 @@
 // نجم أبو الفضل — صرف الجوايز (مدير التشغيل)
 // ---------- صرف الجوايز (مدير التشغيل) ----------
 function showPayouts(){
+  if(!monthFinal(monthOf(DATE))){toast('الشهر لسه مؤقت — اعتمده الأول');return;}
   const L=duePrizes();const paid=new Map((S.payouts||[]).map(p=>[p.id,p]));const m=monthOf(DATE);
   const tot=L.reduce((a,x)=>a+x.amount,0),done=L.filter(x=>paid.has(x.id)).reduce((a,x)=>a+x.amount,0);
   openModal(`<button class="x" onclick="closeModal()">✕</button><h2>💵 صرف جوايز ${monthName(m)}</h2>

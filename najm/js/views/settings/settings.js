@@ -18,6 +18,7 @@ function vSettings(){
      <div class="small" style="margin:8px 0 4px"><b>عدد رجال اليوم لكل فرع</b> (Between بيتحسب مع الليل):</div>
      ${branches().map(b=>`<div class="row" style="gap:6px;margin-bottom:4px"><span class="small" style="min-width:110px">${esc(b)}</span>${SHIFT_GROUPS.map(g=>`<label class="small">${GROUP_NAME[g]} <input class="inp" type="number" min="0" style="width:60px" value="${winnersFor(b,g)}" onchange="setWinnersBy('${esc(b)}','${g}',+this.value)"></label>`).join('')}</div>`).join('')}
      <label class="small" style="display:block;margin-top:8px">أقسام الفريش فود (مفصولة بفاصلة)<br><input class="inp" style="width:100%" value="${esc(s.freshDepts.join('، '))}" onchange="setS('freshDepts',this.value.split(/[،,]/).map(x=>x.trim()).filter(Boolean))"></label></div>
+   <div class="card"><h3>👑 اعتماد الشهر</h3><div class="row">${num('monthFinalDay','الشهر بيبقى نهائي تلقائي يوم (من الشهر اللي بعده)')}</div><div class="small muted">قبله الترتيب مؤقت والجوايز مقفولة، وتقدر تعتمد قبله من صفحة العامل المثالي.</div></div>
    <div class="card"><h3>🔒 إغلاق اليوم</h3><div class="row"><label class="small">الخصم بيبدأ من يوم<br><input class="inp" type="date" value="${esc(s.closeStart||'')}" onchange="setS('closeStart',this.value)"></label>${num('closeAfterHours','آخر ميعاد = بداية الشيفت + ساعات')}${num('lateClosePenalty','خصم التأخير (نقطة)')}</div>
      <div class="small muted" style="margin-top:6px">كل مدير شيفت بيقفل شيفته (Between مع الليل). لو اتأخر عن الميعاد، الخصم بيتسجل في رصيده تلقائي من غير موافقتك. لو التاريخ فاضي، الخصم مش شغال.</div></div>
    <div class="card"><h3>🔑 الرقم السري للموظفين</h3><div class="small muted" style="margin-bottom:6px">الموظف بيدخل صفحته بكود البصمة بس. لو عايز تحط رقم سري لموظف معين: افتح ملفه ودوس «🔑 حط رقم سري» — وبعدها هيدخل بيه، وهو بس اللي يقدر يصوّت للمديرين ويعترض على كارت أو شكوى (عشان محدش يصوّت أو يعترض بكود زميله).</div>
@@ -156,7 +157,7 @@ async function genEmpPins(all){
 
 // ---------- سجل تغيير الإعدادات: القديم والجديد ومين غيّر وإمتى والسبب ----------
 const SET_NAME={att:'نجوم البصمة',cards:'نقط الكروت',ruleVersions:'قواعد الشهر',winnersBy:'عدد رجال اليوم',minStarsWinner:'أقل نجوم للترشيح',finalists:'عدد المرشحين',
-  closeStart:'بداية خصم التأخير',lateClosePenalty:'خصم التأخير',closeAfterHours:'ميعاد التسليم (ساعات)',betweenTo:'نهاية فترة Between',vlateMax:'تأخير كبير لحد',shiftStart:'بداية الشيفتات',graceMin:'سماح البصمة',lateMax:'التأخير البسيط',
+  closeStart:'بداية خصم التأخير',monthFinalDay:'يوم النهائي للشهر',monthsFinal:'اعتماد الشهر',lateClosePenalty:'خصم التأخير',closeAfterHours:'ميعاد التسليم (ساعات)',betweenTo:'نهاية فترة Between',vlateMax:'تأخير كبير لحد',shiftStart:'بداية الشيفتات',graceMin:'سماح البصمة',lateMax:'التأخير البسيط',
   prizes:'الجوايز',mgrPoints:'نقاط المديرين',mgrWeights:'أوزان المدير المثالي',captainMult:'مضاعف الكابتن',capPct:'أقصى نسبة',defaultMultiplier:'المُضاعِف',complaintPenalty:'خصم الشكوى',
   checkpoints:'أيام التقرير',freshDepts:'أقسام الفريش',bonusAt100:'مكافأة التارجت',goal:'حد الـ KPI',targetGoal:'المطلوب من التارجت',marketDays:'مدة السوق'};
 const short=v=>{const t=v===undefined?'—':typeof v==='object'?JSON.stringify(v):String(v);return t.length>140?t.slice(0,140)+'…':t;};
