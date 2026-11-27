@@ -114,9 +114,9 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await fails(save('shm', '2222', 'day_close', { day: D, gkey: B + '|Morning' }), /already closed/);
   });
   test('بعد الإغلاق، مدير الشيفت ميقدرش يعدّل تقييم اليوم ده', async () => {
-    const m = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' limit 1", [B])).rows[0].code;
+    const m = (await db.query("select code from najm_employees where branch=$1 and shift='Morning' and dept <> 'قسم البقاله' limit 1", [B])).rows[0].code;
     await fails(save('shm', '2222', 'rate', { day: D, code: m }, [2, 2, 2, 2]), /day locked/);
-    const n = (await db.query("select code from najm_employees where branch=$1 and shift='Between' limit 1", [B])).rows[0].code;
+    const n = (await db.query("select code from najm_employees where branch=$1 and shift='Between' and dept <> 'قسم البقاله' limit 1", [B])).rows[0].code;
     await save('shn', '3333', 'rate', { day: D, code: n }, [2, 2, 2, 2]);   // Between لسه مفتوح مع الليل
   });
   test('مفيش خصم قبل ما التشغيل يحدد تاريخ البداية', async () => {

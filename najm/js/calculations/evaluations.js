@@ -31,7 +31,7 @@ function mgrStar(d,code,e){
   const st=peekDay(d).att[code];if(st==='abs'||st==='off')return {mgr:null,mc:false,parts:{br:null,sh:null,fr:null}};   // يوم غياب أو راحة: مفيش نجوم مديرين
   const b=crit(rateArr(d,'br',code)),s=crit(rateArr(d,'sh',code)),f=crit(rateArr(d,'fr',code));
   let mgr,mc;
-  if(isFresh(e)){mgr=b==null&&s==null&&f==null?null:q25(((b||0)+(s||0)+(f||0))/3);mc=b!=null&&s!=null&&f!=null;}
+  if(isFresh(e)){mgr=b==null&&f==null?null:q25(((b||0)+(f||0))/2);mc=b!=null&&f!=null;}   // البقاله: مدير الفرع + مدير الفريش بس (مدير الشيفت مالوش دعوة)
   else{mgr=b==null&&s==null?null:q25(((b||0)+(s||0))/2);mc=b!=null&&s!=null;}
   return {mgr,mc,parts:{br:b,sh:s,fr:f}};
 }

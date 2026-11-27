@@ -96,6 +96,11 @@ begin
       -- تقييم المديرين (فرع / شيفت / فريش / تشغيل): بيكمّل على الأيام اللي بعده لحد ما يتعدّل.
       -- المسح بيرجّع اليوم ده لآخر تقييم قبله
       if u.role = 'ops' then raise exception 'najm: operations manager rates managers only (and gives the Barq medal)' using errcode = '42501'; end if;
+      -- مدير الشيفت مالوش دعوة بقسم البقاله (الفريش فود): بيقيّمه مدير الفرع ومدير الفريش بس
+      if u.role = 'shift' and exists (select 1 from najm_employees e where e.code = k_code
+            and e.dept = any (array(select jsonb_array_elements_text(coalesce((select data->'freshDepts' from najm_settings where id = 1), '["قسم البقاله"]'::jsonb))))) then
+        raise exception 'najm: shift managers do not rate fresh departments' using errcode = '42501';
+      end if;
       rf := case u.role when 'branch' then 'br' when 'shift' then 'sh' else 'fr' end;
       -- 4 بنود (0 لـ 2) — ومدير الفرع / الشيفت بند خامس: الصلاة (2 ملتزم · 1 بيقطع · 0 مبيصليش)
       if arr is not null and (coalesce(array_length(arr, 1), 0) not in (4, case when u.role in ('branch', 'shift') then 5 else 4 end)
