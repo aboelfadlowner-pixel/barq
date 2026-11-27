@@ -3,6 +3,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
 
 (async () => {
   const db = await freshDb('najm_test_p1', { employees: true });
+  await db.query("update najm_settings set data = jsonb_set(coalesce(data, '{}'::jsonb), '{monthFinalDay}', '100000') where id = 1");   // شهور الاختبار قديمة: نقفل تجميد الشهر النهائي (واختبار التجميد تحت بيرجّعه)
   const B = 'البيطاش الرئيسي', D = today();
   const ago = n => { const d = new Date(D); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
   const rpc = async (sql, params) => (await asAnon(db, sql, params))[0];
@@ -311,6 +312,25 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     const px = `${mo}|${x}:` + Array.from({ length: dd }, (_, i) => i + 1 === dd ? '-' : '0').join(',');
     await db.query('select najm_att_sync_compact($1,$2,$3)', [px, require('crypto').createHash('md5').update(px).digest('hex'), 'f']);
     eq((await db.query("select att from najm_ratings where code=$1 and day=$2", [x, t])).rows[0].att, 'off');
+  });
+  test('الشهر النهائي: التحديث من الشيت مبيغيّرش فيه (تنبيه بس)، واليوم الممسوح من الشيت بيتشال في الشهر المفتوح', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 1 offset 7", [B])).rows[0].code;
+    const md = p => require('crypto').createHash('md5').update(p).digest('hex');
+    const sync = p => db.query('select najm_att_sync_compact($1,$2,$3) r', [p, md(p), 'f']).then(r => r.rows[0].r);
+    const att = async d => (await db.query("select att from najm_ratings where code=$1 and day=$2", [x, d])).rows[0]?.att ?? null;
+    // شهر مفتوح (الشيت واحد): اتسجل ← الشيت اتعدّل ← اتسجل التعديل ← اليوم اتمسح من الشيت ← اتشال
+    await sync(`2026-02|${x}:0,0,0`);   eq(await att('2026-02-02'), 'on');
+    await sync(`2026-02|${x}:0,20,0`);  eq(await att('2026-02-02'), 'late');
+    await sync(`2026-02|${x}:0,.,0`);   eq(await att('2026-02-02'), null);
+    // الشهر نهائي (اتعتمد): الشيت بعد كده مبيلمسهوش، والنتيجة بترجع frozen_days
+    await sync(`2026-02|${x}:0,20,0`);  eq(await att('2026-02-02'), 'late');
+    await db.query("update najm_settings set data = jsonb_set(data, '{monthsFinal}', '{\"2026-02\": {\"by\": \"ops\"}}'::jsonb) where id = 1");
+    const r = await sync(`2026-02|${x}:0,45,.`);
+    eq(await att('2026-02-02'), 'late');   // كان 'late' ومفيش تغيير رغم إن الشيت بقى «كبير»
+    eq(r.frozen_days >= 1, true);
+    eq((await db.query("select najm_month_final('2026-02') a, najm_month_final('2999-01') b")).rows[0], { a: true, b: false });
+    await db.query("update najm_settings set data = data - 'monthsFinal' where id = 1");
+    await db.query("delete from najm_alerts where kind = 'sheet_changed'");   // تنبيهات الاختبار ده متوصلش لاختبار التنبيهات
   });
   test('جدول الراحات: اليوم الفاضي المخطط = راحة (حتى يومين ورا بعض)، وغير المخطط = غياب، ومن غير جدول = الحساب القديم', async () => {
     const [x, y] = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 2 offset 12", [B])).rows.map(r => r.code);

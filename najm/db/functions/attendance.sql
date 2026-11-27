@@ -10,12 +10,20 @@ returns int language sql immutable set search_path = public as $$
   from (select regexp_match(coalesce(t, ''), '(\d{1,2}):(\d{2})') m) x;
 $$;
 
+-- الشهر النهائي: اتعتمد من مدير التشغيل (settings.monthsFinal) أو عدّى يوم monthFinalDay (8) من الشهر اللي بعده
+create or replace function public.najm_month_final(p_m text)
+returns boolean language sql stable set search_path = public as $$
+  select exists (select 1 from najm_settings s where s.id = 1 and s.data->'monthsFinal' ? p_m)
+      or (now() at time zone 'Africa/Cairo')::date >= ((p_m || '-01')::date + interval '1 month'
+            + (coalesce((select (data->>'monthFinalDay')::int from najm_settings where id = 1), 8) - 1) * interval '1 day')::date;
+$$;
+
 -- الحكم لكل يوم (نفس قواعد التطبيق): إجازة مكتوبة ← إجازة · بصمة ← في ميعاده / تأخير بسيط / كبير من ميعاد ورديته الحقيقي
 -- (السماح والتأخير البسيط من الإعدادات) · من غير بصمة ولا إجازة ← راحة لو مخططة في جدول الراحات (najm_leave_plan) وغياب لو لأ، ولو الموظف مالوش جدول في الشهر: أول يوم في الأسبوع (من السبت) راحة والباقي غياب
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean; chg int; chs jsonb; avgn numeric; lastn int; partial boolean;
+declare cfg jsonb; grace int; latemax int; vlatemax int; woff int; lastd date; n int; skipped int; unk text[]; d1 date; done_today boolean; chg int; chs jsonb; avgn numeric; lastn int; partial boolean; frz int;
   today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select data into cfg from najm_settings where id = 1;
@@ -76,6 +84,15 @@ begin
                                     'rows', (select jsonb_agg(v) from (select v from jsonb_array_elements(coalesce(najm_alerts.data->'rows', '[]') || chs) v limit 30) z)),
           seen_by = null, seen_at = null;
   end if;
+  -- شهر نهائي (اتعتمد أو عدّى يوم النهائي): مبنحدّثوش — التغيير اتنبّه عليه فوق بس، والبصمات تفضل زي ما اتعتمدت
+  select count(*) into frz from _s s where public.najm_month_final(to_char(s.day, 'YYYY-MM'));
+  delete from _s s where public.najm_month_final(to_char(s.day, 'YYYY-MM'));
+  -- يوم اتمسح من الشيت (كان متسجّل من الشيت وبقى فاضي) ← بيتشال، من غير اللي اتعدّل بإيد ومن غير الشهور النهائية
+  update najm_ratings x set att = null, att_time = null, att_raw = null, att_src = null, updated_at = now()
+    where x.att_src = 'sheet' and x.day < today and x.day <= lastd
+      and x.code in (select code from _r) and x.day >= (select min(day) from _r)
+      and not public.najm_month_final(to_char(x.day, 'YYYY-MM'))
+      and not exists (select 1 from _s s where s.code = x.code and s.day = x.day);
   -- الشيت واقف: آخر يوم فيه من يومين أو أكتر ← تنبيه لمدير التشغيل (النجوم محفوظة زي ما هي، والتحديث بعد ما الشيت يتحدّث بيكمّل من آخر يوم)
   if today - lastd >= 2 then
     insert into najm_alerts(kind, code, day, data)
@@ -93,7 +110,7 @@ begin
             coalesce(array_length(unk, 1), 0), 'تحديث يومي من الـ Drive ' || d1 || ' → ' || lastd || case when skipped > 0 then ' · ' || skipped || ' يوم متعدّل بإيد اتساب' else '' end);
   insert into najm_history(actor, kind, data)
     values ('system', 'att_sync', jsonb_build_object('file', p_file, 'from', d1, 'to', lastd, 'saved', n, 'manual_kept', skipped, 'unknown', to_jsonb(unk)));
-  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'changed_past_days', chg, 'from', d1, 'to', lastd, 'last_day_partial', partial, 'stale_days', today - lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
+  return jsonb_build_object('saved', n, 'manual_kept', skipped, 'changed_past_days', chg, 'from', d1, 'to', lastd, 'last_day_partial', partial, 'frozen_days', frz, 'stale_days', today - lastd, 'unknown', to_jsonb(coalesce(unk, '{}')),
     'on', (select count(*) from _s where st = 'on'), 'late', (select count(*) from _s where st in ('late', 'vlate', 'xlate')),
     'abs', (select count(*) from _s where st = 'abs'), 'off', (select count(*) from _s where st = 'off'));
 end $$;

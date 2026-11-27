@@ -29,11 +29,14 @@ function renderNav(){
   $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:isEmp()?`👤 ${esc(emp(ME).name.split(' ')[0])} — خروج`:'دخول';
 }
 function go(v){VIEW=v;render();window.scrollTo(0,0);}
+// شهر نهائي (اتعتمد أو عدّى يوم النهائي): البصمات والنجوم متجمّدة — للمراجعة بس، والتحديث من الشيت مبيلمسهوش
+function frozenBanner(){const m=monthOf(DATE);return m<monthOf(ymd(new Date()))&&monthFinal(m)?`<div class="lock" style="margin-bottom:10px;border-color:var(--gold)">🔒 <b>${monthName(m)} شهر نهائي</b> — للمراجعة بس. تحديثات الشيت مبتغيّرش فيه، وأي تعديل بيتسجل بسبب.</div>`:'';}
+function shiftMonth(n){const d=new Date(DATE+'T00:00:00');const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));DATE=ymd(d);$('#dayPick').value=DATE;RANK_CACHE=null;LIVE?refresh():render();}
 function render(){
   if(TVB){tvUpdate();return;}
   if(!TABS.find(t=>t[0]===VIEW&&t[2]()))VIEW='dash';
   renderNav();
-  $('#main').innerHTML={screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,me:vMe,league:vLeague,progress:vProgress,vote:vVote,players:vPlayers,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
+  $('#main').innerHTML=frozenBanner()+{screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,me:vMe,league:vLeague,progress:vProgress,vote:vVote,players:vPlayers,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
 }
 const branches=()=>S.branches.map(b=>b.name);
 const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.dept).filter(Boolean))].sort();
