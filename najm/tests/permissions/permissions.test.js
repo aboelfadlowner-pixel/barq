@@ -15,10 +15,17 @@ const fails = async (p, re) => { try { await p; } catch (e) { if (re && !re.test
 
   test('الرقم السري الغلط مرفوض', () => fails(save('ops', '9999', 'att', { day: D, code: '125' }, { st: 'on' }), /wrong username or PIN/));
   test('مدير الفرع يقيّم موظف فرعه', async () => { await save('br', '1111', 'rate', { day: D, code: '125' }, [2, 2, 2, 2]); });
+<<<<<<< HEAD
+  test('مدير الشيفت ملوش دعوة بقسم البقاله (الفريش فود) — مدير الفرع بيقيّم عادي', async () => {
+    await save('ops', '0000', 'user', { username: 'shf' }, { name: 'شيفت', role: 'shift', branch: B, shift: 'Morning', pin: '2323' });
+    await db.query("insert into najm_employees(code, name, branch, dept, shift, active) values ('9901', 'بقالة', $1, 'قسم البقاله', 'Morning', true) on conflict (code) do nothing", [B]);
+    await fails(save('shf', '2323', 'rate', { day: D, code: '9901' }, [2, 2, 2, 2, 2]), /outside your scope|do not rate fresh/);
+=======
   test('مدير الشيفت مبيقيّمش قسم البقاله (الفريش فود) — مدير الفرع بيقيّم عادي', async () => {
     await save('ops', '0000', 'user', { username: 'shf' }, { name: 'شيفت', role: 'shift', branch: B, shift: 'Morning', pin: '2323' });
     await db.query("insert into najm_employees(code, name, branch, dept, shift, active) values ('9901', 'بقالة', $1, 'قسم البقاله', 'Morning', true) on conflict (code) do nothing", [B]);
     await fails(save('shf', '2323', 'rate', { day: D, code: '9901' }, [2, 2, 2, 2, 2]), /do not rate fresh/);
+>>>>>>> origin/main
     await save('br', '1111', 'rate', { day: D, code: '9901' }, [2, 2, 2, 2]);
   });
   test('مدير الفرع ميقدرش يقيّم موظف فرع تاني', () => fails(save('br', '1111', 'rate', { day: D, code: '16' }, [2, 2, 2, 2]), /outside your scope/));

@@ -525,7 +525,7 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
   });
 
   test('مدير على أكتر من شيفت: بيشوف موظفين الشيفتين، ويقفل الشيفتين، ومش التالت', async () => {
-    const pickS = async sh => (await db.query("select code from najm_employees where branch=$1 and active and shift=$2 and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') limit 1", [B, sh])).rows[0].code;
+    const pickS = async sh => (await db.query("select code from najm_employees where branch=$1 and active and shift=$2 and dept <> 'قسم البقاله' and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') limit 1", [B, sh])).rows[0].code;
     const [m, n] = [await pickS('Morning'), await pickS('Night')];
     await save('ops', '0000', 'user', { username: 'msh' }, { name: 'مدير شيفتين', role: 'shift', branch: B, shift: 'Morning', shifts: ['Morning', 'Night'], pin: '5151' });
     const lg = (await rpc('select najm_login($1,$2) r', ['msh', '5151'])).r;

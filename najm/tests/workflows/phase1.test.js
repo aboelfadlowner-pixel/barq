@@ -31,7 +31,7 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     ok((await main()).includes('اتقفل'));
   });
   test('مدير الليل بيقيّم Between (Between مع الليل)', async () => {
-    eq(await p.evaluate(w => { USER = w; const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Between'); return inScope(e); }, ISLAM), true);
+    eq(await p.evaluate(w => { USER = w; const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Between' && x.dept !== 'قسم البقاله'); return inScope(e); }, ISLAM), true);
   });
   test('الإغلاق المتأخر بيتخصم من المدير ويظهر في سجله', async () => {
     const r = await p.evaluate(() => { const L = (S.ledger || []).filter(l => l.id.startsWith('late|')); return [L.length > 0, L.every(l => l.points === -S.settings.lateClosePenalty)]; });
