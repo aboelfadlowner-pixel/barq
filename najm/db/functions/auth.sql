@@ -56,6 +56,8 @@ returns boolean language sql stable security definer set search_path = public as
     else exists (select 1 from najm_employees e where e.code = p_code
       and (u.branch is null or e.branch = u.branch or e.branch = any(coalesce(u.branches, '{}')))
       and (u.role <> 'shift' or public.najm_shift_group(e.shift) = any(public.najm_user_shift_groups(u.shift, u.shifts)))
+      -- مدير الشيفت مالوش دعوة بقسم البقاله (الفريش فود): مسؤوله مدير الفرع ومدير الفريش بس
+      and (u.role <> 'shift' or e.dept is null or e.dept <> all (array(select jsonb_array_elements_text(coalesce((select data->'freshDepts' from najm_settings where id = 1), '["قسم البقاله"]'::jsonb)))))
       -- هيد الكاشير: كاشيرات فرعه بس (قسم الكاشير)
       and (u.role <> 'headcashier' or e.dept = coalesce((select data->>'cashierDept' from najm_settings where id = 1), 'قسم الكاشير'))
       -- مدير الفريش: أقسامه من حسابه، ولو فاضية ← أقسام الفريش فود من الإعدادات (البقاله)
