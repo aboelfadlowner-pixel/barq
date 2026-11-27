@@ -24,7 +24,7 @@ const TABS=[
   ['screens','شاشة الفرع',()=>isMgr()],
 ];
 function renderNav(){
-  const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length:0;
+  const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length+(S.attAppeals||[]).filter(a=>a.status==='pending').length:0;
   $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${typeof t[1]==='function'?t[1]():t[1]}${t[0]==='cards'&&pend?`<span class="cnt">${fmt(pend)}</span>`:''}</button>`).join('');
   $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:isEmp()?`👤 ${esc(emp(ME).name.split(' ')[0])} — خروج`:'دخول';
 }

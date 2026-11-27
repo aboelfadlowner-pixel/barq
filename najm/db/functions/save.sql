@@ -9,7 +9,7 @@ declare
   del boolean := p_data is null or p_data = 'null'::jsonb;
   arr smallint[]; carr smallint[]; rf text;
   r najm_ratings; st jsonb; dpt text; s text;
-  gk text := p_key->>'gkey'; dl timestamptz; pen numeric; own text[]; ret jsonb; er record; a najm_card_appeals; k najm_cards;
+  gk text := p_key->>'gkey'; dl timestamptz; pen numeric; own text[]; ret jsonb; er record; a najm_card_appeals; k najm_cards; ap najm_att_appeals;
   old jsonb; wl jsonb; wmax int; today date := (now() at time zone 'Africa/Cairo')::date;
 begin
   select * into u from public.najm_auth(p_user, p_pin);
@@ -28,7 +28,7 @@ begin
   if u.role = 'cameras' and p_kind not in ('pray', 'brk') then
     raise exception 'najm: cameras record prayer and break only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen','leave_plan')
+  if p_kind in ('winners','target','base_sales','sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen','leave_plan','att_appeal_decide')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -151,6 +151,17 @@ begin
         values (p_key->>'id', k_day, k_code, p_data->>'band', wmax, nullif(trim(p_data->>'note'), ''), u.username)
         on conflict (id) do nothing;
     end if;
+  elsif p_kind = 'att_appeal_decide' then
+    -- اعتراض على غياب: القبول بيحوّل اليوم لإجازة ومابيتغيّرش بتحديث الشيت (manual)، والرفض بيسيبه غياب. القرار لمدير التشغيل بس
+    select * into ap from najm_att_appeals where id = (p_key->>'id')::bigint;
+    if ap.id is null then raise exception 'najm: appeal not found'; end if;
+    if ap.status <> 'pending' then raise exception 'najm: appeal already decided'; end if;
+    update najm_att_appeals set status = case when coalesce((p_data->>'accept')::boolean, false) then 'accepted' else 'rejected' end,
+      decided_by = u.username, decided_at = now(), decision_note = p_data->>'note' where id = ap.id;
+    if coalesce((p_data->>'accept')::boolean, false) then
+      update najm_ratings set att = 'off', att_src = 'manual', updated_at = now() where code = ap.code and day = ap.day;
+    end if;
+    k_code := ap.code; k_day := ap.day;
   elsif p_kind = 'leave_plan' then
     -- جدول الراحات الشهري (من شيت الإجازات): الرفع بيستبدل جدول الموظفين اللي في الملف للشهر ده
     if coalesce(p_key->>'month', '') !~ '^\d{4}-\d{2}$' then raise exception 'najm: bad month'; end if;
@@ -468,6 +479,7 @@ begin
     'appeals',    case when u.role = 'ops' then coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object('card_by', k.by_user, 'card_day', k.day, 'card_color', k.color, 'card_reason', k.reason)
                     order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
                     ), '[]') end,
+    'att_appeals', case when u.role = 'ops' then coalesce((select jsonb_agg(to_jsonb(a) order by a.created_at desc) from najm_att_appeals a), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
     'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports
                     where u.role = 'ops' or branch is null or branch = u.branch or branch = any(coalesce(u.branches, '{}')) order by at desc limit 100) i), '[]'),
