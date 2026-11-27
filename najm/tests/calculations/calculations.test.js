@@ -44,6 +44,18 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       [S.targets, S.baseSales, S.sales, S.captains] = keep; SALES_CACHE = {}; return out;
     }), [[50, 0, 0, 0], [85, 50, 50, 0], [100, 100, 100, 100], [120, 100, 100, 100]]);
   });
+  test('شيت الإجازات: الأرقام 1-9 = أيام راحة، والمطابقة بالاسم (كامل أو جزئي)، واللي مش متطابق بيتفصل', async () => {
+    eq(await p.evaluate(() => {
+      const pool = [{ code: '1', name: 'يوسف اشرف محمد محمد' }, { code: '2', name: 'نبيل محمد داوود' }, { code: '3', name: 'محمد احمد علي' }, { code: '4', name: 'محمد احمد حسن' }];
+      const rows = [['الاسم', 'القسم', 'الشيفت', 'الوظيفة', '7=5', '7=5'],
+        ['يوسف اشرف محمد محمد', 'الآجبان', 'بتوين', 'شيف', '2=12', '1', '2', '7=5', '3'],   // راحات: اليوم 2 و3 و5
+        ['نبيل داوود', '', 'صباحي', 'شيف', '7=5', '7=5', '1'],                           // اسم جزئي
+        ['محمد احمد', '', '', '', '1', '2'],                                                // ملتبس (اتنين)
+        ['مجهول تماما', '', '', '', '1']];
+      const r = parseLeaveRows(rows, pool);
+      return [r.matched.map(m => [m.code, m.days]), r.unmatched.map(u => [u.name, u.cands.length])];
+    }), [[['1', [2, 3, 5]], ['2', [3]]], [['محمد احمد', 2], ['مجهول تماما', 0]]]);
+  });
   test('قواعد الشهر: التغيير بيبدأ من الشهر الجاي والشهور اللي فاتت بتفضل بقواعدها', async () => {
     eq(await p.evaluate(() => { const keep = S.settings.ruleVersions;
       S.settings.ruleVersions = [{ from: '0000-00', rules: { ...RULE_DEF } }, { from: '2026-12', rules: { ...RULE_DEF, weeklyOff: 2, goal: 90 } }];

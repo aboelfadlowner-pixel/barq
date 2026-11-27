@@ -28,7 +28,7 @@ begin
   if u.role = 'cameras' and p_kind not in ('pray', 'brk') then
     raise exception 'najm: cameras record prayer and break only' using errcode = '42501';
   end if;
-  if p_kind in ('winners','target','base_sales','sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen')
+  if p_kind in ('winners','target','base_sales','sales','complaint_decide','complaint_appeal_decide','att_bulk','employee','media','settings','private','user','card_approve','emp_pin','emp_pins_generate','medal','tgt_penalty','pray_review','alert_seen','leave_plan')
      and u.role <> 'ops' then
     raise exception 'najm: operations manager only' using errcode = '42501';
   end if;
@@ -151,6 +151,17 @@ begin
         values (p_key->>'id', k_day, k_code, p_data->>'band', wmax, nullif(trim(p_data->>'note'), ''), u.username)
         on conflict (id) do nothing;
     end if;
+  elsif p_kind = 'leave_plan' then
+    -- جدول الراحات الشهري (من شيت الإجازات): الرفع بيستبدل جدول الموظفين اللي في الملف للشهر ده
+    if coalesce(p_key->>'month', '') !~ '^\d{4}-\d{2}$' then raise exception 'najm: bad month'; end if;
+    delete from najm_leave_plan where to_char(day, 'YYYY-MM') = p_key->>'month'
+      and code in (select x->>'code' from jsonb_array_elements(p_data->'rows') x);
+    insert into najm_leave_plan(code, day, n)
+      select x->>'code', ((p_key->>'month') || '-01')::date + (d.v::int - 1), d.i::smallint
+      from jsonb_array_elements(p_data->'rows') x, jsonb_array_elements_text(x->'days') with ordinality d(v, i)
+      where exists (select 1 from najm_employees e where e.code = x->>'code') and d.v::int between 1 and 31
+      on conflict (code, day) do nothing;
+    insert into najm_history(actor, kind, data) values (u.username, 'leave_plan', jsonb_build_object('month', p_key->>'month', 'employees', jsonb_array_length(p_data->'rows')));
   elsif p_kind = 'alert_seen' then
     -- مدير التشغيل شاف التنبيه (اتواصل مع الـ HR مثلاً)
     update najm_alerts set seen_by = u.username, seen_at = now() where id = (p_key->>'id')::bigint;

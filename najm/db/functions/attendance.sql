@@ -11,7 +11,7 @@ returns int language sql immutable set search_path = public as $$
 $$;
 
 -- الحكم لكل يوم (نفس قواعد التطبيق): إجازة مكتوبة ← إجازة · بصمة ← في ميعاده / تأخير بسيط / كبير من ميعاد ورديته الحقيقي
--- (السماح والتأخير البسيط من الإعدادات) · من غير بصمة ولا إجازة ← أول يوم في الأسبوع (من السبت) راحة، والباقي غياب
+-- (السماح والتأخير البسيط من الإعدادات) · من غير بصمة ولا إجازة ← راحة لو مخططة في جدول الراحات (najm_leave_plan) وغياب لو لأ، ولو الموظف مالوش جدول في الشهر: أول يوم في الأسبوع (من السبت) راحة والباقي غياب
 -- الأيام اللي بعد آخر بصمة في الملف بتتشال · التعديل اليدوي (att_src = manual) مبيتكتبش فوقه
 create or replace function public.najm_att_sync_rows(p_rows jsonb, p_file text, p_keep_time boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -55,7 +55,11 @@ begin
                       row_number() over (partition by code, day - ((extract(dow from day)::int + 1) % 7),
                                          (leave is null and tin is null) order by day) rn
           from r)
-    select code, day, case when s = 'noshow' then case when rn <= woff then 'off' else 'abs' end else s end st,
+    select code, day, case when s = 'noshow' then
+             case when exists (select 1 from najm_leave_plan lp where lp.code = c.code and lp.day = c.day) then 'off'      -- راحة مخططة في شيت الإجازات
+                  when exists (select 1 from najm_leave_plan lp where lp.code = c.code and to_char(lp.day, 'YYYY-MM') = to_char(c.day, 'YYYY-MM')) then 'abs'   -- ليه جدول والنهارده مش فيه ← غياب
+                  when rn <= woff then 'off' else 'abs' end
+           else s end st,
            case when p_keep_time and public.najm_tmin(tin) is not null then tin end tin, raw
     from c where s is not null;
   select count(*) into skipped from _s s join najm_ratings x on x.day = s.day and x.code = s.code where x.att_src = 'manual';
