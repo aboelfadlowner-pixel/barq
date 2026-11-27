@@ -55,6 +55,16 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
       const r = parseLeaveRows(rows, pool);
       return [r.matched.map(m => [m.code, m.days]), r.unmatched.map(u => [u.name, u.cands.length])];
     }), [[['1', [2, 3, 5]], ['2', [3]]], [['محمد احمد', 2], ['مجهول تماما', 0]]]);
+    // الملف الحقيقي: فيه عمود «كود الموظف» ← المطابقة بالكود حتى لو الاسم مكتوب مختلف، والكود الغلط بيتفصل
+    eq(await p.evaluate(() => {
+      const pool = [{ code: '223', name: 'ابراهيم محمود محمد' }, { code: '65', name: 'اسلام عبدالمنعم خميس' }];
+      const rows = [['جدول موظفى فرع السماليهى', '', '', '', '', ''], ['اسم الموظف', 'كود الموظف', 'القسم', 'الشيفت', 'الوظيفه', 'الاحد', 'الاثنين', 'الثلاثاء', 'الاربعاء'], ['', '', '', '', '', '1', '2', '3', '4'],
+        ['ابراهيم قنديل', '223', 'المدراء', 'صباحي', 'مدير فرع', '7=5', '1', '7=5', '2'],
+        ['اسم تاني خالص', '65', '', 'ليلي', 'نائب', '5=3', '5=3', '1', '5=3'],
+        ['ابراهيم مختار', '7', '', '', '', '1', '5=3', '5=3', '5=3']];
+      const r = parseLeaveRows(rows, pool);
+      return [r.matched.map(m => [m.code, m.days]), r.unmatched.map(u => [u.badCode, u.days])];
+    }), [[['223', [2, 4]], ['65', [3]]], [['7', [1]]]]);
   });
   test('نهائي الشهر: مؤقت قبل يوم 8 من الشهر اللي بعده، ونهائي بعده أو بالاعتماد', async () => {
     eq(await p.evaluate(() => { const k = S.settings.monthsFinal, d = S.settings.monthFinalDay; S.settings.monthsFinal = {}; S.settings.monthFinalDay = 8;
