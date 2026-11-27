@@ -86,9 +86,10 @@ begin
             else coalesce((p_settings->'att'->>r.att)::numeric,
                           case r.att when 'on' then 2 when 'late' then 1.2 when 'vlate' then 0.4 else 0 end) end;   -- xlate (فوق الحد) = 0 إلا لو اتغيّر من الإعدادات
   if fresh then
-    m := case when b is null and s is null and f is null then null
-              else round((coalesce(b,0) + coalesce(s,0) + coalesce(f,0)) / 3 * 4) / 4 end;
-    mc := b is not null and s is not null and f is not null;
+    -- البقاله: مدير الفرع + مدير الفريش بس (مدير الشيفت مالوش دعوة)
+    m := case when b is null and f is null then null
+              else round((coalesce(b,0) + coalesce(f,0)) / 2 * 4) / 4 end;
+    mc := b is not null and f is not null;
   else
     m := case when b is null and s is null then null
               else round((coalesce(b,0) + coalesce(s,0)) / 2 * 4) / 4 end;

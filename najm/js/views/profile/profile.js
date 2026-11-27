@@ -41,7 +41,7 @@ function empProfileHTML(e){
 // ---------- بروفايل المدير ----------
 function rateLeft(u){
   const f=u.role==='ops'?null:RATE_FIELD[u.role];if(!f)return null;const D=peekDay(DATE);
-  const L=(u.role==='ops'?activeEmps():activeEmps().filter(e=>inScopeOf(u,e))).filter(ratable);
+  const L=(u.role==='ops'?activeEmps():activeEmps().filter(e=>inScopeOf(u,e))).filter(e=>ratableBy(u,e));
   const need=L.filter(e=>D.att[e.code]!=='abs'&&D.att[e.code]!=='off');
   const left=need.filter(e=>!rateDone(DATE,f,e.code)).length;
   return {left,total:need.length};

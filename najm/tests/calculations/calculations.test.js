@@ -17,11 +17,11 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
   test('بنود التقييم: 5 بنود من 0 لـ 2 = نجمة، والناقص مايتحسبش', async () => {
     eq(await ev(() => [crit([2, 2, 2, 2, 2]), crit([1, 1, 1, 1, 1]), crit([2, 2, 1, 2, 2]), crit([2, 2, null, 2, 2]), crit(null)]), [1, 0.5, 1, null, null]);
   });
-  test('المدير المباشر: نص الفرع ونص الشيفت · وفي الفريش تلت لكل واحد', async () => {
+  test('المدير المباشر: نص الفرع ونص الشيفت · والبقاله نص الفرع ونص الفريش (الشيفت مالوش دعوة)', async () => {
     eq(await ev(() => {
       const keep = S.days; S.days = { '2026-05-02': { att: {}, br: { a: [2, 2, 2, 2, 2] }, sh: { a: [0, 0, 0, 0, 0] }, fr: { a: [2, 2, 2, 2, 2] }, ops: {}, hy: {}, bonus: {} } };
       const r = [mgrStar('2026-05-02', 'a', { dept: 'قسم الكاشير' }).mgr, mgrStar('2026-05-02', 'a', { dept: 'قسم البقاله' }).mgr]; S.days = keep; return r;
-    }), [0.5, 0.75]);
+    }), [0.5, 1]);
   });
   test('نقط التارجت بالشرايح: أقل من 50% صفر · بالتناسب · سلّم · الحد الأقصى 120', async () => {
     eq(await p.evaluate(() => { const T = [[50, 50], [60, 60], [70, 70], [85, 85], [100, 100], [110, 110], [120, 120]]; const r = { ...RULE_DEF, ptsTiers: T, ptsMode: 'linear' }, st = { ...RULE_DEF, ptsTiers: T, ptsMode: 'step' }, c = { ...RULE_DEF, ptsTiers: [[50, 30], [100, 100]], ptsMode: 'linear' };

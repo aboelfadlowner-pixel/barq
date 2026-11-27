@@ -6,7 +6,9 @@ const freshDepts=u=>(u?.depts&&u.depts.length)?u.depts:(S.settings.freshDepts||[
 // الاستثناء: الهايجين بيقيّم اللبس لكل الموظفين حتى اللي ليهم حسابات مديرين (إلا مسؤول هايجين زيه)
 // الاستثناء: هيد الكاشير بيقيّمه مديره (فرع / شيفت / هايجين / كاميرات) كموظف، وهيد الكاشير مبيقيّمش هيد كاشير زيه
 const isMgrEmp=code=>(S.mgrs||S.users||[]).some(u=>u.active!==false&&u.emp_code&&String(u.emp_code)===String(code)&&!(u.role==='headcashier'&&USER?.role!=='headcashier')&&!(USER?.role==='hygiene'&&u.role!=='hygiene'));
-const ratable=e=>!isMgrEmp(e.code);
+// مدير الشيفت ملوش دعوة بقسم البقاله (الفريش فود): بيقيّمه مدير الفرع ومدير الفريش بس
+const ratableBy=(u,e)=>!isMgrEmp(e.code)&&!(u?.role==='shift'&&isFresh(e));
+const ratable=e=>ratableBy(USER,e);
 function inScope(e){
   if(!USER) return false; if(USER.role==='ops') return true;
   if(!inUserBranch(USER,e.branch)) return false;
