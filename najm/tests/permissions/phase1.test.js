@@ -291,6 +291,19 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     eq(r.to, '2026-04-07');
   });
 
+  test('جدول الراحات: اليوم الفاضي المخطط = راحة (حتى يومين ورا بعض)، وغير المخطط = غياب، ومن غير جدول = الحساب القديم', async () => {
+    const [x, y] = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 2 offset 12", [B])).rows.map(r => r.code);
+    await fails(save('br', '1111', 'leave_plan', { month: '2026-06' }, { rows: [{ code: x, days: [2, 3] }] }), /operations manager only/);
+    await save('ops', '0000', 'leave_plan', { month: '2026-06' }, { rows: [{ code: x, days: [2, 3] }, { code: 'nope', days: [1] }] });
+    eq((await db.query("select count(*)::int n from najm_leave_plan where code in ($1,'nope')", [x])).rows[0].n, 2);
+    // يونيو 2026: 1 اثنين · الراحة 2 و3 (يومين ورا بعض في نفس الأسبوع) · 4 و5 فاضيين من غير تخطيط ← غياب
+    const px = `2026-06|${x}:0,-,-,-,-,0,0;${y}:0,-,-,-,0,0,0`;
+    await db.query('select najm_att_sync_compact($1,$2,$3)', [px, require('crypto').createHash('md5').update(px).digest('hex'), 'f']);
+    const st = async c => Object.fromEntries((await db.query("select to_char(day,'DD') d, att from najm_ratings where code=$1 and day between '2026-06-01' and '2026-06-07' order by day", [c])).rows.map(r => [r.d, r.att]));
+    eq(await st(x), { '01': 'on', '02': 'off', '03': 'off', '04': 'abs', '05': 'abs', '06': 'on', '07': 'on' });
+    eq(await st(y), { '01': 'on', '02': 'off', '03': 'abs', '04': 'abs', '05': 'on', '06': 'on', '07': 'on' });   // من غير جدول: أول يوم فاضي في الأسبوع راحة والباقي غياب
+  });
+
   // ---------------- تقييم المديرين كل 4 أيام
   test('تقييم المديرين كل 4 أيام: بيكمّل لوحده، والتعديل بيمشي لقدام لحد أول يوم متقيّم، والغياب من غير نجوم مديرين', async () => {
     const c = (await db.query("select code from najm_employees where branch=$1 and active order by code limit 1 offset 17", [B])).rows[0].code;
