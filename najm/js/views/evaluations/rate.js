@@ -18,7 +18,7 @@ function vRate(){
   ${!isOps()&&list.some(dayLocked)?'<div class="lock" style="margin-bottom:10px">🔒 تقييم اليوم ده مقفول (اتقفل اليوم، أو اتعلن رجل اليوم، أو اليوم عدّى أكتر من يوم) — أي تعديل عن طريق مدير التشغيل.</div>':''}
   <div class="lock" style="margin-bottom:10px">${STARS_TXT()}</div>
   ${filterBar({scoped:true})}
-  <div class="grid g-emp">${list.map(e=>{
+  <div class="grid g-emp">${(PG=>PG.items.map(e=>{
     const s=score(DATE,e.code);const R=field&&!isHy()?rateOf(DATE,field,e.code,true):null;const arr=(isHy()?D[field][e.code]:R?.arr)||[];const myC=cardsOf(e.code,DATE,DATE,true);
     const lk=dayLocked(e);const medal=medalOf(e.code,monthOf(DATE));
     return `<div class="card" id="rc-${e.code}" style="${lk&&!isOps()?'opacity:.6;pointer-events:none':''}">${lk?'<div class="small" style="color:var(--red);font-weight:800">🔒 مقفول</div>':''}
@@ -34,7 +34,7 @@ function vRate(){
       <div class="small muted">بصمة ${fmt(s.att,2)} · فرع ${fmt(s.parts.br,2)} · شيفت ${fmt(s.parts.sh,2)}${s.fresh?` · فريش ${fmt(s.parts.fr,2)}`:''} · هايجين ${fmt(s.hy,2)} · صلاة ${fmt(s.pray,2)} · كاميرات ${fmt(s.cam,2)}</div>
       ${isHy()?'':`<div class="row" style="margin-top:6px;gap:6px">${['yellow','red','green'].map(c=>`<button class="cardbtn" onclick="giveCard('${e.code}','${c}')"><i class="fcard ${c}"></i>${CARD[c].t.split(' ')[1]}</button>`).join('')}
         ${myC.map(c=>`<span class="badge ${c.color==='red'?'b-red':c.color==='green'?'b-green':'b-gold'}" title="${esc(c.reason)}">${cardStatus(c)==='approved'?'':'⏳ '}<i class="fcard ${c.color}"></i></span>`).join('')}</div>`}
-    </div>`;}).join('')||'<div class="empty">مفيش موظفين في نطاقك</div>'}</div>`;
+    </div>`;}).join('')+moreBtn(PG))(pageList('rate',list))||'<div class="empty">مفيش موظفين في نطاقك</div>'}</div>`;
 }
 const STARS_TXT=()=>`البصمة ${S.settings.att.on} نجمة · المدير المباشر نجمة (50% مدير الفرع + 50% مدير الشيفت${S.settings.freshDepts.length?` — وفي ${esc(S.settings.freshDepts.join('، '))}: ثلث لكل واحد مع مدير الفريش فود`:''}) · الهايجين نجمة · الصلاة عند المدير ½ (كل ${RATE_EVERY} أيام) · الكاميرات ½ (الصلاة ¼ + البريك ¼ كل يوم) · سلوك مثالي ½ فوق الـ 5 · 🏅 وسام برق +${fmt(medalPts())} نقطة.`;
 // مدير الفرع / الشيفت: البند الخامس = الصلاة (2 ملتزم · 1 بيقطع · 0 مبيصليش) — بيكمّل كل 4 أيام زي باقي التقييم
@@ -63,10 +63,10 @@ function vRateCams(){
   ${left.length?`<div class="card" style="margin-bottom:10px;border-color:#f3c3be"><b>⏰ فاضل ${fmt(left.length)} موظف حاضر ماتقيّمش النهارده:</b> <span class="small">${left.slice(0,15).map(e=>esc(e.name.split(' ').slice(0,2).join(' '))).join('، ')}${left.length>15?' …':''}</span></div>`:list.length?'<div class="card" style="margin-bottom:10px;border-color:#bfe3d6;background:var(--green-soft)"><b>✔ قيّمت كل الحاضرين النهارده</b></div>':''}
   <div class="lock" style="margin-bottom:10px">كل يوم لكل موظف حاضر: الصلاة (صلّى ¼ نجمة · ماصلّاش 0) والبريك (التزم ¼ نجمة · كسر البريك 0). اللي غايب أو في إجازة مبيظهرش هنا.</div>
   ${filterBar({scoped:true})}
-  <div class="grid g-emp">${list.map(e=>{const lk=dayLocked(e);const st=D.att[e.code];
+  <div class="grid g-emp">${(PG=>PG.items.map(e=>{const lk=dayLocked(e);const st=D.att[e.code];
     return `<div class="card" style="${lk?'opacity:.6;pointer-events:none':''}">${lk?'<div class="small" style="color:var(--red);font-weight:800">🔒 مقفول</div>':''}
       <div class="emp-top" style="margin-bottom:6px">${ava(e)}<div><div class="emp-name">${esc(e.name)}</div><div class="small muted">${esc(e.job)} · ${esc(e.dept)} · ${esc(e.shift)}${st?` · ${ATT[st]}`:''}</div></div></div>
-      ${camRowsHTML(e,D)}</div>`;}).join('')||'<div class="empty">مفيش موظفين حاضرين في نطاقك</div>'}</div>`;
+      ${camRowsHTML(e,D)}</div>`;}).join('')+moreBtn(PG))(pageList('cams',list))||'<div class="empty">مفيش موظفين حاضرين في نطاقك</div>'}</div>`;
 }
 async function setCam(kind,code,v){const k=await editKey(code);if(!k)return;const D=day(DATE);const bag=D[kind]||(D[kind]={});OLD_VAL=bag[code]??null;mark(D,code);
   const nv=bag[code]===v?null:v;if(nv==null)delete bag[code];else bag[code]=nv;save();render();push(kind,k,nv==null?null:{v:nv});}

@@ -16,3 +16,10 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const emp=code=>S.employees.find(e=>e.code===String(code));
 const activeEmps=()=>S.employees.filter(e=>e.active);
 const deptKey=(b,d)=>`${b}|${d}`;
+
+// «عرض المزيد»: القوايم الطويلة بتتعرض 30 30 بدل ما الصفحة تطوّل. المفتاح فيه الفلتر عشان أي فلتر جديد يبدأ من الأول
+const PAGE_N=30;let PAGES={};
+const pageKey=n=>n+'|'+(typeof F!=='undefined'?JSON.stringify(F):'')+'|'+(typeof DATE!=='undefined'?DATE:'');
+function pageList(n,list){const k=pageKey(n),c=PAGES[k]||PAGE_N;return {items:list.slice(0,c),left:Math.max(0,list.length-c),key:k};}
+const moreBtn=(p,cols)=>p.left>0?(cols?`<tr><td colspan="${cols}" style="text-align:center">`:'<div style="text-align:center;margin:14px 0;grid-column:1/-1">')+`<button class="btn" onclick="showMore('${encodeURIComponent(p.key).replace(/'/g,'%27')}')">⬇️ عرض المزيد (${p.left} متبقي)</button>`+(cols?'</td></tr>':'</div>'):'';
+function showMore(k){k=decodeURIComponent(k);const y=window.scrollY;PAGES[k]=(PAGES[k]||PAGE_N)+PAGE_N;render();window.scrollTo(0,y);}
