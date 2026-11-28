@@ -151,6 +151,23 @@ begin
         values (p_key->>'id', k_day, k_code, p_data->>'band', wmax, nullif(trim(p_data->>'note'), ''), u.username)
         on conflict (id) do nothing;
     end if;
+  elsif p_kind = 'day_review' then
+    -- يوم فاضي خارج جدول الراحات: مدير الفرع (في فرعه) أو التشغيل يقرر راحة / إجازة / غياب. التراجع بيرجّع اليوم «غياب» من الشيت
+    if u.role not in ('ops', 'branch') then raise exception 'najm: branch manager or operations only' using errcode = '42501'; end if;
+    if k_day is null or k_code is null then raise exception 'najm: day and code required'; end if;
+    if u.role = 'branch' and not public.najm_in_scope(u, k_code) then raise exception 'najm: employee outside your scope' using errcode = '42501'; end if;
+    if u.role = 'branch' and public.najm_month_final(to_char(k_day, 'YYYY-MM')) then raise exception 'najm: month is final' using errcode = '42501'; end if;
+    if not exists (select 1 from najm_ratings x where x.code = k_code and x.day = k_day and x.att_raw = '-') then raise exception 'najm: not a blank day'; end if;
+    if del then
+      delete from najm_day_reviews where code = k_code and day = k_day;
+      update najm_ratings set att = 'abs', att_src = 'sheet', updated_at = now() where code = k_code and day = k_day and att_src = 'manual';
+    else
+      s := p_data->>'kind';
+      if s not in ('off', 'leave', 'abs') then raise exception 'najm: bad decision'; end if;
+      insert into najm_day_reviews(code, day, kind, reason, by_user) values (k_code, k_day, s, nullif(trim(p_data->>'reason'), ''), u.username)
+        on conflict (code, day) do update set kind = excluded.kind, reason = excluded.reason, by_user = excluded.by_user, at = now();
+      update najm_ratings set att = case when s = 'abs' then 'abs' else 'off' end, att_src = 'manual', updated_at = now() where code = k_code and day = k_day;
+    end if;
   elsif p_kind = 'att_appeal_decide' then
     -- اعتراض على غياب: القبول بيحوّل اليوم لإجازة ومابيتغيّرش بتحديث الشيت (manual)، والرفض بيسيبه غياب. القرار لمدير التشغيل بس
     select * into ap from najm_att_appeals where id = (p_key->>'id')::bigint;
@@ -479,6 +496,18 @@ begin
     'appeals',    case when u.role = 'ops' then coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object('card_by', k.by_user, 'card_day', k.day, 'card_color', k.color, 'card_reason', k.reason)
                     order by a.created_at desc) from najm_card_appeals a join najm_cards k on k.id = a.card_id
                     ), '[]') end,
+    'day_review', case when u.role in ('ops', 'branch') then jsonb_build_object(
+      -- الأيام الفاضية (من غير بصمة) خارج جدول راحة الموظف، في الشهور المفتوحة، لموظفين ليهم جدول
+      'pending', coalesce((select jsonb_agg(jsonb_build_object('code', r.code, 'day', r.day) order by r.code, r.day) from najm_ratings r
+          where r.att = 'abs' and r.att_src = 'sheet' and r.att_raw = '-' and r.day < (now() at time zone 'Africa/Cairo')::date
+            and not public.najm_month_final(to_char(r.day, 'YYYY-MM'))
+            and exists (select 1 from najm_leave_plan l where l.code = r.code and to_char(l.day, 'YYYY-MM') = to_char(r.day, 'YYYY-MM'))
+            and not exists (select 1 from najm_leave_plan l where l.code = r.code and l.day = r.day)
+            and public.najm_in_scope(u, r.code)), '[]'),
+      'done', coalesce((select jsonb_agg(jsonb_build_object('code', d.code, 'day', d.day, 'kind', d.kind, 'reason', d.reason, 'by', d.by_user, 'at', d.at) order by d.at desc)
+          from (select * from najm_day_reviews d0 where not public.najm_month_final(to_char(d0.day, 'YYYY-MM')) and public.najm_in_scope(u, d0.code) order by d0.at desc limit 300) d), '[]'),
+      'plan', coalesce((select jsonb_object_agg(p.code, p.days) from (select l.code, jsonb_agg(l.day order by l.day) days
+          from najm_leave_plan l where l.day >= date_trunc('month', (now() at time zone 'Africa/Cairo')::date - 40) and public.najm_in_scope(u, l.code) group by l.code) p), '{}')) end,
     'att_appeals', case when u.role = 'ops' then coalesce((select jsonb_agg(to_jsonb(a) order by a.created_at desc) from najm_att_appeals a), '[]') end,
     'pins',       case when u.role = 'ops' then (select jsonb_object_agg(code, must_change) from najm_emp_pins) end,
     'imports',    coalesce((select jsonb_agg(to_jsonb(i) order by i.at desc) from (select * from najm_imports

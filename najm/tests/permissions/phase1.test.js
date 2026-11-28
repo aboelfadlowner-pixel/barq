@@ -332,6 +332,45 @@ const { test, run, eq, ok, freshDb, asAnon, today } = require('../helpers');
     await db.query("update najm_settings set data = data - 'monthsFinal' where id = 1");
     await db.query("delete from najm_alerts where kind = 'sheet_changed'");   // تنبيهات الاختبار ده متوصلش لاختبار التنبيهات
   });
+  test('مراجعة الأيام الفاضية: مدير الفرع يقرر في فرعه بس، القرار بيتثبّت، والتشغيل يشوفه، والتراجع بيرجّعه غياب', async () => {
+    const x = (await db.query("select code from najm_employees where branch=$1 and active and shift='Night' and dept<>'قسم البقاله' and code not in (select emp_code from najm_users where coalesce(emp_code,'')<>'') order by code desc limit 1 offset 3", [B])).rows[0].code;
+    const other = (await db.query("select code from najm_employees where branch<>$1 and active limit 1", [B])).rows[0].code;
+    const md = p => require('crypto').createHash('md5').update(p).digest('hex');
+    const t = today(), mo = t.slice(0, 7), dd = +t.slice(8, 10);
+    if (dd < 3) return;   // محتاجين يومين فاتوا في نفس الشهر
+    // جدول الراحات: يوم 1 بس. اليوم 2 فاضي (غير مخطط) ← غياب، واليوم 1 فاضي ومخطط ← راحة
+    await save('ops', '0000', 'leave_plan', { month: mo }, { rows: [{ code: x, days: [1] }] });
+    const px = `${mo}|${x}:-,-,` + Array.from({ length: dd - 2 }, () => '0').join(',');
+    await db.query('select najm_att_sync_compact($1,$2,$3)', [px, md(px), 'f']);
+    const d2 = `${mo}-02`;
+    const att = async () => (await db.query("select att, att_src from najm_ratings where code=$1 and day=$2", [x, d2])).rows[0];
+    eq(await att(), { att: 'abs', att_src: 'sheet' });
+    const files = async u => (await asAnon(db, 'select najm_files($1,$2) r', [u, u === 'ops' ? '0000' : '1111']))[0].r.day_review;
+    eq((await files('br')).pending.some(p => p.code === x && p.day.slice(0, 10) === d2), true);
+    // مدير الفرع ميقررش لموظف فرع تاني ولا مدير الشيفت
+    await fails(save('br', '1111', 'day_review', { day: d2, code: other }, { kind: 'off' }), /outside your scope|not a blank day/);
+    await fails(save('sh', '2222', 'day_review', { day: d2, code: x }, { kind: 'off' }), /branch manager or operations only|wrong username or PIN/);
+    await fails(save('br', '1111', 'day_review', { day: d2, code: x }, { kind: 'bogus' }), /bad decision/);
+    await save('br', '1111', 'day_review', { day: d2, code: x }, { kind: 'off' });   // السبب اختياري
+    eq(await att(), { att: 'off', att_src: 'manual' });
+    // تحديث الشيت مبيلمسهوش، ومدير التشغيل بيشوف القرار ومين قرره
+    await db.query('select najm_att_sync_compact($1,$2,$3)', [px, md(px), 'f']);
+    eq((await att()).att, 'off');
+    const ops = await files('ops'); const done = ops.done.find(d => d.code === x);
+    eq([done.kind, done.by, ops.pending.some(p => p.code === x && p.day.slice(0, 10) === d2)], ['off', 'br', false]);
+    // تغيير القرار لغياب مع سبب، وبعدين التراجع ← غياب من الشيت (مستني)
+    await save('br', '1111', 'day_review', { day: d2, code: x }, { kind: 'abs', reason: 'غاب فعلاً' });
+    eq((await files('ops')).done.find(d => d.code === x).reason, 'غاب فعلاً');
+    await save('br', '1111', 'day_review', { day: d2, code: x }, null);
+    eq(await att(), { att: 'abs', att_src: 'sheet' });
+    // بعد ما الشهر يبقى نهائي مدير الفرع مبيغيّرش، والتشغيل يغيّر
+    await db.query("update najm_settings set data = jsonb_set(coalesce(data, '{}'::jsonb), '{monthsFinal}', jsonb_build_object($1::text, jsonb_build_object('by','ops'))) where id = 1", [mo]);
+    await fails(save('br', '1111', 'day_review', { day: d2, code: x }, { kind: 'off' }), /month is final/);
+    await save('ops', '0000', 'day_review', { day: d2, code: x }, { kind: 'leave' });
+    eq((await att()).att, 'off');
+    await db.query("update najm_settings set data = data - 'monthsFinal' where id = 1");
+    await db.query("delete from najm_alerts where kind = 'sheet_changed'");
+  });
   test('جدول الراحات: اليوم الفاضي المخطط = راحة (حتى يومين ورا بعض)، وغير المخطط = غياب، ومن غير جدول = الحساب القديم', async () => {
     const [x, y] = (await db.query("select code from najm_employees where branch=$1 and shift='Night' and dept<>'قسم البقاله' order by code limit 2 offset 12", [B])).rows.map(r => r.code);
     await fails(save('br', '1111', 'leave_plan', { month: '2026-06' }, { rows: [{ code: x, days: [2, 3] }] }), /operations manager only/);

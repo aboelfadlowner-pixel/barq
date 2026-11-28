@@ -31,7 +31,7 @@ function defaultState(){
     employees,
     days:{}, targets:{}, captains:{}, sales:{}, baseSales:{}, kpiVals:{}, complaints:[], notes:[], cards:[],
     mgrCrit:{}, ledger:[], market:[], offers:[],
-    appeals:[], attAppeals:[], closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[], cashierEvents:[], cashierPts:{}
+    appeals:[], attAppeals:[], dayReview:{pending:[],done:[],plan:{}}, closes:{}, history:[], empPins:{}, imports:[], moves:[], medals:[], tgtPenalties:{}, camMissing:{}, prayReviews:{}, penalties:[], alerts:[], cashierEvents:[], cashierPts:{}
   };
 }
 
@@ -151,6 +151,7 @@ async function pull(){
   N.cardCounts={};for(const c of cardsPub||[])N.cardCounts[c.code]={y:c.yellow,r:c.red,g:c.green,pts:+c.points};
   if(files){
     N.cards=(files.cards||[]).map(c=>({id:c.id,date:c.day,code:c.code,color:c.color,reason:c.reason,by:c.by_user,approved:c.approved,status:c.status,decidedBy:c.decided_by}));
+    N.dayReview=files.day_review||{pending:[],done:[],plan:{}};
     N.attAppeals=(files.att_appeals||[]).map(a=>({id:a.id,code:a.code,day:a.day,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note}));
     N.appeals=(files.appeals||[]).map(a=>({id:a.id,cardId:a.card_id,code:a.code,body:a.body,status:a.status,at:a.created_at,decidedBy:a.decided_by,note:a.decision_note,cardBy:a.card_by,cardDay:a.card_day,cardColor:a.card_color,cardReason:a.card_reason}));
     N.empPins=files.pins||{};

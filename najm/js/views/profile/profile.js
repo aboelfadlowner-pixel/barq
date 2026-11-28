@@ -90,6 +90,8 @@ function openMgrProfile(un){const u=(S.mgrs||S.users||[]).find(x=>x.username===u
 // ---------- مدير التشغيل: مستني قرارك ----------
 function opsPendingHTML(){
   const items=[];
+  const rp=reviewPending();if(rp)items.push([`🗓️ ${fmt(rp)} يوم فاضي محتاج مراجعة (متحسب غياب لحد ما يتقرر)`,"go('review')"]);
+  if(isOps()){const rd=(S.dayReview?.done||[]).filter(d=>Date.now()-new Date(d.at)<864e5).length;if(rd)items.push([`📝 ${fmt(rd)} قرار من المديرين على أيام فاضية في آخر 24 ساعة`,"go('review')"]);}
   const red=S.cards.filter(c=>cardStatus(c)==='pending').length;if(red)items.push([`🟥 ${fmt(red)} كارت أحمر مستني موافقتك`,"go('cards')"]);
   const ap=(S.appeals||[]).filter(a=>a.status==='pending').length+(S.attAppeals||[]).filter(a=>a.status==='pending').length;if(ap)items.push([`✋ ${fmt(ap)} اعتراض مستني قرارك`,"go('cards')"]);
   const cq=(S.complaints||[]).filter(c=>(c.status||'proven')==='pending'||c.appealStatus==='pending').length;if(cq)items.push([`⚠️ ${fmt(cq)} شكوى عميل مستنية مراجعتك`,"go('cards')"]);

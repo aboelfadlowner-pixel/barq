@@ -18,6 +18,7 @@ const TABS=[
   ['vote','صوّت لمديرك',()=>isEmp()],
   ['league','المديرين والسوق',()=>isMgr()&&!isLimited()],
   ['target',()=>isEmp()?'تارجت قسمي':'التارجت والكابتن',()=>!isGuest()],
+  ['review','أيام للمراجعة',()=>canReview()],
   ['cards','الكروت',()=>isMgr()&&!isHy()&&!isLimited()],
   ['emps','ملفات الموظفين',()=>isMgr()&&!isHy()&&!isLimited()],
   ['settings','الإعدادات',()=>isOps()],
@@ -25,7 +26,7 @@ const TABS=[
 ];
 function renderNav(){
   const pend=isOps()?S.cards.filter(c=>cardStatus(c)==='pending').length+(S.appeals||[]).filter(a=>a.status==='pending').length+(S.attAppeals||[]).filter(a=>a.status==='pending').length:0;
-  $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${typeof t[1]==='function'?t[1]():t[1]}${t[0]==='cards'&&pend?`<span class="cnt">${fmt(pend)}</span>`:''}</button>`).join('');
+  $('#nav').innerHTML=TABS.filter(t=>t[2]()).map(t=>`<button class="${VIEW===t[0]?'on':''}" onclick="go('${t[0]}')">${typeof t[1]==='function'?t[1]():t[1]}${t[0]==='review'&&reviewPending()?`<span class="cnt">${fmt(reviewPending())}</span>`:''}${t[0]==='cards'&&pend?`<span class="cnt">${fmt(pend)}</span>`:''}</button>`).join('');
   $('#roleBtn').innerHTML=USER?`🔐 ${esc(USER.name)} · ${ROLES[USER.role]} — خروج`:isEmp()?`👤 ${esc(emp(ME).name.split(' ')[0])} — خروج`:'دخول';
 }
 function go(v){VIEW=v;render();window.scrollTo(0,0);}
@@ -36,7 +37,7 @@ function render(){
   if(TVB){tvUpdate();return;}
   if(!TABS.find(t=>t[0]===VIEW&&t[2]()))VIEW='dash';
   renderNav();
-  $('#main').innerHTML=frozenBanner()+{screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,me:vMe,league:vLeague,progress:vProgress,vote:vVote,players:vPlayers,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,emps:vEmps,settings:vSettings}[VIEW]();
+  $('#main').innerHTML=frozenBanner()+{screens:()=>`<h2>📺 شاشة الفرع</h2><div class="card" style="max-width:520px"><div class="small muted" style="margin-bottom:8px">افتح رابط الفرع على التلفزيون وسيبه شغال — بيعرض رجل اليوم ودوري الأقسام والكابتن والكؤوس، وبيتحدث كل دقيقة.</div>${tvLinks()}</div>`,dash:vDash,me:vMe,league:vLeague,progress:vProgress,vote:vVote,players:vPlayers,rate:vRate,day:vDay,month:vMonth,target:vTarget,cards:vCards,review:vReview,emps:vEmps,settings:vSettings}[VIEW]();
 }
 const branches=()=>S.branches.map(b=>b.name);
 const deptsOf=b=>[...new Set(activeEmps().filter(e=>!b||e.branch===b).map(e=>e.dept).filter(Boolean))].sort();

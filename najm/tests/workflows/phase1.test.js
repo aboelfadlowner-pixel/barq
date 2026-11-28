@@ -75,6 +75,19 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     ok(r.total > 30, 'demo has ' + r.total);
     eq([r.a, r.had, r.b], [30, true, Math.min(60, r.total)]);
   });
+  test('أيام للمراجعة: مدير الفرع بيشوف الأيام الفاضية ويقرر، والتشغيل بيشوف القرار بإسم المدير', async () => {
+    const e = await p.evaluate(() => { const e = activeEmps().find(x => x.branch === 'البيطاش الرئيسي' && x.shift === 'Morning'); return { code: e.code, name: e.name }; });
+    await as({ username: 'haitham', name: 'هيثم', role: 'branch', branch: 'البيطاش الرئيسي', shift: '', depts: [] });
+    await p.evaluate(code => { S.dayReview = { pending: [{ code, day: '2026-11-04' }], done: [], plan: { [code]: ['2026-11-03', '2026-11-10'] } }; day('2026-11-04').att[code] = 'abs'; go('review'); }, e.code);
+    const t = await main(); ok(t.includes('أيام محتاجة مراجعة') && t.includes(e.name) && t.includes('متحسب غياب'), 'branch review screen');
+    await p.evaluate(code => { document.getElementById('rv-' + code + '-2026-11-04').value = 'بدّل راحته'; reviewDo(code, '2026-11-04', 'off'); }, e.code);
+    await p.waitForTimeout(150);
+    eq(await p.evaluate(code => [peekDay('2026-11-04').att[code], dayRev().pending.length, dayRev().done[0].by], e.code), ['off', 0, 'haitham']);
+    await as(OPS); await p.evaluate(() => go('review'));
+    const o = await main(); ok(o.includes('القرارات اللي اتاخدت') && o.includes('بدّل راحته') && o.includes('راحة'), 'ops does not see the decision');
+    await p.evaluate(code => reviewUndo(code, '2026-11-04'), e.code); await p.waitForTimeout(150);
+    eq(await p.evaluate(code => [peekDay('2026-11-04').att[code], dayRev().pending.length], e.code), ['abs', 1]);
+  });
   test('الاعتراض بيوصل لمدير التشغيل بس (المدير اللي ادى الكارت مبيشوفوش)', async () => {
     const issuer = card.by;
     await as({ username: issuer, name: issuer, role: issuer === 'haitham' ? 'branch' : 'shift', branch: 'البيطاش الرئيسي', shift: issuer === 'islam' ? 'Night' : 'Morning', depts: [] });
