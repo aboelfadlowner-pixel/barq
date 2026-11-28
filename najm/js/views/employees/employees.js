@@ -6,7 +6,7 @@ function vEmps(){
     ${isOps()?'<div class="lock" style="margin-bottom:10px">رفع الصور بالجملة: اختار كل الصور مرة واحدة، وكل صورة اسمها كود الموظف (زي 125.jpg) — بتتقص طولي زي كارت اللاعب وتترفع لوحدها.</div>':''}
     ${filterBar({scoped:true})}
     <div class="tbl-wrap"><table><thead><tr><th></th><th>الكود</th><th>الاسم</th><th>الفرع</th><th>القسم</th><th>الوظيفة</th><th>الشيفت</th><th>الشهر</th></tr></thead><tbody>
-    ${list.map(e=>{const ms=msOf(e);return `<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e,'sm')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b> ${e.video?'🎬':''}</td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td><td class="small">${kpiTxt(ms)} ${cardsHTML(ms.cards)}</td></tr>`;}).join('')}
+    ${(PG=>PG.items.map(e=>{const ms=msOf(e);return `<tr style="cursor:pointer" onclick="openEmp('${e.code}')"><td>${ava(e,'sm')}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b> ${e.video?'🎬':''}</td><td class="small">${esc(e.branch)}</td><td class="small">${esc(e.dept)}</td><td class="small">${esc(e.job)}</td><td class="small">${esc(e.shift)}</td><td class="small">${kpiTxt(ms)} ${cardsHTML(ms.cards)}</td></tr>`;}).join('')+moreBtn(PG,8))(pageList('emps',list))}
     </tbody></table></div>`;
 }
 function openEmp(code){

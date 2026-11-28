@@ -68,6 +68,13 @@ const { test, run, eq, ok, browser, openApp } = require('../helpers');
     await p.evaluate(() => { const a = S.attAppeals.find(x => x.status === 'pending'); decideAttAppeal(a.id, true); }); await answer('تمام');
     eq(await p.evaluate(d => [peekDay(d).att[S.attAppeals[0].code], S.attAppeals[0].status], day), ['off', 'accepted']);
   });
+  test('القوايم الطويلة: 30 موظف بس وزرار «عرض المزيد» بيزوّد 30', async () => {
+    await as(OPS);
+    const r = await p.evaluate(() => { const total = activeEmps().length; go('emps'); const a = document.querySelectorAll('#main tbody tr[onclick]').length; const had = /عرض المزيد/.test(document.querySelector('#main').innerText);
+      [...document.querySelectorAll('#main button')].find(x => /عرض المزيد/.test(x.innerText)).click(); const b = document.querySelectorAll('#main tbody tr[onclick]').length; return { total, a, had, b }; });
+    ok(r.total > 30, 'demo has ' + r.total);
+    eq([r.a, r.had, r.b], [30, true, Math.min(60, r.total)]);
+  });
   test('الاعتراض بيوصل لمدير التشغيل بس (المدير اللي ادى الكارت مبيشوفوش)', async () => {
     const issuer = card.by;
     await as({ username: issuer, name: issuer, role: issuer === 'haitham' ? 'branch' : 'shift', branch: 'البيطاش الرئيسي', shift: issuer === 'islam' ? 'Night' : 'Morning', depts: [] });
